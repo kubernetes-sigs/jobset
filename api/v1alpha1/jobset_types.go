@@ -14,6 +14,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -22,38 +24,53 @@ import (
 
 // JobSetSpec defines the desired state of JobSet
 type JobSetSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Jobs is the group of jobs that will form the set.
+	Jobs []JobTemplate `json:"jobs"`
 
-	// Foo is an example field of JobSet. Edit jobset_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// If sequentialStartup if set, then spec.jobs will be created one at a time
+	// according to their order in the list. A job is created only after
+	// the pods of the previous one are Ready.
+	SequentialStartup *bool `json:"sequentialStartup,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet
 type JobSetStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// A list of pointers to currently running jobs.
+	// +optional
+	Active []corev1.ObjectReference `json:"active,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 // JobSet is the Schema for the jobsets API
 type JobSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   JobSetSpec   `json:"spec,omitempty"`
-	Status JobSetStatus `json:"status,omitempty"`
+	Spec              JobSetSpec   `json:"spec,omitempty"`
+	Status            JobSetStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
+// +kubebuilder:object:root=true
 // JobSetList contains a list of JobSet
 type JobSetList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []JobSet `json:"items"`
+}
+type JobTemplate struct {
+	// Name is the name of the entry and will be used as a suffix
+	// for the Job name.
+	Name string `json:"name"`
+	// Template defines the template of the Job that will be created.
+	Template *batchv1.JobTemplateSpec `json:"template,omitempty"`
+	// Network defines the networking options for the job.
+	Network *Network `json:"network"`
+}
+type Network struct {
+	// HeadlessService determines if a headless service will be created for
+	// the associated job. The service name is the same as the JobSet name,
+	// which will also be set in the field spec.jobs[*].template.spec.subdomain.
+	HeadlessService *bool `json:"headlessService"`
 }
 
 func init() {
