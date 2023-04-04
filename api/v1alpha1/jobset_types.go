@@ -24,12 +24,9 @@ import (
 // JobSetSpec defines the desired state of JobSet
 type JobSetSpec struct {
 	// Jobs is the group of jobs that will form the set.
+	// +listType=map
+	// +listMapKey=name
 	Jobs []JobTemplate `json:"jobs"`
-
-	// If sequentialStartup if set, then spec.jobs will be created one at a time
-	// according to their order in the list. A job is created only after
-	// the pods of the previous one are Ready.
-	SequentialStartup *bool `json:"sequentialStartup,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet
@@ -58,15 +55,13 @@ type JobTemplate struct {
 	// for the Job name.
 	Name string `json:"name"`
 	// Template defines the template of the Job that will be created.
-	Template *batchv1.JobTemplateSpec `json:"template,omitempty"`
+	Template batchv1.JobTemplateSpec `json:"template,omitempty"`
 	// Network defines the networking options for the job.
 	Network *Network `json:"network"`
 }
 type Network struct {
-	// HeadlessService determines if a headless service will be created for
-	// the associated job. The service name is the same as the JobSet name,
-	// which will also be set in the field spec.jobs[*].template.spec.subdomain.
-	HeadlessService *bool `json:"headlessService"`
+	// EnableDNSHostnames allows pods to be reached via their hostnames.
+	EnableDNSHostnames bool `json:"enableDNSHostnames"`
 }
 
 func init() {

@@ -47,14 +47,12 @@ spec:
                       description: Network defines the networking options for the
                         job.
                       properties:
-                        headlessService:
-                          description: HeadlessService determines if a headless service
-                            will be created for the associated job. The service name
-                            is the same as the JobSet name, which will also be set
-                            in the field spec.jobs[*].template.spec.subdomain.
+                        enableDNSHostnames:
+                          description: EnableDNSHostnames allows pods to be reached
+                            via their hostnames.
                           type: boolean
                       required:
-                      - headlessService
+                      - enableDNSHostnames
                       type: object
                     template:
                       description: Template defines the template of the Job that will
@@ -9357,11 +9355,9 @@ spec:
                   - network
                   type: object
                 type: array
-              sequentialStartup:
-                description: If sequentialStartup if set, then spec.jobs will be created
-                  one at a time according to their order in the list. A job is created
-                  only after the pods of the previous one are Ready.
-                type: boolean
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
             required:
             - jobs
             type: object
