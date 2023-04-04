@@ -30,7 +30,7 @@ type JobSetSpec struct {
 	// If sequentialStartup if set, then spec.jobs will be created one at a time
 	// according to their order in the list. A job is created only after
 	// the pods of the previous one are Ready.
-	SequentialStartup *bool `json:"sequentialStartup,omitempty"`
+	SequentialStartup bool `json:"sequentialStartup,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet
@@ -70,7 +70,7 @@ type Network struct {
 	// HeadlessService determines if a headless service will be created for
 	// the associated job. The service name is the same as the JobSet name,
 	// which will also be set in the field spec.jobs[*].template.spec.subdomain.
-	HeadlessService *bool `json:"headlessService"`
+	HeadlessService bool `json:"headlessService"`
 }
 
 func init() {

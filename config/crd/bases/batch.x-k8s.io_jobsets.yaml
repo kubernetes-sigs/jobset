@@ -63,6 +63,23 @@ spec:
                         metadata:
                           description: 'Standard object''s metadata of the jobs created
                             from this template. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
+                          properties:
+                            annotations:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            finalizers:
+                              items:
+                                type: string
+                              type: array
+                            labels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            name:
+                              type: string
+                            namespace:
+                              type: string
                           type: object
                         spec:
                           description: 'Specification of the desired behavior of the
@@ -342,6 +359,23 @@ spec:
                                 metadata:
                                   description: 'Standard object''s metadata. More
                                     info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
+                                  properties:
+                                    annotations:
+                                      additionalProperties:
+                                        type: string
+                                      type: object
+                                    finalizers:
+                                      items:
+                                        type: string
+                                      type: array
+                                    labels:
+                                      additionalProperties:
+                                        type: string
+                                      type: object
+                                    name:
+                                      type: string
+                                    namespace:
+                                      type: string
                                   type: object
                                 spec:
                                   description: 'Specification of the desired behavior
@@ -2515,7 +2549,8 @@ spec:
                                                   that are used by this container.
                                                   \n This is an alpha field and requires
                                                   enabling the DynamicResourceAllocation
-                                                  feature gate. \n This field is immutable."
+                                                  feature gate. \n This field is immutable.
+                                                  It can only be set for containers."
                                                 items:
                                                   description: ResourceClaim references
                                                     one entry in PodSpec.ResourceClaims.
@@ -2531,7 +2566,9 @@ spec:
                                                   - name
                                                   type: object
                                                 type: array
-                                                x-kubernetes-list-type: set
+                                                x-kubernetes-list-map-keys:
+                                                - name
+                                                x-kubernetes-list-type: map
                                               limits:
                                                 additionalProperties:
                                                   anyOf:
@@ -4150,7 +4187,8 @@ spec:
                                                   that are used by this container.
                                                   \n This is an alpha field and requires
                                                   enabling the DynamicResourceAllocation
-                                                  feature gate. \n This field is immutable."
+                                                  feature gate. \n This field is immutable.
+                                                  It can only be set for containers."
                                                 items:
                                                   description: ResourceClaim references
                                                     one entry in PodSpec.ResourceClaims.
@@ -4166,7 +4204,9 @@ spec:
                                                   - name
                                                   type: object
                                                 type: array
-                                                x-kubernetes-list-type: set
+                                                x-kubernetes-list-map-keys:
+                                                - name
+                                                x-kubernetes-list-type: map
                                               limits:
                                                 additionalProperties:
                                                   anyOf:
@@ -5828,7 +5868,8 @@ spec:
                                                   that are used by this container.
                                                   \n This is an alpha field and requires
                                                   enabling the DynamicResourceAllocation
-                                                  feature gate. \n This field is immutable."
+                                                  feature gate. \n This field is immutable.
+                                                  It can only be set for containers."
                                                 items:
                                                   description: ResourceClaim references
                                                     one entry in PodSpec.ResourceClaims.
@@ -5844,7 +5885,9 @@ spec:
                                                   - name
                                                   type: object
                                                 type: array
-                                                x-kubernetes-list-type: set
+                                                x-kubernetes-list-map-keys:
+                                                - name
+                                                x-kubernetes-list-type: map
                                               limits:
                                                 additionalProperties:
                                                   anyOf:
@@ -7818,6 +7861,23 @@ spec:
                                                       it. No other fields are allowed
                                                       and will be rejected during
                                                       validation.
+                                                    properties:
+                                                      annotations:
+                                                        additionalProperties:
+                                                          type: string
+                                                        type: object
+                                                      finalizers:
+                                                        items:
+                                                          type: string
+                                                        type: array
+                                                      labels:
+                                                        additionalProperties:
+                                                          type: string
+                                                        type: object
+                                                      name:
+                                                        type: string
+                                                      namespace:
+                                                        type: string
                                                     type: object
                                                   spec:
                                                     description: The specification
@@ -8004,7 +8064,9 @@ spec:
                                                               an alpha field and requires
                                                               enabling the DynamicResourceAllocation
                                                               feature gate. \n This
-                                                              field is immutable."
+                                                              field is immutable.
+                                                              It can only be set for
+                                                              containers."
                                                             items:
                                                               description: ResourceClaim
                                                                 references one entry
@@ -8026,7 +8088,9 @@ spec:
                                                               - name
                                                               type: object
                                                             type: array
-                                                            x-kubernetes-list-type: set
+                                                            x-kubernetes-list-map-keys:
+                                                            - name
+                                                            x-kubernetes-list-type: map
                                                           limits:
                                                             additionalProperties:
                                                               anyOf:
