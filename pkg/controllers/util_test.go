@@ -147,27 +147,27 @@ func TestJobIndex(t *testing.T) {
 	}{
 		{
 			name:      "first",
-			jobName:   "job-1",
+			jobName:   "test-jobset-job-1",
 			wantIndex: 0,
 			wantErr:   "",
 		},
 		{
 			name:      "middle",
-			jobName:   "job-2",
+			jobName:   "test-jobset-job-2",
 			wantIndex: 1,
 			wantErr:   "",
 		},
 		{
 			name:      "last",
-			jobName:   "job-3",
+			jobName:   "test-jobset-job-3",
 			wantIndex: 2,
 			wantErr:   "",
 		},
 		{
 			name:      "not found",
-			jobName:   "job-4",
+			jobName:   "test-jobset-job-4",
 			wantIndex: -1,
-			wantErr:   "JobSet test-jobset does not contain Job job-4",
+			wantErr:   "JobSet test-jobset does not contain Job test-jobset-job-4",
 		},
 	}
 
@@ -184,7 +184,7 @@ func TestJobIndex(t *testing.T) {
 			// Handle unexpected errors.
 			if err != nil {
 				if tc.wantErr == "" {
-					t.Errorf("expected error, got nil")
+					t.Errorf("expected no error, got error: %v", err)
 				} else if !strings.Contains(err.Error(), tc.wantErr) {
 					t.Errorf("want error: %v, got: %v", tc.wantErr, err)
 				}

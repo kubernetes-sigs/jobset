@@ -142,11 +142,6 @@ func (in *Network) DeepCopy() *Network {
 func (in *ReplicatedJob) DeepCopyInto(out *ReplicatedJob) {
 	*out = *in
 	in.Template.DeepCopyInto(&out.Template)
-	if in.Replicas != nil {
-		in, out := &in.Replicas, &out.Replicas
-		*out = new(int32)
-		**out = **in
-	}
 	if in.Network != nil {
 		in, out := &in.Network, &out.Network
 		*out = new(Network)

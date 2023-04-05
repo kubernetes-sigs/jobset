@@ -16,8 +16,12 @@ package controllers
 import (
 	"context"
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,7 +29,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubeclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 	jobsetv1alpha "sigs.k8s.io/jobset/api/v1alpha1"
 )
@@ -33,8 +36,7 @@ import (
 // JobSetReconciler reconciles a JobSet object
 type JobSetReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
-	KubeClientSet *kubeclientset.Clientset
+	Scheme *runtime.Scheme
 	Clock
 }
 
@@ -48,6 +50,16 @@ var (
 	jobOwnerKey = ".metadata.controller"
 	apiGVStr    = jobsetv1alpha.GroupVersion.String()
 )
+
+// 1.444µs
+// 1.022188934s
+// 3.145383021s
+var defaultRetry = wait.Backoff{
+	Steps:    3,
+	Duration: 1 * time.Second,
+	Factor:   2.0,
+	Jitter:   0.1,
+}
 
 //+kubebuilder:rbac:groups=batch.x-k8s.io,resources=jobsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch.x-k8s.io,resources=jobsets/status,verbs=get;update;patch
@@ -66,14 +78,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// on deleted requests.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-
-	jobs, err := r.getChildJobs(ctx, &jobSet, req)
-	if err != nil {
-		klog.Errorf("error getting child jobs: %v", err)
-		return ctrl.Result{}, nil
-	}
-
-	r.cleanUpOldJobs(ctx, jobs)
 
 	if err := r.createReadyJobs(ctx, req, &jobSet); err != nil {
 		klog.Errorf("error creating ready jobs: %v", err)
@@ -119,11 +123,18 @@ func (r *JobSetReconciler) constructJobFromTemplate(jobSet *jobsetv1alpha.JobSet
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      make(map[string]string),
 			Annotations: make(map[string]string),
-			Name:        jobTemplate.Template.Name,
+			Name:        generateJobName(jobSet, jobTemplate),
 			Namespace:   jobSet.Namespace,
 		},
 		Spec: *jobTemplate.Template.Spec.DeepCopy(),
 	}
+
+	// If enableDNSHostnames is set, update job spec to set subdomain as
+	// job name (a headless service with same name as job will be created later).
+	if jobTemplate.Network.EnableDNSHostnames != nil && *jobTemplate.Network.EnableDNSHostnames {
+		job.Spec.Template.Spec.Subdomain = job.Name
+	}
+
 	// Set controller owner reference for garbage collection and reconcilation.
 	if err := ctrl.SetControllerReference(jobSet, job, r.Scheme); err != nil {
 		return nil, err
@@ -179,7 +190,7 @@ func (r *JobSetReconciler) createReadyJobs(ctx context.Context, req ctrl.Request
 		}
 
 		// Skip the job if it is already active or succeeded.
-		skip, err := r.shouldSkipJob(job)
+		skip, err := r.shouldSkipJob(ctx, job)
 		if err != nil {
 			return err
 		}
@@ -190,28 +201,57 @@ func (r *JobSetReconciler) createReadyJobs(ctx context.Context, req ctrl.Request
 
 		klog.Infof("creating job %s", job.Name)
 
-		// First create headless service if specified for this job.
-		if jobTemplate.Network.EnableDNSHostnames != nil && *jobTemplate.Network.EnableDNSHostnames {
-			if err := r.createHeadlessSvcIfNotExist(ctx, req, jobSet, job); err != nil {
-				return err
-			}
-			// Update job spec to set subdomain as headless service name (will always be same as job name)
-			job.Spec.Template.Spec.Subdomain = job.Name
-		}
-
+		// Job must be created before headless service so that the job.spec.selector
+		// field is populated.
 		if err := r.Create(ctx, job); err != nil {
 			klog.Error(err, "unable to create Job for JobSet", "job", job)
 			return err
 		}
 
-		klog.Info("created Job for JobSet run", "job", job)
+		// Next, create headless service if specified for this job.
+		if jobTemplate.Network.EnableDNSHostnames != nil && *jobTemplate.Network.EnableDNSHostnames {
+			if err := r.createHeadlessSvcIfNotExist(ctx, req, jobSet, job); err != nil {
+				klog.Infof("error creating headless service: %v", err)
+				return err
+			}
+		}
+
+		klog.Info("created Job for JobSet", "job", job)
 	}
 	return nil
 }
 
+// TODO: look into adopting service and updating the selector
+// if it is not matching the job selector.
 func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, req ctrl.Request, jobSet *jobsetv1alpha.JobSet, job *batchv1.Job) error {
 	// Check if service already exists. Service name is same as job name.
-	if _, err := r.KubeClientSet.CoreV1().Services(req.Namespace).Get(ctx, job.Name, metav1.GetOptions{}); err != nil {
+	var headlessSvc corev1.Service
+	namespacedSvc := types.NamespacedName{Namespace: jobSet.Namespace, Name: job.Name}
+
+	if err := r.Get(ctx, namespacedSvc, &headlessSvc); err != nil {
+
+		// Get updated job object from apiserver which will have the selector populated.
+		namespacedJob := types.NamespacedName{Name: job.Name, Namespace: jobSet.Namespace}
+
+		// Need to retry in case the freshly created job object has not been persisted quite yet.
+		if err := retry.OnError(
+			defaultRetry,
+			func(error) bool { return true }, // always retry
+			func() error {
+				if err := r.Get(ctx, namespacedJob, job); err != nil {
+					return err
+				}
+				return nil
+			},
+		); err != nil {
+			return err
+		}
+
+		// Construct headless service defintion.
+		selectorMap, err := metav1.LabelSelectorAsMap(job.Spec.Selector)
+		if err != nil {
+			return err
+		}
 		headlessSvc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      job.Name,
@@ -219,22 +259,18 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, req 
 			},
 			Spec: corev1.ServiceSpec{
 				ClusterIP: "None",
-				Ports: []corev1.ServicePort{
-					{
-						Port: 8443,
-					},
-				},
-				Selector: map[string]string{
-					"job-name": job.Name,
-				},
+				Selector:  selectorMap,
 			},
 		}
+
 		// set controller owner reference for garbage collection and reconcilation
 		if err := ctrl.SetControllerReference(jobSet, &headlessSvc, r.Scheme); err != nil {
 			klog.Error(err, "error setting controller owner reference for headless service", "service", headlessSvc)
 			return err
 		}
-		if _, err := r.KubeClientSet.CoreV1().Services(req.Namespace).Create(ctx, &headlessSvc, metav1.CreateOptions{}); err != nil {
+
+		// Create headless service.
+		if err := r.Create(ctx, &headlessSvc); err != nil {
 			klog.Error(err, "unable to create headless service", "service", headlessSvc)
 			return err
 		}
@@ -242,10 +278,10 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, req 
 	return nil
 }
 
-func (r *JobSetReconciler) shouldSkipJob(job *batchv1.Job) (bool, error) {
+func (r *JobSetReconciler) shouldSkipJob(ctx context.Context, job *batchv1.Job) (bool, error) {
 	// Get updated job status
-	job, err := r.KubeClientSet.BatchV1().Jobs(job.Namespace).Get(context.Background(), job.Name, metav1.GetOptions{})
-	if err != nil {
+	namespacedJob := types.NamespacedName{Namespace: job.Namespace, Name: job.Name}
+	if err := r.Get(ctx, namespacedJob, job); err != nil {
 		// if job does not exist yet, do not skip it, since it needs to be created
 		if strings.Contains(err.Error(), "not found") {
 			return false, nil

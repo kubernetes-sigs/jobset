@@ -43,9 +43,13 @@ func IsJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 
 func jobIndex(jobSet *jobsetv1alpha.JobSet, job *batchv1.Job) (int, error) {
 	for i, jobTemplate := range jobSet.Spec.Jobs {
-		if jobTemplate.Template.Name == job.Name {
+		if generateJobName(jobSet, &jobTemplate) == job.Name {
 			return i, nil
 		}
 	}
 	return -1, fmt.Errorf("JobSet %s does not contain Job %s", jobSet.Name, job.Name)
+}
+
+func generateJobName(jobSet *jobsetv1alpha.JobSet, jobTemplate *jobsetv1alpha.ReplicatedJob) string {
+	return fmt.Sprintf("%s-%s", jobSet.Name, jobTemplate.Template.Name)
 }
