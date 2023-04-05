@@ -51,8 +51,6 @@ spec:
                           description: EnableDNSHostnames allows pods to be reached
                             via their hostnames.
                           type: boolean
-                      required:
-                      - enableDNSHostnames
                       type: object
                     template:
                       description: Template defines the template of the Job that will
@@ -9427,6 +9425,26 @@ spec:
             type: object
           status:
             description: JobSetStatus defines the observed state of JobSet
+            properties:
+              conditions:
+                items:
+                  description: JobSetCondition describes current state of a JobSet.
+                  properties:
+                    message:
+                      description: Human readable message indicating details about
+                        last transition.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type of JobSet condition, Complete or Failed.
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
             type: object
         type: object
     served: true

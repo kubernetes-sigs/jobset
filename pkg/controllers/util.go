@@ -15,22 +15,12 @@ package controllers
 
 import (
 	"fmt"
-	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	jobsetv1alpha "sigs.k8s.io/jobset/api/v1alpha1"
+
+	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 )
-
-type realClock struct{}
-
-func (_ realClock) Now() time.Time { return time.Now() }
-
-// clock knows how to get the current time.
-// It can be used to fake out timing for testing.
-type Clock interface {
-	Now() time.Time
-}
 
 func IsJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 	for _, c := range job.Status.Conditions {
@@ -41,15 +31,21 @@ func IsJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 	return false, ""
 }
 
-func jobIndex(jobSet *jobsetv1alpha.JobSet, job *batchv1.Job) (int, error) {
-	for i, jobTemplate := range jobSet.Spec.Jobs {
-		if generateJobName(jobSet, &jobTemplate) == job.Name {
+func jobIndex(js *jobset.JobSet, job *batchv1.Job) (int, error) {
+	for i, jobTemplate := range js.Spec.Jobs {
+		if genJobName(js, &jobTemplate) == job.Name {
 			return i, nil
 		}
 	}
-	return -1, fmt.Errorf("JobSet %s does not contain Job %s", jobSet.Name, job.Name)
+	return -1, fmt.Errorf("JobSet %s does not contain Job %s", js.Name, job.Name)
 }
 
-func generateJobName(jobSet *jobsetv1alpha.JobSet, jobTemplate *jobsetv1alpha.ReplicatedJob) string {
-	return fmt.Sprintf("%s-%s", jobSet.Name, jobTemplate.Template.Name)
+func genJobName(js *jobset.JobSet, jobTemplate *jobset.ReplicatedJob) string {
+	return fmt.Sprintf("%s-%s", js.Name, jobTemplate.Template.Name)
+}
+
+func genLabelSelector(job *batchv1.Job) map[string]string {
+	return map[string]string{
+		jobLabelKey: fmt.Sprintf("%s.%s", job.Namespace, job.Name),
+	}
 }
