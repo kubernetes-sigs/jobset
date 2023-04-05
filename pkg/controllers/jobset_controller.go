@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	ref "k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -74,10 +73,10 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	if err := r.updateStatus(ctx, &jobSet, jobs); err != nil {
-		klog.Errorf("error updating status: %v", err)
-		return ctrl.Result{}, nil
-	}
+	// if err := r.updateStatus(ctx, &jobSet, jobs); err != nil {
+	// 	klog.Errorf("error updating status: %v", err)
+	// 	return ctrl.Result{}, nil
+	// }
 
 	r.cleanUpOldJobs(ctx, jobs)
 
@@ -176,28 +175,6 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, jobSet *jobsetv1alp
 	return &jobs, nil
 }
 
-// updateStatus
-func (r *JobSetReconciler) updateStatus(ctx context.Context, jobSet *jobsetv1alpha.JobSet, jobs *childJobs) error {
-	// TODO: Why is .Status.Active type []*corev1.ObjectReference instead of []*batchv1.Job?
-	// Is it because this is a generic way for kubebuilder to generate boilerplate data structures for CRDs?
-	jobSet.Status.Active = nil
-	for _, activeJob := range jobs.active {
-		jobRef, err := ref.GetReference(r.Scheme, activeJob)
-		if err != nil {
-			klog.Error(err, "unable to make reference to active job", "job", activeJob)
-			continue
-		}
-		jobSet.Status.Active = append(jobSet.Status.Active, *jobRef)
-	}
-
-	if err := r.Status().Update(ctx, jobSet); err != nil {
-		klog.Error(err, "unable to update JobSet status")
-		return err
-	}
-	klog.V(1).Info("job count", "active jobs", len(jobs.active), "successful jobs", len(jobs.successful), "failed jobs", len(jobs.failed))
-	return nil
-}
-
 func (r *JobSetReconciler) createReadyJobs(ctx context.Context, req ctrl.Request, jobSet *jobsetv1alpha.JobSet) error {
 	for _, jobTemplate := range jobSet.Spec.Jobs {
 		job, err := r.constructJobFromTemplate(jobSet, &jobTemplate)
@@ -216,22 +193,10 @@ func (r *JobSetReconciler) createReadyJobs(ctx context.Context, req ctrl.Request
 			continue
 		}
 
-		// Start the job if it is ready to start.
-		start, err := r.shouldStartJob(jobSet, job)
-		if err != nil {
-			return err
-		}
-
-		// If sequential startup is enabled, we can skip checking the remaining
-		// jobs if we cannot start this one.
-		if !start && jobSet.Spec.SequentialStartup {
-			break
-		}
-
 		klog.Infof("creating job %s", job.Name)
 
 		// First create headless service if specified for this job.
-		if jobTemplate.Network.HeadlessService {
+		if jobTemplate.Network.EnableDNSHostnames != nil && *jobTemplate.Network.EnableDNSHostnames {
 			if err := r.createHeadlessSvcIfNotExist(ctx, req, jobSet, job); err != nil {
 				return err
 			}
@@ -279,36 +244,6 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, req 
 		}
 	}
 	return nil
-}
-
-func (r *JobSetReconciler) shouldStartJob(jobSet *jobsetv1alpha.JobSet, job *batchv1.Job) (bool, error) {
-	jobIdx, err := jobIndex(jobSet, job)
-	if err != nil {
-		return false, err
-	}
-	// First job should always return true, since at this point we have already
-	// checked if the job should be skipped (i.e. is active or completed)
-	if jobIdx == 0 {
-		return true, nil
-	}
-
-	// If sequential startup is enabled, job cannot start until prev job is ready
-	if jobSet.Spec.SequentialStartup {
-		prevJobTemplate := jobSet.Spec.Jobs[jobIdx-1]
-		prevJob, err := r.constructJobFromTemplate(jobSet, &prevJobTemplate)
-		if err != nil {
-			klog.Errorf("error constructing job from template: %v", err)
-			return false, err
-		}
-		ready, err := r.isJobReady(prevJob)
-		if err != nil {
-			klog.Errorf("error checking if job is ready: %v", err)
-			return false, err
-		}
-		return ready, nil
-	}
-	// Otherwise job can start immediately
-	return true, nil
 }
 
 func (r *JobSetReconciler) shouldSkipJob(job *batchv1.Job) (bool, error) {

@@ -114,7 +114,7 @@ func TestJobIndex(t *testing.T) {
 			Jobs: []jobsetv1alpha1.JobTemplate{
 				{
 					Name: "template-1",
-					Template: &batchv1.JobTemplateSpec{
+					Template: batchv1.JobTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "job-1",
 						},
@@ -122,7 +122,7 @@ func TestJobIndex(t *testing.T) {
 				},
 				{
 					Name: "template-2",
-					Template: &batchv1.JobTemplateSpec{
+					Template: batchv1.JobTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "job-2",
 						},
@@ -130,7 +130,7 @@ func TestJobIndex(t *testing.T) {
 				},
 				{
 					Name: "template-3",
-					Template: &batchv1.JobTemplateSpec{
+					Template: batchv1.JobTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "job-3",
 						},
