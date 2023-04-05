@@ -26,7 +26,7 @@ type JobSetSpec struct {
 	// Jobs is the group of jobs that will form the set.
 	// +listType=map
 	// +listMapKey=name
-	Jobs []JobTemplate `json:"jobs"`
+	Jobs []ReplicatedJob `json:"jobs"`
 }
 
 // JobSetStatus defines the observed state of JobSet
@@ -50,18 +50,20 @@ type JobSetList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []JobSet `json:"items"`
 }
-type JobTemplate struct {
+type ReplicatedJob struct {
 	// Name is the name of the entry and will be used as a suffix
 	// for the Job name.
 	Name string `json:"name"`
 	// Template defines the template of the Job that will be created.
 	Template batchv1.JobTemplateSpec `json:"template,omitempty"`
+	// Replicas is the number of identical replicas of this job.
+	Replicas *int32 `json:"replicas"`
 	// Network defines the networking options for the job.
 	Network *Network `json:"network"`
 }
 type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
-	EnableDNSHostnames bool `json:"enableDNSHostnames"`
+	EnableDNSHostnames *bool `json:"enableDNSHostnames"`
 }
 
 func init() {

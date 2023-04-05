@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	kubeclientset "k8s.io/client-go/kubernetes"
 	jobsetv1alpha1 "sigs.k8s.io/jobset/api/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	//+kubebuilder:scaffold:imports
@@ -89,9 +90,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	cfg := mgr.GetConfig()
+	kubeClientSet := kubeclientset.NewForConfigOrDie(cfg)
+
 	if err = (&controllers.JobSetReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		KubeClientSet: kubeClientSet,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "JobSet")
 		os.Exit(1)

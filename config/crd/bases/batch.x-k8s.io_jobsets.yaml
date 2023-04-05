@@ -54,6 +54,11 @@ spec:
                       required:
                       - enableDNSHostnames
                       type: object
+                    replicas:
+                      description: Replicas is the number of identical replicas of
+                        this job.
+                      format: int32
+                      type: integer
                     template:
                       description: Template defines the template of the Job that will
                         be created.
@@ -61,6 +66,23 @@ spec:
                         metadata:
                           description: 'Standard object''s metadata of the jobs created
                             from this template. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
+                          properties:
+                            annotations:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            finalizers:
+                              items:
+                                type: string
+                              type: array
+                            labels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            name:
+                              type: string
+                            namespace:
+                              type: string
                           type: object
                         spec:
                           description: 'Specification of the desired behavior of the
@@ -340,6 +362,23 @@ spec:
                                 metadata:
                                   description: 'Standard object''s metadata. More
                                     info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
+                                  properties:
+                                    annotations:
+                                      additionalProperties:
+                                        type: string
+                                      type: object
+                                    finalizers:
+                                      items:
+                                        type: string
+                                      type: array
+                                    labels:
+                                      additionalProperties:
+                                        type: string
+                                      type: object
+                                    name:
+                                      type: string
+                                    namespace:
+                                      type: string
                                   type: object
                                 spec:
                                   description: 'Specification of the desired behavior
@@ -2529,7 +2568,9 @@ spec:
                                                   - name
                                                   type: object
                                                 type: array
-                                                x-kubernetes-list-type: set
+                                                x-kubernetes-list-map-keys:
+                                                - name
+                                                x-kubernetes-list-type: map
                                               limits:
                                                 additionalProperties:
                                                   anyOf:
@@ -4164,7 +4205,9 @@ spec:
                                                   - name
                                                   type: object
                                                 type: array
-                                                x-kubernetes-list-type: set
+                                                x-kubernetes-list-map-keys:
+                                                - name
+                                                x-kubernetes-list-type: map
                                               limits:
                                                 additionalProperties:
                                                   anyOf:
@@ -5842,7 +5885,9 @@ spec:
                                                   - name
                                                   type: object
                                                 type: array
-                                                x-kubernetes-list-type: set
+                                                x-kubernetes-list-map-keys:
+                                                - name
+                                                x-kubernetes-list-type: map
                                               limits:
                                                 additionalProperties:
                                                   anyOf:
@@ -7816,6 +7861,23 @@ spec:
                                                       it. No other fields are allowed
                                                       and will be rejected during
                                                       validation.
+                                                    properties:
+                                                      annotations:
+                                                        additionalProperties:
+                                                          type: string
+                                                        type: object
+                                                      finalizers:
+                                                        items:
+                                                          type: string
+                                                        type: array
+                                                      labels:
+                                                        additionalProperties:
+                                                          type: string
+                                                        type: object
+                                                      name:
+                                                        type: string
+                                                      namespace:
+                                                        type: string
                                                     type: object
                                                   spec:
                                                     description: The specification
@@ -8024,7 +8086,9 @@ spec:
                                                               - name
                                                               type: object
                                                             type: array
-                                                            x-kubernetes-list-type: set
+                                                            x-kubernetes-list-map-keys:
+                                                            - name
+                                                            x-kubernetes-list-type: map
                                                           limits:
                                                             additionalProperties:
                                                               anyOf:
@@ -9353,6 +9417,7 @@ spec:
                   required:
                   - name
                   - network
+                  - replicas
                   type: object
                 type: array
                 x-kubernetes-list-map-keys:
