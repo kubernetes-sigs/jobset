@@ -202,7 +202,6 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		// Check if we need to create this job.
 		// If not, skip this job and continue iterating to the next job.
 		if create := r.shouldCreateJob(ctx, job, ownedJobs); !create {
-			klog.Infof("job %s already exists, not creating", job.Name)
 			continue
 		}
 
@@ -216,6 +215,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		}
 
 		// Create the job.
+		// TODO: Deal with the case where the job exists but is not owned by the jobset.
 		klog.Infof("creating job %s", job.Name)
 		if err := r.Create(ctx, job); err != nil {
 			klog.Errorf("error creating job %s: %v", job.Name, err)
@@ -240,6 +240,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 			Spec: corev1.ServiceSpec{
 				ClusterIP: "None",
 				Selector: map[string]string{
+					// TODO: Migrate to the fully qualified label name.
 					"job-name": job.Name,
 				},
 			},
