@@ -292,7 +292,6 @@ func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, 
 		klog.Error(err, "unable to update JobSet status")
 		return err
 	}
-	klog.Infof("jobset %s condition: %v", js.Name, condition)
 	return nil
 }
 
