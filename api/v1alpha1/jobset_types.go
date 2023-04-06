@@ -18,19 +18,32 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const JobLabelKey string = "jobset.sigs.k8s.io/job-name"
+
+type JobSetConditionType string
+
+// These are built-in conditions of a JobSet.
+const (
+	// JobSetComplete means the job has completed its execution.
+	JobSetCompleted JobSetConditionType = "Completed"
+	// JobSetFailed means the job has failed its execution.
+	JobSetFailed JobSetConditionType = "Failed"
+)
 
 // JobSetSpec defines the desired state of JobSet
 type JobSetSpec struct {
 	// Jobs is the group of jobs that will form the set.
 	// +listType=map
 	// +listMapKey=name
-	Jobs []JobTemplate `json:"jobs"`
+	Jobs []ReplicatedJob `json:"jobs"`
 }
 
 // JobSetStatus defines the observed state of JobSet
 type JobSetStatus struct {
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -50,7 +63,7 @@ type JobSetList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []JobSet `json:"items"`
 }
-type JobTemplate struct {
+type ReplicatedJob struct {
 	// Name is the name of the entry and will be used as a suffix
 	// for the Job name.
 	Name string `json:"name"`
@@ -61,7 +74,8 @@ type JobTemplate struct {
 }
 type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
-	EnableDNSHostnames bool `json:"enableDNSHostnames"`
+	// +optional
+	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
 }
 
 func init() {
