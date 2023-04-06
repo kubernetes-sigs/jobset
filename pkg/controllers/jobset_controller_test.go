@@ -14,14 +14,11 @@ limitations under the License.
 package controllers
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	jobsetv1alpha1 "sigs.k8s.io/jobset/api/v1alpha1"
 )
 
 func TestIsJobFinished(t *testing.T) {
@@ -90,7 +87,7 @@ func TestIsJobFinished(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			finished, conditionType := IsJobFinished(&batchv1.Job{
+			finished, conditionType := isJobFinished(&batchv1.Job{
 				Status: batchv1.JobStatus{
 					Conditions: tc.conditions,
 				},
@@ -100,103 +97,6 @@ func TestIsJobFinished(t *testing.T) {
 			}
 			if diff := cmp.Diff(tc.wantConditionType, conditionType); diff != "" {
 				t.Errorf("unexpected condition type (+got/-want): %s", diff)
-			}
-		})
-	}
-}
-
-func TestJobIndex(t *testing.T) {
-	jobSet := &jobsetv1alpha1.JobSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-jobset",
-		},
-		Spec: jobsetv1alpha1.JobSetSpec{
-			Jobs: []jobsetv1alpha1.ReplicatedJob{
-				{
-					Name: "template-1",
-					Template: batchv1.JobTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "job-1",
-						},
-					},
-				},
-				{
-					Name: "template-2",
-					Template: batchv1.JobTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "job-2",
-						},
-					},
-				},
-				{
-					Name: "template-3",
-					Template: batchv1.JobTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "job-3",
-						},
-					},
-				},
-			},
-		},
-	}
-	tests := []struct {
-		name      string
-		jobName   string
-		wantIndex int
-		wantErr   string
-	}{
-		{
-			name:      "first",
-			jobName:   "test-jobset-job-1",
-			wantIndex: 0,
-			wantErr:   "",
-		},
-		{
-			name:      "middle",
-			jobName:   "test-jobset-job-2",
-			wantIndex: 1,
-			wantErr:   "",
-		},
-		{
-			name:      "last",
-			jobName:   "test-jobset-job-3",
-			wantIndex: 2,
-			wantErr:   "",
-		},
-		{
-			name:      "not found",
-			jobName:   "test-jobset-job-4",
-			wantIndex: -1,
-			wantErr:   "JobSet test-jobset does not contain Job test-jobset-job-4",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			job := &batchv1.Job{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: tc.jobName,
-				},
-			}
-
-			gotIndex, err := jobIndex(jobSet, job)
-
-			// Handle unexpected errors.
-			if err != nil {
-				if tc.wantErr == "" {
-					t.Errorf("expected no error, got error: %v", err)
-				} else if !strings.Contains(err.Error(), tc.wantErr) {
-					t.Errorf("want error: %v, got: %v", tc.wantErr, err)
-				}
-				return
-			}
-
-			// Handle missing errors we were expecting.
-			if tc.wantErr != "" {
-				t.Errorf("want error: %s, got nil", tc.wantErr)
-			}
-			if gotIndex != tc.wantIndex {
-				t.Errorf("want index: %d, got: %d", tc.wantIndex, gotIndex)
 			}
 		})
 	}

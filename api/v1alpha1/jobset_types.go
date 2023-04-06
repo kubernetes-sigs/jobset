@@ -15,16 +15,17 @@ package v1alpha1
 
 import (
 	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+const JobLabelKey string = "jobset.sigs.k8s.io/job-name"
 
 type JobSetConditionType string
 
 // These are built-in conditions of a JobSet.
 const (
 	// JobSetComplete means the job has completed its execution.
-	JobSetComplete JobSetConditionType = "Complete"
+	JobSetCompleted JobSetConditionType = "Completed"
 	// JobSetFailed means the job has failed its execution.
 	JobSetFailed JobSetConditionType = "Failed"
 )
@@ -39,7 +40,10 @@ type JobSetSpec struct {
 
 // JobSetStatus defines the observed state of JobSet
 type JobSetStatus struct {
-	Conditions []JobSetCondition `json:"conditions,omitempty"`
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -72,17 +76,6 @@ type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
 	// +optional
 	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
-}
-
-// JobSetCondition describes current state of a JobSet.
-type JobSetCondition struct {
-	// Type of JobSet condition, Complete or Failed.
-	Type JobSetConditionType `json:"type" protobuf:"bytes,1,opt,name=type,casttype=JobConditionType"`
-	// Status of the condition, one of True, False, Unknown.
-	Status corev1.ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status,casttype=k8s.io/api/core/v1.ConditionStatus"`
-	// Human readable message indicating details about last transition.
-	// +optional
-	Message string `json:"message,omitempty" protobuf:"bytes,6,opt,name=message"`
 }
 
 func init() {
