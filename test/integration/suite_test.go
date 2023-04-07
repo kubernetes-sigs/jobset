@@ -101,9 +101,6 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	// err := k8sClient.DeleteAllOf(ctx, &jobsetv1alpha.JobSet{})
-	// Expect(err).NotTo(HaveOccurred())
-
 	// https://github.com/kubernetes-sigs/controller-runtime/issues/1571
 	cancel()
 	By("tearing down the test environment,but I do nothing here.")
