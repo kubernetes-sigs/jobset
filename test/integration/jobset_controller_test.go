@@ -40,6 +40,7 @@ const (
 type jobSetArgs struct {
 	name               string
 	namespace          string
+	numJobs            int
 	enableDNSHostnames bool
 }
 
@@ -78,6 +79,7 @@ var _ = Describe("JobSet controller", func() {
 			js := constructJobSet(&jobSetArgs{
 				name:      "js-simple",
 				namespace: ns.Name,
+				numJobs:   3,
 			})
 			Expect(k8sClient.Create(ctx, js)).Should(Succeed())
 
@@ -112,6 +114,7 @@ var _ = Describe("JobSet controller", func() {
 			js := constructJobSet(&jobSetArgs{
 				name:      "js-failed",
 				namespace: ns.Name,
+				numJobs:   3,
 			})
 			Expect(k8sClient.Create(ctx, js)).Should(Succeed())
 
@@ -151,6 +154,7 @@ var _ = Describe("JobSet controller", func() {
 			js := constructJobSet(&jobSetArgs{
 				name:               "js-enable-hostnames",
 				namespace:          ns.Name,
+				numJobs:            3,
 				enableDNSHostnames: true,
 			})
 			Expect(k8sClient.Create(ctx, js)).Should(Succeed())
@@ -213,10 +217,9 @@ func assertJobSetStatus(js *jobset.JobSet, condition jobset.JobSetConditionType)
 	return false, nil
 }
 
-// returns JobSet with 3 dummy jobs
 func constructJobSet(args *jobSetArgs) *jobset.JobSet {
 	indexedCompletionMode := batchv1.IndexedCompletion
-	return &jobset.JobSet{
+	js := &jobset.JobSet{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "batch.x-k8s.io/v1alpha",
 			Kind:       "JobSet",
@@ -226,86 +229,36 @@ func constructJobSet(args *jobSetArgs) *jobset.JobSet {
 			Namespace: args.namespace,
 		},
 		Spec: jobset.JobSetSpec{
-			Jobs: []jobset.ReplicatedJob{
-				{
-					Name:    fmt.Sprintf("%s-job-template-0", args.name),
-					Network: &jobset.Network{EnableDNSHostnames: pointer.Bool(args.enableDNSHostnames)},
-					Template: batchv1.JobTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("%s-job-0", args.name),
-							Namespace: args.name,
-						},
-						Spec: batchv1.JobSpec{
-							CompletionMode: &indexedCompletionMode,
-							Parallelism:    pointer.Int32(1),
-							Completions:    pointer.Int32(1),
-							Template: corev1.PodTemplateSpec{
-								Spec: corev1.PodSpec{
-									RestartPolicy: "Never",
-									Containers: []corev1.Container{
-										{
-											Name:  "test-container",
-											Image: "busybox:latest",
-										},
-									},
-								},
-							},
-						},
-					},
+			Jobs: []jobset.ReplicatedJob{},
+		},
+	}
+	for i := 0; i < args.numJobs; i++ {
+		js.Spec.Jobs = append(js.Spec.Jobs, jobset.ReplicatedJob{
+			Name:    fmt.Sprintf("%s-job-template-%d", args.name, i),
+			Network: &jobset.Network{EnableDNSHostnames: pointer.Bool(args.enableDNSHostnames)},
+			Template: batchv1.JobTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s-job-%d", args.name, i),
+					Namespace: args.namespace,
 				},
-				{
-					Name:    fmt.Sprintf("%s-job-template-1", args.name),
-					Network: &jobset.Network{EnableDNSHostnames: pointer.Bool(args.enableDNSHostnames)},
-					Template: batchv1.JobTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("%s-job-1", args.name),
-							Namespace: args.namespace,
-						},
-						Spec: batchv1.JobSpec{
-							CompletionMode: &indexedCompletionMode,
-							Parallelism:    pointer.Int32(1),
-							Completions:    pointer.Int32(1),
-							Template: corev1.PodTemplateSpec{
-								Spec: corev1.PodSpec{
-									RestartPolicy: "Never",
-									Containers: []corev1.Container{
-										{
-											Name:  "test-container",
-											Image: "busybox:latest",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-				{
-					Name:    fmt.Sprintf("%s-job-template-2", args.name),
-					Network: &jobset.Network{EnableDNSHostnames: pointer.Bool(args.enableDNSHostnames)},
-					Template: batchv1.JobTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("%s-job-2", args.name),
-							Namespace: args.namespace,
-						},
-						Spec: batchv1.JobSpec{
-							CompletionMode: &indexedCompletionMode,
-							Parallelism:    pointer.Int32(1),
-							Completions:    pointer.Int32(1),
-							Template: corev1.PodTemplateSpec{
-								Spec: corev1.PodSpec{
-									RestartPolicy: "Never",
-									Containers: []corev1.Container{
-										{
-											Name:  "test-container",
-											Image: "busybox:latest",
-										},
-									},
+				Spec: batchv1.JobSpec{
+					CompletionMode: &indexedCompletionMode,
+					Parallelism:    pointer.Int32(1),
+					Completions:    pointer.Int32(1),
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							RestartPolicy: "Never",
+							Containers: []corev1.Container{
+								{
+									Name:  "test-container",
+									Image: "busybox:latest",
 								},
 							},
 						},
 					},
 				},
 			},
-		},
+		})
 	}
+	return js
 }
