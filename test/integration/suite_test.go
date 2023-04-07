@@ -17,7 +17,6 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -103,12 +102,7 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	// https://github.com/kubernetes-sigs/controller-runtime/issues/1571
 	cancel()
-	By("tearing down the test environment,but I do nothing here.")
+	By("tearing down the test environment, but I do nothing here.")
 	err := testEnv.Stop()
-	// Set 4 with random
-	if err != nil {
-		time.Sleep(4 * time.Second)
-	}
-	err = testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })

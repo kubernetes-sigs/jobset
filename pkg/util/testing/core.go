@@ -22,14 +22,13 @@ import (
 
 // IndexedJob constructs a simple indexed job template spec to use for testing.
 func IndexedJob(name, ns string) batchv1.JobTemplateSpec {
-	indexedCompletionMode := batchv1.IndexedCompletion
 	return batchv1.JobTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 		},
 		Spec: batchv1.JobSpec{
-			CompletionMode: &indexedCompletionMode,
+			CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 			Parallelism:    pointer.Int32(1),
 			Completions:    pointer.Int32(1),
 			Template: corev1.PodTemplateSpec{
@@ -45,4 +44,8 @@ func IndexedJob(name, ns string) batchv1.JobTemplateSpec {
 			},
 		},
 	}
+}
+
+func completionModePtr(m batchv1.CompletionMode) *batchv1.CompletionMode {
+	return &m
 }

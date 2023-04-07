@@ -68,12 +68,10 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		ginkgo.It("should create all jobs and complete successfully once all jobs are completed", func() {
 			ginkgo.By("creating a new JobSet")
 			ctx := context.Background()
-			jsw := testing.MakeJobSet("js-succeed", ns.Name)
-
-			// Add 3 replicated jobs.
-			rj := testing.MakeReplicatedJob("test-job").SetJob(testing.IndexedJob("test-job", ns.Name)).Obj()
-			jsw.AddReplicatedJobs(rj, 3)
-			js := jsw.Obj()
+			js := testing.MakeJobSet("js-succeed", ns.Name).
+				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
+					SetJob(testing.IndexedJob("test-job", ns.Name)).
+					Obj(), 3).Obj()
 
 			// Create the JobSet.
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
@@ -106,12 +104,10 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 		ginkgo.It("should create all jobs and fail if any job fails", func() {
 			ginkgo.By("creating a new JobSet")
-			jsw := testing.MakeJobSet("js-fail", ns.Name)
-
-			// Add 3 replicated jobs.
-			rj := testing.MakeReplicatedJob("test-job").SetJob(testing.IndexedJob("test-job", ns.Name)).Obj()
-			jsw.AddReplicatedJobs(rj, 3)
-			js := jsw.Obj()
+			js := testing.MakeJobSet("js-fail", ns.Name).
+				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
+					SetJob(testing.IndexedJob("test-job", ns.Name)).
+					Obj(), 3).Obj()
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
 
 			// We'll need to retry getting this newly created JobSet, given that creation may not immediately happen.
@@ -147,12 +143,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			ctx := context.Background()
 
 			// Construct JobSet.
-			jsw := testing.MakeJobSet("js-simple", ns.Name)
-
-			// Add 3 replicated jobs.
-			rj := testing.MakeReplicatedJob("test-job").SetJob(testing.IndexedJob("test-job", ns.Name)).SetEnableDNSHostnames(true).Obj()
-			jsw.AddReplicatedJobs(rj, 3)
-			js := jsw.Obj()
+			js := testing.MakeJobSet("js-hostnames", ns.Name).
+				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
+					SetJob(testing.IndexedJob("test-job", ns.Name)).
+					SetEnableDNSHostnames(true).
+					Obj(), 3).Obj()
 
 			// Create JobSet.
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
