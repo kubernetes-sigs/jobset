@@ -141,20 +141,20 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *JobSetReconciler) constructJobFromTemplate(js *jobset.JobSet, jobTemplate *jobset.ReplicatedJob) (*batchv1.Job, error) {
+func (r *JobSetReconciler) constructJobFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob) (*batchv1.Job, error) {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      make(map[string]string),
 			Annotations: make(map[string]string),
-			Name:        genJobName(js, jobTemplate),
+			Name:        genJobName(js, rjob),
 			Namespace:   js.Namespace,
 		},
-		Spec: *jobTemplate.Template.Spec.DeepCopy(),
+		Spec: *rjob.Template.Spec.DeepCopy(),
 	}
 
 	// If enableDNSHostnames is set, update job spec to set subdomain as
 	// job name (a headless service with same name as job will be created later).
-	if jobTemplate.Network.EnableDNSHostnames != nil && *jobTemplate.Network.EnableDNSHostnames {
+	if rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
 		job.Spec.Template.Spec.Subdomain = job.Name
 	}
 
@@ -192,10 +192,10 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet, 
 }
 
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	for _, jobTemplate := range js.Spec.Jobs {
-		job, err := r.constructJobFromTemplate(js, &jobTemplate)
+	for _, rjob := range js.Spec.Jobs {
+		job, err := r.constructJobFromTemplate(js, &rjob)
 		if err != nil {
-			klog.Errorf("error constructing job from template %s: %v", jobTemplate.Name, err)
+			klog.Errorf("error constructing job from template %s: %v", rjob.Name, err)
 			return err
 		}
 
@@ -206,7 +206,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		}
 
 		// Create headless service if specified for this job.
-		if jobTemplate.Network.EnableDNSHostnames != nil && *jobTemplate.Network.EnableDNSHostnames {
+		if rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
 			klog.Infof("creating headless service: %s", job.Name)
 			if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
 				klog.Errorf("error creating headless service: %v", err)
@@ -304,8 +304,8 @@ func isJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 	return false, ""
 }
 
-func genJobName(js *jobset.JobSet, jobTemplate *jobset.ReplicatedJob) string {
-	return fmt.Sprintf("%s-%s", js.Name, jobTemplate.Template.Name)
+func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob) string {
+	return fmt.Sprintf("%s-%s", js.Name, rjob.Name)
 }
 
 func isJobSetFinished(js *jobset.JobSet) bool {
