@@ -250,16 +250,14 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 
 		// Set controller owner reference for garbage collection and reconcilation.
 		if err := ctrl.SetControllerReference(js, &headlessSvc, r.Scheme); err != nil {
-			log.Error(err, "setting controller owner reference for headless service", "service", klog.KObj(&headlessSvc))
 			return err
 		}
 
 		// Create headless service.
 		if err := r.Create(ctx, &headlessSvc); err != nil {
-			log.Error(err, "creating headless service", "service", klog.KObj(&headlessSvc))
 			return err
 		}
-		log.V(2).Info("successfully created headless service", "service", klog.KObj(&headlessSvc))
+		log.V(2).Info("successfully created headless service", "service", klog.KObj(job))
 	}
 	return nil
 }
@@ -290,9 +288,6 @@ func (r *JobSetReconciler) shouldCreateJob(ctx context.Context, job *batchv1.Job
 // updateStatus updates the status of a JobSet by appending
 // the new condition to jobset.status.conditions.
 func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, condition metav1.Condition) error {
-	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js))
-	ctx = ctrl.LoggerInto(ctx, log)
-
 	js.Status.Conditions = append(js.Status.Conditions, condition)
 	if err := r.Status().Update(ctx, js); err != nil {
 		return err
