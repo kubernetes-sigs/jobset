@@ -68,6 +68,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		ginkgo.It("should create all jobs and complete successfully once all jobs are completed", func() {
 			ginkgo.By("creating a new JobSet")
 			ctx := context.Background()
+			// Construct JobSet with 3 replicated jobs with only 1 replica each.
 			js := testing.MakeJobSet("js-succeed", ns.Name).
 				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
 					SetJob(testing.IndexedJob("test-job", ns.Name)).
@@ -104,6 +105,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 		ginkgo.It("should create all jobs and fail if any job fails", func() {
 			ginkgo.By("creating a new JobSet")
+			// Construct JobSet with 3 replicated jobs with only 1 replica each.
 			js := testing.MakeJobSet("js-fail", ns.Name).
 				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
 					SetJob(testing.IndexedJob("test-job", ns.Name)).
@@ -142,7 +144,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			ginkgo.By("creating a new JobSet")
 			ctx := context.Background()
 
-			// Construct JobSet.
+			// Construct JobSet with 3 replicated jobs with only 1 replica each and pod DNS hostnames enabled.
 			js := testing.MakeJobSet("js-hostnames", ns.Name).
 				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
 					SetJob(testing.IndexedJob("test-job", ns.Name)).
@@ -173,6 +175,64 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				}
 				return len(svcList.Items), nil
 			}).Should(gomega.Equal(3))
+
+			ginkgo.By("checking JobSet status is completed once all its jobs are completed")
+			// Mark jobs as complete.
+			for _, job := range childJobList.Items {
+				job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+					Type:   batchv1.JobComplete,
+					Status: corev1.ConditionTrue,
+				})
+				gomega.Expect(k8sClient.Status().Update(ctx, &job)).Should(gomega.Succeed())
+			}
+			// Check JobSet has completed.
+			gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, jobset.JobSetCompleted).Should(gomega.Equal(true))
+		})
+	})
+
+	ginkgo.When("a jobset is created with 2 replicated jobs with 3 replicas each and pod DNS hostnames enabled", func() {
+		ginkgo.It("should create all jobs and services with the correct number of replicas, then complete successfully once all jobs are completed", func() {
+			ginkgo.By("creating a new JobSet")
+			ctx := context.Background()
+
+			// Construct JobSet with 2 replicated jobs with 3 replicas each.
+			js := testing.MakeJobSet("js-2-rjobs-3-replicas", ns.Name).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-foo").
+					SetJob(testing.IndexedJob("test-job-foo", ns.Name)).
+					SetReplicas(3).
+					SetEnableDNSHostnames(true).
+					Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-bar").
+					SetJob(testing.IndexedJob("test-job-bar", ns.Name)).
+					SetReplicas(3).
+					SetEnableDNSHostnames(true).
+					Obj()).
+				Obj()
+
+			// Create JobSet.
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			// We'll need to retry getting this newly created JobSet, given that creation may not immediately happen.
+			ginkgo.By("checking JobSet was created successfully")
+			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking JobSet eventually has 6 active jobs")
+			var childJobList batchv1.JobList
+			gomega.Eventually(func() (int, error) {
+				if err := k8sClient.List(ctx, &childJobList, client.InNamespace(js.Namespace)); err != nil {
+					return -1, err
+				}
+				return len(childJobList.Items), nil
+			}, timeout, interval).Should(gomega.Equal(6))
+
+			ginkgo.By("checking JobSet eventually has 6 headless services")
+			gomega.Eventually(func() (int, error) {
+				var svcList corev1.ServiceList
+				if err := k8sClient.List(ctx, &svcList, client.InNamespace(js.Namespace)); err != nil {
+					return -1, err
+				}
+				return len(svcList.Items), nil
+			}).Should(gomega.Equal(6))
 
 			ginkgo.By("checking JobSet status is completed once all its jobs are completed")
 			// Mark jobs as complete.
