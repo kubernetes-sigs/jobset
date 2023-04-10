@@ -18,10 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	JobNameLabel  string = "jobset.sigs.k8s.io/job-name"
-	JobIndexLabel string = "jobset.sigs.k8s.io/job-index"
-)
+const JobIndexLabel string = "jobset.sigs.k8s.io/job-index"
 
 type JobSetConditionType string
 

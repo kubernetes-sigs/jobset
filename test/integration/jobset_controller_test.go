@@ -246,6 +246,48 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			// Check JobSet has completed.
 			gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, jobset.JobSetCompleted).Should(gomega.Equal(true))
 		})
+
+		ginkgo.It("should create all jobs with the correct number of replicas and fail if any job fails", func() {
+			ginkgo.By("creating a new JobSet")
+			// Construct JobSet with 2 replicated jobs with 3 replicas each.
+			js := testing.MakeJobSet("js-2-rjobs-3-replicas", ns.Name).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-foo").
+					SetJob(testing.IndexedJob("test-job-foo", ns.Name)).
+					SetReplicas(3).
+					Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-bar").
+					SetJob(testing.IndexedJob("test-job-bar", ns.Name)).
+					SetReplicas(3).
+					Obj()).
+				Obj()
+
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			// We'll need to retry getting this newly created JobSet, given that creation may not immediately happen.
+			ginkgo.By("checking JobSet was created successfully")
+			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking JobSet eventually has 6 active jobs")
+			var childJobsList batchv1.JobList
+			gomega.Eventually(func() (int, error) {
+				if err := k8sClient.List(ctx, &childJobsList, client.InNamespace(js.Namespace)); err != nil {
+					return -1, err
+				}
+				return len(childJobsList.Items), nil
+			}, timeout, interval).Should(gomega.Equal(6))
+
+			ginkgo.By("checking JobSet status is failed once 1 job fails")
+			// Mark 1 job as failed.
+			job := childJobsList.Items[0]
+			job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+				Type:   batchv1.JobFailed,
+				Status: corev1.ConditionTrue,
+			})
+			gomega.Expect(k8sClient.Status().Update(ctx, &job)).Should(gomega.Succeed())
+
+			// Check JobSet has failed.
+			gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, jobset.JobSetFailed).Should(gomega.Equal(true))
+		})
 	})
 })
 

@@ -143,26 +143,34 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob) ([]*batchv1.Job, error) {
+func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
 
 	// Defaulting and validation.
 	// TODO: Do defaulting and validation in webhook instead of here (https://github.com/kubernetes-sigs/jobset/issues/6)
 	replicas := 1
 	if rjob.Replicas != nil && *rjob.Replicas > 0 {
-		replicas = *rjob.Replicas
-	}
-	labels := rjob.Template.Labels
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-	annotations := rjob.Template.Annotations
-	if annotations == nil {
-		annotations = make(map[string]string)
+		replicas = *rjob.DeepCopy().Replicas
 	}
 
 	// Construct jobs.
 	for i := 0; i < replicas; i++ {
+		// Check if we need to create this job. If not, skip it.
+		jobName := genJobName(js, rjob, i)
+		if create := r.shouldCreateJob(jobName, ownedJobs); !create {
+			continue
+		}
+
+		// Copy labels/annotations to avoid modifying the template itself.
+		labels := rjob.Template.Labels
+		if labels == nil {
+			labels = make(map[string]string)
+		}
+		annotations := rjob.Template.Annotations
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+
 		job := &batchv1.Job{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels:      labels,
@@ -223,18 +231,12 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	ctx = ctrl.LoggerInto(ctx, log)
 
 	for _, rjob := range js.Spec.Jobs {
-		jobs, err := r.constructJobsFromTemplate(js, &rjob)
+		jobs, err := r.constructJobsFromTemplate(js, &rjob, ownedJobs)
 		if err != nil {
 			return err
 		}
 
 		for _, job := range jobs {
-			// Check if we need to create this job.
-			// If not, skip this job and continue iterating to the next job.
-			if create := r.shouldCreateJob(ctx, job, ownedJobs); !create {
-				continue
-			}
-
 			// Create headless service if specified for this job.
 			if rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
 				if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
@@ -291,23 +293,23 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 	return nil
 }
 
-func (r *JobSetReconciler) shouldCreateJob(ctx context.Context, job *batchv1.Job, ownedJobs *childJobs) bool {
+func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 	// Check if this job exists already.
 	// TODO: maybe we can use a job map here so we can do O(1) lookups
 	// to check if the job already exists, rather than a linear scan
 	// through all the jobs owned by the jobset.
 	for _, activeJob := range ownedJobs.active {
-		if activeJob.Name == job.Name {
+		if activeJob.Name == jobName {
 			return false
 		}
 	}
 	for _, successfulJob := range ownedJobs.successful {
-		if successfulJob.Name == job.Name {
+		if successfulJob.Name == jobName {
 			return false
 		}
 	}
 	for _, failedJob := range ownedJobs.failed {
-		if failedJob.Name == job.Name {
+		if failedJob.Name == jobName {
 			return false
 		}
 	}
