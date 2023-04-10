@@ -74,7 +74,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Get Jobs owned by JobSet.
 	ownedJobs, err := r.getChildJobs(ctx, &js, req)
 	if err != nil {
-		log.Error(err, "error getting jobs owned by jobset", "jobset", js.Name)
+		log.Error(err, "getting jobs owned by jobset")
 		return ctrl.Result{}, nil
 	}
 
@@ -87,7 +87,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			Reason:             "FailedJobs",
 			Message:            "jobset failed due to one or more failed jobs",
 		}); err != nil {
-			log.Error(err, "error updating jobset status", "jobset", js.Name)
+			log.Error(err, "updating jobset status")
 			return ctrl.Result{}, nil
 		}
 	}
@@ -101,7 +101,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			Reason:             "AllJobsCompleted",
 			Message:            "jobset completed successfully",
 		}); err != nil {
-			log.Error(err, "error updating jobset status", "jobset", js.Name)
+			log.Error(err, "updating jobset status")
 			return ctrl.Result{}, nil
 		}
 	}
@@ -109,7 +109,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// If job has not failed or succeeded, continue creating any
 	// jobs that are ready to be started.
 	if err := r.createJobs(ctx, &js, ownedJobs); err != nil {
-		log.Error(err, "error creating jobs", "jobset", js.Name)
+		log.Error(err, "creating jobs")
 		return ctrl.Result{}, nil
 	}
 
@@ -198,7 +198,6 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	for _, rjob := range js.Spec.Jobs {
 		job, err := r.constructJobFromTemplate(js, &rjob)
 		if err != nil {
-			log.Error(err, "error constructing job from template", "job", rjob.Name)
 			return err
 		}
 
@@ -210,20 +209,17 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 
 		// Create headless service if specified for this job.
 		if rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
-			log.Info("creating headless service", "service", job.Name)
 			if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
-				log.Error(err, "error creating headless service", "service", job.Name)
 				return err
 			}
 		}
 
 		// Create the job.
 		// TODO: Deal with the case where the job exists but is not owned by the jobset.
-		log.Info("creating job", "job", job.Name)
 		if err := r.Create(ctx, job); err != nil {
-			log.Error(err, "error creating job", "job", job.Name)
 			return err
 		}
+		log.V(2).Info("successfully created job", "job", klog.KObj(job))
 	}
 	return nil
 }
@@ -254,15 +250,16 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 
 		// Set controller owner reference for garbage collection and reconcilation.
 		if err := ctrl.SetControllerReference(js, &headlessSvc, r.Scheme); err != nil {
-			log.Error(err, "error setting controller owner reference for headless service", "service", headlessSvc.Name)
+			log.Error(err, "setting controller owner reference for headless service", "service", klog.KObj(&headlessSvc))
 			return err
 		}
 
 		// Create headless service.
 		if err := r.Create(ctx, &headlessSvc); err != nil {
-			log.Error(err, "error creating headless service", "service", headlessSvc.Name)
+			log.Error(err, "creating headless service", "service", klog.KObj(&headlessSvc))
 			return err
 		}
+		log.V(2).Info("successfully created headless service", "service", klog.KObj(&headlessSvc))
 	}
 	return nil
 }
@@ -298,7 +295,6 @@ func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, 
 
 	js.Status.Conditions = append(js.Status.Conditions, condition)
 	if err := r.Status().Update(ctx, js); err != nil {
-		log.Error(err, "unable to update JobSet status")
 		return err
 	}
 	return nil
