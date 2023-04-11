@@ -111,7 +111,7 @@ type JobWrapper struct {
 	batchv1.JobTemplateSpec
 }
 
-// MakeJob creates a wrapper for a Job.
+// MakeJob creates a wrapper for a Job with a default template spec.
 func MakeJob(name, ns string) *JobWrapper {
 	return &JobWrapper{
 		batchv1.JobTemplateSpec{
@@ -119,7 +119,19 @@ func MakeJob(name, ns string) *JobWrapper {
 				Name:      name,
 				Namespace: ns,
 			},
-			Spec: batchv1.JobSpec{},
+			Spec: batchv1.JobSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						RestartPolicy: "Never",
+						Containers: []corev1.Container{
+							{
+								Name:  "test-container",
+								Image: "busybox:latest",
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -127,24 +139,6 @@ func MakeJob(name, ns string) *JobWrapper {
 // SetCompletionMode sets the value of job.spec.completionMode
 func (j *JobWrapper) SetCompletionMode(mode batchv1.CompletionMode) *JobWrapper {
 	j.Spec.CompletionMode = &mode
-	return j
-}
-
-// SetCompletions sets the value of job.spec.completions
-func (j *JobWrapper) SetCompletions(completions int) *JobWrapper {
-	j.Spec.Completions = pointer.Int32(int32(completions))
-	return j
-}
-
-// SetParallelism sets the value of job.spec.parallelism
-func (j *JobWrapper) SetParallelism(parallelism int) *JobWrapper {
-	j.Spec.Parallelism = pointer.Int32(int32(parallelism))
-	return j
-}
-
-// SetTEmplate sets the value of the pod template spec (job.spec.template)
-func (j *JobWrapper) SetTemplate(template corev1.PodTemplateSpec) *JobWrapper {
-	j.Spec.Template = template
 	return j
 }
 
