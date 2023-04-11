@@ -190,7 +190,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, jobset.JobSetCompleted).Should(gomega.Equal(true))
 		})
 
-		ginkgo.It("should throw an error if job completion mode is not indexed", func() {
+		ginkgo.It("jobset validation should fail if job completion mode is not indexed", func() {
 			ginkgo.By("creating a new JobSet")
 			// Construct JobSet with 3 replicated jobs with only 1 replica each.
 			js := testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
@@ -198,20 +198,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					SetJob(testing.Job("test-job", ns.Name)).
 					SetEnableDNSHostnames(true).
 					Obj()).Obj()
-			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
-
-			// We'll need to retry getting this newly created JobSet, given that creation may not immediately happen.
-			ginkgo.By("checking JobSet was created successfully")
-			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
-
-			ginkgo.By("checking JobSet consistently has 0 active jobs")
-			var childJobsList batchv1.JobList
-			gomega.Consistently(func() (int, error) {
-				if err := k8sClient.List(ctx, &childJobsList, client.InNamespace(js.Namespace)); err != nil {
-					return -1, err
-				}
-				return len(childJobsList.Items), nil
-			}, consistentDuration, interval).Should(gomega.Equal(0))
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Not(gomega.Succeed()))
 		})
 	})
 

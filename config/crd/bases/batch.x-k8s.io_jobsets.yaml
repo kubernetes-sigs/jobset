@@ -9426,9 +9426,9 @@ spec:
                   x-kubernetes-validations:
                   - message: EnableDNSHostnames requires job to be in indexed completion
                       mode
-                    rule: '(type(self.network) != null_type && type(self.network.enableDNSHostnames)
-                      != null_type && self.network.enableDNSHostnames) ? (self.template.spec.completionMode
-                      == ”Indexed”) : true'
+                    rule: '!has(self.network) || !has(self.network.enableDNSHostnames)
+                      || !self.network.enableDNSHostnames || (has(self.template.spec.completionMode)
+                      && self.template.spec.completionMode == "Indexed")'
                 type: array
                 x-kubernetes-list-map-keys:
                 - name
