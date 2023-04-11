@@ -147,7 +147,7 @@ func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jo
 	var jobs []*batchv1.Job
 
 	// Defaulting and validation.
-	// TODO: Do defaulting and validation in webhook instead of here (https://github.com/kubernetes-sigs/jobset/issues/6)
+	// TODO (#6): Do defaulting and validation in webhook instead of here
 	replicas := 1
 	if rjob.Replicas != nil && *rjob.Replicas > 0 {
 		replicas = *rjob.DeepCopy().Replicas
@@ -187,7 +187,7 @@ func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jo
 
 		// If enableDNSHostnames is set, update job spec to set subdomain as
 		// job name (a headless service with same name as job will be created later).
-		if rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
+		if dnsHostnamesEnabled(rjob) {
 			job.Spec.Template.Spec.Subdomain = job.Name
 		}
 
@@ -238,14 +238,17 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 
 		for _, job := range jobs {
 			// Create headless service if specified for this job.
-			if rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
+			if dnsHostnamesEnabled(&rjob) {
+				if !isIndexedJob(job) {
+					return fmt.Errorf("EnableDNSHostnames requires job completion mode to be indexed")
+				}
 				if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
 					return err
 				}
 			}
 
 			// Create the job.
-			// TODO: Deal with the case where the job exists but is not owned by the jobset.
+			// TODO(#18): Deal with the case where the job exists but is not owned by the jobset.
 			if err := r.Create(ctx, job); err != nil {
 				return err
 			}
@@ -346,4 +349,12 @@ func isJobSetFinished(js *jobset.JobSet) bool {
 		}
 	}
 	return false
+}
+
+func isIndexedJob(job *batchv1.Job) bool {
+	return job.Spec.CompletionMode != nil && *job.Spec.CompletionMode == batchv1.IndexedCompletion
+}
+
+func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {
+	return rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames
 }
