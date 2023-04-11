@@ -17,6 +17,7 @@ import (
 	"fmt"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
@@ -103,4 +104,51 @@ func (r *ReplicatedJobWrapper) SetReplicas(val int) *ReplicatedJobWrapper {
 // Obj returns the inner ReplicatedJob.
 func (r *ReplicatedJobWrapper) Obj() jobset.ReplicatedJob {
 	return r.ReplicatedJob
+}
+
+// JobWrapper wraps a Job.
+type JobWrapper struct {
+	batchv1.JobTemplateSpec
+}
+
+// MakeJob creates a wrapper for a Job.
+func MakeJob(name, ns string) *JobWrapper {
+	return &JobWrapper{
+		batchv1.JobTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: ns,
+			},
+			Spec: batchv1.JobSpec{},
+		},
+	}
+}
+
+// SetCompletionMode sets the value of job.spec.completionMode
+func (j *JobWrapper) SetCompletionMode(mode batchv1.CompletionMode) *JobWrapper {
+	j.Spec.CompletionMode = &mode
+	return j
+}
+
+// SetCompletions sets the value of job.spec.completions
+func (j *JobWrapper) SetCompletions(completions int) *JobWrapper {
+	j.Spec.Completions = pointer.Int32(int32(completions))
+	return j
+}
+
+// SetParallelism sets the value of job.spec.parallelism
+func (j *JobWrapper) SetParallelism(parallelism int) *JobWrapper {
+	j.Spec.Parallelism = pointer.Int32(int32(parallelism))
+	return j
+}
+
+// SetTEmplate sets the value of the pod template spec (job.spec.template)
+func (j *JobWrapper) SetTemplate(template corev1.PodTemplateSpec) *JobWrapper {
+	j.Spec.Template = template
+	return j
+}
+
+// Obj returns the inner batchv1.JobTemplateSpec
+func (j *JobWrapper) Obj() batchv1.JobTemplateSpec {
+	return j.JobTemplateSpec
 }

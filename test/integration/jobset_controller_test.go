@@ -32,10 +32,21 @@ import (
 )
 
 const (
-	timeout            = 10 * time.Second
-	interval           = time.Millisecond * 250
-	consistentDuration = 3 * time.Second
+	timeout  = 10 * time.Second
+	interval = time.Millisecond * 250
 )
+
+var defaultPodTemplateSpec = corev1.PodTemplateSpec{
+	Spec: corev1.PodSpec{
+		RestartPolicy: "Never",
+		Containers: []corev1.Container{
+			{
+				Name:  "test-container",
+				Image: "busybox:latest",
+			},
+		},
+	},
+}
 
 var _ = ginkgo.Describe("JobSet controller", func() {
 
@@ -72,8 +83,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			// Construct JobSet with 3 replicated jobs with only 1 replica each.
 			js := testing.MakeJobSet("js-succeed", ns.Name).
 				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
-					SetJob(testing.IndexedJob("test-job", ns.Name)).
-					Obj(), 3).Obj()
+					SetJob(testing.MakeJob("test-job", ns.Name).SetTemplate(defaultPodTemplateSpec).Obj()).Obj(),
+					3).
+				Obj()
 
 			// Create the JobSet.
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
@@ -108,9 +120,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			ginkgo.By("creating a new JobSet")
 			// Construct JobSet with 3 replicated jobs with only 1 replica each.
 			js := testing.MakeJobSet("js-fail", ns.Name).
-				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
-					SetJob(testing.IndexedJob("test-job", ns.Name)).
-					Obj(), 3).Obj()
+				AddReplicatedJobs(
+					testing.MakeReplicatedJob("test-job").
+						SetJob(testing.MakeJob("test-job", ns.Name).SetTemplate(defaultPodTemplateSpec).Obj()).Obj(),
+					3).
+				Obj()
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
 
 			// We'll need to retry getting this newly created JobSet, given that creation may not immediately happen.
@@ -147,10 +161,16 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 			// Construct JobSet with 3 replicated jobs with only 1 replica each and pod DNS hostnames enabled.
 			js := testing.MakeJobSet("js-hostnames", ns.Name).
-				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
-					SetJob(testing.IndexedJob("test-job", ns.Name)).
+				AddReplicatedJobs(testing.MakeReplicatedJob("replicated-job-foo").
+					SetJob(testing.MakeJob("test-job-foo", ns.Name).
+						SetTemplate(defaultPodTemplateSpec).
+						SetCompletionMode(batchv1.IndexedCompletion).
+						SetCompletions(4).
+						SetParallelism(4).Obj()).
 					SetEnableDNSHostnames(true).
-					Obj(), 3).Obj()
+					Obj(),
+					3).
+				Obj()
 
 			// Create JobSet.
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
@@ -195,7 +215,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			// Construct JobSet with 3 replicated jobs with only 1 replica each.
 			js := testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
 				AddReplicatedJob(testing.MakeReplicatedJob("test-job").
-					SetJob(testing.Job("test-job", ns.Name)).
+					SetJob(testing.MakeJob("test-job", ns.Name).SetTemplate(defaultPodTemplateSpec).Obj()).
 					SetEnableDNSHostnames(true).
 					Obj()).Obj()
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Not(gomega.Succeed()))
@@ -210,12 +230,20 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			// Construct JobSet with 2 replicated jobs with 3 replicas each.
 			js := testing.MakeJobSet("js-2-rjobs-3-replicas", ns.Name).
 				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-foo").
-					SetJob(testing.IndexedJob("test-job-foo", ns.Name)).
+					SetJob(testing.MakeJob("test-job-foo", ns.Name).
+						SetTemplate(defaultPodTemplateSpec).
+						SetCompletionMode(batchv1.IndexedCompletion).
+						SetCompletions(4).
+						SetParallelism(4).Obj()).
 					SetReplicas(3).
 					SetEnableDNSHostnames(true).
 					Obj()).
 				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-bar").
-					SetJob(testing.IndexedJob("test-job-bar", ns.Name)).
+					SetJob(testing.MakeJob("test-job-bar", ns.Name).
+						SetTemplate(defaultPodTemplateSpec).
+						SetCompletionMode(batchv1.IndexedCompletion).
+						SetCompletions(4).
+						SetParallelism(4).Obj()).
 					SetReplicas(3).
 					SetEnableDNSHostnames(true).
 					Obj()).
@@ -264,12 +292,22 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			// Construct JobSet with 2 replicated jobs with 3 replicas each.
 			js := testing.MakeJobSet("js-2-rjobs-3-replicas", ns.Name).
 				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-foo").
-					SetJob(testing.IndexedJob("test-job-foo", ns.Name)).
+					SetJob(testing.MakeJob("test-job-foo", ns.Name).
+						SetTemplate(defaultPodTemplateSpec).
+						SetCompletionMode(batchv1.IndexedCompletion).
+						SetCompletions(4).
+						SetParallelism(4).Obj()).
 					SetReplicas(3).
+					SetEnableDNSHostnames(true).
 					Obj()).
 				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-bar").
-					SetJob(testing.IndexedJob("test-job-bar", ns.Name)).
+					SetJob(testing.MakeJob("test-job-bar", ns.Name).
+						SetTemplate(defaultPodTemplateSpec).
+						SetCompletionMode(batchv1.IndexedCompletion).
+						SetCompletions(4).
+						SetParallelism(4).Obj()).
 					SetReplicas(3).
+					SetEnableDNSHostnames(true).
 					Obj()).
 				Obj()
 
