@@ -75,6 +75,7 @@ type ReplicatedJob struct {
 	Network *Network `json:"network"`
 	// Replicas is the number of jobs that will be created from this ReplicatedJob's template.
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
+	// +kubebuilder:default=1
 	Replicas *int `json:"replicas,omitempty"`
 }
 type Network struct {
