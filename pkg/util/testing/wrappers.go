@@ -17,6 +17,7 @@ import (
 	"fmt"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
@@ -103,4 +104,45 @@ func (r *ReplicatedJobWrapper) SetReplicas(val int) *ReplicatedJobWrapper {
 // Obj returns the inner ReplicatedJob.
 func (r *ReplicatedJobWrapper) Obj() jobset.ReplicatedJob {
 	return r.ReplicatedJob
+}
+
+// JobWrapper wraps a Job.
+type JobWrapper struct {
+	batchv1.JobTemplateSpec
+}
+
+// MakeJob creates a wrapper for a Job with a default template spec.
+func MakeJob(name, ns string) *JobWrapper {
+	return &JobWrapper{
+		batchv1.JobTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: ns,
+			},
+			Spec: batchv1.JobSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						RestartPolicy: "Never",
+						Containers: []corev1.Container{
+							{
+								Name:  "test-container",
+								Image: "busybox:latest",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// SetCompletionMode sets the value of job.spec.completionMode
+func (j *JobWrapper) SetCompletionMode(mode batchv1.CompletionMode) *JobWrapper {
+	j.Spec.CompletionMode = &mode
+	return j
+}
+
+// Obj returns the inner batchv1.JobTemplateSpec
+func (j *JobWrapper) Obj() batchv1.JobTemplateSpec {
+	return j.JobTemplateSpec
 }

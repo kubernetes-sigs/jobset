@@ -146,15 +146,8 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
 
-	// Defaulting and validation.
-	// TODO (#6): Do defaulting and validation in webhook instead of here
-	replicas := 1
-	if rjob.Replicas != nil && *rjob.Replicas > 0 {
-		replicas = *rjob.DeepCopy().Replicas
-	}
-
 	// Construct jobs.
-	for i := 0; i < replicas; i++ {
+	for i := 0; i < *rjob.Replicas; i++ {
 		// Check if we need to create this job. If not, skip it.
 		jobName := genJobName(js, rjob, i)
 		if create := r.shouldCreateJob(jobName, ownedJobs); !create {
@@ -239,9 +232,6 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		for _, job := range jobs {
 			// Create headless service if specified for this job.
 			if dnsHostnamesEnabled(&rjob) {
-				if !isIndexedJob(job) {
-					return fmt.Errorf("EnableDNSHostnames requires job completion mode to be indexed")
-				}
 				if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
 					return err
 				}
