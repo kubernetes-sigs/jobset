@@ -14,8 +14,6 @@ limitations under the License.
 package testing
 
 import (
-	"fmt"
-
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,6 +42,12 @@ func MakeJobSet(name, ns string) *JobSetWrapper {
 	}
 }
 
+// SetFailurePolicy sets the value of jobSet.spec.failurePolicy
+func (j *JobSetWrapper) SetFailurePolicy(policy *jobset.FailurePolicy) *JobSetWrapper {
+	j.Spec.FailurePolicy = policy
+	return j
+}
+
 // Obj returns the inner JobSet.
 func (j *JobSetWrapper) Obj() *jobset.JobSet {
 	return &j.JobSet
@@ -52,19 +56,6 @@ func (j *JobSetWrapper) Obj() *jobset.JobSet {
 // AddReplicatedJob adds a single ReplicatedJob to the JobSet.
 func (j *JobSetWrapper) AddReplicatedJob(job jobset.ReplicatedJob) *JobSetWrapper {
 	j.JobSet.Spec.Jobs = append(j.JobSet.Spec.Jobs, job)
-	return j
-}
-
-// AddReplicatedJobs adds `count` number of copies of a ReplicatedJob to the JobSet.
-// Suffixes are added to the names to distinguish them.
-// Used for easily adding multiple similar ReplicatedJobs to a JobSet for testing.
-func (j *JobSetWrapper) AddReplicatedJobs(job jobset.ReplicatedJob, count int) *JobSetWrapper {
-	for i := 0; i < count; i++ {
-		// Add suffixes to distinguish jobs.
-		job.Name += fmt.Sprintf("-%d", i)
-		job.Template.Name += fmt.Sprintf("-%d", i)
-		j.JobSet.Spec.Jobs = append(j.JobSet.Spec.Jobs, job)
-	}
 	return j
 }
 
@@ -97,7 +88,7 @@ func (r *ReplicatedJobWrapper) SetEnableDNSHostnames(val bool) *ReplicatedJobWra
 
 // SetReplicas sets the value of the ReplicatedJob.Replicas.
 func (r *ReplicatedJobWrapper) SetReplicas(val int) *ReplicatedJobWrapper {
-	r.ReplicatedJob.Replicas = pointer.Int(val)
+	r.ReplicatedJob.Replicas = val
 	return r
 }
 

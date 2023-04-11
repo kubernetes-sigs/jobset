@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -31,6 +32,11 @@ import (
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 )
 
+var (
+	jobOwnerKey = ".metadata.controller"
+	apiGVStr    = jobset.GroupVersion.String()
+)
+
 // JobSetReconciler reconciles a JobSet object
 type JobSetReconciler struct {
 	client.Client
@@ -39,15 +45,15 @@ type JobSetReconciler struct {
 }
 
 type childJobs struct {
+	// Only jobs with jobset.sigs.k8s.io/restart-attempt == jobset.status.restarts are included
+	// in active, successful, and failed jobs. These jobs are part of the current JobSet run.
 	active     []*batchv1.Job
 	successful []*batchv1.Job
 	failed     []*batchv1.Job
-}
 
-var (
-	jobOwnerKey = ".metadata.controller"
-	apiGVStr    = jobset.GroupVersion.String()
-)
+	// Jobs marked for deletion are mutually exclusive with the set of jobs in active, successful, and failed.
+	delete []*batchv1.Job
+}
 
 func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *JobSetReconciler {
 	return &JobSetReconciler{Client: client, Scheme: scheme, Record: record}
@@ -80,34 +86,33 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Get Jobs owned by JobSet.
-	ownedJobs, err := r.getChildJobs(ctx, &js, req)
+	ownedJobs, err := r.getChildJobs(ctx, &js)
 	if err != nil {
 		log.Error(err, "getting jobs owned by jobset")
 		return ctrl.Result{}, nil
 	}
 
-	// If any jobs have failed, JobSet has failed.
+	// Delete any jobs marked for deletion.
+	if err := r.deleteJobs(ctx, &js, ownedJobs.delete); err != nil {
+		log.Error(err, "deleting jobs")
+		return ctrl.Result{}, nil
+	}
+
+	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
-		if err := r.updateStatus(ctx, &js, metav1.Condition{
-			Type:               string(jobset.JobSetFailed),
-			Status:             metav1.ConditionStatus(corev1.ConditionTrue),
-			LastTransitionTime: metav1.Now(),
-			Reason:             "FailedJobs",
-			Message:            "jobset failed due to one or more failed jobs",
-		}); err != nil {
-			log.Error(err, "updating jobset status")
-			return ctrl.Result{}, nil
+		if err := r.executeFailurePolicy(ctx, &js, ownedJobs); err != nil {
+			log.Error(err, "executing failure policy")
 		}
+		return ctrl.Result{}, nil
 	}
 
 	// If all jobs have succeeded, JobSet has succeeded.
 	if len(ownedJobs.successful) == len(js.Spec.Jobs) {
 		if err := r.updateStatus(ctx, &js, metav1.Condition{
-			Type:               string(jobset.JobSetCompleted),
-			Status:             metav1.ConditionStatus(corev1.ConditionTrue),
-			LastTransitionTime: metav1.Now(),
-			Reason:             "AllJobsCompleted",
-			Message:            "jobset completed successfully",
+			Type:    string(jobset.JobSetCompleted),
+			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Reason:  "AllJobsCompleted",
+			Message: "jobset completed successfully",
 		}); err != nil {
 			log.Error(err, "updating jobset status")
 			return ctrl.Result{}, nil
@@ -150,85 +155,49 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
-	var jobs []*batchv1.Job
+// getChildJobs gets jobs owned by the JobSet then categorizes them by status (active, successful, failed).
+// Another list (`delete`) is also added which tracks jobs marked for deletion.
+func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) (*childJobs, error) {
+	log := ctrl.LoggerFrom(ctx)
 
-	// Construct jobs.
-	for i := 0; i < *rjob.Replicas; i++ {
-		// Check if we need to create this job. If not, skip it.
-		jobName := genJobName(js, rjob, i)
-		if create := r.shouldCreateJob(jobName, ownedJobs); !create {
+	// Get all active jobs owned by JobSet.
+	var childJobList batchv1.JobList
+	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{jobOwnerKey: js.Name}); err != nil {
+		return nil, err
+	}
+	// Categorize each job into a bucket: active, successful, failed, or delete.
+	ownedJobs := childJobs{}
+	for i, job := range childJobList.Items {
+		// Jobs with jobset.sigs.k8s.io/restart-attempt < jobset.status.restarts are marked for
+		// deletion, as they were part of the previous JobSet run.
+		jobRestarts, err := strconv.Atoi(job.Labels[jobset.RestartsLabel])
+		if err != nil {
+			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", jobset.RestartsLabel))
+			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
+			return nil, err
+		}
+		if jobRestarts < js.Status.Restarts {
+			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
 			continue
 		}
 
-		// Copy labels/annotations to avoid modifying the template itself.
-		labels := make(map[string]string)
-		for k, v := range rjob.Template.Labels {
-			labels[k] = v
-		}
-		annotations := make(map[string]string)
-		for k, v := range rjob.Template.Annotations {
-			annotations[k] = v
-		}
-
-		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels:      labels,
-				Annotations: annotations,
-				Name:        genJobName(js, rjob, i),
-				Namespace:   js.Namespace,
-			},
-			Spec: *rjob.Template.Spec.DeepCopy(),
-		}
-
-		// Add job index as a label and annotation.
-		job.Labels[jobset.JobIndexLabel] = strconv.Itoa(i)
-		job.Annotations[jobset.JobIndexLabel] = strconv.Itoa(i)
-
-		// If enableDNSHostnames is set, update job spec to set subdomain as
-		// job name (a headless service with same name as job will be created later).
-		if dnsHostnamesEnabled(rjob) {
-			job.Spec.Template.Spec.Subdomain = job.Name
-		}
-
-		// Set controller owner reference for garbage collection and reconcilation.
-		if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
-			return nil, err
-		}
-
-		jobs = append(jobs, job)
-	}
-	return jobs, nil
-}
-
-// getChildJobs fetches all Jobs owned by the JobSet and returns them
-// categorized by status (active, successful, failed).
-func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet, req ctrl.Request) (*childJobs, error) {
-	// Get all active jobs owned by JobSet.
-	var childJobList batchv1.JobList
-	if err := r.List(ctx, &childJobList, client.InNamespace(req.Namespace), client.MatchingFields{jobOwnerKey: req.Name}); err != nil {
-		return nil, err
-	}
-
-	jobs := childJobs{}
-	for i, job := range childJobList.Items {
+		// Jobs with jobset.sigs.k8s.io/restart-attempt == jobset.status.restarts are part of
+		// the current JobSet run, and marked either active, successful, or failed.
 		_, finishedType := isJobFinished(&job)
 		switch finishedType {
 		case "": // active
-			jobs.active = append(jobs.active, &childJobList.Items[i])
+			ownedJobs.active = append(ownedJobs.active, &childJobList.Items[i])
 		case batchv1.JobFailed:
-			jobs.failed = append(jobs.failed, &childJobList.Items[i])
+			ownedJobs.failed = append(ownedJobs.failed, &childJobList.Items[i])
 		case batchv1.JobComplete:
-			jobs.successful = append(jobs.successful, &childJobList.Items[i])
+			ownedJobs.successful = append(ownedJobs.successful, &childJobList.Items[i])
 		}
 	}
-
-	return &jobs, nil
+	return &ownedJobs, nil
 }
 
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js))
-	ctx = ctrl.LoggerInto(ctx, log)
+	log := ctrl.LoggerFrom(ctx)
 
 	for _, rjob := range js.Spec.Jobs {
 		jobs, err := r.constructJobsFromTemplate(js, &rjob, ownedJobs)
@@ -258,8 +227,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 // TODO: look into adopting service and updating the selector
 // if it is not matching the job selector.
 func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *jobset.JobSet, job *batchv1.Job) error {
-	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js))
-	ctx = ctrl.LoggerInto(ctx, log)
+	log := ctrl.LoggerFrom(ctx)
 
 	// Check if service already exists. Service name is same as job name.
 	// If the service does not exist, create it.
@@ -293,6 +261,158 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 	return nil
 }
 
+func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	// If no failure policy is defined, the default failure policy is to mark the JobSet
+	// as failed if any of its jobs have failed.
+	if js.Spec.FailurePolicy == nil {
+		return r.updateStatus(ctx, js, metav1.Condition{
+			Type:    string(jobset.JobSetFailed),
+			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Reason:  "FailedJobs",
+			Message: "jobset failed due to one or more failed jobs",
+		})
+	}
+
+	// Handle different types of failure policy targets.
+	switch js.Spec.FailurePolicy.Operator {
+	case jobset.TerminationPolicyTargetAny:
+		// To reach this point a job must have failed, and TerminationPolicyTargetAny applies to any job
+		// in the JobSet, so we can skip directly to executing the restart policy.
+		return r.executeRestartPolicy(ctx, js, ownedJobs)
+	default:
+		return fmt.Errorf("invalid termination policy target %s", js.Spec.FailurePolicy.Operator)
+	}
+}
+
+func (r *JobSetReconciler) executeRestartPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	failJobSet := func() error {
+		return r.updateStatus(ctx, js, metav1.Condition{
+			Type:    string(jobset.JobSetFailed),
+			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Reason:  "FailedJobs",
+			Message: "jobset failed due to one or more job failures",
+		})
+	}
+
+	switch js.Spec.FailurePolicy.RestartPolicy {
+	case jobset.RestartPolicyRecreateAll:
+		return r.restartPolicyRecreateAll(ctx, js, ownedJobs)
+	case jobset.RestartPolicyNone:
+		return failJobSet()
+	default:
+		log.Error(fmt.Errorf("invalid restart policy: %s", js.Spec.FailurePolicy.RestartPolicy), "invalid restart policy, defaulting to None")
+		return failJobSet()
+	}
+}
+
+func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	// If JobSet has reached max number of restarts, mark it as failed and return.
+	if js.Status.Restarts == js.Spec.FailurePolicy.MaxRestarts {
+		return r.updateStatus(ctx, js, metav1.Condition{
+			Type:    string(jobset.JobSetFailed),
+			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Reason:  "ReachedMaxRestarts",
+			Message: "jobset failed due to reaching max number of restarts",
+		})
+	}
+
+	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
+	// of old jobs not part of the current jobSet run.
+	js.Status.Restarts += 1
+	if err := r.updateStatus(ctx, js); err != nil {
+		return err
+	}
+	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
+	return nil
+}
+
+func (r *JobSetReconciler) deleteJobs(ctx context.Context, js *jobset.JobSet, jobsForDeletion []*batchv1.Job) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	var wg sync.WaitGroup
+	var finalErr error
+
+	// Delete all jobs in parallel.
+	// TODO: limit number of goroutines used here.
+	for _, job := range jobsForDeletion {
+		job := job
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Delete job. This deletion event will trigger another reconcilliation,
+			// where the jobs are recreated.
+			backgroundPolicy := metav1.DeletePropagationBackground
+			if err := r.Delete(ctx, job, &client.DeleteOptions{PropagationPolicy: &backgroundPolicy}); client.IgnoreNotFound(err) != nil {
+				finalErr = err
+				return
+			}
+			log.V(2).Info("successfully deleted job", "job", klog.KObj(job), "restart attempt", job.Labels[job.Labels[jobset.RestartsLabel]])
+		}()
+	}
+	wg.Wait()
+	return finalErr
+}
+
+func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
+	var jobs []*batchv1.Job
+	// Construct jobs.
+	for i := 0; i < rjob.Replicas; i++ {
+		// Check if we need to create this job. If not, skip it.
+		jobName := genJobName(js, rjob, i)
+
+		if create := r.shouldCreateJob(jobName, ownedJobs); !create {
+			continue
+		}
+
+		// Copy labels/annotations to avoid modifying the template itself.
+		labels := make(map[string]string)
+		for k, v := range rjob.Template.Labels {
+			labels[k] = v
+		}
+		annotations := make(map[string]string)
+		for k, v := range rjob.Template.Annotations {
+			annotations[k] = v
+		}
+
+		job := &batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels:      labels,
+				Annotations: annotations,
+				Name:        genJobName(js, rjob, i),
+				Namespace:   js.Namespace,
+			},
+			Spec: *rjob.Template.Spec.DeepCopy(),
+		}
+
+		// Add restart-attempt count label, it should be equal to jobSet restarts
+		// to indicate is part of the current jobSet run.
+		job.Labels[jobset.RestartsLabel] = strconv.Itoa(js.Status.Restarts)
+
+		// Add job index as a label and annotation.
+		job.Labels[jobset.JobIndexLabel] = strconv.Itoa(i)
+		job.Annotations[jobset.JobIndexLabel] = strconv.Itoa(i)
+
+		// If enableDNSHostnames is set, update job spec to set subdomain as
+		// job name (a headless service with same name as job will be created later).
+		if dnsHostnamesEnabled(rjob) {
+			job.Spec.Template.Spec.Subdomain = job.Name
+		}
+
+		// Set controller owner reference for garbage collection and reconcilation.
+		if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
+			return nil, err
+		}
+
+		jobs = append(jobs, job)
+	}
+	return jobs, nil
+}
+
 func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 	// Check if this job exists already.
 	// TODO: maybe we can use a job map here so we can do O(1) lookups
@@ -316,10 +436,13 @@ func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs)
 	return true
 }
 
-// updateStatus updates the status of a JobSet by appending
-// the new condition to jobset.status.conditions.
-func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, condition metav1.Condition) error {
-	js.Status.Conditions = append(js.Status.Conditions, condition)
+// updateStatus updates the status of a JobSet.
+func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, conditions ...metav1.Condition) error {
+	// TODO: update condition in place if it exists.
+	for _, c := range conditions {
+		c.LastTransitionTime = metav1.Now()
+		js.Status.Conditions = append(js.Status.Conditions, c)
+	}
 	if err := r.Status().Update(ctx, js); err != nil {
 		return err
 	}

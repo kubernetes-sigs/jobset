@@ -35,6 +35,25 @@ spec:
           spec:
             description: JobSetSpec defines the desired state of JobSet
             properties:
+              failurePolicy:
+                description: FailurePolicy, if set, configures when to declare the
+                  JobSet as failed. The JobSet is always declared failed if all jobs
+                  in the set finished with status failed.
+                properties:
+                  maxRestarts:
+                    type: integer
+                  operator:
+                    default: Any
+                    type: string
+                    x-kubernetes-validations:
+                    - rule: self == "Any"
+                  restartPolicy:
+                    default: None
+                    type: string
+                required:
+                - operator
+                - restartPolicy
+                type: object
               jobs:
                 description: Jobs is the group of jobs that will form the set.
                 items:
@@ -9511,6 +9530,10 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              restarts:
+                description: Restarts tracks the number of times the JobSet has restarted
+                  (i.e. recreated in case of RecreateAll policy).
+                type: integer
             type: object
         type: object
     served: true

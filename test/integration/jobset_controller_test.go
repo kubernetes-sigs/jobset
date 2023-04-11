@@ -70,9 +70,15 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			ctx := context.Background()
 			// Construct JobSet with 3 replicated jobs with only 1 replica each.
 			js := testing.MakeJobSet("js-succeed", ns.Name).
-				AddReplicatedJobs(testing.MakeReplicatedJob("test-job").
-					SetJob(testing.MakeJob("test-job", ns.Name).Obj()).Obj(),
-					3).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
+					SetJob(testing.MakeJob("test-job-A", ns.Name).Obj()).
+					Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
+					SetJob(testing.MakeJob("test-job-B", ns.Name).Obj()).
+					Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-c").
+					SetJob(testing.MakeJob("test-job-C", ns.Name).Obj()).
+					Obj()).
 				Obj()
 
 			// Create the JobSet.
@@ -108,10 +114,15 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			ginkgo.By("creating a new JobSet")
 			// Construct JobSet with 3 replicated jobs with only 1 replica each.
 			js := testing.MakeJobSet("js-fail", ns.Name).
-				AddReplicatedJobs(
-					testing.MakeReplicatedJob("test-job").
-						SetJob(testing.MakeJob("test-job", ns.Name).Obj()).Obj(),
-					3).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
+					SetJob(testing.MakeJob("test-job", ns.Name).Obj()).
+					Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
+					SetJob(testing.MakeJob("test-job", ns.Name).Obj()).
+					Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-c").
+					SetJob(testing.MakeJob("test-job", ns.Name).Obj()).
+					Obj()).
 				Obj()
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
 
@@ -149,11 +160,18 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 			// Construct JobSet with 3 replicated jobs with only 1 replica each and pod DNS hostnames enabled.
 			js := testing.MakeJobSet("js-hostnames", ns.Name).
-				AddReplicatedJobs(testing.MakeReplicatedJob("replicated-job-foo").
-					SetJob(testing.MakeJob("test-job-foo", ns.Name).SetCompletionMode(batchv1.IndexedCompletion).Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
+					SetJob(testing.MakeJob("test-job", ns.Name).SetCompletionMode(batchv1.IndexedCompletion).Obj()).
 					SetEnableDNSHostnames(true).
-					Obj(),
-					3).
+					Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
+					SetJob(testing.MakeJob("test-job", ns.Name).SetCompletionMode(batchv1.IndexedCompletion).Obj()).
+					SetEnableDNSHostnames(true).
+					Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-c").
+					SetJob(testing.MakeJob("test-job", ns.Name).SetCompletionMode(batchv1.IndexedCompletion).Obj()).
+					SetEnableDNSHostnames(true).
+					Obj()).
 				Obj()
 
 			// Create JobSet.
@@ -308,6 +326,89 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			gomega.Expect(k8sClient.Status().Update(ctx, &job)).Should(gomega.Succeed())
 
 			// Check JobSet has failed.
+			gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, jobset.JobSetFailed).Should(gomega.Equal(true))
+		})
+	})
+
+	ginkgo.When("a jobset is created with failure policy 'Any' and restart policy 'RecreateAll'", func() {
+		ginkgo.It("should create all jobs, then restart every job once any job fails", func() {
+			ginkgo.By("creating a new JobSet")
+			ctx := context.Background()
+
+			// Construct JobSet with 2 replicated jobs with 3 replicas each.
+			js := testing.MakeJobSet("js-failure-policy-any-with-recreate", ns.Name).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-leader").
+					SetJob(testing.MakeJob("test-job-leader", ns.Name).
+						SetCompletionMode(batchv1.IndexedCompletion).Obj()).
+					SetReplicas(3).
+					Obj()).
+				AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-worker").
+					SetJob(testing.MakeJob("test-job-worker", ns.Name).
+						SetCompletionMode(batchv1.IndexedCompletion).Obj()).
+					SetReplicas(3).
+					Obj()).
+				// Set failure policy to "Any" with restart policy "Recreate" with max 1 restart.
+				SetFailurePolicy(&jobset.FailurePolicy{
+					Operator:      jobset.TerminationPolicyTargetAny,
+					RestartPolicy: jobset.RestartPolicyRecreateAll,
+					MaxRestarts:   1,
+				}).
+				Obj()
+
+			// Create JobSet.
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			// We'll need to retry getting this newly created JobSet, given that creation may not immediately happen.
+			ginkgo.By("checking JobSet was created successfully")
+			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking JobSet eventually has 6 active jobs")
+			var originalJobList batchv1.JobList
+			gomega.Eventually(func() (int, error) {
+				if err := k8sClient.List(ctx, &originalJobList, client.InNamespace(js.Namespace)); err != nil {
+					return -1, err
+				}
+				return len(originalJobList.Items), nil
+			}, timeout, interval).Should(gomega.Equal(6))
+
+			// Make a job fail.
+			ginkgo.By("making 1 job fail")
+			job := originalJobList.Items[0]
+			job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+				Type:   batchv1.JobFailed,
+				Status: corev1.ConditionTrue,
+			})
+			gomega.Expect(k8sClient.Status().Update(ctx, &job)).Should(gomega.Succeed())
+
+			// Verify jobs were recreated successfully.
+			ginkgo.By("checking jobs are recreated successfully")
+			var newJobList batchv1.JobList
+			gomega.Eventually(func() (bool, error) {
+				if err := k8sClient.List(ctx, &newJobList, client.InNamespace(js.Namespace)); err != nil {
+					return false, err
+				}
+				if len(newJobList.Items) != len(originalJobList.Items) {
+					return false, nil
+				}
+				for _, job := range newJobList.Items {
+					if job.Labels[jobset.RestartsLabel] != "1" {
+						return false, nil
+					}
+				}
+				return true, nil
+			}, timeout, interval).Should(gomega.Equal(true))
+
+			// Test max restarts by failing a job and making sure it cannot restart again, and the jobset fails.
+			ginkgo.By("failing another job")
+			job = newJobList.Items[0]
+			job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+				Type:   batchv1.JobFailed,
+				Status: corev1.ConditionTrue,
+			})
+			gomega.Expect(k8sClient.Status().Update(ctx, &job)).Should(gomega.Succeed())
+
+			// Check JobSet failed.
+			ginkgo.By("checking jobset fails after attempting to exceed max restarts")
 			gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, jobset.JobSetFailed).Should(gomega.Equal(true))
 		})
 	})
