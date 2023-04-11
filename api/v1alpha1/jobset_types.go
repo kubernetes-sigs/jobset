@@ -18,7 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const JobLabelKey string = "jobset.sigs.k8s.io/job-name"
+const JobIndexLabel string = "jobset.sigs.k8s.io/job-index"
 
 type JobSetConditionType string
 
@@ -71,9 +71,14 @@ type ReplicatedJob struct {
 	Template batchv1.JobTemplateSpec `json:"template,omitempty"`
 	// Network defines the networking options for the job.
 	Network *Network `json:"network"`
+	// Replicas is the number of jobs that will be created from this ReplicatedJob's template.
+	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
+	Replicas *int `json:"replicas,omitempty"`
 }
 type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
+	// Pods will be reachable using the fully qualified pod hostname, which is in the format:
+	// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +optional
 	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
 }

@@ -94,6 +94,12 @@ func (r *ReplicatedJobWrapper) SetEnableDNSHostnames(val bool) *ReplicatedJobWra
 	return r
 }
 
+// SetReplicas sets the value of the ReplicatedJob.Replicas.
+func (r *ReplicatedJobWrapper) SetReplicas(val int) *ReplicatedJobWrapper {
+	r.ReplicatedJob.Replicas = pointer.Int(val)
+	return r
+}
+
 // Obj returns the inner ReplicatedJob.
 func (r *ReplicatedJobWrapper) Obj() jobset.ReplicatedJob {
 	return r.ReplicatedJob

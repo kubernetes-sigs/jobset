@@ -52,6 +52,10 @@ spec:
                             via their hostnames.
                           type: boolean
                       type: object
+                    replicas:
+                      description: Replicas is the number of jobs that will be created
+                        from this ReplicatedJob's template.
+                      type: integer
                     template:
                       description: Template defines the template of the Job that will
                         be created.

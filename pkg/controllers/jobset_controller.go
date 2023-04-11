@@ -16,6 +16,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -142,28 +143,62 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *JobSetReconciler) constructJobFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob) (*batchv1.Job, error) {
-	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels:      make(map[string]string),
-			Annotations: make(map[string]string),
-			Name:        genJobName(js, rjob),
-			Namespace:   js.Namespace,
-		},
-		Spec: *rjob.Template.Spec.DeepCopy(),
+func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
+	var jobs []*batchv1.Job
+
+	// Defaulting and validation.
+	// TODO (#6): Do defaulting and validation in webhook instead of here
+	replicas := 1
+	if rjob.Replicas != nil && *rjob.Replicas > 0 {
+		replicas = *rjob.DeepCopy().Replicas
 	}
 
-	// If enableDNSHostnames is set, update job spec to set subdomain as
-	// job name (a headless service with same name as job will be created later).
-	if rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
-		job.Spec.Template.Spec.Subdomain = job.Name
-	}
+	// Construct jobs.
+	for i := 0; i < replicas; i++ {
+		// Check if we need to create this job. If not, skip it.
+		jobName := genJobName(js, rjob, i)
+		if create := r.shouldCreateJob(jobName, ownedJobs); !create {
+			continue
+		}
 
-	// Set controller owner reference for garbage collection and reconcilation.
-	if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
-		return nil, err
+		// Copy labels/annotations to avoid modifying the template itself.
+		labels := make(map[string]string)
+		for k, v := range rjob.Template.Labels {
+			labels[k] = v
+		}
+		annotations := make(map[string]string)
+		for k, v := range rjob.Template.Annotations {
+			annotations[k] = v
+		}
+
+		job := &batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels:      labels,
+				Annotations: annotations,
+				Name:        genJobName(js, rjob, i),
+				Namespace:   js.Namespace,
+			},
+			Spec: *rjob.Template.Spec.DeepCopy(),
+		}
+
+		// Add job index as a label and annotation.
+		job.Labels[jobset.JobIndexLabel] = strconv.Itoa(i)
+		job.Annotations[jobset.JobIndexLabel] = strconv.Itoa(i)
+
+		// If enableDNSHostnames is set, update job spec to set subdomain as
+		// job name (a headless service with same name as job will be created later).
+		if dnsHostnamesEnabled(rjob) {
+			job.Spec.Template.Spec.Subdomain = job.Name
+		}
+
+		// Set controller owner reference for garbage collection and reconcilation.
+		if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
+			return nil, err
+		}
+
+		jobs = append(jobs, job)
 	}
-	return job, nil
+	return jobs, nil
 }
 
 // getChildJobs fetches all Jobs owned by the JobSet and returns them
@@ -196,30 +231,29 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	ctx = ctrl.LoggerInto(ctx, log)
 
 	for _, rjob := range js.Spec.Jobs {
-		job, err := r.constructJobFromTemplate(js, &rjob)
+		jobs, err := r.constructJobsFromTemplate(js, &rjob, ownedJobs)
 		if err != nil {
 			return err
 		}
 
-		// Check if we need to create this job.
-		// If not, skip this job and continue iterating to the next job.
-		if create := r.shouldCreateJob(ctx, job, ownedJobs); !create {
-			continue
-		}
+		for _, job := range jobs {
+			// Create headless service if specified for this job.
+			if dnsHostnamesEnabled(&rjob) {
+				if !isIndexedJob(job) {
+					return fmt.Errorf("EnableDNSHostnames requires job completion mode to be indexed")
+				}
+				if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
+					return err
+				}
+			}
 
-		// Create headless service if specified for this job.
-		if rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
-			if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
+			// Create the job.
+			// TODO(#18): Deal with the case where the job exists but is not owned by the jobset.
+			if err := r.Create(ctx, job); err != nil {
 				return err
 			}
+			log.V(2).Info("successfully created job", "job", klog.KObj(job))
 		}
-
-		// Create the job.
-		// TODO: Deal with the case where the job exists but is not owned by the jobset.
-		if err := r.Create(ctx, job); err != nil {
-			return err
-		}
-		log.V(2).Info("successfully created job", "job", klog.KObj(job))
 	}
 	return nil
 }
@@ -262,23 +296,23 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 	return nil
 }
 
-func (r *JobSetReconciler) shouldCreateJob(ctx context.Context, job *batchv1.Job, ownedJobs *childJobs) bool {
+func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 	// Check if this job exists already.
 	// TODO: maybe we can use a job map here so we can do O(1) lookups
 	// to check if the job already exists, rather than a linear scan
 	// through all the jobs owned by the jobset.
 	for _, activeJob := range ownedJobs.active {
-		if activeJob.Name == job.Name {
+		if activeJob.Name == jobName {
 			return false
 		}
 	}
 	for _, successfulJob := range ownedJobs.successful {
-		if successfulJob.Name == job.Name {
+		if successfulJob.Name == jobName {
 			return false
 		}
 	}
 	for _, failedJob := range ownedJobs.failed {
-		if failedJob.Name == job.Name {
+		if failedJob.Name == jobName {
 			return false
 		}
 	}
@@ -304,8 +338,8 @@ func isJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 	return false, ""
 }
 
-func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob) string {
-	return fmt.Sprintf("%s-%s", js.Name, rjob.Name)
+func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIndex int) string {
+	return fmt.Sprintf("%s-%s-%d", js.Name, rjob.Name, jobIndex)
 }
 
 func isJobSetFinished(js *jobset.JobSet) bool {
@@ -315,4 +349,12 @@ func isJobSetFinished(js *jobset.JobSet) bool {
 		}
 	}
 	return false
+}
+
+func isIndexedJob(job *batchv1.Job) bool {
+	return job.Spec.CompletionMode != nil && *job.Spec.CompletionMode == batchv1.IndexedCompletion
+}
+
+func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {
+	return rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames
 }
