@@ -46,6 +46,29 @@ func IndexedJob(name, ns string) batchv1.JobTemplateSpec {
 	}
 }
 
+// Job constructs a simple job in non-indexed completion mode.
+func Job(name, ns string) batchv1.JobTemplateSpec {
+	return batchv1.JobTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					RestartPolicy: "Never",
+					Containers: []corev1.Container{
+						{
+							Name:  "test-container",
+							Image: "busybox:latest",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func completionModePtr(m batchv1.CompletionMode) *batchv1.CompletionMode {
 	return &m
 }
