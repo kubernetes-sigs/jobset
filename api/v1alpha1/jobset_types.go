@@ -63,6 +63,8 @@ type JobSetList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []JobSet `json:"items"`
 }
+
+// +kubebuilder:validation:XValidation:rule="(type(self.network) != null_type && type(self.network.enableDNSHostnames) != null_type && self.network.enableDNSHostnames) ? (self.template.spec.completionMode == 'Indexed') : true", message="EnableDNSHostnames requires job to be in indexed completion mode"
 type ReplicatedJob struct {
 	// Name is the name of the entry and will be used as a suffix
 	// for the Job name.

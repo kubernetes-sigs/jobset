@@ -239,9 +239,9 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		for _, job := range jobs {
 			// Create headless service if specified for this job.
 			if dnsHostnamesEnabled(&rjob) {
-				if !isIndexedJob(job) {
-					return fmt.Errorf("EnableDNSHostnames requires job completion mode to be indexed")
-				}
+				// if !isIndexedJob(job) {
+				// 	return fmt.Errorf("EnableDNSHostnames requires job completion mode to be indexed")
+				// }
 				if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
 					return err
 				}
