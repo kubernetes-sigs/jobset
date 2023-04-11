@@ -72,10 +72,14 @@ type ReplicatedJob struct {
 	// Network defines the networking options for the job.
 	Network *Network `json:"network"`
 	// Replicas is the number of jobs that will be created from this ReplicatedJob's template.
+	// Pod hostnames for pods created by these jobs will be in the format:
+	// <jobsetName>-<jobName>-<jobIndex>-<podIndex>
 	Replicas *int `json:"replicas,omitempty"`
 }
 type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
+	// Pods will be reachable using the fully qualified pod hostname, which is in
+	// the format: <jobsetName>-<jobName>-<jobIndex>-<podIndex>.<jobName>
 	// +optional
 	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
 }

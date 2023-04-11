@@ -162,13 +162,13 @@ func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jo
 		}
 
 		// Copy labels/annotations to avoid modifying the template itself.
-		labels := rjob.Template.Labels
-		if labels == nil {
-			labels = make(map[string]string)
+		labels := make(map[string]string)
+		for k, v := range rjob.Template.Labels {
+			labels[k] = v
 		}
-		annotations := rjob.Template.Annotations
-		if annotations == nil {
-			annotations = make(map[string]string)
+		annotations := make(map[string]string)
+		for k, v := range rjob.Template.Annotations {
+			annotations[k] = v
 		}
 
 		job := &batchv1.Job{
