@@ -98,7 +98,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			log.Error(err, "updating jobset status")
 			return ctrl.Result{}, nil
 		}
-		r.Record.Eventf(&js, corev1.EventTypeNormal, string(jobset.JobSetFailed), "jobset %s failed", js.Name)
 	}
 
 	// If all jobs have succeeded, JobSet has succeeded.
@@ -113,7 +112,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			log.Error(err, "updating jobset status")
 			return ctrl.Result{}, nil
 		}
-		r.Record.Eventf(&js, corev1.EventTypeNormal, string(jobset.JobSetCompleted), "jobset %s successful", js.Name)
 	}
 
 	// If job has not failed or succeeded, continue creating any
@@ -325,6 +323,7 @@ func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, 
 	if err := r.Status().Update(ctx, js); err != nil {
 		return err
 	}
+	r.Record.Eventf(js, corev1.EventTypeNormal, condition.Type, condition.Reason)
 	return nil
 }
 
