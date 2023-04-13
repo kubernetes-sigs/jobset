@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,6 +35,7 @@ import (
 type JobSetReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Record record.EventRecorder
 }
 
 type childJobs struct {
@@ -47,6 +49,11 @@ var (
 	apiGVStr    = jobset.GroupVersion.String()
 )
 
+func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *JobSetReconciler {
+	return &JobSetReconciler{Client: client, Scheme: scheme, Record: record}
+}
+
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update
 //+kubebuilder:rbac:groups=batch.x-k8s.io,resources=jobsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch.x-k8s.io,resources=jobsets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=batch.x-k8s.io,resources=jobsets/finalizers,verbs=update
@@ -91,6 +98,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			log.Error(err, "updating jobset status")
 			return ctrl.Result{}, nil
 		}
+		r.Record.Eventf(&js, corev1.EventTypeNormal, string(jobset.JobSetFailed), "jobset %s failed", js.Name)
 	}
 
 	// If all jobs have succeeded, JobSet has succeeded.
@@ -105,6 +113,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			log.Error(err, "updating jobset status")
 			return ctrl.Result{}, nil
 		}
+		r.Record.Eventf(&js, corev1.EventTypeNormal, string(jobset.JobSetCompleted), "jobset %s successful", js.Name)
 	}
 
 	// If job has not failed or succeeded, continue creating any
