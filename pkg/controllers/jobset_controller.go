@@ -108,7 +108,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// If all jobs have succeeded, JobSet has succeeded.
 	if len(ownedJobs.successful) == len(js.Spec.Jobs) {
-		if err := r.updateStatus(ctx, &js, metav1.Condition{
+		if err := r.updateStatusCondition(ctx, &js, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "AllJobsCompleted",
@@ -265,7 +265,7 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 	// If no failure policy is defined, the default failure policy is to mark the JobSet
 	// as failed if any of its jobs have failed.
 	if js.Spec.FailurePolicy == nil {
-		return r.updateStatus(ctx, js, metav1.Condition{
+		return r.updateStatusCondition(ctx, js, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "FailedJobs",
@@ -288,7 +288,7 @@ func (r *JobSetReconciler) executeRestartPolicy(ctx context.Context, js *jobset.
 	log := ctrl.LoggerFrom(ctx)
 
 	failJobSet := func() error {
-		return r.updateStatus(ctx, js, metav1.Condition{
+		return r.updateStatusCondition(ctx, js, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "FailedJobs",
@@ -312,7 +312,7 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 
 	// If JobSet has reached max number of restarts, mark it as failed and return.
 	if js.Status.Restarts == js.Spec.FailurePolicy.MaxRestarts {
-		return r.updateStatus(ctx, js, metav1.Condition{
+		return r.updateStatusCondition(ctx, js, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "ReachedMaxRestarts",
@@ -323,7 +323,7 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
 	// of old jobs not part of the current jobSet run.
 	js.Status.Restarts += 1
-	if err := r.updateStatus(ctx, js); err != nil {
+	if err := r.updateStatus(ctx, js, "Restarting", fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts)); err != nil {
 		return err
 	}
 	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
@@ -437,23 +437,24 @@ func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs)
 }
 
 // updateStatus updates the status of a JobSet.
-// TODO: update condition in place if it exists.
-func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, conditions ...metav1.Condition) error {
-	// Set transition time for all new conditions.
-	for _, c := range conditions {
-		c.LastTransitionTime = metav1.Now()
-		js.Status.Conditions = append(js.Status.Conditions, c)
+func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, eventReason, eventMsg string) error {
+	if err := r.Status().Update(ctx, js); err != nil {
+		return err
 	}
+	r.Record.Eventf(js, corev1.EventTypeNormal, eventReason, eventMsg)
+	return nil
+}
 
-	// Update status.
+// TODO: update condition in place if it exists.
+func (r *JobSetReconciler) updateStatusCondition(ctx context.Context, js *jobset.JobSet, condition metav1.Condition) error {
+	condition.LastTransitionTime = metav1.Now()
+	js.Status.Conditions = append(js.Status.Conditions, condition)
+
 	if err := r.Status().Update(ctx, js); err != nil {
 		return err
 	}
 
-	// Record events.
-	for _, c := range conditions {
-		r.Record.Eventf(js, corev1.EventTypeNormal, c.Type, c.Reason)
-	}
+	r.Record.Eventf(js, corev1.EventTypeNormal, condition.Type, condition.Reason)
 	return nil
 }
 
