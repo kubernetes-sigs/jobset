@@ -437,16 +437,23 @@ func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs)
 }
 
 // updateStatus updates the status of a JobSet.
+// TODO: update condition in place if it exists.
 func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, conditions ...metav1.Condition) error {
-	// TODO: update condition in place if it exists.
+	// Set transition time for all new conditions.
 	for _, c := range conditions {
 		c.LastTransitionTime = metav1.Now()
 		js.Status.Conditions = append(js.Status.Conditions, c)
 	}
+
+	// Update status.
 	if err := r.Status().Update(ctx, js); err != nil {
 		return err
 	}
-	r.Record.Eventf(js, corev1.EventTypeNormal, condition.Type, condition.Reason)
+
+	// Record events.
+	for _, c := range conditions {
+		r.Record.Eventf(js, corev1.EventTypeNormal, c.Type, c.Reason)
+	}
 	return nil
 }
 
