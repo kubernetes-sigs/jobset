@@ -17,6 +17,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -330,8 +331,17 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		})
 	})
 
-	ginkgo.When("a jobset is created with failure policy 'Any' and restart policy 'RecreateAll'", func() {
-		ginkgo.It("should create all jobs, then restart every job once any job fails", func() {
+	// jobSetUpdate contains the mutations to perform on the jobset and the
+	// checks to perform afterwards.
+	type jobSetUpdate struct {
+		name                    string
+		jobUpdateFn             func(jobList *batchv1.JobList) error
+		checkJobSetState        func(js *jobset.JobSet) (bool, error)
+		expectedJobSetCondition jobset.JobSetConditionType
+	}
+
+	ginkgo.DescribeTable("a jobset is created with failure policy 'Any' and restart policy 'RecreateAll'",
+		func(updates []*jobSetUpdate) {
 			ginkgo.By("creating a new JobSet")
 			ctx := context.Background()
 
@@ -362,6 +372,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			ginkgo.By("checking JobSet was created successfully")
 			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
 
+			// Check all jobs are created successfully.
 			ginkgo.By("checking JobSet eventually has 6 active jobs")
 			var originalJobList batchv1.JobList
 			gomega.Eventually(func() (int, error) {
@@ -371,48 +382,115 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				return len(originalJobList.Items), nil
 			}, timeout, interval).Should(gomega.Equal(6))
 
-			// Make a job fail.
-			ginkgo.By("making 1 job fail")
-			job := originalJobList.Items[0]
-			job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
-				Type:   batchv1.JobFailed,
-				Status: corev1.ConditionTrue,
-			})
-			gomega.Expect(k8sClient.Status().Update(ctx, &job)).Should(gomega.Succeed())
+			// Run each update job function and check resulting jobset state afterwards.
+			for _, update := range updates {
+				// Refresh jobList before every update, so we have access to the currently existing jobs.
+				var jobList batchv1.JobList
+				gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
 
-			// Verify jobs were recreated successfully.
-			ginkgo.By("checking jobs are recreated successfully")
-			var newJobList batchv1.JobList
-			gomega.Eventually(func() (bool, error) {
-				if err := k8sClient.List(ctx, &newJobList, client.InNamespace(js.Namespace)); err != nil {
-					return false, err
+				ginkgo.By("updating job(s)")
+				gomega.Expect(update.jobUpdateFn(&jobList)).Should(gomega.Succeed())
+
+				if update.checkJobSetState != nil {
+					ginkgo.By("checking jobset state")
+					gomega.Eventually(update.checkJobSetState, timeout, interval).WithArguments(js).Should(gomega.Equal(true))
 				}
-				if len(newJobList.Items) != len(originalJobList.Items) {
-					return false, nil
+
+				if update.expectedJobSetCondition != "" {
+					ginkgo.By("checking jobset status")
+					gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, update.expectedJobSetCondition).Should(gomega.Equal(true))
 				}
-				for _, job := range newJobList.Items {
-					if job.Labels[jobset.RestartsLabel] != "1" {
+			}
+		},
+		ginkgo.Entry("jobset fails if attempting to exceed max restarts", []*jobSetUpdate{
+			{
+				jobUpdateFn: func(jobList *batchv1.JobList) error {
+					ginkgo.By("failing a job")
+					job := &jobList.Items[0]
+					job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+						Type:   batchv1.JobFailed,
+						Status: corev1.ConditionTrue,
+					})
+					gomega.Expect(k8sClient.Status().Update(ctx, job)).Should(gomega.Succeed())
+					return nil
+				},
+				checkJobSetState: func(js *jobset.JobSet) (bool, error) {
+					ginkgo.By("checking all jobs are recreated")
+					var jobList batchv1.JobList
+					if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+						return false, err
+					}
+					// Check we have the right number of jobs.
+					if len(jobList.Items) != numExpectedJobs(js) {
 						return false, nil
 					}
-				}
-				return true, nil
-			}, timeout, interval).Should(gomega.Equal(true))
+					// Check all the jobs restart counter has been incremented.
+					for _, job := range jobList.Items {
+						if job.Labels[jobset.RestartsLabel] != "1" {
+							return false, nil
+						}
+					}
+					return true, nil
+				},
+			},
+			{
+				jobUpdateFn: func(jobList *batchv1.JobList) error {
+					ginkgo.By("failing another job")
+					job := &jobList.Items[0]
+					job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+						Type:   batchv1.JobFailed,
+						Status: corev1.ConditionTrue,
+					})
+					gomega.Expect(k8sClient.Status().Update(ctx, job)).Should(gomega.Succeed())
+					return nil
+				},
+				expectedJobSetCondition: jobset.JobSetFailed,
+			},
+		}),
+		ginkgo.Entry("1 job succeeds 1 job fails, all jobs recreated", []*jobSetUpdate{
+			{
+				jobUpdateFn: func(jobList *batchv1.JobList) error {
+					ginkgo.By("succeeding a job")
+					job := jobList.Items[0]
+					job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+						Type:   batchv1.JobComplete,
+						Status: corev1.ConditionTrue,
+					})
+					gomega.Expect(k8sClient.Status().Update(ctx, &job)).Should(gomega.Succeed())
 
-			// Test max restarts by failing a job and making sure it cannot restart again, and the jobset fails.
-			ginkgo.By("failing another job")
-			job = newJobList.Items[0]
-			job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
-				Type:   batchv1.JobFailed,
-				Status: corev1.ConditionTrue,
-			})
-			gomega.Expect(k8sClient.Status().Update(ctx, &job)).Should(gomega.Succeed())
-
-			// Check JobSet failed.
-			ginkgo.By("checking jobset fails after attempting to exceed max restarts")
-			gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, jobset.JobSetFailed).Should(gomega.Equal(true))
-		})
-	})
-})
+					ginkgo.By("failing a job")
+					job = jobList.Items[1]
+					job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+						Type:   batchv1.JobFailed,
+						Status: corev1.ConditionTrue,
+					})
+					gomega.Expect(k8sClient.Status().Update(ctx, &job)).Should(gomega.Succeed())
+					return nil
+				},
+				checkJobSetState: func(js *jobset.JobSet) (bool, error) {
+					ginkgo.By("checking all jobs are recreated")
+					var jobList batchv1.JobList
+					if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+						return false, err
+					}
+					// Check we have the right number of jobs.
+					if len(jobList.Items) != numExpectedJobs(js) {
+						fmt.Fprintf(ginkgo.GinkgoWriter, fmt.Sprintf("numJobs: %d, expected: %d\n", len(jobList.Items), numExpectedJobs(js)))
+						return false, nil
+					}
+					// Check all the jobs restart counter has been incremented.
+					for _, job := range jobList.Items {
+						if job.Labels[jobset.RestartsLabel] != "1" {
+							fmt.Fprintf(ginkgo.GinkgoWriter, fmt.Sprintf("job: %s, restarts: %s\n", job.Name, job.Labels[jobset.RestartsLabel]))
+							return false, nil
+						}
+					}
+					return true, nil
+				},
+			},
+		}),
+	) // end of DescribeTable
+}) // end of Describe
 
 func checkJobSetStatus(js *jobset.JobSet, condition jobset.JobSetConditionType) (bool, error) {
 	var fetchedJS jobset.JobSet
@@ -425,4 +503,12 @@ func checkJobSetStatus(js *jobset.JobSet, condition jobset.JobSetConditionType) 
 		}
 	}
 	return false, nil
+}
+
+func numExpectedJobs(js *jobset.JobSet) int {
+	expectedJobs := 0
+	for _, rjob := range js.Spec.Jobs {
+		expectedJobs += rjob.Replicas
+	}
+	return expectedJobs
 }
