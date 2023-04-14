@@ -108,7 +108,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// If all jobs have succeeded, JobSet has succeeded.
 	if len(ownedJobs.successful) == len(js.Spec.Jobs) {
-		if err := r.updateStatusCondition(ctx, &js, metav1.Condition{
+		if err := r.updateStatusWithCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "AllJobsCompleted",
@@ -265,12 +265,7 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 	// If no failure policy is defined, the default failure policy is to mark the JobSet
 	// as failed if any of its jobs have failed.
 	if js.Spec.FailurePolicy == nil {
-		return r.updateStatusCondition(ctx, js, metav1.Condition{
-			Type:    string(jobset.JobSetFailed),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  "FailedJobs",
-			Message: "jobset failed due to one or more failed jobs",
-		})
+		return r.failJobSet(ctx, js)
 	}
 
 	// Handle different types of failure policy targets.
@@ -287,23 +282,14 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 func (r *JobSetReconciler) executeRestartPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	failJobSet := func() error {
-		return r.updateStatusCondition(ctx, js, metav1.Condition{
-			Type:    string(jobset.JobSetFailed),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  "FailedJobs",
-			Message: "jobset failed due to one or more job failures",
-		})
-	}
-
 	switch js.Spec.FailurePolicy.RestartPolicy {
 	case jobset.RestartPolicyRecreateAll:
 		return r.restartPolicyRecreateAll(ctx, js, ownedJobs)
 	case jobset.RestartPolicyNone:
-		return failJobSet()
+		return r.failJobSet(ctx, js)
 	default:
 		log.Error(fmt.Errorf("invalid restart policy: %s", js.Spec.FailurePolicy.RestartPolicy), "invalid restart policy, defaulting to None")
-		return failJobSet()
+		return r.failJobSet(ctx, js)
 	}
 }
 
@@ -312,7 +298,7 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 
 	// If JobSet has reached max number of restarts, mark it as failed and return.
 	if js.Status.Restarts == js.Spec.FailurePolicy.MaxRestarts {
-		return r.updateStatusCondition(ctx, js, metav1.Condition{
+		return r.updateStatusWithCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "ReachedMaxRestarts",
@@ -323,7 +309,7 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
 	// of old jobs not part of the current jobSet run.
 	js.Status.Restarts += 1
-	if err := r.updateStatus(ctx, js, "Restarting", fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts)); err != nil {
+	if err := r.updateStatus(ctx, js, corev1.EventTypeWarning, "Restarting", fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts)); err != nil {
 		return err
 	}
 	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
@@ -437,16 +423,16 @@ func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs)
 }
 
 // updateStatus updates the status of a JobSet.
-func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, eventReason, eventMsg string) error {
+func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, eventType, eventReason, eventMsg string) error {
 	if err := r.Status().Update(ctx, js); err != nil {
 		return err
 	}
-	r.Record.Eventf(js, corev1.EventTypeNormal, eventReason, eventMsg)
+	r.Record.Eventf(js, eventType, eventReason, eventMsg)
 	return nil
 }
 
 // TODO: update condition in place if it exists.
-func (r *JobSetReconciler) updateStatusCondition(ctx context.Context, js *jobset.JobSet, condition metav1.Condition) error {
+func (r *JobSetReconciler) updateStatusWithCondition(ctx context.Context, js *jobset.JobSet, eventType string, condition metav1.Condition) error {
 	condition.LastTransitionTime = metav1.Now()
 	js.Status.Conditions = append(js.Status.Conditions, condition)
 
@@ -454,8 +440,17 @@ func (r *JobSetReconciler) updateStatusCondition(ctx context.Context, js *jobset
 		return err
 	}
 
-	r.Record.Eventf(js, corev1.EventTypeNormal, condition.Type, condition.Reason)
+	r.Record.Eventf(js, eventType, condition.Type, condition.Reason)
 	return nil
+}
+
+func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) error {
+	return r.updateStatusWithCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
+		Type:    string(jobset.JobSetFailed),
+		Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+		Reason:  "FailedJobs",
+		Message: "jobset failed due to one or more job failures",
+	})
 }
 
 func isJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
