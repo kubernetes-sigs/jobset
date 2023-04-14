@@ -18,7 +18,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const JobIndexLabel string = "jobset.sigs.k8s.io/job-index"
+const (
+	JobIndexLabel string = "jobset.sigs.k8s.io/job-index"
+	RestartsLabel string = "jobset.sigs.k8s.io/restart-attempt"
+)
 
 type JobSetConditionType string
 
@@ -36,6 +39,12 @@ type JobSetSpec struct {
 	// +listType=map
 	// +listMapKey=name
 	Jobs []ReplicatedJob `json:"jobs"`
+
+	// FailurePolicy, if set, configures when to declare the JobSet as
+	// failed.
+	// The JobSet is always declared failed if all jobs in the set
+	// finished with status failed.
+	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet
@@ -44,6 +53,9 @@ type JobSetStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
+	Restarts int `json:"restarts,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -76,7 +88,7 @@ type ReplicatedJob struct {
 	// Replicas is the number of jobs that will be created from this ReplicatedJob's template.
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
-	Replicas *int `json:"replicas,omitempty"`
+	Replicas int `json:"replicas,omitempty"`
 }
 type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
@@ -84,6 +96,29 @@ type Network struct {
 	// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +optional
 	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
+}
+
+type TargetOperator string
+
+// TerminationPolicyTargetAny applies to any job in the JobSet.
+const TerminationPolicyTargetAny TargetOperator = "Any"
+
+type RestartPolicy string
+
+const (
+	// RestartPolicyNone means no jobs will be restarted.
+	RestartPolicyNone RestartPolicy = "None"
+	// RestartPolicyRecreate means jobs will be recreated when the termination policy is triggered.
+	RestartPolicyRecreateAll RestartPolicy = "RecreateAll"
+)
+
+type FailurePolicy struct {
+	// +kubebuilder:validation:XValidation:rule="self == \"Any\""
+	// +kubebuilder:default="Any"
+	Operator TargetOperator `json:"operator"`
+	// +kubebuilder:default="None"
+	RestartPolicy RestartPolicy `json:"restartPolicy"`
+	MaxRestarts   int           `json:"maxRestarts,omitempty"`
 }
 
 func init() {
