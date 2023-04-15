@@ -404,18 +404,8 @@ func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs)
 	// TODO: maybe we can use a job map here so we can do O(1) lookups
 	// to check if the job already exists, rather than a linear scan
 	// through all the jobs owned by the jobset.
-	for _, activeJob := range ownedJobs.active {
-		if activeJob.Name == jobName {
-			return false
-		}
-	}
-	for _, successfulJob := range ownedJobs.successful {
-		if successfulJob.Name == jobName {
-			return false
-		}
-	}
-	for _, failedJob := range ownedJobs.failed {
-		if failedJob.Name == jobName {
+	for _, job := range concat(ownedJobs.active, ownedJobs.successful, ownedJobs.failed, ownedJobs.delete) {
+		if jobName == job.Name {
 			return false
 		}
 	}
@@ -481,4 +471,12 @@ func isIndexedJob(job *batchv1.Job) bool {
 
 func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {
 	return rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames
+}
+
+func concat[T any](slices ...[]T) []T {
+	var result []T
+	for _, slice := range slices {
+		result = append(result, slice...)
+	}
+	return result
 }
