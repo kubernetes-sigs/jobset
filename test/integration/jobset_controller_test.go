@@ -71,33 +71,28 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			// Create JobSet.
 			js := tc.makeJobSet()
 
+			ginkgo.By("creating jobset")
 			// If we are expected a validation error creating the jobset, end the test early.
 			if tc.jobSetCreationShouldFail {
+				ginkgo.By("checking that jobset creation fails")
 				gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Not(gomega.Succeed()))
 				return
 			}
 
 			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
 
 			// We'll need to retry getting this newly created jobset, given that creation may not immediately happen.
-			ginkgo.By("checking JobSet was created successfully")
 			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
 
-			// Check all jobs are created successfully.
-			ginkgo.By("checking JobSet successfully creates all jobs")
-			var originalJobList batchv1.JobList
-			gomega.Eventually(func() (int, error) {
-				if err := k8sClient.List(ctx, &originalJobList, client.InNamespace(js.Namespace)); err != nil {
-					return -1, err
-				}
-				return len(originalJobList.Items), nil
-			}, timeout, interval).Should(gomega.Equal(numExpectedJobs(js)))
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(checkNumJobs, timeout, interval).WithArguments(ctx, js).Should(gomega.Equal(numExpectedJobs(js)))
 
 			// Perform a series of updates to jobset resources and check resulting jobset state after each update.
 			for _, update := range tc.updates {
 
-				// Refresh job list before every update, so we have access to the currently existing jobs.
+				// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
 				var jobList batchv1.JobList
 				gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
 
@@ -113,6 +108,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 				// Check jobset status if specified.
 				if update.expectedJobSetCondition != "" {
+					ginkgo.By(fmt.Sprintf("checking jobset status is: %s", update.expectedJobSetCondition))
 					gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, update.expectedJobSetCondition).Should(gomega.Equal(true))
 				}
 			}
@@ -141,7 +137,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: jobSetDNSHostnamesEnabled,
 			updates: []*jobSetUpdate{
 				{
-					checkJobSetState: checkHeadlessServicesCreated,
+					checkJobSetState: checkOneHeadlessSvcPerJob,
 				},
 				{
 					jobUpdateFn:             completeAllJobs,
@@ -153,11 +149,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet:               jobSetWithDNSHostnamesEnabledNonIndexed,
 			jobSetCreationShouldFail: true,
 		}),
-		ginkgo.Entry("jobset with no failure policy, with multiple replicated jobs, with DNS hostnames enabled, should create all jobs and services with the correct number of replicas, then succeed once all jobs are completed", &testCase{
+		ginkgo.Entry("jobset with no failure policy, multiple replicated jobs, and DNS hostnames enabled, should create all jobs and services with the correct number of replicas, then succeed once all jobs are completed", &testCase{
 			makeJobSet: jobSetDNSHostnamesEnabled,
 			updates: []*jobSetUpdate{
 				{
-					checkJobSetState: checkHeadlessServicesCreated,
+					checkJobSetState: checkOneHeadlessSvcPerJob,
 				},
 				{
 					jobUpdateFn:             completeAllJobs,
@@ -165,11 +161,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("jobset with no failure policy, with multiple replicated jobs, with DNS hostnames enabled, should create all jobs and services with the correct number of replicas, then fail if any job fails", &testCase{
+		ginkgo.Entry("jobset with no failure policy, multiple replicated jobs, and DNS hostnames enabled, should create all jobs and services with the correct number of replicas, then fail if any job fails", &testCase{
 			makeJobSet: jobSetDNSHostnamesEnabled,
 			updates: []*jobSetUpdate{
 				{
-					checkJobSetState: checkHeadlessServicesCreated,
+					checkJobSetState: checkOneHeadlessSvcPerJob,
 				},
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
@@ -187,13 +183,13 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						failJob(&jobList.Items[0])
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
-						// check jobs are recreated with restart-attempts=1
+						ginkgo.By("checking all jobs are recreated")
 						gomega.Eventually(checkJobsRecreated, timeout, interval).WithArguments(js, 1).Should(gomega.Equal(true))
 					},
 				},
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
-						failJob(&jobList.Items[3])
+						failJob(&jobList.Items[1])
 					},
 					expectedJobSetCondition: jobset.JobSetFailed,
 				},
@@ -208,7 +204,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						failJob(&jobList.Items[1])
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
-						// Check all jobs recreated with restart-attempts=1
+						ginkgo.By("checking all jobs are recreated")
 						gomega.Eventually(checkJobsRecreated, timeout, interval).WithArguments(js, 1).Should(gomega.Equal(true))
 					},
 				},
@@ -222,7 +218,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 }) // end of Describe
 
 func createTestNS() {
-	// Create new namespace for this
 	ns = &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-ns-",
@@ -241,7 +236,6 @@ func createTestNS() {
 }
 
 func checkJobSetStatus(js *jobset.JobSet, condition jobset.JobSetConditionType) (bool, error) {
-	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", condition))
 	var fetchedJS jobset.JobSet
 	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
 		return false, err
@@ -292,7 +286,6 @@ func failJob(job *batchv1.Job) {
 }
 
 func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
-	ginkgo.By("checking all jobs are recreated")
 	var jobList batchv1.JobList
 	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
 		return false, err
@@ -310,8 +303,16 @@ func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
 	return true, nil
 }
 
-func checkHeadlessServicesCreated(js *jobset.JobSet) {
-	// Check 1 headless service per job was created successfully.
+func checkNumJobs(ctx context.Context, js *jobset.JobSet) (int, error) {
+	var jobList batchv1.JobList
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+		return -1, err
+	}
+	return len(jobList.Items), nil
+}
+
+// Check one headless service per job was created successfully.
+func checkOneHeadlessSvcPerJob(js *jobset.JobSet) {
 	gomega.Eventually(func() (int, error) {
 		var svcList corev1.ServiceList
 		if err := k8sClient.List(ctx, &svcList, client.InNamespace(js.Namespace)); err != nil {
@@ -323,7 +324,6 @@ func checkHeadlessServicesCreated(js *jobset.JobSet) {
 
 // - 3 replicated jobs, 1 replica each
 func simpleJobSet() *jobset.JobSet {
-	ginkgo.By("creating a jobset with 3 replicated jobs, 1 replica each")
 	return testing.MakeJobSet("js-succeed", ns.Name).
 		AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			SetJob(testing.MakeJob("test-job-A", ns.Name).Obj()).
@@ -340,7 +340,6 @@ func simpleJobSet() *jobset.JobSet {
 // - 3 replicated jobs, 1 replica each
 // - Pod DNS Hostnames enabled
 func jobSetDNSHostnamesEnabled() *jobset.JobSet {
-	ginkgo.By("creating a jobset with 3 replicated jobs with DNS hostnames enabled, 1 replica each")
 	return testing.MakeJobSet("js-hostnames", ns.Name).
 		AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			SetJob(testing.MakeJob("test-job", ns.Name).SetCompletionMode(batchv1.IndexedCompletion).Obj()).
@@ -361,8 +360,6 @@ func jobSetDNSHostnamesEnabled() *jobset.JobSet {
 // - Indexed completion mode
 // - Failure Policy of (operator='Any', restartPolicy='RecreateAll', maxRestarts=1)
 func jobSetFailurePolicyAnyRecreateAll() *jobset.JobSet {
-	ginkgo.By("creating a jobset with 2 replicated jobs, 2 replicas each, and failureFolicy(operator='Any', restartPolicy='RecreateAll', maxRestarts=1)")
-	// Construct JobSet with 2 replicated jobs with 3 replicas each.
 	return testing.MakeJobSet("js-failure-policy-any-with-recreate", ns.Name).
 		AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-leader").
 			SetJob(testing.MakeJob("test-job-leader", ns.Name).
@@ -374,7 +371,6 @@ func jobSetFailurePolicyAnyRecreateAll() *jobset.JobSet {
 				SetCompletionMode(batchv1.IndexedCompletion).Obj()).
 			SetReplicas(3).
 			Obj()).
-		// Set failure policy to "Any" with restart policy "Recreate" with max 1 restart.
 		SetFailurePolicy(&jobset.FailurePolicy{
 			Operator:      jobset.TerminationPolicyTargetAny,
 			RestartPolicy: jobset.RestartPolicyRecreateAll,
@@ -383,7 +379,7 @@ func jobSetFailurePolicyAnyRecreateAll() *jobset.JobSet {
 		Obj()
 }
 
-// - 1 Replicated Job with 1 replica
+// - 1 Replicated Job with single replica
 // - Job in NonIndexed completion mode
 func jobSetWithDNSHostnamesEnabledNonIndexed() *jobset.JobSet {
 	return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
