@@ -346,54 +346,15 @@ func (r *JobSetReconciler) deleteJobs(ctx context.Context, js *jobset.JobSet, jo
 
 func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
-	// Construct jobs.
-	for i := 0; i < rjob.Replicas; i++ {
-		// Check if we need to create this job. If not, skip it.
-		jobName := genJobName(js, rjob, i)
-
+	for jobIdx := 0; jobIdx < rjob.Replicas; jobIdx++ {
+		jobName := genJobName(js, rjob, jobIdx)
 		if create := r.shouldCreateJob(jobName, ownedJobs); !create {
 			continue
 		}
-
-		// Copy labels/annotations to avoid modifying the template itself.
-		labels := make(map[string]string)
-		for k, v := range rjob.Template.Labels {
-			labels[k] = v
-		}
-		annotations := make(map[string]string)
-		for k, v := range rjob.Template.Annotations {
-			annotations[k] = v
-		}
-
-		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels:      labels,
-				Annotations: annotations,
-				Name:        genJobName(js, rjob, i),
-				Namespace:   js.Namespace,
-			},
-			Spec: *rjob.Template.Spec.DeepCopy(),
-		}
-
-		// Add restart-attempt count label, it should be equal to jobSet restarts
-		// to indicate is part of the current jobSet run.
-		job.Labels[jobset.RestartsLabel] = strconv.Itoa(js.Status.Restarts)
-
-		// Add job index as a label and annotation.
-		job.Labels[jobset.JobIndexLabel] = strconv.Itoa(i)
-		job.Annotations[jobset.JobIndexLabel] = strconv.Itoa(i)
-
-		// If enableDNSHostnames is set, update job spec to set subdomain as
-		// job name (a headless service with same name as job will be created later).
-		if dnsHostnamesEnabled(rjob) {
-			job.Spec.Template.Spec.Subdomain = job.Name
-		}
-
-		// Set controller owner reference for garbage collection and reconcilation.
-		if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
+		job, err := r.makeJob(js, rjob, jobIdx)
+		if err != nil {
 			return nil, err
 		}
-
 		jobs = append(jobs, job)
 	}
 	return jobs, nil
@@ -410,6 +371,38 @@ func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs)
 		}
 	}
 	return true
+}
+
+func (r *JobSetReconciler) makeJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*batchv1.Job, error) {
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      copyMap(rjob.Template.Labels),
+			Annotations: copyMap(rjob.Template.Annotations),
+			Name:        genJobName(js, rjob, jobIdx),
+			Namespace:   js.Namespace,
+		},
+		Spec: *rjob.Template.Spec.DeepCopy(),
+	}
+
+	// Add restart-attempt count label, it should be equal to jobSet restarts
+	// to indicate is part of the current jobSet run.
+	job.Labels[jobset.RestartsLabel] = strconv.Itoa(js.Status.Restarts)
+
+	// Add job index as a label and annotation.
+	job.Labels[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
+	job.Annotations[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
+
+	// If enableDNSHostnames is set, update job spec to set subdomain as
+	// job name (a headless service with same name as job will be created later).
+	if dnsHostnamesEnabled(rjob) {
+		job.Spec.Template.Spec.Subdomain = job.Name
+	}
+
+	// Set controller owner reference for garbage collection and reconcilation.
+	if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
+		return nil, err
+	}
+	return job, nil
 }
 
 // updateStatus updates the status of a JobSet.
@@ -479,4 +472,12 @@ func concat[T any](slices ...[]T) []T {
 		result = append(result, slice...)
 	}
 	return result
+}
+
+func copyMap[K, V comparable](m map[K]V) map[K]V {
+	copy := make(map[K]V)
+	for k, v := range m {
+		copy[k] = v
+	}
+	return copy
 }
