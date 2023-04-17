@@ -89,13 +89,21 @@ type ReplicatedJob struct {
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
 	Replicas int `json:"replicas,omitempty"`
+	// Exclusive holds scheduling parameters to make the job exclusive to the given topology.
+	Exclusive *Exclusive `json:"exclusive,omitempty"`
 }
+
 type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
 	// Pods will be reachable using the fully qualified pod hostname, which is in the format:
 	// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +optional
 	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
+}
+
+type Exclusive struct {
+	// Topology key for pod affinity/anti-affinity.
+	TopologyKey string `json:"topologyKey,omitempty"`
 }
 
 type TargetOperator string

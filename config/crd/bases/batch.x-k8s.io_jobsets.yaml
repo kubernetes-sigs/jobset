@@ -58,6 +58,14 @@ spec:
                 description: Jobs is the group of jobs that will form the set.
                 items:
                   properties:
+                    exclusive:
+                      description: Exclusive holds scheduling parameters to make the
+                        job exclusive to the given topology.
+                      properties:
+                        topologyKey:
+                          description: Topology key for pod affinity/anti-affinity.
+                          type: string
+                      type: object
                     name:
                       description: Name is the name of the entry and will be used
                         as a suffix for the Job name.
