@@ -351,7 +351,7 @@ func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jo
 		if create := r.shouldCreateJob(jobName, ownedJobs); !create {
 			continue
 		}
-		job, err := r.makeJob(js, rjob, jobIdx)
+		job, err := r.constructJob(js, rjob, jobIdx)
 		if err != nil {
 			return nil, err
 		}
@@ -373,11 +373,11 @@ func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs)
 	return true
 }
 
-func (r *JobSetReconciler) makeJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*batchv1.Job, error) {
+func (r *JobSetReconciler) constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*batchv1.Job, error) {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      copyMap(rjob.Template.Labels),
-			Annotations: copyMap(rjob.Template.Annotations),
+			Labels:      cloneMap(rjob.Template.Labels),
+			Annotations: cloneMap(rjob.Template.Annotations),
 			Name:        genJobName(js, rjob, jobIdx),
 			Namespace:   js.Namespace,
 		},
@@ -474,7 +474,7 @@ func concat[T any](slices ...[]T) []T {
 	return result
 }
 
-func copyMap[K, V comparable](m map[K]V) map[K]V {
+func cloneMap[K, V comparable](m map[K]V) map[K]V {
 	copy := make(map[K]V)
 	for k, v := range m {
 		copy[k] = v
