@@ -131,7 +131,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			}
 		},
 		// TODO: move validation tests to separate Describe + DescribeTable
-		ginkgo.Entry("jobset validation should fail if DNS hostnames is enabled and job completion mode is not indexed", &testCase{
+		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
 					AddReplicatedJob(testing.MakeReplicatedJob("test-job").
