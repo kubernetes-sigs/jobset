@@ -383,16 +383,22 @@ func (r *JobSetReconciler) constructJob(js *jobset.JobSet, rjob *jobset.Replicat
 		Spec: *rjob.Template.Spec.DeepCopy(),
 	}
 
-	// Add restart-attempt count label, it should be equal to jobSet restarts
-	// to indicate is part of the current jobSet run.
+	// Add replica count as label to the job.
+	job.Labels[jobset.ReplicasLabel] = strconv.Itoa(rjob.Replicas)
+
+	// Add restart-attempt count label to the job, it should be equal to
+	// jobSet restarts to indicate is part of the current jobSet run.
 	job.Labels[jobset.RestartsLabel] = strconv.Itoa(js.Status.Restarts)
 
-	// Add job index as a label and annotation.
+	// Add job index as a label and annotation to the job.
 	job.Labels[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
 	job.Annotations[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
 
-	// Add replica count as label.
-	job.Labels[jobset.ReplicasLabel] = strconv.Itoa(rjob.Replicas)
+	// Add job index as a label and annotation to the pod template spec.
+	job.Spec.Template.Labels = cloneMap(job.Spec.Template.Labels)
+	job.Spec.Template.Annotations = cloneMap(job.Spec.Template.Annotations)
+	job.Spec.Template.Labels[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
+	job.Spec.Template.Annotations[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
 
 	// If enableDNSHostnames is set, update job spec to set subdomain as
 	// job name (a headless service with same name as job will be created later).
