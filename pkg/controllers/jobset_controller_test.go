@@ -20,6 +20,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	jobset "sigs.k8s.io/jobset/api/v1alpha1"
+	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
 func TestIsJobFinished(t *testing.T) {
@@ -111,23 +114,26 @@ func TestSetExclusiveAffinities(t *testing.T) {
 	tests := []struct {
 		name         string
 		job          *batchv1.Job
+		nsSelector   *metav1.LabelSelector
 		wantAffinity corev1.Affinity
 	}{
 		{
-			name: "no existing affinities",
-			job:  testJob(jobName),
+			name:       "no existing affinities",
+			job:        testutils.MakeJob(jobName).Obj(),
+			nsSelector: &metav1.LabelSelector{}, // all namespaces
 			wantAffinity: corev1.Affinity{
 				PodAffinity: &corev1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
-									Key:      "job-name",
+									Key:      jobset.JobNameKey,
 									Operator: metav1.LabelSelectorOpIn,
 									Values:   []string{jobName},
 								},
 							}},
-							TopologyKey: topologyKey,
+							TopologyKey:       topologyKey,
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 					},
 				},
@@ -136,12 +142,17 @@ func TestSetExclusiveAffinities(t *testing.T) {
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
-									Key:      "job-name",
+									Key:      jobset.JobNameKey,
+									Operator: metav1.LabelSelectorOpExists,
+								},
+								{
+									Key:      jobset.JobNameKey,
 									Operator: metav1.LabelSelectorOpNotIn,
-									Values:   []string{jobName, ""},
+									Values:   []string{jobName},
 								},
 							}},
-							TopologyKey: topologyKey,
+							TopologyKey:       topologyKey,
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 					},
 				},
@@ -149,7 +160,37 @@ func TestSetExclusiveAffinities(t *testing.T) {
 		},
 		{
 			name: "existing affinities should be appended to, not replaced",
-			job:  testJobWithAffinities(jobName),
+			job: testutils.MakeJob(jobName).SetAffinity(&corev1.Affinity{
+				PodAffinity: &corev1.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "label-foo",
+									Operator: metav1.LabelSelectorOpIn,
+									Values:   []string{"value-foo"},
+								},
+							}},
+							TopologyKey: "topology.kubernetes.io/zone",
+						},
+					},
+				},
+				PodAntiAffinity: &corev1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "label-bar",
+									Operator: metav1.LabelSelectorOpNotIn,
+									Values:   []string{"value-bar"},
+								},
+							}},
+							TopologyKey: "topology.kubernetes.io/zone",
+						},
+					},
+				},
+			}).Obj(),
+			nsSelector: &metav1.LabelSelector{},
 			wantAffinity: corev1.Affinity{
 				PodAffinity: &corev1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -166,12 +207,13 @@ func TestSetExclusiveAffinities(t *testing.T) {
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
-									Key:      "job-name",
+									Key:      jobset.JobNameKey,
 									Operator: metav1.LabelSelectorOpIn,
 									Values:   []string{jobName},
 								},
 							}},
-							TopologyKey: topologyKey,
+							TopologyKey:       topologyKey,
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 					},
 				},
@@ -190,12 +232,17 @@ func TestSetExclusiveAffinities(t *testing.T) {
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
-									Key:      "job-name",
+									Key:      jobset.JobNameKey,
+									Operator: metav1.LabelSelectorOpExists,
+								},
+								{
+									Key:      jobset.JobNameKey,
 									Operator: metav1.LabelSelectorOpNotIn,
-									Values:   []string{jobName, ""},
+									Values:   []string{jobName},
 								},
 							}},
-							TopologyKey: topologyKey,
+							TopologyKey:       topologyKey,
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 					},
 				},
@@ -205,61 +252,16 @@ func TestSetExclusiveAffinities(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			setExclusiveAffinities(tc.job, topologyKey)
+			setExclusiveAffinities(tc.job, topologyKey, tc.nsSelector)
+			// Check pod affinities.
 			if diff := cmp.Diff(tc.wantAffinity.PodAffinity, tc.job.Spec.Template.Spec.Affinity.PodAffinity); diff != "" {
 				t.Errorf("unexpected diff in pod affinity (-want/+got): %s", diff)
 			}
+			// Check pod anti-affinities.
 			if diff := cmp.Diff(tc.wantAffinity.PodAntiAffinity, tc.job.Spec.Template.Spec.Affinity.PodAntiAffinity); diff != "" {
 				t.Errorf("unexpected diff in pod anti-affinity (-want/+got): %s", diff)
 			}
+
 		})
 	}
-}
-
-func testJob(jobName string) *batchv1.Job {
-	return &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: jobName,
-		},
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{},
-			},
-		},
-	}
-}
-
-func testJobWithAffinities(jobName string) *batchv1.Job {
-	job := testJob(jobName)
-	job.Spec.Template.Spec.Affinity = &corev1.Affinity{
-		PodAffinity: &corev1.PodAffinity{
-			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-				{
-					LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-						{
-							Key:      "label-foo",
-							Operator: metav1.LabelSelectorOpIn,
-							Values:   []string{"value-foo"},
-						},
-					}},
-					TopologyKey: "topology.kubernetes.io/zone",
-				},
-			},
-		},
-		PodAntiAffinity: &corev1.PodAntiAffinity{
-			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-				{
-					LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-						{
-							Key:      "label-bar",
-							Operator: metav1.LabelSelectorOpNotIn,
-							Values:   []string{"value-bar"},
-						},
-					}},
-					TopologyKey: "topology.kubernetes.io/zone",
-				},
-			},
-		},
-	}
-	return job
 }

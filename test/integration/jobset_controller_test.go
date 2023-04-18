@@ -135,7 +135,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
 					AddReplicatedJob(testing.MakeReplicatedJob("test-job").
-						SetJob(testing.MakeJob("test-job", ns.Name).Obj()).
+						SetJob(testing.MakeJobTemplate("test-job", ns.Name).Obj()).
 						SetEnableDNSHostnames(true).
 						Obj())
 			},
@@ -354,11 +354,11 @@ func checkExpectedServices(js *jobset.JobSet) {
 func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet("js-succeed", ns.Name).
 		AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
-			SetJob(testing.MakeJob("test-job-A", ns.Name).Obj()).
+			SetJob(testing.MakeJobTemplate("test-job-A", ns.Name).Obj()).
 			SetReplicas(1).
 			Obj()).
 		AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
-			SetJob(testing.MakeJob("test-job-B", ns.Name).SetCompletionMode(batchv1.IndexedCompletion).Obj()).
+			SetJob(testing.MakeJobTemplate("test-job-B", ns.Name).SetCompletionMode(batchv1.IndexedCompletion).Obj()).
 			SetEnableDNSHostnames(true).
 			SetReplicas(3).
 			Obj())

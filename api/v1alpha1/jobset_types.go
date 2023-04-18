@@ -21,6 +21,7 @@ import (
 const (
 	JobIndexLabel string = "jobset.sigs.k8s.io/job-index"
 	RestartsLabel string = "jobset.sigs.k8s.io/restart-attempt"
+	JobNameKey    string = "job-name" // TODO: Migrate to the fully qualified label name.
 )
 
 type JobSetConditionType string
@@ -89,7 +90,7 @@ type ReplicatedJob struct {
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
 	Replicas int `json:"replicas,omitempty"`
-	// Exclusive defines that the jobs are 1:1 with the specified topology. This is enforced 
+	// Exclusive defines that the jobs are 1:1 with the specified topology. This is enforced
 	// against all jobs, whether or not they are created by JobSet.
 	Exclusive *Exclusive `json:"exclusive,omitempty"`
 }
@@ -103,9 +104,12 @@ type Network struct {
 }
 
 type Exclusive struct {
-	// TopologyKey refers to the topology on which exclusive placement will be 
+	// TopologyKey refers to the topology on which exclusive placement will be
 	// enforced (e.g., node, rack, zone etc.)
 	TopologyKey string `json:"topologyKey,omitempty"`
+	// A label query over the set of namespaces that exclusiveness applies to. Defaults to the job's namespace.
+	// An empty selector ({}) matches all namespaces.
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
 }
 
 type TargetOperator string

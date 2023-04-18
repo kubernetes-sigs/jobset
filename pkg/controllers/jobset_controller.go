@@ -241,8 +241,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 			Spec: corev1.ServiceSpec{
 				ClusterIP: "None",
 				Selector: map[string]string{
-					// TODO: Migrate to the fully qualified label name.
-					"job-name": job.Name,
+					jobset.JobNameKey: job.Name,
 				},
 			},
 		}
@@ -400,7 +399,7 @@ func (r *JobSetReconciler) constructJob(js *jobset.JobSet, rjob *jobset.Replicat
 
 	// If this job should be exclusive per topology, set the pod affinities/anti-affinities accordingly.
 	if rjob.Exclusive != nil {
-		setExclusiveAffinities(job, rjob.Exclusive.TopologyKey)
+		setExclusiveAffinities(job, rjob.Exclusive.TopologyKey, rjob.Exclusive.NamespaceSelector)
 	}
 
 	// Set controller owner reference for garbage collection and reconcilation.
@@ -445,7 +444,7 @@ func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) er
 // Appends pod affinity/anti-affinity terms to the job pod template spec,
 // ensuring that exclusively one job runs per topology and that all pods
 // from each job land on the same topology.
-func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
+func setExclusiveAffinities(job *batchv1.Job, topologyKey string, nsSelector *metav1.LabelSelector) {
 	if job.Spec.Template.Spec.Affinity == nil {
 		job.Spec.Template.Spec.Affinity = &corev1.Affinity{}
 	}
@@ -461,12 +460,13 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 		corev1.PodAffinityTerm{
 			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      "job-name",
+					Key:      jobset.JobNameKey,
 					Operator: metav1.LabelSelectorOpIn,
 					Values:   []string{job.Name},
 				},
 			}},
-			TopologyKey: topologyKey,
+			TopologyKey:       topologyKey,
+			NamespaceSelector: nsSelector,
 		})
 
 	// Pod anti-affinity ensures exclusively this job lands on the topology, preventing multiple jobs per topology.
@@ -474,12 +474,17 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 		corev1.PodAffinityTerm{
 			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      "job-name",
+					Key:      jobset.JobNameKey,
+					Operator: metav1.LabelSelectorOpExists,
+				},
+				{
+					Key:      jobset.JobNameKey,
 					Operator: metav1.LabelSelectorOpNotIn,
-					Values:   []string{job.Name, ""},
+					Values:   []string{job.Name},
 				},
 			}},
-			TopologyKey: topologyKey,
+			TopologyKey:       topologyKey,
+			NamespaceSelector: nsSelector,
 		})
 }
 
