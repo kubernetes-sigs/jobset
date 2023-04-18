@@ -357,7 +357,7 @@ func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, 
 	return nil
 }
 
-// TODO: update condition in place if it exists.
+// TODO(#39): update condition in place if it exists.
 func (r *JobSetReconciler) updateStatusWithCondition(ctx context.Context, js *jobset.JobSet, eventType string, condition metav1.Condition) error {
 	condition.LastTransitionTime = metav1.Now()
 	js.Status.Conditions = append(js.Status.Conditions, condition)

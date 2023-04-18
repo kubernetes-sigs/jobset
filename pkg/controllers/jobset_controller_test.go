@@ -309,16 +309,16 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Obj()).Obj(),
 			ownedJobs: &childJobs{},
 			want: []*batchv1.Job{
-				makeJob(&expectedJobArgs{
+				makeJob(&makeJobArgs{
 					jobName:  "test-jobset-replicated-job-0",
 					ns:       ns,
 					replicas: 2,
-					jobIdx:   0}),
-				makeJob(&expectedJobArgs{
+					jobIdx:   0}).Obj(),
+				makeJob(&makeJobArgs{
 					jobName:  "test-jobset-replicated-job-1",
 					ns:       ns,
 					replicas: 2,
-					jobIdx:   1}),
+					jobIdx:   1}).Obj(),
 			},
 		},
 		{
@@ -334,11 +334,11 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				},
 			},
 			want: []*batchv1.Job{
-				makeJob(&expectedJobArgs{
+				makeJob(&makeJobArgs{
 					jobName:  "test-jobset-replicated-job-1",
 					ns:       ns,
 					replicas: 2,
-					jobIdx:   1}),
+					jobIdx:   1}).Obj(),
 			},
 		},
 		{
@@ -354,11 +354,11 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				},
 			},
 			want: []*batchv1.Job{
-				makeJob(&expectedJobArgs{
+				makeJob(&makeJobArgs{
 					jobName:  "test-jobset-replicated-job-1",
 					ns:       ns,
 					replicas: 2,
-					jobIdx:   1}),
+					jobIdx:   1}).Obj(),
 			},
 		},
 		{
@@ -374,11 +374,11 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				},
 			},
 			want: []*batchv1.Job{
-				makeJob(&expectedJobArgs{
+				makeJob(&makeJobArgs{
 					jobName:  "test-jobset-replicated-job-1",
 					ns:       ns,
 					replicas: 2,
-					jobIdx:   1}),
+					jobIdx:   1}).Obj(),
 			},
 		},
 		{
@@ -394,11 +394,11 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				},
 			},
 			want: []*batchv1.Job{
-				makeJob(&expectedJobArgs{
+				makeJob(&makeJobArgs{
 					jobName:  "test-jobset-replicated-job-1",
 					ns:       ns,
 					replicas: 2,
-					jobIdx:   1}),
+					jobIdx:   1}).Obj(),
 			},
 		},
 		{
@@ -415,24 +415,24 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				Obj(),
 			ownedJobs: &childJobs{
 				active: []*batchv1.Job{
-					makeJob(&expectedJobArgs{
+					makeJob(&makeJobArgs{
 						jobName:  "test-jobset-replicated-job-B-0",
 						ns:       ns,
 						replicas: 2,
-						jobIdx:   0}),
+						jobIdx:   0}).Obj(),
 				},
 			},
 			want: []*batchv1.Job{
-				makeJob(&expectedJobArgs{
+				makeJob(&makeJobArgs{
 					jobName:  "test-jobset-replicated-job-A-0",
 					ns:       ns,
 					replicas: 1,
-					jobIdx:   0}),
-				makeJob(&expectedJobArgs{
+					jobIdx:   0}).Obj(),
+				makeJob(&makeJobArgs{
 					jobName:  "test-jobset-replicated-job-B-1",
 					ns:       ns,
 					replicas: 2,
-					jobIdx:   1}),
+					jobIdx:   1}).Obj(),
 			},
 		},
 		{
@@ -446,12 +446,46 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				Obj(),
 			ownedJobs: &childJobs{},
 			want: []*batchv1.Job{
-				makeJob(&expectedJobArgs{
-					jobName:   "test-jobset-replicated-job-0",
-					ns:        ns,
-					replicas:  1,
-					exclusive: exclusive,
-					jobIdx:    0}),
+				makeJob(&makeJobArgs{
+					jobName:  "test-jobset-replicated-job-0",
+					ns:       ns,
+					replicas: 1,
+					jobIdx:   0}).Affinity(&corev1.Affinity{
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      jobset.JobNameKey,
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"test-jobset-replicated-job-0"},
+									},
+								}},
+								TopologyKey:       exclusive.TopologyKey,
+								NamespaceSelector: exclusive.NamespaceSelector,
+							},
+						},
+					},
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      jobset.JobNameKey,
+										Operator: metav1.LabelSelectorOpExists,
+									},
+									{
+										Key:      jobset.JobNameKey,
+										Operator: metav1.LabelSelectorOpNotIn,
+										Values:   []string{"test-jobset-replicated-job-0"},
+									},
+								}},
+								TopologyKey:       exclusive.TopologyKey,
+								NamespaceSelector: exclusive.NamespaceSelector,
+							},
+						},
+					},
+				}).Obj(),
 			},
 		},
 		{
@@ -465,12 +499,11 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				Obj(),
 			ownedJobs: &childJobs{},
 			want: []*batchv1.Job{
-				makeJob(&expectedJobArgs{
-					jobName:   "test-jobset-replicated-job-0",
-					ns:        ns,
-					replicas:  1,
-					subdomain: "test-jobset-replicated-job-0",
-					jobIdx:    0}),
+				makeJob(&makeJobArgs{
+					jobName:  "test-jobset-replicated-job-0",
+					ns:       ns,
+					replicas: 1,
+					jobIdx:   0}).Subdomain("test-jobset-replicated-job-0").Obj(),
 			},
 		},
 	}
@@ -494,17 +527,15 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 	}
 }
 
-type expectedJobArgs struct {
-	jobName   string
-	ns        string
-	subdomain string
-	replicas  int
-	jobIdx    int
-	restarts  int
-	exclusive *jobset.Exclusive
+type makeJobArgs struct {
+	jobName  string
+	ns       string
+	replicas int
+	jobIdx   int
+	restarts int
 }
 
-func makeJob(args *expectedJobArgs) *batchv1.Job {
+func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
 		JobLabels(map[string]string{
 			jobset.ReplicasKey: strconv.Itoa(args.replicas),
@@ -522,48 +553,5 @@ func makeJob(args *expectedJobArgs) *batchv1.Job {
 			jobset.ReplicasKey: strconv.Itoa(args.replicas),
 			jobset.JobIndexKey: strconv.Itoa(args.jobIdx),
 		})
-
-	if args.subdomain != "" {
-		jobWrapper = jobWrapper.Subdomain(args.subdomain)
-	}
-
-	if args.exclusive != nil {
-		jobWrapper = jobWrapper.Affinity(&corev1.Affinity{
-			PodAffinity: &corev1.PodAffinity{
-				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-					{
-						LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      jobset.JobNameKey,
-								Operator: metav1.LabelSelectorOpIn,
-								Values:   []string{args.jobName},
-							},
-						}},
-						TopologyKey:       args.exclusive.TopologyKey,
-						NamespaceSelector: args.exclusive.NamespaceSelector,
-					},
-				},
-			},
-			PodAntiAffinity: &corev1.PodAntiAffinity{
-				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-					{
-						LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      jobset.JobNameKey,
-								Operator: metav1.LabelSelectorOpExists,
-							},
-							{
-								Key:      jobset.JobNameKey,
-								Operator: metav1.LabelSelectorOpNotIn,
-								Values:   []string{args.jobName},
-							},
-						}},
-						TopologyKey:       args.exclusive.TopologyKey,
-						NamespaceSelector: args.exclusive.NamespaceSelector,
-					},
-				},
-			},
-		})
-	}
-	return jobWrapper.Obj()
+	return jobWrapper
 }
