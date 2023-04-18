@@ -89,7 +89,8 @@ type ReplicatedJob struct {
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
 	Replicas int `json:"replicas,omitempty"`
-	// Exclusive holds scheduling parameters to make the job exclusive to the given topology.
+	// Exclusive defines that the jobs are 1:1 with the specified topology. This is enforced 
+	// against all jobs, whether or not they are created by JobSet.
 	Exclusive *Exclusive `json:"exclusive,omitempty"`
 }
 
