@@ -241,8 +241,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 			Spec: corev1.ServiceSpec{
 				ClusterIP: "None",
 				Selector: map[string]string{
-					// TODO: Migrate to the fully qualified label name.
-					"job-name": job.Name,
+					jobset.JobNameKey: job.Name,
 				},
 			},
 		}
@@ -398,10 +397,16 @@ func (r *JobSetReconciler) constructJob(js *jobset.JobSet, rjob *jobset.Replicat
 		job.Spec.Template.Spec.Subdomain = job.Name
 	}
 
+	// If this job should be exclusive per topology, set the pod affinities/anti-affinities accordingly.
+	if rjob.Exclusive != nil {
+		setExclusiveAffinities(job, rjob.Exclusive.TopologyKey, rjob.Exclusive.NamespaceSelector)
+	}
+
 	// Set controller owner reference for garbage collection and reconcilation.
 	if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
 		return nil, err
 	}
+
 	return job, nil
 }
 
@@ -434,6 +439,53 @@ func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) er
 		Reason:  "FailedJobs",
 		Message: "jobset failed due to one or more job failures",
 	})
+}
+
+// Appends pod affinity/anti-affinity terms to the job pod template spec,
+// ensuring that exclusively one job runs per topology domain and that all pods
+// from each job land on the same topology domain.
+func setExclusiveAffinities(job *batchv1.Job, topologyKey string, nsSelector *metav1.LabelSelector) {
+	if job.Spec.Template.Spec.Affinity == nil {
+		job.Spec.Template.Spec.Affinity = &corev1.Affinity{}
+	}
+	if job.Spec.Template.Spec.Affinity.PodAffinity == nil {
+		job.Spec.Template.Spec.Affinity.PodAffinity = &corev1.PodAffinity{}
+	}
+	if job.Spec.Template.Spec.Affinity.PodAntiAffinity == nil {
+		job.Spec.Template.Spec.Affinity.PodAntiAffinity = &corev1.PodAntiAffinity{}
+	}
+
+	// Pod affinity ensures the pods of this job land on the same topology domain.
+	job.Spec.Template.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(job.Spec.Template.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+		corev1.PodAffinityTerm{
+			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      jobset.JobNameKey,
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{job.Name},
+				},
+			}},
+			TopologyKey:       topologyKey,
+			NamespaceSelector: nsSelector,
+		})
+
+	// Pod anti-affinity ensures exclusively this job lands on the topology, preventing multiple jobs per topology domain.
+	job.Spec.Template.Spec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(job.Spec.Template.Spec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+		corev1.PodAffinityTerm{
+			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      jobset.JobNameKey,
+					Operator: metav1.LabelSelectorOpExists,
+				},
+				{
+					Key:      jobset.JobNameKey,
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{job.Name},
+				},
+			}},
+			TopologyKey:       topologyKey,
+			NamespaceSelector: nsSelector,
+		})
 }
 
 func isJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {

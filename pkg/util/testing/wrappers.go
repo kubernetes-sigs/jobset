@@ -97,14 +97,14 @@ func (r *ReplicatedJobWrapper) Obj() jobset.ReplicatedJob {
 	return r.ReplicatedJob
 }
 
-// JobWrapper wraps a Job.
-type JobWrapper struct {
+// JobTemplateWrapper wraps a JobTemplateSpec.
+type JobTemplateWrapper struct {
 	batchv1.JobTemplateSpec
 }
 
-// MakeJob creates a wrapper for a Job with a default template spec.
-func MakeJob(name, ns string) *JobWrapper {
-	return &JobWrapper{
+// MakeJobTemplate creates a wrapper for a JobTemplateSpec.
+func MakeJobTemplate(name, ns string) *JobTemplateWrapper {
+	return &JobTemplateWrapper{
 		batchv1.JobTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
@@ -128,12 +128,44 @@ func MakeJob(name, ns string) *JobWrapper {
 }
 
 // SetCompletionMode sets the value of job.spec.completionMode
-func (j *JobWrapper) SetCompletionMode(mode batchv1.CompletionMode) *JobWrapper {
+func (j *JobTemplateWrapper) SetCompletionMode(mode batchv1.CompletionMode) *JobTemplateWrapper {
 	j.Spec.CompletionMode = &mode
 	return j
 }
 
 // Obj returns the inner batchv1.JobTemplateSpec
-func (j *JobWrapper) Obj() batchv1.JobTemplateSpec {
+func (j *JobTemplateWrapper) Obj() batchv1.JobTemplateSpec {
 	return j.JobTemplateSpec
+}
+
+// JobWrapper wraps a Job.
+type JobWrapper struct {
+	batchv1.Job
+}
+
+// MakeJobWrapper creates a wrapper for a Job.
+func MakeJob(jobName string) *JobWrapper {
+	return &JobWrapper{
+		batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: jobName,
+			},
+			Spec: batchv1.JobSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{},
+				},
+			},
+		},
+	}
+}
+
+// SetAffinity sets the pod affinities/anti-affinities for the pod template spec.
+func (j *JobWrapper) SetAffinity(affinity *corev1.Affinity) *JobWrapper {
+	j.Spec.Template.Spec.Affinity = affinity
+	return j
+}
+
+// Obj returns the wrapped Job.
+func (j *JobWrapper) Obj() *batchv1.Job {
+	return &j.Job
 }
