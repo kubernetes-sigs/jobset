@@ -442,8 +442,8 @@ func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) er
 }
 
 // Appends pod affinity/anti-affinity terms to the job pod template spec,
-// ensuring that exclusively one job runs per topology and that all pods
-// from each job land on the same topology.
+// ensuring that exclusively one job runs per topology domain and that all pods
+// from each job land on the same topology domain.
 func setExclusiveAffinities(job *batchv1.Job, topologyKey string, nsSelector *metav1.LabelSelector) {
 	if job.Spec.Template.Spec.Affinity == nil {
 		job.Spec.Template.Spec.Affinity = &corev1.Affinity{}
