@@ -190,7 +190,7 @@ func TestSetExclusiveAffinities(t *testing.T) {
 					},
 				},
 			}).Obj(),
-			nsSelector: nil
+			nsSelector: nil,
 			wantAffinity: corev1.Affinity{
 				PodAffinity: &corev1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -212,8 +212,7 @@ func TestSetExclusiveAffinities(t *testing.T) {
 									Values:   []string{jobName},
 								},
 							}},
-							TopologyKey:       topologyKey,
-							NamespaceSelector: &metav1.LabelSelector{},
+							TopologyKey: topologyKey,
 						},
 					},
 				},
@@ -241,8 +240,7 @@ func TestSetExclusiveAffinities(t *testing.T) {
 									Values:   []string{jobName},
 								},
 							}},
-							TopologyKey:       topologyKey,
-							NamespaceSelector: &metav1.LabelSelector{},
+							TopologyKey: topologyKey,
 						},
 					},
 				},
