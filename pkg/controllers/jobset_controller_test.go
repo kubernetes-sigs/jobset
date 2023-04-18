@@ -291,7 +291,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "no jobs created",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
@@ -304,7 +304,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "all jobs created",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{},
@@ -325,7 +325,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "one job created, one job not created (already active)",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
@@ -345,7 +345,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "one job created, one job not created (already succeeded)",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
@@ -365,7 +365,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "one job created, one job not created (already failed)",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
@@ -385,7 +385,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "one job created, one job not created (marked for deletion)",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
@@ -405,11 +405,11 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "multiple replicated jobs",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-A").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-B").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).
 				Obj(),
@@ -439,7 +439,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "exclusive affinities",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Exclusive(exclusive).
 					Obj()).
@@ -458,7 +458,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "pod dns hostnames enabled",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
-					Job(testutils.MakeJobTemplate(jobName, ns).PodSpec(corev1.PodSpec{}).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					EnableDNSHostnames(true).
 					Obj()).

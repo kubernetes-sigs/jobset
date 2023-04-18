@@ -354,11 +354,11 @@ func checkExpectedServices(js *jobset.JobSet) {
 func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet("js-succeed", ns.Name).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
-			Job(testing.MakeJobTemplate("test-job-A", ns.Name).Obj()).
+			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).
 			Obj()).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
-			Job(testing.MakeJobTemplate("test-job-B", ns.Name).CompletionMode(batchv1.IndexedCompletion).Obj()).
+			Job(testing.MakeJobTemplate("test-job-B", ns.Name).PodSpec(testing.TestPodSpec).CompletionMode(batchv1.IndexedCompletion).Obj()).
 			EnableDNSHostnames(true).
 			Replicas(3).
 			Obj())

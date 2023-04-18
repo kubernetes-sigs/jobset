@@ -22,6 +22,17 @@ import (
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 )
 
+// TestPodSpec is the default pod spec used for testing.
+var TestPodSpec = corev1.PodSpec{
+	RestartPolicy: "Never",
+	Containers: []corev1.Container{
+		{
+			Name:  "test-container",
+			Image: "busybox:latest",
+		},
+	},
+}
+
 // JobSetWrapper wraps a JobSet.
 type JobSetWrapper struct {
 	jobset.JobSet
@@ -118,15 +129,7 @@ func MakeJobTemplate(name, ns string) *JobTemplateWrapper {
 			},
 			Spec: batchv1.JobSpec{
 				Template: corev1.PodTemplateSpec{
-					Spec: corev1.PodSpec{
-						RestartPolicy: "Never",
-						Containers: []corev1.Container{
-							{
-								Name:  "test-container",
-								Image: "busybox:latest",
-							},
-						},
-					},
+					Spec: corev1.PodSpec{},
 				},
 			},
 		},
@@ -199,6 +202,12 @@ func (j *JobWrapper) PodLabels(labels map[string]string) *JobWrapper {
 // PodAnnotations sets the pod template spec annotations.
 func (j *JobWrapper) PodAnnotations(annotations map[string]string) *JobWrapper {
 	j.Spec.Template.Annotations = annotations
+	return j
+}
+
+// PodSpec sets the pod template spec.
+func (j *JobWrapper) PodSpec(podSpec corev1.PodSpec) *JobWrapper {
+	j.Spec.Template.Spec = podSpec
 	return j
 }
 
