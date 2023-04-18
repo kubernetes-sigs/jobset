@@ -170,9 +170,9 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	for i, job := range childJobList.Items {
 		// Jobs with jobset.sigs.k8s.io/restart-attempt < jobset.status.restarts are marked for
 		// deletion, as they were part of the previous JobSet run.
-		jobRestarts, err := strconv.Atoi(job.Labels[jobset.RestartsLabel])
+		jobRestarts, err := strconv.Atoi(job.Labels[jobset.RestartsKey])
 		if err != nil {
-			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", jobset.RestartsLabel))
+			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", jobset.RestartsKey))
 			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
 			return nil, err
 		}
@@ -200,12 +200,17 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	log := ctrl.LoggerFrom(ctx)
 
 	for _, rjob := range js.Spec.Jobs {
-		jobs, err := r.constructJobsFromTemplate(js, &rjob, ownedJobs)
+		jobs, err := constructJobsFromTemplate(js, &rjob, ownedJobs)
 		if err != nil {
 			return err
 		}
 
 		for _, job := range jobs {
+			// Set controller owner reference for garbage collection and reconcilation.
+			if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
+				return err
+			}
+
 			// Create headless service if specified for this job.
 			if dnsHostnamesEnabled(&rjob) {
 				if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
@@ -336,78 +341,11 @@ func (r *JobSetReconciler) deleteJobs(ctx context.Context, js *jobset.JobSet, jo
 				finalErr = err
 				return
 			}
-			log.V(2).Info("successfully deleted job", "job", klog.KObj(job), "restart attempt", job.Labels[job.Labels[jobset.RestartsLabel]])
+			log.V(2).Info("successfully deleted job", "job", klog.KObj(job), "restart attempt", job.Labels[job.Labels[jobset.RestartsKey]])
 		}()
 	}
 	wg.Wait()
 	return finalErr
-}
-
-func (r *JobSetReconciler) constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
-	var jobs []*batchv1.Job
-	for jobIdx := 0; jobIdx < rjob.Replicas; jobIdx++ {
-		jobName := genJobName(js, rjob, jobIdx)
-		if create := r.shouldCreateJob(jobName, ownedJobs); !create {
-			continue
-		}
-		job, err := r.constructJob(js, rjob, jobIdx)
-		if err != nil {
-			return nil, err
-		}
-		jobs = append(jobs, job)
-	}
-	return jobs, nil
-}
-
-func (r *JobSetReconciler) shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
-	// Check if this job exists already.
-	// TODO: maybe we can use a job map here so we can do O(1) lookups
-	// to check if the job already exists, rather than a linear scan
-	// through all the jobs owned by the jobset.
-	for _, job := range concat(ownedJobs.active, ownedJobs.successful, ownedJobs.failed, ownedJobs.delete) {
-		if jobName == job.Name {
-			return false
-		}
-	}
-	return true
-}
-
-func (r *JobSetReconciler) constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*batchv1.Job, error) {
-	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels:      cloneMap(rjob.Template.Labels),
-			Annotations: cloneMap(rjob.Template.Annotations),
-			Name:        genJobName(js, rjob, jobIdx),
-			Namespace:   js.Namespace,
-		},
-		Spec: *rjob.Template.Spec.DeepCopy(),
-	}
-
-	// Add restart-attempt count label, it should be equal to jobSet restarts
-	// to indicate is part of the current jobSet run.
-	job.Labels[jobset.RestartsLabel] = strconv.Itoa(js.Status.Restarts)
-
-	// Add job index as a label and annotation.
-	job.Labels[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
-	job.Annotations[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
-
-	// If enableDNSHostnames is set, update job spec to set subdomain as
-	// job name (a headless service with same name as job will be created later).
-	if dnsHostnamesEnabled(rjob) {
-		job.Spec.Template.Spec.Subdomain = job.Name
-	}
-
-	// If this job should be exclusive per topology, set the pod affinities/anti-affinities accordingly.
-	if rjob.Exclusive != nil {
-		setExclusiveAffinities(job, rjob.Exclusive.TopologyKey, rjob.Exclusive.NamespaceSelector)
-	}
-
-	// Set controller owner reference for garbage collection and reconcilation.
-	if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
-		return nil, err
-	}
-
-	return job, nil
 }
 
 // updateStatus updates the status of a JobSet.
@@ -419,7 +357,7 @@ func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, 
 	return nil
 }
 
-// TODO: update condition in place if it exists.
+// TODO(#39): update condition in place if it exists.
 func (r *JobSetReconciler) updateStatusWithCondition(ctx context.Context, js *jobset.JobSet, eventType string, condition metav1.Condition) error {
 	condition.LastTransitionTime = metav1.Now()
 	js.Status.Conditions = append(js.Status.Conditions, condition)
@@ -439,6 +377,68 @@ func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) er
 		Reason:  "FailedJobs",
 		Message: "jobset failed due to one or more job failures",
 	})
+}
+
+func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
+	var jobs []*batchv1.Job
+	for jobIdx := 0; jobIdx < rjob.Replicas; jobIdx++ {
+		jobName := genJobName(js, rjob, jobIdx)
+		if create := shouldCreateJob(jobName, ownedJobs); !create {
+			continue
+		}
+		job, err := constructJob(js, rjob, jobIdx)
+		if err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, job)
+	}
+	return jobs, nil
+}
+
+func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*batchv1.Job, error) {
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      cloneMap(rjob.Template.Labels),
+			Annotations: cloneMap(rjob.Template.Annotations),
+			Name:        genJobName(js, rjob, jobIdx),
+			Namespace:   js.Namespace,
+		},
+		Spec: *rjob.Template.Spec.DeepCopy(),
+	}
+
+	// Add restart-attempt count label to the job, it should be equal to
+	// jobSet restarts to indicate is part of the current jobSet run.
+	job.Labels[jobset.RestartsKey] = strconv.Itoa(js.Status.Restarts)
+
+	// Add replica count as label to the job.
+	job.Labels[jobset.ReplicasKey] = strconv.Itoa(rjob.Replicas)
+
+	// Add job index as a label and annotation to the job.
+	job.Labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+	job.Annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+
+	// Add replica count as label and annotation to the pod spec.
+	job.Spec.Template.Labels = cloneMap(job.Spec.Template.Labels)
+	job.Spec.Template.Annotations = cloneMap(job.Spec.Template.Annotations)
+	job.Spec.Template.Labels[jobset.ReplicasKey] = strconv.Itoa(rjob.Replicas)
+	job.Spec.Template.Annotations[jobset.ReplicasKey] = strconv.Itoa(rjob.Replicas)
+
+	// Add job index as a label and annotation to the pod template spec.
+	job.Spec.Template.Labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+	job.Spec.Template.Annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+
+	// If enableDNSHostnames is set, update job spec to set subdomain as
+	// job name (a headless service with same name as job will be created later).
+	if dnsHostnamesEnabled(rjob) {
+		job.Spec.Template.Spec.Subdomain = job.Name
+	}
+
+	// If this job should be exclusive per topology, set the pod affinities/anti-affinities accordingly.
+	if rjob.Exclusive != nil {
+		setExclusiveAffinities(job, rjob.Exclusive.TopologyKey, rjob.Exclusive.NamespaceSelector)
+	}
+
+	return job, nil
 }
 
 // Appends pod affinity/anti-affinity terms to the job pod template spec,
@@ -486,6 +486,19 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string, nsSelector *me
 			TopologyKey:       topologyKey,
 			NamespaceSelector: nsSelector,
 		})
+}
+
+func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
+	// Check if this job exists already.
+	// TODO: maybe we can use a job map here so we can do O(1) lookups
+	// to check if the job already exists, rather than a linear scan
+	// through all the jobs owned by the jobset.
+	for _, job := range concat(ownedJobs.active, ownedJobs.successful, ownedJobs.failed, ownedJobs.delete) {
+		if jobName == job.Name {
+			return false
+		}
+	}
+	return true
 }
 
 func isJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
