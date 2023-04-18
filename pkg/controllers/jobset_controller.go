@@ -455,7 +455,7 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string, nsSelector *me
 		job.Spec.Template.Spec.Affinity.PodAntiAffinity = &corev1.PodAntiAffinity{}
 	}
 
-	// Pod affinity ensures the pods of this job land on the same topology.
+	// Pod affinity ensures the pods of this job land on the same topology domain.
 	job.Spec.Template.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(job.Spec.Template.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
 		corev1.PodAffinityTerm{
 			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
