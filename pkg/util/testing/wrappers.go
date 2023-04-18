@@ -118,7 +118,15 @@ func MakeJobTemplate(name, ns string) *JobTemplateWrapper {
 			},
 			Spec: batchv1.JobSpec{
 				Template: corev1.PodTemplateSpec{
-					Spec: corev1.PodSpec{},
+					Spec: corev1.PodSpec{
+						RestartPolicy: "Never",
+						Containers: []corev1.Container{
+							{
+								Name:  "test-container",
+								Image: "busybox:latest",
+							},
+						},
+					},
 				},
 			},
 		},
@@ -128,6 +136,12 @@ func MakeJobTemplate(name, ns string) *JobTemplateWrapper {
 // CompletionMode sets the value of job.spec.completionMode
 func (j *JobTemplateWrapper) CompletionMode(mode batchv1.CompletionMode) *JobTemplateWrapper {
 	j.Spec.CompletionMode = &mode
+	return j
+}
+
+// Containers sets the pod template spec containers.
+func (j *JobTemplateWrapper) PodSpec(podSpec corev1.PodSpec) *JobTemplateWrapper {
+	j.Spec.Template.Spec = podSpec
 	return j
 }
 
