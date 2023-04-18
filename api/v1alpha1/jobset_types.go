@@ -19,10 +19,12 @@ import (
 )
 
 const (
-	JobIndexKey string = "jobset.sigs.k8s.io/job-index"
-	ReplicasKey string = "jobset.sigs.k8s.io/job-replicas"
-	RestartsKey string = "jobset.sigs.k8s.io/restart-attempt"
-	JobNameKey  string = "job-name" // TODO(#26): Migrate to the fully qualified label name.
+	JobSetKey        string = "jobset.sigs.k8s.io/jobset"
+	JobIndexKey      string = "jobset.sigs.k8s.io/job-index"
+	ReplicasKey      string = "jobset.sigs.k8s.io/job-replicas"
+	RestartsKey      string = "jobset.sigs.k8s.io/restart-attempt"
+	ReplicatedJobKey string = "jobset.sigs.k8s.io/replicated-job"
+	JobNameKey       string = "job-name" // TODO(#26): Migrate to the fully qualified label name.
 )
 
 type JobSetConditionType string
