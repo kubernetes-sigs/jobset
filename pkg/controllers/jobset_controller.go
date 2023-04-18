@@ -391,6 +391,9 @@ func (r *JobSetReconciler) constructJob(js *jobset.JobSet, rjob *jobset.Replicat
 	job.Labels[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
 	job.Annotations[jobset.JobIndexLabel] = strconv.Itoa(jobIdx)
 
+	// Add replica count as label.
+	job.Labels[jobset.ReplicasLabel] = strconv.Itoa(rjob.Replicas)
+
 	// If enableDNSHostnames is set, update job spec to set subdomain as
 	// job name (a headless service with same name as job will be created later).
 	if dnsHostnamesEnabled(rjob) {

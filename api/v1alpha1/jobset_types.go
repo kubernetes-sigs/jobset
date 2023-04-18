@@ -20,6 +20,7 @@ import (
 
 const (
 	JobIndexLabel string = "jobset.sigs.k8s.io/job-index"
+	ReplicasLabel string = "jobset.sigs.k8s.io/job-replicas"
 	RestartsLabel string = "jobset.sigs.k8s.io/restart-attempt"
 	JobNameKey    string = "job-name" // TODO(#26): Migrate to the fully qualified label name.
 )
