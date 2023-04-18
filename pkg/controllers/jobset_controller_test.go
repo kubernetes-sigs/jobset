@@ -190,7 +190,7 @@ func TestSetExclusiveAffinities(t *testing.T) {
 					},
 				},
 			}).Obj(),
-			nsSelector: &metav1.LabelSelector{},
+			nsSelector: nil
 			wantAffinity: corev1.Affinity{
 				PodAffinity: &corev1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
