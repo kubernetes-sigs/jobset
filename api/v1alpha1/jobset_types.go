@@ -21,7 +21,7 @@ import (
 const (
 	JobIndexLabel string = "jobset.sigs.k8s.io/job-index"
 	RestartsLabel string = "jobset.sigs.k8s.io/restart-attempt"
-	JobNameKey    string = "job-name" // TODO: Migrate to the fully qualified label name.
+	JobNameKey    string = "job-name" // TODO(#26): Migrate to the fully qualified label name.
 )
 
 type JobSetConditionType string
