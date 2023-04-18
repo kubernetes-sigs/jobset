@@ -99,7 +99,7 @@ type ReplicatedJob struct {
 type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
 	// Pods will be reachable using the fully qualified pod hostname, which is in the format:
-	// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>-<job-index>
+	// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>
 	// +optional
 	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
 }

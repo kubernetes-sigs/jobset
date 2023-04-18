@@ -503,7 +503,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:  "test-jobset-replicated-job-0",
 					ns:       ns,
 					replicas: 1,
-					jobIdx:   0}).Subdomain("test-jobset-replicated-job-0").Obj(),
+					jobIdx:   0}).Subdomain("test-jobset-replicated-job").Obj(),
 			},
 		},
 	}

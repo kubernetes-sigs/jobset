@@ -205,17 +205,17 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			return err
 		}
 
-		for _, job := range jobs {
-			// Set controller owner reference for garbage collection and reconcilation.
-			if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
+		// If pod DNS hostnames are enabled, create a headless service per repliactedJob.
+		if dnsHostnamesEnabled(&rjob) {
+			if err := r.createHeadlessSvcIfNotExist(ctx, js, &rjob); err != nil {
 				return err
 			}
+		}
 
-			// Create headless service if specified for this job.
-			if dnsHostnamesEnabled(&rjob) {
-				if err := r.createHeadlessSvcIfNotExist(ctx, js, job); err != nil {
-					return err
-				}
+		for _, job := range jobs {
+			// Set jobset controller as owner of the job for garbage collection and reconcilation.
+			if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
+				return err
 			}
 
 			// Create the job.
@@ -231,22 +231,22 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 
 // TODO: look into adopting service and updating the selector
 // if it is not matching the job selector.
-func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *jobset.JobSet, job *batchv1.Job) error {
+func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *jobset.JobSet, rjob *jobset.ReplicatedJob) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// Check if service already exists. Service name is same as job name.
+	// Check if service already exists. Service name is same as replicatedJob name.
 	// If the service does not exist, create it.
 	var headlessSvc corev1.Service
-	if err := r.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: js.Namespace}, &headlessSvc); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: js.Namespace}, &headlessSvc); err != nil {
 		headlessSvc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      job.Name,
+				Name:      rjob.Name,
 				Namespace: js.Namespace,
 			},
 			Spec: corev1.ServiceSpec{
 				ClusterIP: "None",
 				Selector: map[string]string{
-					jobset.JobNameKey: job.Name,
+					jobset.JobNameKey: genSubdomain(js, rjob),
 				},
 			},
 		}
@@ -260,7 +260,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 		if err := r.Create(ctx, &headlessSvc); err != nil {
 			return err
 		}
-		log.V(2).Info("successfully created headless service", "service", klog.KObj(job))
+		log.V(2).Info("successfully created headless service", "service", klog.KObj(&headlessSvc))
 	}
 	return nil
 }
@@ -430,7 +430,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	// If enableDNSHostnames is set, update job spec to set subdomain as
 	// job name (a headless service with same name as job will be created later).
 	if dnsHostnamesEnabled(rjob) {
-		job.Spec.Template.Spec.Subdomain = job.Name
+		job.Spec.Template.Spec.Subdomain = genSubdomain(js, rjob)
 	}
 
 	// If this job should be exclusive per topology, set the pod affinities/anti-affinities accordingly.
@@ -512,6 +512,10 @@ func isJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 
 func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIndex int) string {
 	return fmt.Sprintf("%s-%s-%d", js.Name, rjob.Name, jobIndex)
+}
+
+func genSubdomain(js *jobset.JobSet, rjob *jobset.ReplicatedJob) string {
+	return fmt.Sprintf("%s-%s", js.Name, rjob.Name)
 }
 
 func isJobSetFinished(js *jobset.JobSet) bool {

@@ -277,13 +277,14 @@ func numExpectedJobs(js *jobset.JobSet) int {
 }
 
 func numExpectedServices(js *jobset.JobSet) int {
-	expectedJobs := 0
+	// Expect 1 headless service per replicatedJob.
+	expected := 0
 	for _, rjob := range js.Spec.Jobs {
 		if rjob.Network != nil && rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
-			expectedJobs += rjob.Replicas
+			expected += 1
 		}
 	}
-	return expectedJobs
+	return expected
 }
 
 func completeAllJobs(jobList *batchv1.JobList) {
@@ -352,7 +353,7 @@ func checkExpectedServices(js *jobset.JobSet) {
 // - one with 1 replica
 // - one with 3 replicas and DNS hostnames enabled
 func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
-	return testing.MakeJobSet("js-succeed", ns.Name).
+	return testing.MakeJobSet("test-js", ns.Name).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).
