@@ -42,8 +42,8 @@ func MakeJobSet(name, ns string) *JobSetWrapper {
 	}
 }
 
-// SetFailurePolicy sets the value of jobSet.spec.failurePolicy
-func (j *JobSetWrapper) SetFailurePolicy(policy *jobset.FailurePolicy) *JobSetWrapper {
+// FailurePolicy sets the value of jobSet.spec.failurePolicy
+func (j *JobSetWrapper) FailurePolicy(policy *jobset.FailurePolicy) *JobSetWrapper {
 	j.Spec.FailurePolicy = policy
 	return j
 }
@@ -53,8 +53,8 @@ func (j *JobSetWrapper) Obj() *jobset.JobSet {
 	return &j.JobSet
 }
 
-// AddReplicatedJob adds a single ReplicatedJob to the JobSet.
-func (j *JobSetWrapper) AddReplicatedJob(job jobset.ReplicatedJob) *JobSetWrapper {
+// ReplicatedJob adds a single ReplicatedJob to the JobSet.
+func (j *JobSetWrapper) ReplicatedJob(job jobset.ReplicatedJob) *JobSetWrapper {
 	j.JobSet.Spec.Jobs = append(j.JobSet.Spec.Jobs, job)
 	return j
 }
@@ -74,21 +74,27 @@ func MakeReplicatedJob(name string) *ReplicatedJobWrapper {
 	}
 }
 
-// SetJob sets the Job spec for the ReplicatedJob template.
-func (r *ReplicatedJobWrapper) SetJob(jobSpec batchv1.JobTemplateSpec) *ReplicatedJobWrapper {
+// Job sets the Job spec for the ReplicatedJob template.
+func (r *ReplicatedJobWrapper) Job(jobSpec batchv1.JobTemplateSpec) *ReplicatedJobWrapper {
 	r.Template = jobSpec
 	return r
 }
 
-// SetEnableDNSHostnames sets the value of ReplicatedJob.Network.EnableDNSHostnames.
-func (r *ReplicatedJobWrapper) SetEnableDNSHostnames(val bool) *ReplicatedJobWrapper {
+// EnableDNSHostnames sets the value of ReplicatedJob.Network.EnableDNSHostnames.
+func (r *ReplicatedJobWrapper) EnableDNSHostnames(val bool) *ReplicatedJobWrapper {
 	r.ReplicatedJob.Network.EnableDNSHostnames = pointer.Bool(val)
 	return r
 }
 
-// SetReplicas sets the value of the ReplicatedJob.Replicas.
-func (r *ReplicatedJobWrapper) SetReplicas(val int) *ReplicatedJobWrapper {
+// Replicas sets the value of the ReplicatedJob.Replicas.
+func (r *ReplicatedJobWrapper) Replicas(val int) *ReplicatedJobWrapper {
 	r.ReplicatedJob.Replicas = val
+	return r
+}
+
+// Exclusive sets the value of ReplicatedJob.Exclusive.
+func (r *ReplicatedJobWrapper) Exclusive(e *jobset.Exclusive) *ReplicatedJobWrapper {
+	r.ReplicatedJob.Exclusive = e
 	return r
 }
 
@@ -112,23 +118,15 @@ func MakeJobTemplate(name, ns string) *JobTemplateWrapper {
 			},
 			Spec: batchv1.JobSpec{
 				Template: corev1.PodTemplateSpec{
-					Spec: corev1.PodSpec{
-						RestartPolicy: "Never",
-						Containers: []corev1.Container{
-							{
-								Name:  "test-container",
-								Image: "busybox:latest",
-							},
-						},
-					},
+					Spec: corev1.PodSpec{},
 				},
 			},
 		},
 	}
 }
 
-// SetCompletionMode sets the value of job.spec.completionMode
-func (j *JobTemplateWrapper) SetCompletionMode(mode batchv1.CompletionMode) *JobTemplateWrapper {
+// CompletionMode sets the value of job.spec.completionMode
+func (j *JobTemplateWrapper) CompletionMode(mode batchv1.CompletionMode) *JobTemplateWrapper {
 	j.Spec.CompletionMode = &mode
 	return j
 }
@@ -144,11 +142,12 @@ type JobWrapper struct {
 }
 
 // MakeJobWrapper creates a wrapper for a Job.
-func MakeJob(jobName string) *JobWrapper {
+func MakeJob(jobName, ns string) *JobWrapper {
 	return &JobWrapper{
 		batchv1.Job{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: jobName,
+				Name:      jobName,
+				Namespace: ns,
 			},
 			Spec: batchv1.JobSpec{
 				Template: corev1.PodTemplateSpec{
@@ -159,9 +158,39 @@ func MakeJob(jobName string) *JobWrapper {
 	}
 }
 
-// SetAffinity sets the pod affinities/anti-affinities for the pod template spec.
-func (j *JobWrapper) SetAffinity(affinity *corev1.Affinity) *JobWrapper {
+// Affinity sets the pod affinities/anti-affinities for the pod template spec.
+func (j *JobWrapper) Affinity(affinity *corev1.Affinity) *JobWrapper {
 	j.Spec.Template.Spec.Affinity = affinity
+	return j
+}
+
+// JobLabels sets the Job labels.
+func (j *JobWrapper) JobLabels(labels map[string]string) *JobWrapper {
+	j.Labels = labels
+	return j
+}
+
+// JobAnnotations sets the Job annotations.
+func (j *JobWrapper) JobAnnotations(annotations map[string]string) *JobWrapper {
+	j.Annotations = annotations
+	return j
+}
+
+// PodLabels sets the pod template spec labels.
+func (j *JobWrapper) PodLabels(labels map[string]string) *JobWrapper {
+	j.Spec.Template.Labels = labels
+	return j
+}
+
+// PodAnnotations sets the pod template spec annotations.
+func (j *JobWrapper) PodAnnotations(annotations map[string]string) *JobWrapper {
+	j.Spec.Template.Annotations = annotations
+	return j
+}
+
+// Subdomain sets the pod template spec subdomain.
+func (j *JobWrapper) Subdomain(subdomain string) *JobWrapper {
+	j.Spec.Template.Spec.Subdomain = subdomain
 	return j
 }
 

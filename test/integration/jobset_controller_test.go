@@ -134,9 +134,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
-					AddReplicatedJob(testing.MakeReplicatedJob("test-job").
-						SetJob(testing.MakeJobTemplate("test-job", ns.Name).Obj()).
-						SetEnableDNSHostnames(true).
+					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						Job(testing.MakeJobTemplate("test-job", ns.Name).Obj()).
+						EnableDNSHostnames(true).
 						Obj())
 			},
 			jobSetCreationShouldFail: true,
@@ -202,7 +202,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		ginkgo.Entry("jobset fails after reaching max restarts", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
-					SetFailurePolicy(&jobset.FailurePolicy{
+					FailurePolicy(&jobset.FailurePolicy{
 						Operator:      jobset.TerminationPolicyTargetAny,
 						RestartPolicy: jobset.RestartPolicyRecreateAll,
 						MaxRestarts:   1,
@@ -229,7 +229,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		ginkgo.Entry("job succeeds after one failure", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
-					SetFailurePolicy(&jobset.FailurePolicy{
+					FailurePolicy(&jobset.FailurePolicy{
 						Operator:      jobset.TerminationPolicyTargetAny,
 						RestartPolicy: jobset.RestartPolicyRecreateAll,
 						MaxRestarts:   1,
@@ -322,7 +322,7 @@ func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
 	}
 	// Check all the jobs restart counter has been incremented.
 	for _, job := range jobList.Items {
-		if job.Labels[jobset.RestartsLabel] != strconv.Itoa(expectedRestarts) {
+		if job.Labels[jobset.RestartsKey] != strconv.Itoa(expectedRestarts) {
 			return false, nil
 		}
 	}
@@ -353,13 +353,13 @@ func checkExpectedServices(js *jobset.JobSet) {
 // - one with 3 replicas and DNS hostnames enabled
 func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet("js-succeed", ns.Name).
-		AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
-			SetJob(testing.MakeJobTemplate("test-job-A", ns.Name).Obj()).
-			SetReplicas(1).
+		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
+			Job(testing.MakeJobTemplate("test-job-A", ns.Name).Obj()).
+			Replicas(1).
 			Obj()).
-		AddReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
-			SetJob(testing.MakeJobTemplate("test-job-B", ns.Name).SetCompletionMode(batchv1.IndexedCompletion).Obj()).
-			SetEnableDNSHostnames(true).
-			SetReplicas(3).
+		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
+			Job(testing.MakeJobTemplate("test-job-B", ns.Name).CompletionMode(batchv1.IndexedCompletion).Obj()).
+			EnableDNSHostnames(true).
+			Replicas(3).
 			Obj())
 }
