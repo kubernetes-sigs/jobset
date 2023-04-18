@@ -3,13 +3,38 @@ IMG ?= controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.26.0
 
-GO_CMD ?= go
-
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
 else
 GOBIN=$(shell go env GOBIN)
+endif
+
+GO_CMD ?= go
+GO_FMT ?= gofmt
+GO_TEST_FLAGS ?= -race
+
+GIT_TAG ?= $(shell git describe --tags --dirty --always)
+# Image URL to use all building/pushing image targets
+PLATFORMS ?= linux/amd64,linux/arm64
+DOCKER_BUILDX_CMD ?= docker buildx
+IMAGE_BUILD_CMD ?= $(DOCKER_BUILDX_CMD) build
+IMAGE_BUILD_EXTRA_OPTS ?=
+IMAGE_REGISTRY ?= gcr.io/k8s-staging-jobset
+IMAGE_NAME := jobset
+IMAGE_REPO ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME)
+IMAGE_TAG ?= $(IMAGE_REPO):$(GIT_TAG)
+
+# Use distroless as minimal base image to package the manager binary
+# Refer to https://github.com/GoogleContainerTools/distroless for more details
+BASE_IMAGE ?= gcr.io/distroless/static:nonroot
+BUILDER_IMAGE ?= golang:$(GO_VERSION)
+
+ifdef EXTRA_TAG
+IMAGE_EXTRA_TAG ?= $(IMAGE_REPO):$(EXTRA_TAG)
+endif
+ifdef IMAGE_EXTRA_TAG
+IMAGE_BUILD_EXTRA_OPTS += -t $(IMAGE_EXTRA_TAG)
 endif
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
@@ -72,6 +97,30 @@ build: manifests generate fmt vet ## Build manager binary.
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
+
+# Build the container image
+.PHONY: image-local-build
+image-local-build:
+	BUILDER=$(shell $(DOCKER_BUILDX_CMD) create --use)
+	$(MAKE) image-build PUSH=$(PUSH)
+	$(DOCKER_BUILDX_CMD) rm $$BUILDER
+
+.PHONY: image-local-push
+image-local-push: PUSH=--push
+image-local-push: image-local-build
+
+.PHONY: image-build
+image-build:
+	$(IMAGE_BUILD_CMD) -t $(IMAGE_TAG) \
+		--platform=$(PLATFORMS) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+		--build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) \
+		$(PUSH) \
+		$(IMAGE_BUILD_EXTRA_OPTS) ./
+
+.PHONY: image-push
+image-push: PUSH=--push
+image-push: image-build
 
 # If you wish built the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64 ). However, you must enable docker buildKit for it.
