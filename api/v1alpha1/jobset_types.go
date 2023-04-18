@@ -103,7 +103,8 @@ type Network struct {
 }
 
 type Exclusive struct {
-	// Topology key for pod affinity/anti-affinity.
+	// TopologyKey refers to the topology on which exclusive placement will be 
+	// enforced (e.g., node, rack, zone etc.)
 	TopologyKey string `json:"topologyKey,omitempty"`
 }
 
