@@ -469,7 +469,7 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string, nsSelector *me
 			NamespaceSelector: nsSelector,
 		})
 
-	// Pod anti-affinity ensures exclusively this job lands on the topology, preventing multiple jobs per topology.
+	// Pod anti-affinity ensures exclusively this job lands on the topology, preventing multiple jobs per topology domain.
 	job.Spec.Template.Spec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(job.Spec.Template.Spec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
 		corev1.PodAffinityTerm{
 			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
