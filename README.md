@@ -8,7 +8,7 @@ To install the CRD and deploy the controller on the cluster selected on your `~/
 ```
 git clone https://github.com/kubernetes-sigs/jobset.git
 cd jobset
-IMAGE_REGISTRY=<registry>/<project> make image-local-push deploy
+IMAGE_REGISTRY=<registry>/<project> make image-push deploy
 ```
 
 ## Community, discussion, contribution, and support
