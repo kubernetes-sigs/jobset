@@ -67,8 +67,9 @@ type JobSetStatus struct {
 type JobSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              JobSetSpec   `json:"spec,omitempty"`
-	Status            JobSetStatus `json:"status,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	Spec   JobSetSpec   `json:"spec,omitempty"`
+	Status JobSetStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

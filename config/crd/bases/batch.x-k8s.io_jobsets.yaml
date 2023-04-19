@@ -9515,6 +9515,9 @@ spec:
             required:
             - jobs
             type: object
+            x-kubernetes-validations:
+            - message: Value is immutable
+              rule: self == oldSelf
           status:
             description: JobSetStatus defines the observed state of JobSet
             properties:
