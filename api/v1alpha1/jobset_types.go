@@ -37,7 +37,6 @@ const (
 )
 
 // JobSetSpec defines the desired state of JobSet
-
 type JobSetSpec struct {
 	// Jobs is the group of jobs that will form the set.
 	// +listType=map

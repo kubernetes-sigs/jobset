@@ -75,9 +75,9 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 	}
 
 	type testCase struct {
-		makeJobSet               func(*corev1.Namespace) *testing.JobSetWrapper
-		jobSetCreationShouldFail bool
-		updates                  []*jobSetUpdate
+		makeJobSet                  func(*corev1.Namespace) *testing.JobSetWrapper
+		jobSetCreationShouldSucceed bool
+		updates                     []*jobSetUpdate
 	}
 
 	ginkgo.DescribeTable("validation on jobset creation and updates",
@@ -89,7 +89,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 			js := tc.makeJobSet(ns).Obj()
 
 			// If we are expected a validation error creating the jobset, end the test early.
-			if tc.jobSetCreationShouldFail {
+			if !tc.jobSetCreationShouldSucceed {
 				ginkgo.By("checking that jobset creation fails")
 				gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Not(gomega.Succeed()))
 				return
@@ -126,10 +126,10 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 						EnableDNSHostnames(true).
 						Obj())
 			},
-			jobSetCreationShouldFail: true,
 		}),
 		ginkgo.Entry("validate jobset spec is immutable", &testCase{
-			makeJobSet: testJobSet,
+			makeJobSet:                  testJobSet,
+			jobSetCreationShouldSucceed: true,
 			updates: []*jobSetUpdate{
 				{
 					updateFn: func(js *jobset.JobSet) {
