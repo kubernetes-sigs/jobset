@@ -70,8 +70,8 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 	// jobSetUpdate contains the mutations to perform on the jobset and the
 	// checks to perform afterwards.
 	type jobSetUpdate struct {
-		updateFn            func(*jobset.JobSet)
-		updateShouldSucceed bool
+		fn            func(*jobset.JobSet)
+		shouldSucceed bool
 	}
 
 	type testCase struct {
@@ -106,11 +106,11 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 			for _, update := range tc.updates {
 
 				// Update jobset if specified.
-				if update.updateFn != nil {
-					update.updateFn(js)
+				if update.fn != nil {
+					update.fn(js)
 
 					// If we are expecting a validation error, we can skip the rest of the checks.
-					if !update.updateShouldSucceed {
+					if !update.shouldSucceed {
 						gomega.Expect(k8sClient.Update(ctx, js)).Should(gomega.Not(gomega.Succeed()))
 						continue
 					}
@@ -133,7 +133,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 			jobSetCreationShouldSucceed: true,
 			updates: []*jobSetUpdate{
 				{
-					updateFn: func(js *jobset.JobSet) {
+					fn: func(js *jobset.JobSet) {
 						// Try mutating jobs list.
 						js.Spec.Jobs = append(js.Spec.Jobs, testing.MakeReplicatedJob("test-job").
 							Job(testing.MakeJobTemplate("test-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
@@ -142,7 +142,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 					},
 				},
 				{
-					updateFn: func(js *jobset.JobSet) {
+					fn: func(js *jobset.JobSet) {
 						// Try mutating failure policy.
 						js.Spec.FailurePolicy = &jobset.FailurePolicy{
 							Operator:      jobset.TerminationPolicyTargetAny,
