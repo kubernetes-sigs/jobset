@@ -6,8 +6,7 @@ JobSet: An API for managing a group of Jobs as a unit.
 
 To install the CRD and deploy the controller on the cluster selected on your `~/.kubeconfig`:
 
-1. `make docker-build docker-push IMG=<some-registry>/<project-name>:tag`
-2. `make deploy IMG=<some-registry>/<project-name>:tag`
+`IMAGE_REGISTRY=<registry>/<project> image-local-push deploy`
 
 
 ## Community, discussion, contribution, and support
