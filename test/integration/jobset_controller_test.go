@@ -39,8 +39,7 @@ const (
 	interval = time.Millisecond * 250
 )
 
-var _ = ginkgo.Describe("JobSet controller", func() {
-
+var _ = ginkgo.Describe("JobSet validation", func() {
 	// Each test runs in a separate namespace.
 	var ns *corev1.Namespace
 
@@ -71,9 +70,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 	// jobSetUpdate contains the mutations to perform on the jobset and the
 	// checks to perform afterwards.
 	type jobSetUpdate struct {
-		jobUpdateFn             func(*batchv1.JobList)
-		checkJobSetState        func(*jobset.JobSet)
-		expectedJobSetCondition jobset.JobSetConditionType
+		updateFn         func(*jobset.JobSet)
+		updateShouldFail bool
 	}
 
 	type testCase struct {
@@ -82,7 +80,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		updates                  []*jobSetUpdate
 	}
 
-	ginkgo.DescribeTable("jobset is created and its jobs go through a series of updates",
+	ginkgo.DescribeTable("validation on jobset creation and updates",
 		func(tc *testCase) {
 			ctx := context.Background()
 
@@ -96,6 +94,119 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Not(gomega.Succeed()))
 				return
 			}
+
+			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			// We'll need to retry getting this newly created jobset, given that creation may not immediately happen.
+			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
+
+			// Perform updates to the jobset and verify the validation is working correctly.
+			for _, update := range tc.updates {
+
+				// Update jobset if specified.
+				if update.updateFn != nil {
+					// If we are expecting a validation error, we can skip the rest of the checks.
+					if update.updateShouldFail {
+						update.updateFn(js)
+						gomega.Expect(k8sClient.Update(ctx, js)).Should(gomega.Not(gomega.Succeed()))
+						continue
+					}
+					// Verify a valid jobset update succeeded.
+					gomega.Expect(k8sClient.Update(ctx, js)).Should(gomega.Succeed())
+				}
+			}
+		},
+		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						Job(testing.MakeJobTemplate("test-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("validate jobset spec is immutable", &testCase{
+			makeJobSet: testJobSet,
+			updates: []*jobSetUpdate{
+				{
+					updateFn: func(js *jobset.JobSet) {
+						// Try mutating jobs list.
+						js.Spec.Jobs = append(js.Spec.Jobs, testing.MakeReplicatedJob("test-job").
+							Job(testing.MakeJobTemplate("test-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+							EnableDNSHostnames(true).
+							Obj())
+					},
+					updateShouldFail: true,
+				},
+				{
+					updateFn: func(js *jobset.JobSet) {
+						// Try mutating failure policy.
+						js.Spec.FailurePolicy = &jobset.FailurePolicy{
+							Operator:      jobset.TerminationPolicyTargetAny,
+							RestartPolicy: jobset.RestartPolicyRecreateAll,
+							MaxRestarts:   3,
+						}
+					},
+					updateShouldFail: true,
+				},
+			},
+		}),
+	) // end of DescribeTable
+}) // end of Describe
+
+var _ = ginkgo.Describe("JobSet controller", func() {
+
+	// Each test runs in a separate namespace.
+	var ns *corev1.Namespace
+
+	ginkgo.BeforeEach(func() {
+		// Create test namespace before each test.
+		ns = &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "test-ns-",
+			},
+		}
+		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+		// Wait for namespace to exist before proceeding with test.
+		gomega.Eventually(func() bool {
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns.Namespace, Name: ns.Name}, ns)
+			if err != nil {
+				return false
+			}
+			return true
+		}, timeout, interval).Should(gomega.BeTrue())
+	})
+
+	ginkgo.AfterEach(func() {
+		// Delete test namespace after each test.
+		gomega.Expect(k8sClient.Delete(ctx, ns)).To(gomega.Succeed())
+	})
+
+	// jobUpdate contains the mutations to perform on the jobs and the
+	// checks to perform afterwards.
+	type jobUpdate struct {
+		jobUpdateFn             func(*batchv1.JobList)
+		checkJobSetState        func(*jobset.JobSet)
+		expectedJobSetCondition jobset.JobSetConditionType
+	}
+
+	type testCase struct {
+		makeJobSet               func(*corev1.Namespace) *testing.JobSetWrapper
+		jobSetCreationShouldFail bool
+		updates                  []*jobUpdate
+	}
+
+	ginkgo.DescribeTable("jobset is created and its jobs go through a series of updates",
+		func(tc *testCase) {
+			ctx := context.Background()
+
+			// Create JobSet.
+			ginkgo.By("creating jobset")
+			js := tc.makeJobSet(ns).Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
@@ -131,20 +242,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				}
 			}
 		},
-		// TODO: move validation tests to separate Describe + DescribeTable
-		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
-			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
-					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).Obj()).
-						EnableDNSHostnames(true).
-						Obj())
-			},
-			jobSetCreationShouldFail: true,
-		}),
 		ginkgo.Entry("jobset should succeed after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobSetUpdate{
+			updates: []*jobUpdate{
 				{
 					jobUpdateFn:             completeAllJobs,
 					expectedJobSetCondition: jobset.JobSetCompleted,
@@ -153,7 +253,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("jobset with no failure policy should fail if any jobs fail", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobSetUpdate{
+			updates: []*jobUpdate{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
@@ -164,7 +264,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("jobset with DNS hostnames enabled should created 1 headless service per job and succeed when all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobSetUpdate{
+			updates: []*jobUpdate{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -176,7 +276,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("succeeds from first run", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobSetUpdate{
+			updates: []*jobUpdate{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -188,7 +288,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("fails from first run, no restarts", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobSetUpdate{
+			updates: []*jobUpdate{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -209,7 +309,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						MaxRestarts:   1,
 					})
 			},
-			updates: []*jobSetUpdate{
+			updates: []*jobUpdate{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
@@ -236,7 +336,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						MaxRestarts:   1,
 					})
 			},
-			updates: []*jobSetUpdate{
+			updates: []*jobUpdate{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						completeJob(&jobList.Items[0])

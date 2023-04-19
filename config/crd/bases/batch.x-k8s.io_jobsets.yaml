@@ -33,7 +33,6 @@ spec:
           metadata:
             type: object
           spec:
-            description: JobSetSpec defines the desired state of JobSet
             properties:
               failurePolicy:
                 description: FailurePolicy, if set, configures when to declare the
@@ -9515,6 +9514,9 @@ spec:
             required:
             - jobs
             type: object
+            x-kubernetes-validations:
+            - message: JobSet spec is immutable
+              rule: self == oldSelf
           status:
             description: JobSetStatus defines the observed state of JobSet
             properties:
