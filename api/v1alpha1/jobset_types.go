@@ -19,11 +19,11 @@ import (
 )
 
 const (
-	JobSetKey        string = "jobset.sigs.k8s.io/jobset"
+	JobSetKey        string = "jobset.sigs.k8s.io/jobset-name"
 	JobIndexKey      string = "jobset.sigs.k8s.io/job-index"
-	ReplicasKey      string = "jobset.sigs.k8s.io/job-replicas"
+	ReplicasKey      string = "jobset.sigs.k8s.io/replicatedjob-replicas"
 	RestartsKey      string = "jobset.sigs.k8s.io/restart-attempt"
-	ReplicatedJobKey string = "jobset.sigs.k8s.io/replicated-job"
+	ReplicatedJobKey string = "jobset.sigs.k8s.io/replicatedjob-name"
 	JobNameKey       string = "job-name" // TODO(#26): Migrate to the fully qualified label name.
 )
 

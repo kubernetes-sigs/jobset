@@ -570,6 +570,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 			jobset.RestartsKey:      strconv.Itoa(args.restarts),
 		}).
 		JobAnnotations(map[string]string{
+			jobset.ReplicasKey: strconv.Itoa(args.replicas),
 			jobset.JobIndexKey: strconv.Itoa(args.jobIdx),
 		}).
 		PodLabels(map[string]string{
@@ -577,6 +578,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 			jobset.ReplicatedJobKey: args.replicatedJobName,
 			jobset.ReplicasKey:      strconv.Itoa(args.replicas),
 			jobset.JobIndexKey:      strconv.Itoa(args.jobIdx),
+			jobset.RestartsKey:      strconv.Itoa(args.restarts),
 		}).
 		PodAnnotations(map[string]string{
 			jobset.ReplicasKey: strconv.Itoa(args.replicas),
