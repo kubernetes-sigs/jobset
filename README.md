@@ -4,10 +4,12 @@ JobSet: An API for managing a group of Jobs as a unit.
 
 # Installation
 
-To install the CRD and deploy the controller on the cluster selected on your `~/.kubeconfig`:
-
-`IMAGE_REGISTRY=<registry>/<project> image-local-push deploy`
-
+To install the CRD and deploy the controller on the cluster selected on your `~/.kubeconfig`, run the following commands:
+```
+git clone https://github.com/kubernetes-sigs/jobset.git
+cd jobset
+IMAGE_REGISTRY=<registry>/<project> make image-local-push deploy
+```
 
 ## Community, discussion, contribution, and support
 
