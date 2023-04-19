@@ -239,10 +239,11 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 	// Check if service already exists. Service name is <jobSetName>-<replicatedJobName>.
 	// If the service does not exist, create it.
 	var headlessSvc corev1.Service
-	if err := r.Get(ctx, types.NamespacedName{Name: genSubdomain(js, rjob), Namespace: js.Namespace}, &headlessSvc); err != nil {
+	subdomain := genSubdomain(js, rjob)
+	if err := r.Get(ctx, types.NamespacedName{Name: subdomain, Namespace: js.Namespace}, &headlessSvc); err != nil {
 		headlessSvc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      genSubdomain(js, rjob),
+				Name:      subdomain,
 				Namespace: js.Namespace,
 			},
 			Spec: corev1.ServiceSpec{
