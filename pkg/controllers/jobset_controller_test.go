@@ -563,26 +563,26 @@ type makeJobArgs struct {
 func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
 		JobLabels(map[string]string{
-			jobset.JobSetKey:        args.jobSetName,
-			jobset.ReplicatedJobKey: args.replicatedJobName,
-			jobset.ReplicasKey:      strconv.Itoa(args.replicas),
-			jobset.JobIndexKey:      strconv.Itoa(args.jobIdx),
-			jobset.RestartsKey:      strconv.Itoa(args.restarts),
+			jobset.JobSetNameKey:         args.jobSetName,
+			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
+			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
+			RestartsKey:                  strconv.Itoa(args.restarts),
 		}).
 		JobAnnotations(map[string]string{
-			jobset.ReplicasKey: strconv.Itoa(args.replicas),
-			jobset.JobIndexKey: strconv.Itoa(args.jobIdx),
+			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 		}).
 		PodLabels(map[string]string{
-			jobset.JobSetKey:        args.jobSetName,
-			jobset.ReplicatedJobKey: args.replicatedJobName,
-			jobset.ReplicasKey:      strconv.Itoa(args.replicas),
-			jobset.JobIndexKey:      strconv.Itoa(args.jobIdx),
-			jobset.RestartsKey:      strconv.Itoa(args.restarts),
+			jobset.JobSetNameKey:         args.jobSetName,
+			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
+			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
+			RestartsKey:                  strconv.Itoa(args.restarts),
 		}).
 		PodAnnotations(map[string]string{
-			jobset.ReplicasKey: strconv.Itoa(args.replicas),
-			jobset.JobIndexKey: strconv.Itoa(args.jobIdx),
+			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 		})
 	return jobWrapper
 }
