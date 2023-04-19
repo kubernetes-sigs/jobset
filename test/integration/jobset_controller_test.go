@@ -70,8 +70,8 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 	// jobSetUpdate contains the mutations to perform on the jobset and the
 	// checks to perform afterwards.
 	type jobSetUpdate struct {
-		updateFn         func(*jobset.JobSet)
-		updateShouldFail bool
+		updateFn            func(*jobset.JobSet)
+		updateShouldSucceed bool
 	}
 
 	type testCase struct {
@@ -107,9 +107,10 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 
 				// Update jobset if specified.
 				if update.updateFn != nil {
+					update.updateFn(js)
+
 					// If we are expecting a validation error, we can skip the rest of the checks.
-					if update.updateShouldFail {
-						update.updateFn(js)
+					if !update.updateShouldSucceed {
 						gomega.Expect(k8sClient.Update(ctx, js)).Should(gomega.Not(gomega.Succeed()))
 						continue
 					}
@@ -139,7 +140,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 							EnableDNSHostnames(true).
 							Obj())
 					},
-					updateShouldFail: true,
 				},
 				{
 					updateFn: func(js *jobset.JobSet) {
@@ -150,7 +150,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 							MaxRestarts:   3,
 						}
 					},
-					updateShouldFail: true,
 				},
 			},
 		}),
