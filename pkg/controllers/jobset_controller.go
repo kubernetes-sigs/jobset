@@ -32,6 +32,8 @@ import (
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 )
 
+const RestartsKey string = "jobset.sigs.k8s.io/restart-attempt"
+
 var (
 	jobOwnerKey = ".metadata.controller"
 	apiGVStr    = jobset.GroupVersion.String()
@@ -171,9 +173,9 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	for i, job := range childJobList.Items {
 		// Jobs with jobset.sigs.k8s.io/restart-attempt < jobset.status.restarts are marked for
 		// deletion, as they were part of the previous JobSet run.
-		jobRestarts, err := strconv.Atoi(job.Labels[jobset.RestartsKey])
+		jobRestarts, err := strconv.Atoi(job.Labels[RestartsKey])
 		if err != nil {
-			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", jobset.RestartsKey))
+			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", RestartsKey))
 			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
 			return nil, err
 		}
@@ -235,19 +237,21 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *jobset.JobSet, rjob *jobset.ReplicatedJob) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// Check if service already exists. Service name is same as replicatedJob name.
+	// Check if service already exists. Service name is <jobSetName>-<replicatedJobName>.
 	// If the service does not exist, create it.
 	var headlessSvc corev1.Service
-	if err := r.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: js.Namespace}, &headlessSvc); err != nil {
+	subdomain := genSubdomain(js, rjob)
+	if err := r.Get(ctx, types.NamespacedName{Name: subdomain, Namespace: js.Namespace}, &headlessSvc); err != nil {
 		headlessSvc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      rjob.Name,
+				Name:      subdomain,
 				Namespace: js.Namespace,
 			},
 			Spec: corev1.ServiceSpec{
 				ClusterIP: "None",
 				Selector: map[string]string{
-					jobset.JobNameKey: genSubdomain(js, rjob),
+					jobset.JobSetNameKey:        js.Name,
+					jobset.ReplicatedJobNameKey: rjob.Name,
 				},
 			},
 		}
@@ -342,7 +346,7 @@ func (r *JobSetReconciler) deleteJobs(ctx context.Context, js *jobset.JobSet, jo
 				finalErr = err
 				return
 			}
-			log.V(2).Info("successfully deleted job", "job", klog.KObj(job), "restart attempt", job.Labels[job.Labels[jobset.RestartsKey]])
+			log.V(2).Info("successfully deleted job", "job", klog.KObj(job), "restart attempt", job.Labels[job.Labels[RestartsKey]])
 		}()
 	}
 	wg.Wait()
@@ -406,27 +410,9 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 		},
 		Spec: *rjob.Template.Spec.DeepCopy(),
 	}
-
-	// Add restart-attempt count label to the job, it should be equal to
-	// jobSet restarts to indicate is part of the current jobSet run.
-	job.Labels[jobset.RestartsKey] = strconv.Itoa(js.Status.Restarts)
-
-	// Add replica count as label to the job.
-	job.Labels[jobset.ReplicasKey] = strconv.Itoa(rjob.Replicas)
-
-	// Add job index as a label and annotation to the job.
-	job.Labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
-	job.Annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
-
-	// Add replica count as label and annotation to the pod spec.
-	job.Spec.Template.Labels = cloneMap(job.Spec.Template.Labels)
-	job.Spec.Template.Annotations = cloneMap(job.Spec.Template.Annotations)
-	job.Spec.Template.Labels[jobset.ReplicasKey] = strconv.Itoa(rjob.Replicas)
-	job.Spec.Template.Annotations[jobset.ReplicasKey] = strconv.Itoa(rjob.Replicas)
-
-	// Add job index as a label and annotation to the pod template spec.
-	job.Spec.Template.Labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
-	job.Spec.Template.Annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+	// Label and annotate both job and pod template spec.
+	labelAndAnnotateObject(job, js, rjob, jobIdx)
+	labelAndAnnotateObject(&job.Spec.Template, js, rjob, jobIdx)
 
 	// If enableDNSHostnames is set, update job spec to set subdomain as
 	// job name (a headless service with same name as job will be created later).
@@ -500,6 +486,22 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 		}
 	}
 	return true
+}
+
+func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
+	labels := cloneMap(obj.GetLabels())
+	labels[jobset.JobSetNameKey] = js.Name
+	labels[jobset.ReplicatedJobNameKey] = rjob.Name
+	labels[RestartsKey] = strconv.Itoa(js.Status.Restarts)
+	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
+	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+
+	annotations := cloneMap(obj.GetAnnotations())
+	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
+	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+
+	obj.SetLabels(labels)
+	obj.SetAnnotations(annotations)
 }
 
 func isJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {

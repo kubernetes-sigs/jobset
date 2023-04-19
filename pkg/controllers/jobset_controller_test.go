@@ -268,10 +268,11 @@ func TestSetExclusiveAffinities(t *testing.T) {
 
 func TestConstructJobsFromTemplate(t *testing.T) {
 	var (
-		jobSetName = "test-jobset"
-		jobName    = "test-job"
-		ns         = "default"
-		exclusive  = &jobset.Exclusive{
+		jobSetName        = "test-jobset"
+		replicatedJobName = "replicated-job"
+		jobName           = "test-job"
+		ns                = "default"
+		exclusive         = &jobset.Exclusive{
 			TopologyKey: "test-topology-key",
 			NamespaceSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -290,7 +291,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "no jobs created",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
@@ -303,28 +304,32 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "all jobs created",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{},
 			want: []*batchv1.Job{
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-0",
-					ns:       ns,
-					replicas: 2,
-					jobIdx:   0}).Obj(),
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            0}).Obj(),
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-1",
-					ns:       ns,
-					replicas: 2,
-					jobIdx:   1}).Obj(),
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-1",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            1}).Obj(),
 			},
 		},
 		{
 			name: "one job created, one job not created (already active)",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
@@ -335,16 +340,18 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 			want: []*batchv1.Job{
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-1",
-					ns:       ns,
-					replicas: 2,
-					jobIdx:   1}).Obj(),
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-1",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            1}).Obj(),
 			},
 		},
 		{
 			name: "one job created, one job not created (already succeeded)",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
@@ -355,16 +362,18 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 			want: []*batchv1.Job{
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-1",
-					ns:       ns,
-					replicas: 2,
-					jobIdx:   1}).Obj(),
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-1",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            1}).Obj(),
 			},
 		},
 		{
 			name: "one job created, one job not created (already failed)",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
@@ -375,16 +384,18 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 			want: []*batchv1.Job{
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-1",
-					ns:       ns,
-					replicas: 2,
-					jobIdx:   1}).Obj(),
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-1",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            1}).Obj(),
 			},
 		},
 		{
 			name: "one job created, one job not created (marked for deletion)",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
 					Obj()).Obj(),
@@ -395,10 +406,12 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 			want: []*batchv1.Job{
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-1",
-					ns:       ns,
-					replicas: 2,
-					jobIdx:   1}).Obj(),
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-1",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            1}).Obj(),
 			},
 		},
 		{
@@ -416,29 +429,35 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			ownedJobs: &childJobs{
 				active: []*batchv1.Job{
 					makeJob(&makeJobArgs{
-						jobName:  "test-jobset-replicated-job-B-0",
-						ns:       ns,
-						replicas: 2,
-						jobIdx:   0}).Obj(),
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-B",
+						jobName:           "test-jobset-replicated-job-B-0",
+						ns:                ns,
+						replicas:          2,
+						jobIdx:            0}).Obj(),
 				},
 			},
 			want: []*batchv1.Job{
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-A-0",
-					ns:       ns,
-					replicas: 1,
-					jobIdx:   0}).Obj(),
+					jobSetName:        jobSetName,
+					replicatedJobName: "replicated-job-A",
+					jobName:           "test-jobset-replicated-job-A-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).Obj(),
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-B-1",
-					ns:       ns,
-					replicas: 2,
-					jobIdx:   1}).Obj(),
+					jobSetName:        jobSetName,
+					replicatedJobName: "replicated-job-B",
+					jobName:           "test-jobset-replicated-job-B-1",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            1}).Obj(),
 			},
 		},
 		{
 			name: "exclusive affinities",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Exclusive(exclusive).
@@ -447,10 +466,12 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			ownedJobs: &childJobs{},
 			want: []*batchv1.Job{
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-0",
-					ns:       ns,
-					replicas: 1,
-					jobIdx:   0}).Affinity(&corev1.Affinity{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).Affinity(&corev1.Affinity{
 					PodAffinity: &corev1.PodAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 							{
@@ -491,7 +512,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "pod dns hostnames enabled",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job").
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					EnableDNSHostnames(true).
@@ -500,10 +521,12 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			ownedJobs: &childJobs{},
 			want: []*batchv1.Job{
 				makeJob(&makeJobArgs{
-					jobName:  "test-jobset-replicated-job-0",
-					ns:       ns,
-					replicas: 1,
-					jobIdx:   0}).Subdomain("test-jobset-replicated-job").Obj(),
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).Subdomain("test-jobset-replicated-job").Obj(),
 			},
 		},
 	}
@@ -528,30 +551,38 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 }
 
 type makeJobArgs struct {
-	jobName  string
-	ns       string
-	replicas int
-	jobIdx   int
-	restarts int
+	jobSetName        string
+	replicatedJobName string
+	jobName           string
+	ns                string
+	replicas          int
+	jobIdx            int
+	restarts          int
 }
 
 func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
 		JobLabels(map[string]string{
-			jobset.ReplicasKey: strconv.Itoa(args.replicas),
-			jobset.JobIndexKey: strconv.Itoa(args.jobIdx),
-			jobset.RestartsKey: strconv.Itoa(args.restarts),
+			jobset.JobSetNameKey:         args.jobSetName,
+			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
+			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
+			RestartsKey:                  strconv.Itoa(args.restarts),
 		}).
 		JobAnnotations(map[string]string{
-			jobset.JobIndexKey: strconv.Itoa(args.jobIdx),
+			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 		}).
 		PodLabels(map[string]string{
-			jobset.ReplicasKey: strconv.Itoa(args.replicas),
-			jobset.JobIndexKey: strconv.Itoa(args.jobIdx),
+			jobset.JobSetNameKey:         args.jobSetName,
+			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
+			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
+			RestartsKey:                  strconv.Itoa(args.restarts),
 		}).
 		PodAnnotations(map[string]string{
-			jobset.ReplicasKey: strconv.Itoa(args.replicas),
-			jobset.JobIndexKey: strconv.Itoa(args.jobIdx),
+			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 		})
 	return jobWrapper
 }
