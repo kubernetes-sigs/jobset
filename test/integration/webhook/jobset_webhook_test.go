@@ -61,9 +61,9 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			// Check defaulting.
 			gomega.Expect(tc.defaultsApplied(&fetchedJS)).Should(gomega.Equal(true))
 		},
-		ginkgo.Entry("check job.spec.completionMode defaults to indexed if unset", &testCase{
+		ginkgo.Entry("job.spec.completionMode defaults to indexed if unset", &testCase{
 			makeJobSet: func() *testing.JobSetWrapper {
-				return testing.MakeJobSet("js-hostnames-non-indexed", ns).
+				return testing.MakeJobSet("completionmode-unset", ns).
 					ReplicatedJob(testing.MakeReplicatedJob("test-job").
 						Job(testing.MakeJobTemplate("test-job", ns).
 							PodSpec(testing.TestPodSpec).Obj()).
@@ -75,21 +75,19 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				return completionMode != nil && *completionMode == batchv1.IndexedCompletion
 			},
 		}),
+		ginkgo.Entry("job.spec.completionMode unchanged if already set", &testCase{
+			makeJobSet: func() *testing.JobSetWrapper {
+				return testing.MakeJobSet("completionmode-nonindexed", ns).
+					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						Job(testing.MakeJobTemplate("test-job", ns).
+							CompletionMode(batchv1.NonIndexedCompletion).
+							PodSpec(testing.TestPodSpec).Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				completionMode := js.Spec.Jobs[0].Template.Spec.CompletionMode
+				return completionMode != nil && *completionMode == batchv1.NonIndexedCompletion
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe
-
-// 2 replicated jobs:
-// - one with 1 replica
-// - one with 3 replicas and DNS hostnames enabled
-func testJobSet(ns string) *testing.JobSetWrapper {
-	return testing.MakeJobSet("test-js", ns).
-		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
-			Job(testing.MakeJobTemplate("test-job-A", ns).PodSpec(testing.TestPodSpec).Obj()).
-			Replicas(1).
-			Obj()).
-		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
-			Job(testing.MakeJobTemplate("test-job-B", ns).PodSpec(testing.TestPodSpec).CompletionMode(batchv1.IndexedCompletion).Obj()).
-			EnableDNSHostnames(true).
-			Replicas(3).
-			Obj())
-}
