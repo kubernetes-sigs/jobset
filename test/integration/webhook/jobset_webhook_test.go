@@ -98,7 +98,8 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			defaultsApplied: func(js *jobset.JobSet) bool {
-				return isIndexedJob(&js.Spec.Jobs[0].Template)
+				completionMode := js.Spec.Jobs[0].Template.Spec.CompletionMode
+				return completionMode != nil && *completionMode == batchv1.IndexedCompletion
 			},
 		}),
 		ginkgo.Entry("job.spec.completionMode unchanged if already set", &testCase{
@@ -111,13 +112,9 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			defaultsApplied: func(js *jobset.JobSet) bool {
-				return isIndexedJob(&js.Spec.Jobs[0].Template)
+				completionMode := js.Spec.Jobs[0].Template.Spec.CompletionMode
+				return completionMode != nil && *completionMode == batchv1.NonIndexedCompletion
 			},
 		}),
 	) // end of DescribeTable
 }) // end of Describe
-
-func isIndexedJob(job *batchv1.JobTemplateSpec) bool {
-	completionMode := job.Spec.CompletionMode
-	return completionMode != nil && *completionMode == batchv1.NonIndexedCompletion
-}
