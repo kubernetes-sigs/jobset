@@ -22,6 +22,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
@@ -35,10 +37,35 @@ const (
 
 var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 
-	var ns string = "default"
+	// Each test runs in a separate namespace.
+	var ns *corev1.Namespace
+
+	ginkgo.BeforeEach(func() {
+		// Create test namespace before each test.
+		ns = &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "test-ns-",
+			},
+		}
+		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+		// Wait for namespace to exist before proceeding with test.
+		gomega.Eventually(func() bool {
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns.Namespace, Name: ns.Name}, ns)
+			if err != nil {
+				return false
+			}
+			return true
+		}, timeout, interval).Should(gomega.BeTrue())
+	})
+
+	ginkgo.AfterEach(func() {
+		// Delete test namespace after each test.
+		gomega.Expect(k8sClient.Delete(ctx, ns)).To(gomega.Succeed())
+	})
 
 	type testCase struct {
-		makeJobSet      func() *testing.JobSetWrapper
+		makeJobSet      func(ns *corev1.Namespace) *testing.JobSetWrapper
 		defaultsApplied func(*jobset.JobSet) bool
 	}
 
@@ -48,7 +75,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 
 			// Create JobSet.
 			ginkgo.By("creating jobset")
-			js := tc.makeJobSet().Obj()
+			js := tc.makeJobSet(ns).Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
@@ -62,10 +89,10 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			gomega.Expect(tc.defaultsApplied(&fetchedJS)).Should(gomega.Equal(true))
 		},
 		ginkgo.Entry("job.spec.completionMode defaults to indexed if unset", &testCase{
-			makeJobSet: func() *testing.JobSetWrapper {
-				return testing.MakeJobSet("completionmode-unset", ns).
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("completionmode-unset", ns.Name).
 					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns).
+						Job(testing.MakeJobTemplate("test-job", ns.Name).
 							PodSpec(testing.TestPodSpec).Obj()).
 						EnableDNSHostnames(true).
 						Obj())
@@ -76,10 +103,10 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 		}),
 		ginkgo.Entry("job.spec.completionMode unchanged if already set", &testCase{
-			makeJobSet: func() *testing.JobSetWrapper {
-				return testing.MakeJobSet("completionmode-nonindexed", ns).
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("completionmode-nonindexed", ns.Name).
 					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns).
+						Job(testing.MakeJobTemplate("test-job", ns.Name).
 							CompletionMode(batchv1.NonIndexedCompletion).
 							PodSpec(testing.TestPodSpec).Obj()).
 						Obj())
