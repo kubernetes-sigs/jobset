@@ -22,8 +22,6 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
@@ -35,36 +33,12 @@ const (
 	interval = time.Millisecond * 250
 )
 
-var _ = ginkgo.Describe("JobSet defaulting", func() {
-	// Each test runs in a separate namespace.
-	var ns *corev1.Namespace
+var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 
-	ginkgo.BeforeEach(func() {
-		// Create test namespace before each test.
-		ns = &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "test-ns-",
-			},
-		}
-		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
-
-		// Wait for namespace to exist before proceeding with test.
-		gomega.Eventually(func() bool {
-			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns.Namespace, Name: ns.Name}, ns)
-			if err != nil {
-				return false
-			}
-			return true
-		}, timeout, interval).Should(gomega.BeTrue())
-	})
-
-	ginkgo.AfterEach(func() {
-		// Delete test namespace after each test.
-		gomega.Expect(k8sClient.Delete(ctx, ns)).To(gomega.Succeed())
-	})
+	var ns string = "default"
 
 	type testCase struct {
-		makeJobSet      func(*corev1.Namespace) *testing.JobSetWrapper
+		makeJobSet      func() *testing.JobSetWrapper
 		defaultsApplied func(*jobset.JobSet) bool
 	}
 
@@ -74,32 +48,31 @@ var _ = ginkgo.Describe("JobSet defaulting", func() {
 
 			// Create JobSet.
 			ginkgo.By("creating jobset")
-			js := tc.makeJobSet(ns).Obj()
+			js := tc.makeJobSet().Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
 
 			// We'll need to retry getting this newly created jobset, given that creation may not immediately happen.
-			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js), timeout, interval).Should(gomega.Succeed())
+			var fetchedJS jobset.JobSet
+			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &fetchedJS), timeout, interval).Should(gomega.Succeed())
 
 			// Check defaulting.
-			if tc.defaultsApplied != nil {
-				gomega.Expect(tc.defaultsApplied(js)).Should(gomega.Equal(true))
-			}
+			gomega.Expect(tc.defaultsApplied(&fetchedJS)).Should(gomega.Equal(true))
 		},
 		ginkgo.Entry("check job.spec.completionMode defaults to indexed if unset", &testCase{
-			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+			makeJobSet: func() *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns).
 					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).
+						Job(testing.MakeJobTemplate("test-job", ns).
 							PodSpec(testing.TestPodSpec).Obj()).
 						EnableDNSHostnames(true).
 						Obj())
 			},
 			defaultsApplied: func(js *jobset.JobSet) bool {
-				mode := batchv1.IndexedCompletion
-				return js.Spec.Jobs[0].Template.Spec.CompletionMode == &mode
+				completionMode := js.Spec.Jobs[0].Template.Spec.CompletionMode
+				return completionMode != nil && *completionMode == batchv1.IndexedCompletion
 			},
 		}),
 	) // end of DescribeTable
@@ -108,14 +81,14 @@ var _ = ginkgo.Describe("JobSet defaulting", func() {
 // 2 replicated jobs:
 // - one with 1 replica
 // - one with 3 replicas and DNS hostnames enabled
-func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
-	return testing.MakeJobSet("test-js", ns.Name).
+func testJobSet(ns string) *testing.JobSetWrapper {
+	return testing.MakeJobSet("test-js", ns).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
-			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+			Job(testing.MakeJobTemplate("test-job-A", ns).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).
 			Obj()).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
-			Job(testing.MakeJobTemplate("test-job-B", ns.Name).PodSpec(testing.TestPodSpec).CompletionMode(batchv1.IndexedCompletion).Obj()).
+			Job(testing.MakeJobTemplate("test-job-B", ns).PodSpec(testing.TestPodSpec).CompletionMode(batchv1.IndexedCompletion).Obj()).
 			EnableDNSHostnames(true).
 			Replicas(3).
 			Obj())
