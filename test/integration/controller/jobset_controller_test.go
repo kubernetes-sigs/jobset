@@ -13,7 +13,7 @@
 // limitations under the License.
 // */
 
-package test
+package controllertest
 
 import (
 	"context"
@@ -80,7 +80,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 		updates                     []*jobSetUpdate
 	}
 
-	ginkgo.DescribeTable("validation on jobset creation and updates",
+	ginkgo.DescribeTable("JobSet validation during creation and updates",
 		func(tc *testCase) {
 			ctx := context.Background()
 
@@ -123,7 +123,9 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
 					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+						Job(testing.MakeJobTemplate("test-job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.NonIndexedCompletion).Obj()).
 						EnableDNSHostnames(true).
 						Obj())
 			},

@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	jobsetv1alpha1 "sigs.k8s.io/jobset/api/v1alpha1"
+	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	//+kubebuilder:scaffold:imports
 )
@@ -44,7 +44,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(jobsetv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(jobset.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -93,7 +93,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "JobSet")
 		os.Exit(1)
 	}
-	if err = (&jobsetv1alpha1.JobSet{}).SetupWebhookWithManager(mgr); err != nil {
+	if err = (&jobset.JobSet{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "JobSet")
 		os.Exit(1)
 	}
