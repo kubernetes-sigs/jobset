@@ -4,11 +4,19 @@ JobSet: An API for managing a group of Jobs as a unit.
 
 # Installation
 
-To install the CRD and deploy the controller on the cluster selected on your `~/.kubeconfig`, run the following commands:
+### Prerequisites
+[cert-manager](https://cert-manager.io/) is required to create certificates for the webhook. To install 
+it on your cluster, run the following command:
+```
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
+```
+See more details about [cert-manager installation](https://cert-manager.io/docs/installation/).
+
+To install the JobSet CRD and deploy the controller on the cluster selected on your `~/.kubeconfig`, run the following commands:
 ```
 git clone https://github.com/kubernetes-sigs/jobset.git
 cd jobset
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
+
 IMAGE_REGISTRY=<registry>/<project> make image-push deploy
 ```
 
