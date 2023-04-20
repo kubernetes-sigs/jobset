@@ -8,6 +8,7 @@ To install the CRD and deploy the controller on the cluster selected on your `~/
 ```
 git clone https://github.com/kubernetes-sigs/jobset.git
 cd jobset
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
 IMAGE_REGISTRY=<registry>/<project> make image-push deploy
 ```
 
