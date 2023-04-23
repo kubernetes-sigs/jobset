@@ -134,10 +134,16 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &batchv1.Job{}, jobOwnerKey, func(rawObj client.Object) []string {
-		// grab the job object, extract the owner...
-		job := rawObj.(*batchv1.Job)
-		owner := metav1.GetControllerOf(job)
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&jobset.JobSet{}).
+		Owns(&batchv1.Job{}).
+		Complete(r)
+}
+
+func SetupIndexes(indexer client.FieldIndexer) error {
+	return indexer.IndexField(context.Background(), &batchv1.Job{}, jobOwnerKey, func(obj client.Object) []string {
+		o := obj.(*batchv1.Job)
+		owner := metav1.GetControllerOf(o)
 		if owner == nil {
 			return nil
 		}
@@ -145,17 +151,8 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		if owner.APIVersion != apiGVStr || owner.Kind != "JobSet" {
 			return nil
 		}
-
-		// ...and if so, return it
 		return []string{owner.Name}
-	}); err != nil {
-		return err
-	}
-
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&jobset.JobSet{}).
-		Owns(&batchv1.Job{}).
-		Complete(r)
+	})
 }
 
 // getChildJobs gets jobs owned by the JobSet then categorizes them by status (active, successful, failed).

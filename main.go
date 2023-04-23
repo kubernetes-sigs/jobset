@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"os"
+	"sigs.k8s.io/jobset/pkg/util/cert"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -88,16 +89,46 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+
+	certsReady := make(chan struct{})
+	if err = cert.CertsManager(mgr, certsReady); err != nil {
+		setupLog.Error(err, "unable to setup cert rotation")
+		os.Exit(1)
+	}
+
+	setupIndexes(mgr)
+
+	go setupControllers(mgr, certsReady)
+
+	setupHealthzAndReadyzCheck(mgr)
+
+	setupLog.Info("starting manager")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		setupLog.Error(err, "problem running manager")
+		os.Exit(1)
+	}
+}
+
+func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
+	// wait until the cert ready, until then we set up controllers
+	setupLog.Info("waiting for the cert generation to complete")
+	<-certsReady
+	setupLog.Info("certs ready")
+
 	jobSetController := controllers.NewJobSetReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("jobset"))
-	if err = jobSetController.SetupWithManager(mgr); err != nil {
+	if err := jobSetController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "JobSet")
 		os.Exit(1)
 	}
-	if err = (&jobset.JobSet{}).SetupWebhookWithManager(mgr); err != nil {
+	if err := (&jobset.JobSet{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "JobSet")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
+}
+
+func setupHealthzAndReadyzCheck(mgr ctrl.Manager) {
+	defer setupLog.Info("both healthz and readyz check are finished and configured")
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
@@ -107,10 +138,10 @@ func main() {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
+}
 
-	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+func setupIndexes(mgr ctrl.Manager) {
+	if err := controllers.SetupIndexes(mgr.GetFieldIndexer()); err != nil {
+		setupLog.Error(err, "unable to setup indexes")
 	}
 }

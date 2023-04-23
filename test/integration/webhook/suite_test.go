@@ -35,8 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
+	"sigs.k8s.io/jobset/pkg/controllers"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -97,6 +97,9 @@ var _ = BeforeSuite(func() {
 		LeaderElection:     false,
 		MetricsBindAddress: "0",
 	})
+	Expect(err).NotTo(HaveOccurred())
+
+	err = controllers.SetupIndexes(mgr.GetFieldIndexer())
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&jobset.JobSet{}).SetupWebhookWithManager(mgr)
