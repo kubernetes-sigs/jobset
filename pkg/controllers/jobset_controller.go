@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -84,7 +85,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	log.V(2).Info("Reconciling JobSet")
 
 	// If JobSet is already completed or failed, we don't need to reconcile anything.
-	if isJobSetFinished(&js) {
+	if jobSetFinished(&js) {
 		return ctrl.Result{}, nil
 	}
 
@@ -111,7 +112,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// If all jobs have succeeded, JobSet has succeeded.
 	if len(ownedJobs.successful) == len(js.Spec.ReplicatedJobs) {
-		if err := r.updateStatusWithCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
+		if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "AllJobsCompleted",
@@ -127,6 +128,59 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.createJobs(ctx, &js, ownedJobs); err != nil {
 		log.Error(err, "creating jobs")
 		return ctrl.Result{}, nil
+	}
+
+	// If JobSpec has a suspend field of true,
+	// set condition to say jobspec is suspended.
+	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
+	if jobsetSuspended {
+		if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
+			Type:               string(jobset.JobSetSuspended),
+			Status:             metav1.ConditionStatus(corev1.ConditionTrue),
+			LastTransitionTime: metav1.Now(),
+			Reason:             "SuspendedJobs",
+			Message:            "jobset is suspended",
+		}); err != nil {
+			log.Error(err, "updating jobset status")
+			return ctrl.Result{}, nil
+		}
+		// If jobs are started and jobset suspends, we need to update jobs
+		// to be suspended.
+		for _, job := range ownedJobs.active {
+			if !pointer.BoolDeref(job.Spec.Suspend, false) {
+				job.Spec.Suspend = pointer.Bool(true)
+				if r.Update(ctx, job); err != nil {
+					log.Error(err, "updating job suspend")
+					return ctrl.Result{}, nil
+				}
+			}
+		}
+
+		// If JobSpec is unsuspended either by removing suspend field or setting to false
+		// and we detect a condition that says it was suspended
+		// we must update all jobs to be suspended and modify condition.
+	} else {
+		if jobSetSuspended(&js) {
+			if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
+				Type:               string(jobset.JobSetSuspended),
+				Status:             metav1.ConditionStatus(corev1.ConditionFalse),
+				LastTransitionTime: metav1.Now(),
+				Reason:             "ResumeJobs",
+				Message:            "jobset is resumed",
+			}); err != nil {
+				log.Error(err, "updating jobset status")
+				return ctrl.Result{}, nil
+			}
+		}
+		for _, job := range ownedJobs.active {
+			if pointer.BoolDeref(job.Spec.Suspend, false) != false {
+				job.Spec.Suspend = pointer.Bool(false)
+				if r.Update(ctx, job); err != nil {
+					log.Error(err, "updating job resume")
+					return ctrl.Result{}, nil
+				}
+			}
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -183,7 +237,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 
 		// Jobs with jobset.sigs.k8s.io/restart-attempt == jobset.status.restarts are part of
 		// the current JobSet run, and marked either active, successful, or failed.
-		_, finishedType := isJobFinished(&job)
+		_, finishedType := jobFinished(&job)
 		switch finishedType {
 		case "": // active
 			ownedJobs.active = append(ownedJobs.active, &childJobList.Items[i])
@@ -205,7 +259,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			return err
 		}
 
-		// If pod DNS hostnames are enabled, create a headless service per repliactedJob.
+		// If pod DNS hostnames are enabled, create a headless service per replicatedjob.
 		if dnsHostnamesEnabled(&rjob) {
 			if err := r.createHeadlessSvcIfNotExist(ctx, js, &rjob); err != nil {
 				return err
@@ -290,7 +344,7 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 
 	// If JobSet has reached max number of restarts, mark it as failed and return.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
-		return r.updateStatusWithCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
+		return r.ensureCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "ReachedMaxRestarts",
@@ -345,11 +399,10 @@ func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, 
 	return nil
 }
 
-// TODO(#39): update condition in place if it exists.
-func (r *JobSetReconciler) updateStatusWithCondition(ctx context.Context, js *jobset.JobSet, eventType string, condition metav1.Condition) error {
-	condition.LastTransitionTime = metav1.Now()
-	js.Status.Conditions = append(js.Status.Conditions, condition)
-
+func (r *JobSetReconciler) ensureCondition(ctx context.Context, js *jobset.JobSet, eventType string, condition metav1.Condition) error {
+	if !updateCondition(js, eventType, condition) {
+		return nil
+	}
 	if err := r.Status().Update(ctx, js); err != nil {
 		return err
 	}
@@ -359,7 +412,7 @@ func (r *JobSetReconciler) updateStatusWithCondition(ctx context.Context, js *jo
 }
 
 func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) error {
-	return r.updateStatusWithCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
+	return r.ensureCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
 		Type:    string(jobset.JobSetFailed),
 		Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 		Reason:  "FailedJobs",
@@ -367,6 +420,22 @@ func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) er
 	})
 }
 
+func updateCondition(js *jobset.JobSet, eventType string, condition metav1.Condition) bool {
+	condition.LastTransitionTime = metav1.Now()
+	for i, val := range js.Status.Conditions {
+		if condition.Type == val.Type && condition.Status != val.Status {
+			js.Status.Conditions[i] = condition
+			// Condition found but different status so we should update
+			return true
+		} else if condition.Type == val.Type && condition.Status == val.Status {
+			// Duplicate condition so no update
+			return false
+		}
+	}
+	js.Status.Conditions = append(js.Status.Conditions, condition)
+	return true
+
+}
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
 	for jobIdx := 0; jobIdx < rjob.Replicas; jobIdx++ {
@@ -407,6 +476,9 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	if rjob.Exclusive != nil {
 		setExclusiveAffinities(job, rjob.Exclusive.TopologyKey, rjob.Exclusive.NamespaceSelector)
 	}
+	// if Suspend is set, then we assume all jobs will be suspended also.
+	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
+	job.Spec.Suspend = pointer.Bool(jobsetSuspended)
 
 	return job, nil
 }
@@ -487,13 +559,22 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	obj.SetAnnotations(annotations)
 }
 
-func isJobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
+func jobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 	for _, c := range job.Status.Conditions {
 		if (c.Type == batchv1.JobComplete || c.Type == batchv1.JobFailed) && c.Status == corev1.ConditionTrue {
 			return true, c.Type
 		}
 	}
 	return false, ""
+}
+
+func jobSetSuspended(js *jobset.JobSet) bool {
+	for _, c := range js.Status.Conditions {
+		if c.Type == string(jobset.JobSetSuspended) && c.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIndex int) string {
@@ -504,17 +585,13 @@ func genSubdomain(js *jobset.JobSet, rjob *jobset.ReplicatedJob) string {
 	return fmt.Sprintf("%s-%s", js.Name, rjob.Name)
 }
 
-func isJobSetFinished(js *jobset.JobSet) bool {
+func jobSetFinished(js *jobset.JobSet) bool {
 	for _, c := range js.Status.Conditions {
 		if (c.Type == string(jobset.JobSetCompleted) || c.Type == string(jobset.JobSetFailed)) && c.Status == metav1.ConditionTrue {
 			return true
 		}
 	}
 	return false
-}
-
-func isIndexedJob(job *batchv1.Job) bool {
-	return job.Spec.CompletionMode != nil && *job.Spec.CompletionMode == batchv1.IndexedCompletion
 }
 
 func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {

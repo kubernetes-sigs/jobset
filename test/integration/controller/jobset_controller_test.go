@@ -27,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
@@ -120,7 +121,18 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 				}
 			}
 		},
-		ginkgo.Entry("validate jobset spec is immutable", &testCase{
+		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						Job(testing.MakeJobTemplate("test-job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.NonIndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+		}),
+		ginkgo.Entry("validate immutable fields", &testCase{
 			makeJobSet:                  testJobSet,
 			jobSetCreationShouldSucceed: true,
 			updates: []*jobSetUpdate{
@@ -139,6 +151,18 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 						js.Spec.FailurePolicy = &jobset.FailurePolicy{
 							MaxRestarts: 3,
 						}
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("setting suspend is allowed", &testCase{
+			makeJobSet:                  testJobSet,
+			jobSetCreationShouldSucceed: true,
+			updates: []*jobSetUpdate{
+				{
+					shouldSucceed: true,
+					fn: func(js *jobset.JobSet) {
+						js.Spec.Suspend = pointer.Bool(true)
 					},
 				},
 			},
@@ -175,18 +199,20 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		gomega.Expect(k8sClient.Delete(ctx, ns)).To(gomega.Succeed())
 	})
 
-	// jobUpdate contains the mutations to perform on the jobs and the
+	// update contains the mutations to perform on the jobs/jobset and the
 	// checks to perform afterwards.
-	type jobUpdate struct {
+	type update struct {
+		jobSetUpdateFn          func(*jobset.JobSet)
 		jobUpdateFn             func(*batchv1.JobList)
 		checkJobSetState        func(*jobset.JobSet)
+		checkJobState           func(*jobset.JobSet)
 		expectedJobSetCondition jobset.JobSetConditionType
 	}
 
 	type testCase struct {
 		makeJobSet               func(*corev1.Namespace) *testing.JobSetWrapper
 		jobSetCreationShouldFail bool
-		updates                  []*jobUpdate
+		updates                  []*update
 	}
 
 	ginkgo.DescribeTable("jobset is created and its jobs go through a series of updates",
@@ -208,32 +234,35 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			gomega.Eventually(util.CheckNumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
 
 			// Perform a series of updates to jobset resources and check resulting jobset state after each update.
-			for _, update := range tc.updates {
+			for _, up := range tc.updates {
 
-				// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
-				var jobList batchv1.JobList
-				gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
+				var jobSet jobset.JobSet
+				gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobSet), timeout, interval).Should(gomega.Succeed())
 
-				// Perform mutation on jobset if specified.
-				if update.jobUpdateFn != nil {
-					update.jobUpdateFn(&jobList)
+				if up.jobSetUpdateFn != nil {
+					up.jobSetUpdateFn(&jobSet)
+				} else if up.jobUpdateFn != nil {
+					// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
+					var jobList batchv1.JobList
+					gomega.Eventually(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)), timeout, interval).Should(gomega.Succeed())
+					up.jobUpdateFn(&jobList)
 				}
 
 				// Check jobset state if specified.
-				if update.checkJobSetState != nil {
-					update.checkJobSetState(js)
+				if up.checkJobSetState != nil {
+					up.checkJobSetState(&jobSet)
 				}
 
 				// Check jobset status if specified.
-				if update.expectedJobSetCondition != "" {
-					ginkgo.By(fmt.Sprintf("checking jobset status is: %s", update.expectedJobSetCondition))
-					gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, update.expectedJobSetCondition).Should(gomega.Equal(true))
+				if up.expectedJobSetCondition != "" {
+					ginkgo.By(fmt.Sprintf("checking jobset status is: %s", up.expectedJobSetCondition))
+					gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, up.expectedJobSetCondition).Should(gomega.Equal(true))
 				}
 			}
 		},
 		ginkgo.Entry("jobset should succeed after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobUpdate{
+			updates: []*update{
 				{
 					jobUpdateFn:             completeAllJobs,
 					expectedJobSetCondition: jobset.JobSetCompleted,
@@ -242,7 +271,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("jobset with no failure policy should fail if any jobs fail", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobUpdate{
+			updates: []*update{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
@@ -253,7 +282,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("jobset with DNS hostnames enabled should created 1 headless service per job and succeed when all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobUpdate{
+			updates: []*update{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -265,7 +294,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("succeeds from first run", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobUpdate{
+			updates: []*update{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -277,7 +306,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("fails from first run, no restarts", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*jobUpdate{
+			updates: []*update{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -296,7 +325,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						MaxRestarts: 1,
 					})
 			},
-			updates: []*jobUpdate{
+			updates: []*update{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
@@ -321,7 +350,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						MaxRestarts: 1,
 					})
 			},
-			updates: []*jobUpdate{
+			updates: []*update{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						completeJob(&jobList.Items[0])
@@ -335,6 +364,72 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					jobUpdateFn:             completeAllJobs,
 					expectedJobSetCondition: jobset.JobSetCompleted,
+				},
+			},
+		}),
+		ginkgo.Entry("suspended jobset will not start", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					Suspend(true)
+			},
+			updates: []*update{
+				{
+					expectedJobSetCondition: jobset.JobSetSuspended,
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("suspended jobset resumes on setting suspend to false", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					Suspend(true)
+			},
+			updates: []*update{
+				{
+					expectedJobSetCondition: jobset.JobSetSuspended,
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						jobSetSuspend(js, false)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are resumed")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+					},
+				},
+				{
+					jobUpdateFn:             completeAllJobs,
+					expectedJobSetCondition: jobset.JobSetCompleted,
+				},
+			},
+		}),
+		ginkgo.Entry("jobset that gets suspended after startup transitions to suspended", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Suspend(false)
+			},
+			updates: []*update{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are not suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						jobSetSuspend(js, true)
+					},
+					expectedJobSetCondition: jobset.JobSetSuspended,
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
+					},
 				},
 			},
 		}),
@@ -365,7 +460,7 @@ func completeJob(job *batchv1.Job) {
 		Type:   batchv1.JobComplete,
 		Status: corev1.ConditionTrue,
 	})
-	gomega.Expect(k8sClient.Status().Update(ctx, job)).Should(gomega.Succeed())
+	gomega.Eventually(k8sClient.Status().Update(ctx, job), timeout, interval).Should(gomega.Succeed())
 }
 
 func failJob(job *batchv1.Job) {
@@ -374,7 +469,30 @@ func failJob(job *batchv1.Job) {
 		Type:   batchv1.JobFailed,
 		Status: corev1.ConditionTrue,
 	})
-	gomega.Expect(k8sClient.Status().Update(ctx, job)).Should(gomega.Succeed())
+	gomega.Eventually(k8sClient.Status().Update(ctx, job), timeout, interval).Should(gomega.Succeed())
+}
+
+func jobSetSuspend(js *jobset.JobSet, suspend bool) {
+	js.Spec.Suspend = pointer.Bool(suspend)
+	gomega.Eventually(k8sClient.Update(ctx, js), timeout, interval).Should(gomega.Succeed())
+}
+
+func matchJobsSuspendState(js *jobset.JobSet, suspend bool) (bool, error) {
+	var jobList batchv1.JobList
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+		return false, err
+	}
+	// Check we have the right number of jobs.
+	if len(jobList.Items) != util.NumExpectedJobs(js) {
+		return false, nil
+	}
+
+	for _, job := range jobList.Items {
+		if *job.Spec.Suspend != suspend {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {

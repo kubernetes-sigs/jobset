@@ -70,6 +70,12 @@ func (j *JobSetWrapper) ReplicatedJob(job jobset.ReplicatedJob) *JobSetWrapper {
 	return j
 }
 
+// Suspend adds a suspend flag to JobSet
+func (j *JobSetWrapper) Suspend(suspend bool) *JobSetWrapper {
+	j.JobSet.Spec.Suspend = pointer.Bool(suspend)
+	return j
+}
+
 // ReplicatedJobWrapper wraps a ReplicatedJob.
 type ReplicatedJobWrapper struct {
 	jobset.ReplicatedJob
@@ -196,6 +202,12 @@ func (j *JobWrapper) JobAnnotations(annotations map[string]string) *JobWrapper {
 // PodLabels sets the pod template spec labels.
 func (j *JobWrapper) PodLabels(labels map[string]string) *JobWrapper {
 	j.Spec.Template.Labels = labels
+	return j
+}
+
+// Suspend sets suspend in the job spec.
+func (j *JobWrapper) Suspend(suspend bool) *JobWrapper {
+	j.Spec.Suspend = pointer.Bool(suspend)
 	return j
 }
 
