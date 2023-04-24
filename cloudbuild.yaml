@@ -1,6 +1,3 @@
-
- 
-
 # See https://cloud.google.com/cloud-build/docs/build-config
 timeout: 3000s
 # A build step specifies an action that you want Prow to perform.

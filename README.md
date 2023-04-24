@@ -1,24 +1,12 @@
 # JobSet
 
-JobSet: An API for managing a group of Jobs as a unit.
+JobSet is a Kubernetes-native API for managing a group of [k8s Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/) as a unit. It aims to offer a unified API for deploying HPC (e.g., MPI) and AI/ML training workloads (PyTorch, Jax, Tensorflow etc.) on Kubernetes.
 
-# Installation
 
-### Prerequisites
-[cert-manager](https://cert-manager.io/) is required to create certificates for the webhook. To install 
-it on your cluster, run the following command:
-```
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
-```
-See more details about [cert-manager installation](https://cert-manager.io/docs/installation/).
+## Installation
 
-To install the JobSet CRD and deploy the controller on the cluster selected on your `~/.kubeconfig`, run the following commands:
-```
-git clone https://github.com/kubernetes-sigs/jobset.git
-cd jobset
+Read the [installation guide](/docs/setup/install.md) to learn more.
 
-IMAGE_REGISTRY=<registry>/<project> make image-push deploy
-```
 
 ## Community, discussion, contribution, and support
 
@@ -26,8 +14,8 @@ Learn how to engage with the Kubernetes community on the [community page](http:/
 
 You can reach the maintainers of this project at:
 
-- [Slack](https://kubernetes.slack.com/messages/sig-apps)
-- [Mailing List](https://groups.google.com/forum/#!forum/kubernetes-sig-apps)
+- [Slack](https://kubernetes.slack.com/messages/wg-batch)
+- [Mailing List](https://groups.google.com/a/kubernetes.io/g/wg-batch)
 
 ### Code of conduct
 
