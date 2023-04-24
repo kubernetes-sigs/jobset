@@ -19,7 +19,6 @@ package main
 import (
 	"flag"
 	"os"
-	"sigs.k8s.io/jobset/pkg/util/cert"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -34,6 +33,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/util/cert"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -96,8 +96,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupIndexes(mgr)
+	if err := controllers.SetupIndexes(mgr.GetFieldIndexer()); err != nil {
+		setupLog.Error(err, "unable to setup indexes")
+	}
 
+	// Cert won't be ready until manager starts, so start a goroutine here which
+	// will block until the cert is ready before setting up the controllers.
+	// Controllers who register after manager starts will start directly.
 	go setupControllers(mgr, certsReady)
 
 	setupHealthzAndReadyzCheck(mgr)
@@ -110,7 +115,8 @@ func main() {
 }
 
 func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
-	// wait until the cert ready, until then we set up controllers
+	// The controllers won't work until the webhooks are operating,
+	// and the webhook won't work until the certs are all in places.
 	setupLog.Info("waiting for the cert generation to complete")
 	<-certsReady
 	setupLog.Info("certs ready")
@@ -137,11 +143,5 @@ func setupHealthzAndReadyzCheck(mgr ctrl.Manager) {
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
-	}
-}
-
-func setupIndexes(mgr ctrl.Manager) {
-	if err := controllers.SetupIndexes(mgr.GetFieldIndexer()); err != nil {
-		setupLog.Error(err, "unable to setup indexes")
 	}
 }
