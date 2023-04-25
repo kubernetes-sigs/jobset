@@ -39,11 +39,11 @@ func (r *JobSet) Default() {
 		if r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
 			r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
 		}
-		// Enable DNS hostnames by default if job template uses indexed completion mode.
+		// Enable DNS hostnames by default.
 		if r.Spec.ReplicatedJobs[i].Network == nil {
 			r.Spec.ReplicatedJobs[i].Network = &Network{}
 		}
-		if r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil && *r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == batchv1.IndexedCompletion {
+		if r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil {
 			r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames = pointer.Bool(true)
 		}
 	}

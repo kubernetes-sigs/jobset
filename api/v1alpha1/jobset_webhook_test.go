@@ -112,7 +112,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
 							Network: &Network{EnableDNSHostnames: pointer.Bool(false)},
@@ -126,7 +126,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
 							Network: &Network{EnableDNSHostnames: pointer.Bool(false)},
