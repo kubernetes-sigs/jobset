@@ -33,6 +33,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/util/cert"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -88,16 +89,52 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+
+	certsReady := make(chan struct{})
+	if err = cert.CertsManager(mgr, certsReady); err != nil {
+		setupLog.Error(err, "unable to setup cert rotation")
+		os.Exit(1)
+	}
+
+	if err := controllers.SetupIndexes(mgr.GetFieldIndexer()); err != nil {
+		setupLog.Error(err, "unable to setup indexes")
+	}
+
+	// Cert won't be ready until manager starts, so start a goroutine here which
+	// will block until the cert is ready before setting up the controllers.
+	// Controllers who register after manager starts will start directly.
+	go setupControllers(mgr, certsReady)
+
+	setupHealthzAndReadyzCheck(mgr)
+
+	setupLog.Info("starting manager")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		setupLog.Error(err, "problem running manager")
+		os.Exit(1)
+	}
+}
+
+func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
+	// The controllers won't work until the webhooks are operating,
+	// and the webhook won't work until the certs are all in places.
+	setupLog.Info("waiting for the cert generation to complete")
+	<-certsReady
+	setupLog.Info("certs ready")
+
 	jobSetController := controllers.NewJobSetReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("jobset"))
-	if err = jobSetController.SetupWithManager(mgr); err != nil {
+	if err := jobSetController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "JobSet")
 		os.Exit(1)
 	}
-	if err = (&jobset.JobSet{}).SetupWebhookWithManager(mgr); err != nil {
+	if err := (&jobset.JobSet{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "JobSet")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
+}
+
+func setupHealthzAndReadyzCheck(mgr ctrl.Manager) {
+	defer setupLog.Info("both healthz and readyz check are finished and configured")
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
@@ -105,12 +142,6 @@ func main() {
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
-
-	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
 }
