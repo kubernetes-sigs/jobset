@@ -98,7 +98,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			defaultsApplied: func(js *jobset.JobSet) bool {
-				completionMode := js.Spec.Jobs[0].Template.Spec.CompletionMode
+				completionMode := js.Spec.ReplicatedJobs[0].Template.Spec.CompletionMode
 				return completionMode != nil && *completionMode == batchv1.IndexedCompletion
 			},
 		}),
@@ -112,7 +112,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			defaultsApplied: func(js *jobset.JobSet) bool {
-				completionMode := js.Spec.Jobs[0].Template.Spec.CompletionMode
+				completionMode := js.Spec.ReplicatedJobs[0].Template.Spec.CompletionMode
 				return completionMode != nil && *completionMode == batchv1.NonIndexedCompletion
 			},
 		}),

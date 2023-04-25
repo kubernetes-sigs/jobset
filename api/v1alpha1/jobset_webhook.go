@@ -34,9 +34,9 @@ var _ webhook.Defaulter = &JobSet{}
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *JobSet) Default() {
 	// Default job completion mode to indexed.
-	for i, rjob := range r.Spec.Jobs {
+	for i, rjob := range r.Spec.ReplicatedJobs {
 		if rjob.Template.Spec.CompletionMode == nil {
-			r.Spec.Jobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
+			r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
 		}
 	}
 }
