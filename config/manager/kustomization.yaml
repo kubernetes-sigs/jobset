@@ -1,8 +1,10 @@
 resources:
 - manager.yaml
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: gcr.io/danielvm-gke-dev2/jobset
-  newTag: f250948-dirty
+  newName: gcr.io/k8s-staging-jobset/jobset
+  newTag: main
+
