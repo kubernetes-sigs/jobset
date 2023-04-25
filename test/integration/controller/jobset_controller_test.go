@@ -137,7 +137,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 				{
 					fn: func(js *jobset.JobSet) {
 						// Try mutating jobs list.
-						js.Spec.Jobs = append(js.Spec.Jobs, testing.MakeReplicatedJob("test-job").
+						js.Spec.ReplicatedJobs = append(js.Spec.ReplicatedJobs, testing.MakeReplicatedJob("test-job").
 							Job(testing.MakeJobTemplate("test-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 							EnableDNSHostnames(true).
 							Obj())
@@ -147,9 +147,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 					fn: func(js *jobset.JobSet) {
 						// Try mutating failure policy.
 						js.Spec.FailurePolicy = &jobset.FailurePolicy{
-							Operator:      jobset.TerminationPolicyTargetAny,
-							RestartPolicy: jobset.RestartPolicyRecreateAll,
-							MaxRestarts:   3,
+							MaxRestarts: 3,
 						}
 					},
 				},
@@ -305,9 +303,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
-						Operator:      jobset.TerminationPolicyTargetAny,
-						RestartPolicy: jobset.RestartPolicyRecreateAll,
-						MaxRestarts:   1,
+						MaxRestarts: 1,
 					})
 			},
 			updates: []*jobUpdate{
@@ -332,9 +328,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
-						Operator:      jobset.TerminationPolicyTargetAny,
-						RestartPolicy: jobset.RestartPolicyRecreateAll,
-						MaxRestarts:   1,
+						MaxRestarts: 1,
 					})
 			},
 			updates: []*jobUpdate{
@@ -372,7 +366,7 @@ func checkJobSetStatus(js *jobset.JobSet, condition jobset.JobSetConditionType) 
 
 func numExpectedJobs(js *jobset.JobSet) int {
 	expectedJobs := 0
-	for _, rjob := range js.Spec.Jobs {
+	for _, rjob := range js.Spec.ReplicatedJobs {
 		expectedJobs += rjob.Replicas
 	}
 	return expectedJobs
@@ -381,7 +375,7 @@ func numExpectedJobs(js *jobset.JobSet) int {
 func numExpectedServices(js *jobset.JobSet) int {
 	// Expect 1 headless service per replicatedJob.
 	expected := 0
-	for _, rjob := range js.Spec.Jobs {
+	for _, rjob := range js.Spec.ReplicatedJobs {
 		if rjob.Network != nil && rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
 			expected += 1
 		}

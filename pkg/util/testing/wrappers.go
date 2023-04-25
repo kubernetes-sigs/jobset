@@ -47,7 +47,7 @@ func MakeJobSet(name, ns string) *JobSetWrapper {
 				Namespace: ns,
 			},
 			Spec: jobset.JobSetSpec{
-				Jobs: []jobset.ReplicatedJob{},
+				ReplicatedJobs: []jobset.ReplicatedJob{},
 			},
 		},
 	}
@@ -66,7 +66,7 @@ func (j *JobSetWrapper) Obj() *jobset.JobSet {
 
 // ReplicatedJob adds a single ReplicatedJob to the JobSet.
 func (j *JobSetWrapper) ReplicatedJob(job jobset.ReplicatedJob) *JobSetWrapper {
-	j.JobSet.Spec.Jobs = append(j.JobSet.Spec.Jobs, job)
+	j.JobSet.Spec.ReplicatedJobs = append(j.JobSet.Spec.ReplicatedJobs, job)
 	return j
 }
 

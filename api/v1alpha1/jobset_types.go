@@ -38,10 +38,10 @@ const (
 
 // JobSetSpec defines the desired state of JobSet
 type JobSetSpec struct {
-	// Jobs is the group of jobs that will form the set.
+	// ReplicatedJobs is the group of jobs that will form the set.
 	// +listType=map
 	// +listMapKey=name
-	Jobs []ReplicatedJob `json:"jobs"`
+	ReplicatedJobs []ReplicatedJob `json:"jobs"`
 
 	// FailurePolicy, if set, configures when to declare the JobSet as
 	// failed.
@@ -115,27 +115,10 @@ type Exclusive struct {
 	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
 }
 
-type TargetOperator string
-
-// TerminationPolicyTargetAny applies to any job in the JobSet.
-const TerminationPolicyTargetAny TargetOperator = "Any"
-
-type RestartPolicy string
-
-const (
-	// RestartPolicyNone means no jobs will be restarted.
-	RestartPolicyNone RestartPolicy = "None"
-	// RestartPolicyRecreate means jobs will be recreated when the termination policy is triggered.
-	RestartPolicyRecreateAll RestartPolicy = "RecreateAll"
-)
-
 type FailurePolicy struct {
-	// +kubebuilder:validation:XValidation:rule="self == \"Any\""
-	// +kubebuilder:default="Any"
-	Operator TargetOperator `json:"operator"`
-	// +kubebuilder:default="None"
-	RestartPolicy RestartPolicy `json:"restartPolicy"`
-	MaxRestarts   int           `json:"maxRestarts,omitempty"`
+	// MaxRestarts defines the limit on the number of JobSet restarts.
+	// A restart is achieved by recreating all active child jobs.
+	MaxRestarts int `json:"maxRestarts,omitempty"`
 }
 
 func init() {

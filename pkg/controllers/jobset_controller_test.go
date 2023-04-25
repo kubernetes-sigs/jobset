@@ -534,7 +534,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var got []*batchv1.Job
-			for _, rjob := range tc.js.Spec.Jobs {
+			for _, rjob := range tc.js.Spec.ReplicatedJobs {
 				jobs, err := constructJobsFromTemplate(tc.js, &rjob, tc.ownedJobs)
 				if err != nil {
 					t.Errorf("constructJobsFromTemplate() error = %v", err)

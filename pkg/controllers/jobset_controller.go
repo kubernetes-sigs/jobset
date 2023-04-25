@@ -110,7 +110,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// If all jobs have succeeded, JobSet has succeeded.
-	if len(ownedJobs.successful) == len(js.Spec.Jobs) {
+	if len(ownedJobs.successful) == len(js.Spec.ReplicatedJobs) {
 		if err := r.updateStatusWithCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
@@ -199,7 +199,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	for _, rjob := range js.Spec.Jobs {
+	for _, rjob := range js.Spec.ReplicatedJobs {
 		jobs, err := constructJobsFromTemplate(js, &rjob, ownedJobs)
 		if err != nil {
 			return err
@@ -274,36 +274,22 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 		return r.failJobSet(ctx, js)
 	}
 
-	// Handle different types of failure policy targets.
-	switch js.Spec.FailurePolicy.Operator {
-	case jobset.TerminationPolicyTargetAny:
-		// To reach this point a job must have failed, and TerminationPolicyTargetAny applies to any job
-		// in the JobSet, so we can skip directly to executing the restart policy.
-		return r.executeRestartPolicy(ctx, js, ownedJobs)
-	default:
-		return fmt.Errorf("invalid termination policy target %s", js.Spec.FailurePolicy.Operator)
-	}
+	// To reach this point a job must have failed.
+	return r.executeRestartPolicy(ctx, js, ownedJobs)
 }
 
 func (r *JobSetReconciler) executeRestartPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	log := ctrl.LoggerFrom(ctx)
-
-	switch js.Spec.FailurePolicy.RestartPolicy {
-	case jobset.RestartPolicyRecreateAll:
-		return r.restartPolicyRecreateAll(ctx, js, ownedJobs)
-	case jobset.RestartPolicyNone:
-		return r.failJobSet(ctx, js)
-	default:
-		log.Error(fmt.Errorf("invalid restart policy: %s", js.Spec.FailurePolicy.RestartPolicy), "invalid restart policy, defaulting to None")
+	if js.Spec.FailurePolicy.MaxRestarts == 0 {
 		return r.failJobSet(ctx, js)
 	}
+	return r.restartPolicyRecreateAll(ctx, js, ownedJobs)
 }
 
 func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	// If JobSet has reached max number of restarts, mark it as failed and return.
-	if js.Status.Restarts == js.Spec.FailurePolicy.MaxRestarts {
+	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
 		return r.updateStatusWithCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),

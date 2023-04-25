@@ -17,7 +17,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "job completion mode is unset",
 			js: &JobSet{
 				Spec: JobSetSpec{
-					Jobs: []ReplicatedJob{
+					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{},
@@ -28,7 +28,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &JobSet{
 				Spec: JobSetSpec{
-					Jobs: []ReplicatedJob{
+					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -44,7 +44,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "job completion mode is set to non-indexed",
 			js: &JobSet{
 				Spec: JobSetSpec{
-					Jobs: []ReplicatedJob{
+					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -57,7 +57,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &JobSet{
 				Spec: JobSetSpec{
-					Jobs: []ReplicatedJob{
+					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
