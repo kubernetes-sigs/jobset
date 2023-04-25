@@ -21,14 +21,13 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/util/testing"
+	"sigs.k8s.io/jobset/test/util"
 )
 
 var _ = ginkgo.Describe("JobSet", func() {
@@ -81,11 +80,11 @@ var _ = ginkgo.Describe("JobSet", func() {
 			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
 
 			ginkgo.By("checking all jobs were created successfully")
-			gomega.Eventually(checkNumJobs, timeout, interval).WithArguments(ctx, js).Should(gomega.Equal(numExpectedJobs(js)))
+			gomega.Eventually(util.CheckNumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
 
 			// Check jobset status if specified.
 			ginkgo.By("checking jobset condition")
-			gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, tc.expectCondition).Should(gomega.Equal(true))
+			gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, tc.expectCondition).Should(gomega.Equal(true))
 		},
 		ginkgo.Entry("pods can reach each other via hostname when DNS hostnames are enabled", &testCase{
 			makeJobSet:      pingTestJobSet,
@@ -93,35 +92,6 @@ var _ = ginkgo.Describe("JobSet", func() {
 		}),
 	) // end of DescribeTable
 }) // end of Describe
-
-func checkJobSetStatus(js *jobset.JobSet, condition jobset.JobSetConditionType) (bool, error) {
-	var fetchedJS jobset.JobSet
-	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
-		return false, err
-	}
-	for _, c := range fetchedJS.Status.Conditions {
-		if c.Type == string(condition) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func numExpectedJobs(js *jobset.JobSet) int {
-	expectedJobs := 0
-	for _, rjob := range js.Spec.ReplicatedJobs {
-		expectedJobs += rjob.Replicas
-	}
-	return expectedJobs
-}
-
-func checkNumJobs(ctx context.Context, js *jobset.JobSet) (int, error) {
-	var jobList batchv1.JobList
-	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
-		return -1, err
-	}
-	return len(jobList.Items), nil
-}
 
 // 1 replicated job with 4 replicas, DNS hostnames enabled
 func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
