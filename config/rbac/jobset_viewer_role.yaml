@@ -12,7 +12,7 @@ metadata:
   name: jobset-viewer-role
 rules:
 - apiGroups:
-  - batch.x-k8s.io
+  - jobset.x-k8s.io
   resources:
   - jobsets
   verbs:
@@ -20,7 +20,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - batch.x-k8s.io
+  - jobset.x-k8s.io
   resources:
   - jobsets/status
   verbs:
