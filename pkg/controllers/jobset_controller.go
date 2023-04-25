@@ -274,8 +274,7 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 		return r.failJobSet(ctx, js)
 	}
 
-	// To reach this point a job must have failed, and TerminationPolicyTargetAny applies to any job
-	// in the JobSet, so we can skip directly to executing the restart policy.
+	// To reach this point a job must have failed.
 	return r.executeRestartPolicy(ctx, js, ownedJobs)
 }
 
@@ -290,7 +289,7 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 	log := ctrl.LoggerFrom(ctx)
 
 	// If JobSet has reached max number of restarts, mark it as failed and return.
-	if js.Status.Restarts == js.Spec.FailurePolicy.MaxRestarts {
+	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
 		return r.updateStatusWithCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
