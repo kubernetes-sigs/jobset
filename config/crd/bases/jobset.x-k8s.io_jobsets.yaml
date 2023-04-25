@@ -41,21 +41,14 @@ spec:
                   in the set finished with status failed.
                 properties:
                   maxRestarts:
+                    description: MaxRestarts defines the limit on the number of JobSet
+                      restarts. A restart is achieved by recreating all active child
+                      jobs.
                     type: integer
-                  operator:
-                    default: Any
-                    type: string
-                    x-kubernetes-validations:
-                    - rule: self == "Any"
-                  restartPolicy:
-                    default: None
-                    type: string
-                required:
-                - operator
-                - restartPolicy
                 type: object
               jobs:
-                description: Jobs is the group of jobs that will form the set.
+                description: ReplicatedJobs is the group of jobs that will form the
+                  set.
                 items:
                   properties:
                     exclusive:
