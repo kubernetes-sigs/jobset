@@ -59,18 +59,13 @@ var _ = ginkgo.Describe("JobSet", func() {
 		gomega.Expect(k8sClient.Delete(ctx, ns)).To(gomega.Succeed())
 	})
 
-	type testCase struct {
-		makeJobSet      func(*corev1.Namespace) *testing.JobSetWrapper
-		expectCondition jobset.JobSetConditionType
-	}
-
-	ginkgo.DescribeTable("",
-		func(tc *testCase) {
+	ginkgo.When("dns hostnames is enabled", func() {
+		ginkgo.It("should enable pods to ping each other via hostname", func() {
 			ctx := context.Background()
 
 			// Create JobSet.
 			ginkgo.By("creating jobset")
-			js := tc.makeJobSet(ns).Obj()
+			js := pingTestJobSet(ns).Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
@@ -84,19 +79,15 @@ var _ = ginkgo.Describe("JobSet", func() {
 
 			// Check jobset status if specified.
 			ginkgo.By("checking jobset condition")
-			gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, tc.expectCondition).Should(gomega.Equal(true))
-		},
-		ginkgo.Entry("pods can reach each other via hostname when DNS hostnames are enabled", &testCase{
-			makeJobSet:      pingTestJobSet,
-			expectCondition: jobset.JobSetCompleted,
-		}),
-	) // end of DescribeTable
+			gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, jobset.JobSetCompleted).Should(gomega.Equal(true))
+		})
+	})
 }) // end of Describe
 
 // 1 replicated job with 4 replicas, DNS hostnames enabled
 func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
-	jsName := "ping-test-js"
-	rjobName := "ping-test-rjob"
+	jsName := "js"
+	rjobName := "rjob"
 	replicas := 4
 	var podHostnames []string
 	for jobIdx := 0; jobIdx < replicas; jobIdx++ {
@@ -123,7 +114,7 @@ done`, podHostnames[0], podHostnames[1], podHostnames[2], podHostnames[3])
 
 	return testing.MakeJobSet(jsName, ns.Name).
 		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
-			Job(testing.MakeJobTemplate("ping-test-job", ns.Name).
+			Job(testing.MakeJobTemplate("job", ns.Name).
 				PodSpec(corev1.PodSpec{
 					RestartPolicy: "Never",
 					Containers: []corev1.Container{
