@@ -106,6 +106,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("completionmode-nonindexed", ns.Name).
 					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						EnableDNSHostnames(false).
 						Job(testing.MakeJobTemplate("test-job", ns.Name).
 							CompletionMode(batchv1.NonIndexedCompletion).
 							PodSpec(testing.TestPodSpec).Obj()).
@@ -114,6 +115,19 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			defaultsApplied: func(js *jobset.JobSet) bool {
 				completionMode := js.Spec.ReplicatedJobs[0].Template.Spec.CompletionMode
 				return completionMode != nil && *completionMode == batchv1.NonIndexedCompletion
+			},
+		}),
+		ginkgo.Entry("enableDNSHostnames defaults to true if unset", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("enablednshostnames-unset", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						Job(testing.MakeJobTemplate("test-job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodSpec(testing.TestPodSpec).Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return js.Spec.ReplicatedJobs[0].Network != nil && *js.Spec.ReplicatedJobs[0].Network.EnableDNSHostnames
 			},
 		}),
 	) // end of DescribeTable

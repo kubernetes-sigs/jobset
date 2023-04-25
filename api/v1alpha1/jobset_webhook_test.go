@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/utils/pointer"
 )
 
 func TestJobSetDefaulting(t *testing.T) {
@@ -22,6 +23,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{},
 							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -35,6 +37,7 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -51,6 +54,7 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -64,6 +68,68 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "enableDNSHostnames is unset",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "enableDNSHostnames is false",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+								},
+							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(false)},
+						},
+					},
+				},
+			},
+			want: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+								},
+							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(false)},
 						},
 					},
 				},
