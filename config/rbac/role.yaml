@@ -59,32 +59,6 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - batch.x-k8s.io
-  resources:
-  - jobsets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - batch.x-k8s.io
-  resources:
-  - jobsets/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - batch.x-k8s.io
-  resources:
-  - jobsets/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - ""
   resources:
   - services
@@ -96,3 +70,29 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - jobset.x-k8s.io
+  resources:
+  - jobsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - jobset.x-k8s.io
+  resources:
+  - jobsets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - jobset.x-k8s.io
+  resources:
+  - jobsets/status
+  verbs:
+  - get
+  - patch
+  - update
