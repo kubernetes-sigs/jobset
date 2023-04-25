@@ -106,6 +106,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("completionmode-nonindexed", ns.Name).
 					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						EnableDNSHostnames(false).
 						Job(testing.MakeJobTemplate("test-job", ns.Name).
 							CompletionMode(batchv1.NonIndexedCompletion).
 							PodSpec(testing.TestPodSpec).Obj()).
