@@ -104,6 +104,37 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "enableDNSHostnames is false",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(false)},
+						},
+					},
+				},
+			},
+			want: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(false)},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
