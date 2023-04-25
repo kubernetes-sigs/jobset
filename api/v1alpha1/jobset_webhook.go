@@ -15,6 +15,7 @@ package v1alpha1
 
 import (
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -33,12 +34,20 @@ var _ webhook.Defaulter = &JobSet{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *JobSet) Default() {
-	// Default job completion mode to indexed.
-	for i, rjob := range r.Spec.ReplicatedJobs {
-		if rjob.Template.Spec.CompletionMode == nil {
+	for i, _ := range r.Spec.ReplicatedJobs {
+		// Default job completion mode to indexed.
+		if r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
 			r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
 		}
+		// Enable DNS hostnames by default if job template uses indexed completion mode.
+		if r.Spec.ReplicatedJobs[i].Network == nil {
+			r.Spec.ReplicatedJobs[i].Network = &Network{}
+		}
+		if r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil && *r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == batchv1.IndexedCompletion {
+			r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames = pointer.Bool(true)
+		}
 	}
+
 }
 
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha1-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha1,name=vjobset.kb.io,admissionReviewVersions=v1
