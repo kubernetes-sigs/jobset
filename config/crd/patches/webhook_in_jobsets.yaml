@@ -2,7 +2,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: jobsets.batch.x-k8s.io
+  name: jobsets.jobset.x-k8s.io
 spec:
   conversion:
     strategy: Webhook
