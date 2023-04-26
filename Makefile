@@ -208,5 +208,5 @@ test-integration: manifests generate fmt vet envtest ginkgo ## Run tests.
 	$(GINKGO) -v $(INTEGRATION_TARGET)
 
 .PHONY: test-e2e-kind
-test-e2e-kind: manifests generate fmt vet envtest ginkgo kind-image-build
+test-e2e-kind: manifests generate kustomize fmt vet envtest ginkgo kind-image-build
 	E2E_KIND_VERSION=$(E2E_KIND_VERSION) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) IMAGE_TAG=$(IMAGE_TAG) ./hack/e2e-test.sh
