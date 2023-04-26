@@ -9,13 +9,15 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-// TestPodSpec is the default pod spec used for testing.
-var TestPodSpec = corev1.PodSpec{
-	RestartPolicy: "Never",
-	Containers: []corev1.Container{
-		{
-			Name:  "test-container",
-			Image: "busybox:latest",
+// TestPodTemplate is the default pod template spec used for testing.
+var TestPodTemplate = corev1.PodTemplateSpec{
+	Spec: corev1.PodSpec{
+		RestartPolicy: "Never",
+		Containers: []corev1.Container{
+			{
+				Name:  "test-container",
+				Image: "busybox:latest",
+			},
 		},
 	},
 }
@@ -34,9 +36,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: TestPodSpec,
-									},
+									Template: TestPodTemplate,
 								},
 							},
 							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
@@ -50,9 +50,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: TestPodSpec,
-									},
+									Template:       TestPodTemplate,
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
@@ -70,9 +68,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: TestPodSpec,
-									},
+									Template:       TestPodTemplate,
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
@@ -87,9 +83,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: TestPodSpec,
-									},
+									Template:       TestPodTemplate,
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
@@ -107,9 +101,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: TestPodSpec,
-									},
+									Template:       TestPodTemplate,
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
@@ -123,9 +115,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: TestPodSpec,
-									},
+									Template:       TestPodTemplate,
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
@@ -143,9 +133,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: TestPodSpec,
-									},
+									Template:       TestPodTemplate,
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
@@ -160,9 +148,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: TestPodSpec,
-									},
+									Template:       TestPodTemplate,
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
