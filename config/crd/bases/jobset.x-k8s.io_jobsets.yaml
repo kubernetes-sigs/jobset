@@ -46,7 +46,7 @@ spec:
                       jobs.
                     type: integer
                 type: object
-              jobs:
+              replicatedJob:
                 description: ReplicatedJobs is the group of jobs that will form the
                   set.
                 items:
@@ -9505,8 +9505,6 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
-            required:
-            - jobs
             type: object
             x-kubernetes-validations:
             - message: Value is immutable
