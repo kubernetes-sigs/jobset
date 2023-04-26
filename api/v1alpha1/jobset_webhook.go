@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 func (r *JobSet) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -45,6 +46,10 @@ func (r *JobSet) Default() {
 		}
 		if r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil {
 			r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames = pointer.Bool(true)
+		}
+		// Default pod restart policy to OnFailure.
+		if r.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
+			r.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 		}
 	}
 
