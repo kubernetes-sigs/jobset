@@ -1,17 +1,17 @@
-// /*
-// Copyright 2023 The Kubernetes Authors.
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+/*
+Copyright 2023 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-// 	http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-// */
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package controllertest
 
@@ -32,6 +32,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/util/testing"
+	"sigs.k8s.io/jobset/test/util"
 )
 
 const (
@@ -215,7 +216,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
 
 			ginkgo.By("checking all jobs were created successfully")
-			gomega.Eventually(checkNumJobs, timeout, interval).WithArguments(ctx, js).Should(gomega.Equal(numExpectedJobs(js)))
+			gomega.Eventually(util.CheckNumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
 
 			// Perform a series of updates to jobset resources and check resulting jobset state after each update.
 			for _, update := range tc.updates {
@@ -237,7 +238,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				// Check jobset status if specified.
 				if update.expectedJobSetCondition != "" {
 					ginkgo.By(fmt.Sprintf("checking jobset status is: %s", update.expectedJobSetCondition))
-					gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(js, update.expectedJobSetCondition).Should(gomega.Equal(true))
+					gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, update.expectedJobSetCondition).Should(gomega.Equal(true))
 				}
 			}
 		},
@@ -351,27 +352,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 	) // end of DescribeTable
 }) // end of Describe
 
-func checkJobSetStatus(js *jobset.JobSet, condition jobset.JobSetConditionType) (bool, error) {
-	var fetchedJS jobset.JobSet
-	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
-		return false, err
-	}
-	for _, c := range fetchedJS.Status.Conditions {
-		if c.Type == string(condition) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func numExpectedJobs(js *jobset.JobSet) int {
-	expectedJobs := 0
-	for _, rjob := range js.Spec.ReplicatedJobs {
-		expectedJobs += rjob.Replicas
-	}
-	return expectedJobs
-}
-
 func numExpectedServices(js *jobset.JobSet) int {
 	// Expect 1 headless service per replicatedJob.
 	expected := 0
@@ -414,7 +394,7 @@ func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
 		return false, err
 	}
 	// Check we have the right number of jobs.
-	if len(jobList.Items) != numExpectedJobs(js) {
+	if len(jobList.Items) != util.NumExpectedJobs(js) {
 		return false, nil
 	}
 	// Check all the jobs restart counter has been incremented.
@@ -424,14 +404,6 @@ func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
 		}
 	}
 	return true, nil
-}
-
-func checkNumJobs(ctx context.Context, js *jobset.JobSet) (int, error) {
-	var jobList batchv1.JobList
-	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
-		return -1, err
-	}
-	return len(jobList.Items), nil
 }
 
 // Check one headless service per job was created successfully.

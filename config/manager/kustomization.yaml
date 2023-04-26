@@ -7,4 +7,3 @@ images:
 - name: controller
   newName: gcr.io/k8s-staging-jobset/jobset
   newTag: main
-

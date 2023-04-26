@@ -44,6 +44,14 @@ INTEGRATION_TARGET ?= ./test/integration/...
 
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
+E2E_TARGET ?= ./test/e2e/...
+E2E_KIND_VERSION ?= kindest/node:v1.25.1
+USE_EXISTING_CLUSTER ?= false
+
+# For local testing, we should allow user to use different kind cluster name
+# Default will delete default kind cluster
+KIND_CLUSTER_NAME ?= kind
+
 .PHONY: all
 all: build
 
@@ -184,7 +192,21 @@ GINKGO = $(shell pwd)/bin/ginkgo
 ginkgo: ## Download ginkgo locally if necessary.
 	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/onsi/ginkgo/v2/ginkgo@v2.1.4
 
+KIND = $(shell pwd)/bin/kind
+.PHONY: kind
+kind:
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install sigs.k8s.io/kind@v0.18.0
+
+.PHONY: kind-image-build
+kind-image-build: PLATFORMS=linux/amd64
+kind-image-build: IMAGE_BUILD_EXTRA_OPTS=--load
+kind-image-build: kind image-build
+
 .PHONY: test-integration
 test-integration: manifests generate fmt vet envtest ginkgo ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
 	$(GINKGO) -v $(INTEGRATION_TARGET)
+
+.PHONY: test-e2e-kind
+test-e2e-kind: manifests generate fmt vet envtest ginkgo kind-image-build
+	E2E_KIND_VERSION=$(E2E_KIND_VERSION) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) IMAGE_TAG=$(IMAGE_TAG) ./hack/e2e-test.sh
