@@ -130,5 +130,25 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				return js.Spec.ReplicatedJobs[0].Network != nil && *js.Spec.ReplicatedJobs[0].Network.EnableDNSHostnames
 			},
 		}),
+		ginkgo.Entry("pod restart policy defaults to OnFailure if unset", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("enablednshostnames-unset", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						Job(testing.MakeJobTemplate("test-job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodSpec(corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "test-container",
+										Image: "busybox:latest",
+									},
+								},
+							}).Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.RestartPolicy == corev1.RestartPolicyOnFailure
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe
