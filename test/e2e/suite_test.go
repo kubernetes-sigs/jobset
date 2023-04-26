@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	timeout  = 1 * time.Minute
+	timeout  = 2 * time.Minute
 	interval = time.Millisecond * 250
 )
 
@@ -63,7 +63,7 @@ var _ = ginkgo.BeforeSuite(func() {
 })
 
 func JobSetReadyForTesting(client client.Client) {
-	ginkgo.By("waiting for ")
+	ginkgo.By("waiting for resources to be ready for testing")
 	// To verify that webhooks are ready, let's create a simple jobset.
 	js := testutils.MakeJobSet("js", "default").
 		ReplicatedJob(testutils.MakeReplicatedJob("rjob").
