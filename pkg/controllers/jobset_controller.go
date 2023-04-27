@@ -130,8 +130,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	// If JobSpec has a suspend field of true,
-	// set condition to say jobspec is suspended.
+	// If JobSet is suspended, ensure the suspend condition is set and suspend all active child jobs.
 	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
 	if jobsetSuspended {
 		if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
