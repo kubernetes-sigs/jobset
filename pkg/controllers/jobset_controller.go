@@ -185,6 +185,7 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&jobset.JobSet{}).
 		Owns(&batchv1.Job{}).
+		Owns(&corev1.Service{}).
 		Complete(r)
 }
 
