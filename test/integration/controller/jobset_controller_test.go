@@ -131,9 +131,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 						EnableDNSHostnames(true).
 						Obj())
 			},
-		}),
-		ginkgo.Entry("validate immutable fields", &testCase{
-			makeJobSet:                  testJobSet,
 			jobSetCreationShouldSucceed: true,
 			updates: []*jobSetUpdate{
 				{
