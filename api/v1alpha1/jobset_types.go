@@ -34,6 +34,8 @@ const (
 	JobSetCompleted JobSetConditionType = "Completed"
 	// JobSetFailed means the job has failed its execution.
 	JobSetFailed JobSetConditionType = "Failed"
+	// JobSetSuspended means the job is suspended
+	JobSetSuspended JobSetConditionType = "Suspended"
 )
 
 // JobSetSpec defines the desired state of JobSet
@@ -41,13 +43,18 @@ type JobSetSpec struct {
 	// ReplicatedJobs is the group of jobs that will form the set.
 	// +listType=map
 	// +listMapKey=name
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
 
 	// FailurePolicy, if set, configures when to declare the JobSet as
 	// failed.
 	// The JobSet is always declared failed if all jobs in the set
 	// finished with status failed.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"`
+
+	// Suspend suspends all running child Jobs when set to true.
+	Suspend *bool `json:"suspend,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet
@@ -67,9 +74,8 @@ type JobSetStatus struct {
 type JobSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	Spec   JobSetSpec   `json:"spec,omitempty"`
-	Status JobSetStatus `json:"status,omitempty"`
+	Spec              JobSetSpec   `json:"spec,omitempty"`
+	Status            JobSetStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

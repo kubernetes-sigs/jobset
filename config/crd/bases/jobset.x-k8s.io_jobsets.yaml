@@ -45,6 +45,9 @@ spec:
                       jobs.
                     type: integer
                 type: object
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               replicatedJobs:
                 description: ReplicatedJobs is the group of jobs that will form the
                   set.
@@ -9498,10 +9501,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
+              suspend:
+                description: Suspend suspends all running child Jobs when set to true.
+                type: boolean
             type: object
-            x-kubernetes-validations:
-            - message: Value is immutable
-              rule: self == oldSelf
           status:
             description: JobSetStatus defines the observed state of JobSet
             properties:
