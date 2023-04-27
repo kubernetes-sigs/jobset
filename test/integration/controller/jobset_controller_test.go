@@ -409,7 +409,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("jobset that gets suspended after startup transitions to suspended", &testCase{
+		ginkgo.Entry("suspend a running jobset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(false)
 			},
