@@ -87,13 +87,15 @@ type ReplicatedJob struct {
 	// Template defines the template of the Job that will be created.
 	Template batchv1.JobTemplateSpec `json:"template,omitempty"`
 	// Network defines the networking options for the job.
-	Network *Network `json:"network"`
+	// +optional
+	Network *Network `json:"network,omitempty"`
 	// Replicas is the number of jobs that will be created from this ReplicatedJob's template.
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
 	Replicas int `json:"replicas,omitempty"`
 	// Exclusive defines that the jobs are 1:1 with the specified topology. This is enforced
 	// against all jobs, whether or not they are created by JobSet.
+	// +optional
 	Exclusive *Exclusive `json:"exclusive,omitempty"`
 }
 
@@ -111,6 +113,7 @@ type Exclusive struct {
 	TopologyKey string `json:"topologyKey,omitempty"`
 	// A label query over the set of namespaces that exclusiveness applies to. Defaults to the job's namespace.
 	// An empty selector ({}) matches all namespaces.
+	// +optional
 	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
 }
 
