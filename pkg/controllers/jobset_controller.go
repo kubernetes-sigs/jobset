@@ -133,6 +133,15 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// If JobSet is suspended, ensure the suspend condition is set and suspend all active child jobs.
 	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
 	if jobsetSuspended {
+		for _, job := range ownedJobs.active {
+			if !pointer.BoolDeref(job.Spec.Suspend, false) {
+				job.Spec.Suspend = pointer.Bool(true)
+				if r.Update(ctx, job); err != nil {
+					log.Error(err, "suspending job", "job", klog.KObj(job))
+					return ctrl.Result{}, nil
+				}
+			}
+		}
 		if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
 			Type:               string(jobset.JobSetSuspended),
 			Status:             metav1.ConditionStatus(corev1.ConditionTrue),
@@ -142,15 +151,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}); err != nil {
 			log.Error(err, "updating jobset status")
 			return ctrl.Result{}, nil
-		}
-		for _, job := range ownedJobs.active {
-			if !pointer.BoolDeref(job.Spec.Suspend, false) {
-				job.Spec.Suspend = pointer.Bool(true)
-				if r.Update(ctx, job); err != nil {
-					log.Error(err, "suspending job", "job", klog.KObj(job))
-					return ctrl.Result{}, nil
-				}
-			}
 		}
 
 		// If JobSpec is unsuspended, ensure all active child Jobs are also
