@@ -108,7 +108,7 @@ To install the latest development version of Jobset in your cluster, run the
 following command:
 
 ```shell
-kubectl apply -k github.com/kubernetes-sigs/jobset/config/default?ref=main
+kubectl apply --server-side -k github.com/kubernetes-sigs/jobset/config/default?ref=main
 ```
 
 The controller runs in the `jobset-system` namespace.
