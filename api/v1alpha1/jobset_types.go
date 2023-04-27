@@ -80,7 +80,6 @@ type JobSetList struct {
 	Items           []JobSet `json:"items"`
 }
 
-// +kubebuilder:validation:XValidation:rule="!has(self.network) || !has(self.network.enableDNSHostnames) || !self.network.enableDNSHostnames || (has(self.template.spec.completionMode) && self.template.spec.completionMode == \"Indexed\")", message="EnableDNSHostnames requires job to be in indexed completion mode"
 type ReplicatedJob struct {
 	// Name is the name of the entry and will be used as a suffix
 	// for the Job name.

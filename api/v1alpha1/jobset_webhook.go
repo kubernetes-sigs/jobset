@@ -14,6 +14,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -61,6 +62,16 @@ var _ webhook.Validator = &JobSet{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *JobSet) ValidateCreate() error {
+	for i := range r.Spec.ReplicatedJobs {
+		enableDNSHostnames := r.Spec.ReplicatedJobs[i].Network != nil &&
+			r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames != nil && *r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames
+		indexed := r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode != nil &&
+			*r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == batchv1.IndexedCompletion
+
+		if enableDNSHostnames && !indexed {
+			return fmt.Errorf("EnableDNSHostnames requires job to be in indexed completion mode")
+		}
+	}
 	return nil
 }
 
