@@ -20,8 +20,8 @@ function kind_load {
 function jobset_deploy {
     echo "cd config/manager && $KUSTOMIZE edit set image controller=$IMAGE_TAG"
     (cd config/manager && $KUSTOMIZE edit set image controller=$IMAGE_TAG)
-    echo "$KUSTOMIZE build test/e2e/config | kubectl apply --server-side -f -" 
-    $KUSTOMIZE build test/e2e/config | kubectl apply --server-side -f -
+    echo "kubectl apply --server-side -k test/e2e/config" 
+    kubectl apply --server-side -k test/e2e/config
 }
 trap cleanup EXIT
 startup
