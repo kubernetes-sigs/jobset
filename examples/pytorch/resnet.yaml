@@ -22,6 +22,9 @@ spec:
                 value: "pytorch-workers-0-0.pytorch-workers"
               - name: MASTER_PORT
                 value: "3389"
+              # Force python to not buffer output and write directly to stdout, so we can view training logs via `kubectl logs`.
+              - name: PYTHONUNBUFFERED
+                value: "0"
               command:
               - bash
               - -xc
