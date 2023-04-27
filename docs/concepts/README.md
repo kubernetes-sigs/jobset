@@ -23,7 +23,7 @@ spec:
            spec:
             containers:
             - name: pytorch
-              image: gcr.io/danielvm-gke-dev2/pytorch-resnet:latest
+              image: gcr.io/k8s-staging-jobset/pytorch-resnet:latest
               ports:
               - containerPort: 3389
               env:
@@ -69,8 +69,8 @@ pytorch-workers-0-3-mn8c8   1/1     Running   0          13m
 
 ## JobSet defaults for Jobs and Pods
 
-- Job [completionMode](https://kubernetes.io/docs/concepts/workloads/controllers/job/#completion-mode) is defaulted to `Indexed`. 
-- Pod [restartPolicy](https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-template) is defaulted to `OnFailure`.
+- Job [`completionMode`](https://kubernetes.io/docs/concepts/workloads/controllers/job/#completion-mode) is defaulted to `Indexed` 
+- Pod [`restartPolicy`](https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-template) is defaulted to `OnFailure`
 
 
 ## JobSet labels
