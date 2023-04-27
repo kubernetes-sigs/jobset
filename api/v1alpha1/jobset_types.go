@@ -41,7 +41,7 @@ type JobSetSpec struct {
 	// ReplicatedJobs is the group of jobs that will form the set.
 	// +listType=map
 	// +listMapKey=name
-	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
+	ReplicatedJobs []ReplicatedJob `json:"replicatedJob,omitempty"`
 
 	// FailurePolicy, if set, configures when to declare the JobSet as
 	// failed.

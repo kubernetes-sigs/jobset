@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.11.1
   creationTimestamp: null
-  name: jobsets.jobset.x-k8s.io
+  name: jobsets.batch.x-k8s.io
 spec:
-  group: jobset.x-k8s.io
+  group: batch.x-k8s.io
   names:
     kind: JobSet
     listKind: JobSetList
@@ -46,7 +46,7 @@ spec:
                       jobs.
                     type: integer
                 type: object
-              replicatedJob:
+              jobs:
                 description: ReplicatedJobs is the group of jobs that will form the
                   set.
                 items:
@@ -9505,6 +9505,8 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+            required:
+            - jobs
             type: object
             x-kubernetes-validations:
             - message: Value is immutable
