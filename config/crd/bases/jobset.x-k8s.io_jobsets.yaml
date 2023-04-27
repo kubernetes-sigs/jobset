@@ -46,7 +46,7 @@ spec:
                       jobs.
                     type: integer
                 type: object
-              replicatedJob:
+              replicatedJobs:
                 description: ReplicatedJobs is the group of jobs that will form the
                   set.
                 items:
