@@ -1,0 +1,23 @@
+apiVersion: jobset.x-k8s.io/v1alpha1
+kind: JobSet
+metadata:
+  name: sleep
+spec:
+  replicatedJobs:
+  - name: workers
+    network:
+      enableDNSHostnames: false
+    template:
+      spec:
+        parallelism: 4
+        completions: 4
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command:
+              - sleep
+              - 100
+                
