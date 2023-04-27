@@ -9493,7 +9493,6 @@ spec:
                       type: object
                   required:
                   - name
-                  - network
                   type: object
                   x-kubernetes-validations:
                   - message: EnableDNSHostnames requires job to be in indexed completion
