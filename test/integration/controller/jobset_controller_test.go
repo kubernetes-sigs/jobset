@@ -471,7 +471,7 @@ func failJob(job *batchv1.Job) {
 	gomega.Eventually(k8sClient.Status().Update(ctx, job), timeout, interval).Should(gomega.Succeed())
 }
 
-func jobSetSuspend(js *jobset.JobSet, suspend bool) {
+func suspendJobSet(js *jobset.JobSet, suspend bool) {
 	js.Spec.Suspend = pointer.Bool(suspend)
 	gomega.Eventually(k8sClient.Update(ctx, js), timeout, interval).Should(gomega.Succeed())
 }
