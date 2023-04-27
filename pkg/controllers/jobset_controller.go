@@ -149,7 +149,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if !pointer.BoolDeref(job.Spec.Suspend, false) {
 				job.Spec.Suspend = pointer.Bool(true)
 				if r.Update(ctx, job); err != nil {
-					log.Error(err, "updating job suspend")
+					log.Error(err, "suspending job", "job", klog.KObj(job))
 					return ctrl.Result{}, nil
 				}
 			}
