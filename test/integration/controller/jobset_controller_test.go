@@ -382,7 +382,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("suspended jobset resumes on setting suspend to false", &testCase{
+		ginkgo.Entry("resume a suspended jobset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(true)
 			},
