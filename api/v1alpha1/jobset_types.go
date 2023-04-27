@@ -85,7 +85,7 @@ type ReplicatedJob struct {
 	// for the Job name.
 	Name string `json:"name"`
 	// Template defines the template of the Job that will be created.
-	Template batchv1.JobTemplateSpec `json:"template,omitempty"`
+	Template batchv1.JobTemplateSpec `json:"template"`
 	// Network defines the networking options for the job.
 	// +optional
 	Network *Network `json:"network,omitempty"`
