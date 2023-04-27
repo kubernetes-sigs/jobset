@@ -1,0 +1,33 @@
+apiVersion: jobset.x-k8s.io/v1alpha1
+kind: JobSet
+metadata:
+  name: pytorch
+spec:
+  replicatedJobs:
+  - name: workers
+    network:
+      enableDNSHostnames: true
+    template:
+      spec:
+        parallelism: 4
+        completions: 4
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: pytorch
+              image: gcr.io/k8s-staging-jobset/pytorch-resnet:latest
+              ports:
+              - containerPort: 3389
+              env:
+              - name: MASTER_ADDR
+                value: "pytorch-workers-0-0.pytorch-workers"
+              - name: MASTER_PORT
+                value: "3389"
+              command:
+              - bash
+              - -xc
+              - |
+                torchrun --nproc_per_node=1 --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT resnet.py --backend=gloo --num_epochs=2
+                
