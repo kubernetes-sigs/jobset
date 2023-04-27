@@ -5,8 +5,6 @@ metadata:
 spec:
   replicatedJobs:
   - name: workers
-    network:
-      enableDNSHostnames: true
     template:
       spec:
         parallelism: 4
@@ -14,7 +12,6 @@ spec:
         backoffLimit: 0
         template:
           spec:
-            restartPolicy: Never
             containers:
             - name: pytorch
               image: gcr.io/k8s-staging-jobset/pytorch-resnet:latest
