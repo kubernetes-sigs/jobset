@@ -5,8 +5,6 @@ metadata:
 spec:
   replicatedJobs:
   - name: workers
-    network:
-      enableDNSHostnames: false
     template:
       spec:
         parallelism: 4
