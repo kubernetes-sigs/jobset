@@ -9,6 +9,8 @@ GOBIN=$(shell go env GOBIN)
 endif
 
 GO_CMD ?= go
+GO_FMT ?= gofmt
+
 # Use go.mod go version as a single source of truth of GO version.
 GO_VERSION := $(shell awk '/^go /{print $$2}' go.mod|head -n1)
 
@@ -86,6 +88,14 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 fmt: ## Run go fmt against code.
 	$(GO_CMD) fmt ./...
 
+.PHONY: fmt-verify
+fmt-verify:
+	@out=`$(GO_FMT) -w -l -d $$(find . -name '*.go')`; \
+	if [ -n "$$out" ]; then \
+	    echo "$$out"; \
+	    exit 1; \
+	fi
+
 .PHONY: vet
 vet: ## Run go vet against code.
 	$(GO_CMD) vet ./...
@@ -93,6 +103,10 @@ vet: ## Run go vet against code.
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./pkg/... ./api/... -coverprofile cover.out
+
+.PHONY: verify
+verify: vet fmt-verify manifests generate
+	git --no-pager diff --exit-code config api
 
 ##@ Build
 
