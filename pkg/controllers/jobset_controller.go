@@ -155,9 +155,8 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
-		// If JobSpec is unsuspended either by removing suspend field or setting to false
-		// and we detect a condition that says it was suspended
-		// we must update all jobs to be suspended and modify condition.
+		// If JobSpec is unsuspended, ensure all active child Jobs are also 
+		// unsuspended and update the suspend condition to true.
 	} else {
 		if jobSetSuspended(&js) {
 			if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
