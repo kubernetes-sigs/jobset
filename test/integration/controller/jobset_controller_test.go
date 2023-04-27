@@ -430,6 +430,26 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("service deleted", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns)
+			},
+			updates: []*update{
+				{
+					checkJobSetState: checkExpectedServices,
+				},
+				{
+					// Fetch headless service created for replicated job and delete it.
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						var svc corev1.Service
+						gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: controllers.GenSubdomain(js, &js.Spec.ReplicatedJobs[1]), Namespace: js.Namespace}, &svc)).Should(gomega.Succeed())
+						gomega.Eventually(k8sClient.Delete(ctx, &svc)).Should(gomega.Succeed())
+					},
+					// Service should be recreated during reconciliation.
+					checkJobSetState: checkExpectedServices,
+				},
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe
 
