@@ -143,8 +143,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			log.Error(err, "updating jobset status")
 			return ctrl.Result{}, nil
 		}
-		// If jobs are started and jobset suspends, we need to update jobs
-		// to be suspended.
 		for _, job := range ownedJobs.active {
 			if !pointer.BoolDeref(job.Spec.Suspend, false) {
 				job.Spec.Suspend = pointer.Bool(true)
