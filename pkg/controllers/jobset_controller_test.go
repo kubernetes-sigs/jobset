@@ -633,8 +633,31 @@ func TestUpdateConditions(t *testing.T) {
 					Obj()).Obj(),
 			newCondition:   metav1.Condition{},
 			conditions:     []metav1.Condition{},
+			expectedUpdate: false,
+		},
+		{
+			name: "do not update if false",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			newCondition:   metav1.Condition{Status: metav1.ConditionFalse, Type: string(jobset.JobSetSuspended), Reason: "JobsResumed"},
+			conditions:     []metav1.Condition{},
+			expectedUpdate: false,
+		},
+		{
+			name: "update if condition is true",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			newCondition:   metav1.Condition{Status: metav1.ConditionTrue, Type: string(jobset.JobSetSuspended), Reason: "JobsResumed"},
+			conditions:     []metav1.Condition{},
 			expectedUpdate: true,
 		},
+
 		{
 			name: "suspended",
 			js: testutils.MakeJobSet(jobSetName, ns).
@@ -642,7 +665,7 @@ func TestUpdateConditions(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			newCondition:   metav1.Condition{Type: string(jobset.JobSetSuspended), Reason: "JobsSuspended"},
+			newCondition:   metav1.Condition{Status: metav1.ConditionTrue, Type: string(jobset.JobSetSuspended), Reason: "JobsSuspended"},
 			conditions:     []metav1.Condition{},
 			expectedUpdate: true,
 		},

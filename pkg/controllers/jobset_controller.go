@@ -156,6 +156,15 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// If JobSpec is unsuspended, ensure all active child Jobs are also
 		// unsuspended and update the suspend condition to true.
 	} else {
+		for _, job := range ownedJobs.active {
+			if pointer.BoolDeref(job.Spec.Suspend, false) != false {
+				job.Spec.Suspend = pointer.Bool(false)
+				if r.Update(ctx, job); err != nil {
+					log.Error(err, "unsuspending job", "job", klog.KObj(job))
+					return ctrl.Result{}, nil
+				}
+			}
+		}
 		if jobSetSuspended(&js) {
 			if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
 				Type:               string(jobset.JobSetSuspended),
@@ -166,15 +175,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}); err != nil {
 				log.Error(err, "updating jobset status")
 				return ctrl.Result{}, nil
-			}
-		}
-		for _, job := range ownedJobs.active {
-			if pointer.BoolDeref(job.Spec.Suspend, false) != false {
-				job.Spec.Suspend = pointer.Bool(false)
-				if r.Update(ctx, job); err != nil {
-					log.Error(err, "unsuspending job", "job", klog.KObj(job))
-					return ctrl.Result{}, nil
-				}
 			}
 		}
 	}
@@ -428,9 +428,12 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 			return false
 		}
 	}
-	js.Status.Conditions = append(js.Status.Conditions, condition)
-	return true
-
+	// condition doesn't exist, update only if the status is false
+	if condition.Status == metav1.ConditionTrue {
+		js.Status.Conditions = append(js.Status.Conditions, condition)
+		return true
+	}
+	return false
 }
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
