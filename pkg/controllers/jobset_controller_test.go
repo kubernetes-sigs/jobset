@@ -316,14 +316,16 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          2,
-					jobIdx:            0}).Suspend(false).Obj(),
+					jobIdx:            0}).
+					Suspend(false).Obj(),
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
-					jobIdx:            1}).Suspend(false).Obj(),
+					jobIdx:            1}).
+					Suspend(false).Obj(),
 			},
 		},
 		{
@@ -345,7 +347,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
-					jobIdx:            1}).Suspend(false).Obj(),
+					jobIdx:            1}).
+					Suspend(false).Obj(),
 			},
 		},
 		{
@@ -367,7 +370,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
-					jobIdx:            1}).Suspend(false).Obj(),
+					jobIdx:            1}).
+					Suspend(false).Obj(),
 			},
 		},
 		{
@@ -389,7 +393,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
-					jobIdx:            1}).Suspend(false).Obj(),
+					jobIdx:            1}).
+					Suspend(false).Obj(),
 			},
 		},
 		{
@@ -411,7 +416,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
-					jobIdx:            1}).Suspend(false).Obj(),
+					jobIdx:            1}).
+					Suspend(false).Obj(),
 			},
 		},
 		{
@@ -434,7 +440,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 						jobName:           "test-jobset-replicated-job-B-0",
 						ns:                ns,
 						replicas:          2,
-						jobIdx:            0}).Suspend(false).Obj(),
+						jobIdx:            0}).
+						Suspend(false).Obj(),
 				},
 			},
 			want: []*batchv1.Job{
@@ -444,14 +451,16 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-A-0",
 					ns:                ns,
 					replicas:          1,
-					jobIdx:            0}).Suspend(false).Obj(),
+					jobIdx:            0}).
+					Suspend(false).Obj(),
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: "replicated-job-B",
 					jobName:           "test-jobset-replicated-job-B-1",
 					ns:                ns,
 					replicas:          2,
-					jobIdx:            1}).Suspend(false).Obj(),
+					jobIdx:            1}).
+					Suspend(false).Obj(),
 			},
 		},
 		{
@@ -471,42 +480,44 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
-					jobIdx:            0}).Suspend(false).Affinity(&corev1.Affinity{
-					PodAffinity: &corev1.PodAffinity{
-						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-							{
-								LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-									{
-										Key:      jobset.JobNameKey,
-										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{"test-jobset-replicated-job-0"},
-									},
-								}},
-								TopologyKey:       exclusive.TopologyKey,
-								NamespaceSelector: exclusive.NamespaceSelector,
+					jobIdx:            0}).
+					Suspend(false).
+					Affinity(&corev1.Affinity{
+						PodAffinity: &corev1.PodAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+								{
+									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+										{
+											Key:      jobset.JobNameKey,
+											Operator: metav1.LabelSelectorOpIn,
+											Values:   []string{"test-jobset-replicated-job-0"},
+										},
+									}},
+									TopologyKey:       exclusive.TopologyKey,
+									NamespaceSelector: exclusive.NamespaceSelector,
+								},
 							},
 						},
-					},
-					PodAntiAffinity: &corev1.PodAntiAffinity{
-						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-							{
-								LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-									{
-										Key:      jobset.JobNameKey,
-										Operator: metav1.LabelSelectorOpExists,
-									},
-									{
-										Key:      jobset.JobNameKey,
-										Operator: metav1.LabelSelectorOpNotIn,
-										Values:   []string{"test-jobset-replicated-job-0"},
-									},
-								}},
-								TopologyKey:       exclusive.TopologyKey,
-								NamespaceSelector: exclusive.NamespaceSelector,
+						PodAntiAffinity: &corev1.PodAntiAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+								{
+									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+										{
+											Key:      jobset.JobNameKey,
+											Operator: metav1.LabelSelectorOpExists,
+										},
+										{
+											Key:      jobset.JobNameKey,
+											Operator: metav1.LabelSelectorOpNotIn,
+											Values:   []string{"test-jobset-replicated-job-0"},
+										},
+									}},
+									TopologyKey:       exclusive.TopologyKey,
+									NamespaceSelector: exclusive.NamespaceSelector,
+								},
 							},
 						},
-					},
-				}).Obj(),
+					}).Obj(),
 			},
 		},
 		{
@@ -526,7 +537,9 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
-					jobIdx:            0}).Suspend(false).Subdomain("test-jobset-replicated-job").Obj(),
+					jobIdx:            0}).
+					Suspend(false).
+					Subdomain("test-jobset-replicated-job").Obj(),
 			},
 		},
 		{
@@ -547,7 +560,9 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
-					jobIdx:            0}).Suspend(true).Subdomain("test-jobset-replicated-job").Obj(),
+					jobIdx:            0}).
+					Suspend(true).
+					Subdomain("test-jobset-replicated-job").Obj(),
 			},
 		},
 		{
@@ -568,7 +583,9 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
-					jobIdx:            0}).Suspend(false).Subdomain("test-jobset-replicated-job").Obj(),
+					jobIdx:            0}).
+					Suspend(false).
+					Subdomain("test-jobset-replicated-job").Obj(),
 			},
 		},
 	}
@@ -603,7 +620,6 @@ func TestUpdateConditions(t *testing.T) {
 	tests := []struct {
 		name           string
 		js             *jobset.JobSet
-		eventType      string
 		conditions     []metav1.Condition
 		newCondition   metav1.Condition
 		expectedUpdate bool
@@ -615,7 +631,6 @@ func TestUpdateConditions(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			eventType:      "None",
 			newCondition:   metav1.Condition{},
 			conditions:     []metav1.Condition{},
 			expectedUpdate: true,
@@ -627,7 +642,6 @@ func TestUpdateConditions(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			eventType:      string(jobset.JobSetSuspended),
 			newCondition:   metav1.Condition{Type: string(jobset.JobSetSuspended), Reason: "JobsSuspended"},
 			conditions:     []metav1.Condition{},
 			expectedUpdate: true,
@@ -639,7 +653,6 @@ func TestUpdateConditions(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			eventType:      string(jobset.JobSetSuspended),
 			newCondition:   metav1.Condition{Type: string(jobset.JobSetSuspended), Reason: "JobsResumed", Status: metav1.ConditionStatus(corev1.ConditionFalse)},
 			conditions:     []metav1.Condition{{Type: string(jobset.JobSetSuspended), Reason: "JobsSuspended", Status: metav1.ConditionStatus(corev1.ConditionTrue)}},
 			expectedUpdate: true,
@@ -651,7 +664,6 @@ func TestUpdateConditions(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			eventType:      string(jobset.JobSetCompleted),
 			newCondition:   metav1.Condition{Type: string(jobset.JobSetCompleted), Message: "Jobs completed", Reason: "JobsCompleted", Status: metav1.ConditionTrue},
 			conditions:     []metav1.Condition{{Type: string(jobset.JobSetCompleted), Message: "Jobs completed", Reason: "JobsCompleted", Status: metav1.ConditionTrue}},
 			expectedUpdate: false,
@@ -661,7 +673,7 @@ func TestUpdateConditions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			jsWithConditions := tc.js
 			jsWithConditions.Status.Conditions = tc.conditions
-			gotUpdate := updateCondition(jsWithConditions, tc.eventType, tc.newCondition)
+			gotUpdate := updateCondition(jsWithConditions, tc.newCondition)
 			if gotUpdate != tc.expectedUpdate {
 				t.Errorf("updateCondition return mismatch")
 			}

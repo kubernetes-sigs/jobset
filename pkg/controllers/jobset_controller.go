@@ -153,7 +153,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
-		// If JobSpec is unsuspended, ensure all active child Jobs are also 
+		// If JobSpec is unsuspended, ensure all active child Jobs are also
 		// unsuspended and update the suspend condition to true.
 	} else {
 		if jobSetSuspended(&js) {
@@ -396,7 +396,7 @@ func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, 
 }
 
 func (r *JobSetReconciler) ensureCondition(ctx context.Context, js *jobset.JobSet, eventType string, condition metav1.Condition) error {
-	if !updateCondition(js, eventType, condition) {
+	if !updateCondition(js, condition) {
 		return nil
 	}
 	if err := r.Status().Update(ctx, js); err != nil {
@@ -416,7 +416,7 @@ func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) er
 	})
 }
 
-func updateCondition(js *jobset.JobSet, eventType string, condition metav1.Condition) bool {
+func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 	condition.LastTransitionTime = metav1.Now()
 	for i, val := range js.Status.Conditions {
 		if condition.Type == val.Type && condition.Status != val.Status {
