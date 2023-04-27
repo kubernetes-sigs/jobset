@@ -396,7 +396,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
-						jobSetSuspend(js, false)
+						suspendJobSet(js, false)
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						ginkgo.By("checking all jobs are resumed")
@@ -422,7 +422,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
-						jobSetSuspend(js, true)
+						suspendJobSet(js, true)
 					},
 					expectedJobSetCondition: jobset.JobSetSuspended,
 					checkJobSetState: func(js *jobset.JobSet) {
