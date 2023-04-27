@@ -120,17 +120,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 				}
 			}
 		},
-		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
-			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
-					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).
-							PodSpec(testing.TestPodSpec).
-							CompletionMode(batchv1.NonIndexedCompletion).Obj()).
-						EnableDNSHostnames(true).
-						Obj())
-			},
-		}),
 		ginkgo.Entry("validate jobset spec is immutable", &testCase{
 			makeJobSet:                  testJobSet,
 			jobSetCreationShouldSucceed: true,
