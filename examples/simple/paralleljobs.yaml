@@ -18,4 +18,19 @@ spec:
               command:
               - sleep
               - 100
+  - name: driver
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command:
+              - sleep
+              - 100
+
                 
