@@ -165,17 +165,15 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				}
 			}
 		}
-		if jobSetSuspended(&js) {
-			if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
-				Type:               string(jobset.JobSetSuspended),
-				Status:             metav1.ConditionStatus(corev1.ConditionFalse),
-				LastTransitionTime: metav1.Now(),
-				Reason:             "ResumeJobs",
-				Message:            "jobset is resumed",
-			}); err != nil {
-				log.Error(err, "updating jobset status")
-				return ctrl.Result{}, nil
-			}
+		if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
+			Type:               string(jobset.JobSetSuspended),
+			Status:             metav1.ConditionStatus(corev1.ConditionFalse),
+			LastTransitionTime: metav1.Now(),
+			Reason:             "ResumeJobs",
+			Message:            "jobset is resumed",
+		}); err != nil {
+			log.Error(err, "updating jobset status")
+			return ctrl.Result{}, nil
 		}
 	}
 
@@ -565,15 +563,6 @@ func jobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 		}
 	}
 	return false, ""
-}
-
-func jobSetSuspended(js *jobset.JobSet) bool {
-	for _, c := range js.Status.Conditions {
-		if c.Type == string(jobset.JobSetSuspended) && c.Status == metav1.ConditionTrue {
-			return true
-		}
-	}
-	return false
 }
 
 func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIndex int) string {
