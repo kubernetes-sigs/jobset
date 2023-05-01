@@ -59,6 +59,12 @@ func (j *JobSetWrapper) FailurePolicy(policy *jobset.FailurePolicy) *JobSetWrapp
 	return j
 }
 
+// SetAnnotations sets the value of the jobSet.metadata.annotations.
+func (j *JobSetWrapper) SetAnnotations(annotations map[string]string) *JobSetWrapper {
+	j.Annotations = annotations
+	return j
+}
+
 // Obj returns the inner JobSet.
 func (j *JobSetWrapper) Obj() *jobset.JobSet {
 	return &j.JobSet
@@ -106,12 +112,6 @@ func (r *ReplicatedJobWrapper) EnableDNSHostnames(val bool) *ReplicatedJobWrappe
 // Replicas sets the value of the ReplicatedJob.Replicas.
 func (r *ReplicatedJobWrapper) Replicas(val int) *ReplicatedJobWrapper {
 	r.ReplicatedJob.Replicas = val
-	return r
-}
-
-// Exclusive sets the value of ReplicatedJob.Exclusive.
-func (r *ReplicatedJobWrapper) Exclusive(e *jobset.Exclusive) *ReplicatedJobWrapper {
-	r.ReplicatedJob.Exclusive = e
 	return r
 }
 

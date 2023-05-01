@@ -116,13 +116,11 @@ func TestSetExclusiveAffinities(t *testing.T) {
 	tests := []struct {
 		name         string
 		job          *batchv1.Job
-		nsSelector   *metav1.LabelSelector
 		wantAffinity corev1.Affinity
 	}{
 		{
-			name:       "no existing affinities",
-			job:        testutils.MakeJob(jobName, ns).Obj(),
-			nsSelector: &metav1.LabelSelector{}, // all namespaces
+			name: "no existing affinities",
+			job:  testutils.MakeJob(jobName, ns).Obj(),
 			wantAffinity: corev1.Affinity{
 				PodAffinity: &corev1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -173,7 +171,8 @@ func TestSetExclusiveAffinities(t *testing.T) {
 									Values:   []string{"value-foo"},
 								},
 							}},
-							TopologyKey: "topology.kubernetes.io/zone",
+							TopologyKey:       "topology.kubernetes.io/zone",
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 					},
 				},
@@ -187,12 +186,12 @@ func TestSetExclusiveAffinities(t *testing.T) {
 									Values:   []string{"value-bar"},
 								},
 							}},
-							TopologyKey: "topology.kubernetes.io/zone",
+							TopologyKey:       "topology.kubernetes.io/zone",
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 					},
 				},
 			}).Obj(),
-			nsSelector: nil,
 			wantAffinity: corev1.Affinity{
 				PodAffinity: &corev1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -204,7 +203,8 @@ func TestSetExclusiveAffinities(t *testing.T) {
 									Values:   []string{"value-foo"},
 								},
 							}},
-							TopologyKey: "topology.kubernetes.io/zone",
+							TopologyKey:       "topology.kubernetes.io/zone",
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -214,7 +214,8 @@ func TestSetExclusiveAffinities(t *testing.T) {
 									Values:   []string{jobName},
 								},
 							}},
-							TopologyKey: topologyKey,
+							TopologyKey:       topologyKey,
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 					},
 				},
@@ -228,7 +229,8 @@ func TestSetExclusiveAffinities(t *testing.T) {
 									Values:   []string{"value-bar"},
 								},
 							}},
-							TopologyKey: "topology.kubernetes.io/zone",
+							TopologyKey:       "topology.kubernetes.io/zone",
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -242,7 +244,8 @@ func TestSetExclusiveAffinities(t *testing.T) {
 									Values:   []string{jobName},
 								},
 							}},
-							TopologyKey: topologyKey,
+							TopologyKey:       topologyKey,
+							NamespaceSelector: &metav1.LabelSelector{},
 						},
 					},
 				},
@@ -252,7 +255,7 @@ func TestSetExclusiveAffinities(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			setExclusiveAffinities(tc.job, topologyKey, tc.nsSelector)
+			setExclusiveAffinities(tc.job, topologyKey)
 			// Check pod affinities.
 			if diff := cmp.Diff(tc.wantAffinity.PodAffinity, tc.job.Spec.Template.Spec.Affinity.PodAffinity); diff != "" {
 				t.Errorf("unexpected diff in pod affinity (-want/+got): %s", diff)
@@ -272,14 +275,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		replicatedJobName = "replicated-job"
 		jobName           = "test-job"
 		ns                = "default"
-		exclusive         = &jobset.Exclusive{
-			TopologyKey: "test-topology-key",
-			NamespaceSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"key": "value",
-				},
-			},
-		}
+		topologyDomain    = "test-topology-domain"
 	)
 
 	tests := []struct {
@@ -466,10 +462,10 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "exclusive affinities",
 			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain}).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
-					Exclusive(exclusive).
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -493,8 +489,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 											Values:   []string{"test-jobset-replicated-job-0"},
 										},
 									}},
-									TopologyKey:       exclusive.TopologyKey,
-									NamespaceSelector: exclusive.NamespaceSelector,
+									TopologyKey:       topologyDomain,
+									NamespaceSelector: &metav1.LabelSelector{},
 								},
 							},
 						},
@@ -512,8 +508,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 											Values:   []string{"test-jobset-replicated-job-0"},
 										},
 									}},
-									TopologyKey:       exclusive.TopologyKey,
-									NamespaceSelector: exclusive.NamespaceSelector,
+									TopologyKey:       topologyDomain,
+									NamespaceSelector: &metav1.LabelSelector{},
 								},
 							},
 						},

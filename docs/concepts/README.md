@@ -114,8 +114,8 @@ pytorch-workers   ClusterIP   None         <none>        <none>    25m
 
 ### Exclusive Job to topology placement
 
-`spec.replicatedJobs[*].exclusive` defines 1:1 job to topology placement. For example,
-consider the case where the nodes are assigned a rack label. To optimize for network
+The JobSet annotation `alpha.jobset.sigs.k8s.io/exclusive-topology` defines 1:1 job to topology placement. 
+For example, consider the case where the nodes are assigned a rack label. To optimize for network
 performance, we want to assign each job exclusively to one rack. This can be done as follows:
 
 ```yaml
@@ -123,11 +123,11 @@ apiVersion: jobset.x-k8s.io/v1alpha1
 kind: JobSet
 metadata:
   name: pytorch
+  annotations:
+    alpha.jobset.sigs.k8s.io/exclusive-topology: rack
 spec:
   replicatedJobs:
     - name: workers
-      exclusive:
-        topology: rack
       template:
         spec:
           ...

@@ -471,8 +471,8 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	}
 
 	// If this job should be exclusive per topology, set the pod affinities/anti-affinities accordingly.
-	if rjob.Exclusive != nil {
-		setExclusiveAffinities(job, rjob.Exclusive.TopologyKey, rjob.Exclusive.NamespaceSelector)
+	if topologyDomain, ok := js.Annotations[jobset.ExclusiveKey]; ok {
+		setExclusiveAffinities(job, topologyDomain)
 	}
 	// if Suspend is set, then we assume all jobs will be suspended also.
 	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
@@ -484,7 +484,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 // Appends pod affinity/anti-affinity terms to the job pod template spec,
 // ensuring that exclusively one job runs per topology domain and that all pods
 // from each job land on the same topology domain.
-func setExclusiveAffinities(job *batchv1.Job, topologyKey string, nsSelector *metav1.LabelSelector) {
+func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 	if job.Spec.Template.Spec.Affinity == nil {
 		job.Spec.Template.Spec.Affinity = &corev1.Affinity{}
 	}
@@ -506,7 +506,7 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string, nsSelector *me
 				},
 			}},
 			TopologyKey:       topologyKey,
-			NamespaceSelector: nsSelector,
+			NamespaceSelector: &metav1.LabelSelector{},
 		})
 
 	// Pod anti-affinity ensures exclusively this job lands on the topology, preventing multiple jobs per topology domain.
@@ -524,7 +524,7 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string, nsSelector *me
 				},
 			}},
 			TopologyKey:       topologyKey,
-			NamespaceSelector: nsSelector,
+			NamespaceSelector: &metav1.LabelSelector{},
 		})
 }
 
