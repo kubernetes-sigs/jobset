@@ -113,6 +113,15 @@ kubectl apply --server-side -k github.com/kubernetes-sigs/jobset/config/default?
 
 The controller runs in the `jobset-system` namespace.
 
+### Add metrics scraping for prometheus-operator
+
+To allow [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
+to scrape metrics from jobset components, run the following command:
+
+```shell
+kubectl apply --server-side -k github.com/kubernetes-sigs/jobset/config/prometheus?ref=main
+```
+
 ### Uninstall
 
 To uninstall JobSet, run the following command:
