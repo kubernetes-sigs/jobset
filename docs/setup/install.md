@@ -132,15 +132,14 @@ cd jobset
 IMAGE_REGISTRY=<registry>/<project> make image-push deploy
 ```
 
-<!-- Uncomment once we have a prometheus setup -->
-<!-- ### Add metrics scraping for prometheus-operator -->
+### Add metrics scraping for prometheus-operator
 
-<!-- To allow [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator) -->
-<!-- to scrape metrics from jobset components, run the following command: -->
+To allow [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
+to scrape metrics from jobset components, run the following command:
 
-<!-- ```shell -->
-<!-- make prometheus -->
-<!-- ``` -->
+```shell
+make prometheus
+```
 
 ### Uninstall
 
