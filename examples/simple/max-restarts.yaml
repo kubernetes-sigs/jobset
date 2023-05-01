@@ -7,7 +7,7 @@ spec:
   failurePolicy:
     maxRestarts: 3
   replicatedJobs:
-  - name: worker1
+  - name: leader
     replicas: 1
     template:
       spec:
@@ -44,7 +44,7 @@ spec:
                   echo "$i"
                   sleep 1
                 done
-  - name: worker2
+  - name: workers
     replicas: 1
     template:
       spec:
