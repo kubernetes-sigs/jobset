@@ -6,7 +6,7 @@ function cleanup {
     then 
         $KIND delete cluster --name $KIND_CLUSTER_NAME
     fi
-    (cd config/manager && $KUSTOMIZE edit set image controller=gcr.io/k8s-staging-jobset/jobset:main)
+    (cd config/components/manager && $KUSTOMIZE edit set image controller=gcr.io/k8s-staging-jobset/jobset:main)
 }
 function startup {
     if [ $USE_EXISTING_CLUSTER == 'false' ] 
@@ -18,8 +18,8 @@ function kind_load {
     $KIND load docker-image $IMAGE_TAG --name $KIND_CLUSTER_NAME
 }
 function jobset_deploy {
-    echo "cd config/manager && $KUSTOMIZE edit set image controller=$IMAGE_TAG"
-    (cd config/manager && $KUSTOMIZE edit set image controller=$IMAGE_TAG)
+    echo "cd config/components/manager && $KUSTOMIZE edit set image controller=$IMAGE_TAG"
+    (cd config/components/manager && $KUSTOMIZE edit set image controller=$IMAGE_TAG)
     echo "kubectl apply --server-side -k test/e2e/config" 
     kubectl apply --server-side -k test/e2e/config
 }

@@ -78,7 +78,11 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:generateEmbeddedObjectMeta=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) \
+		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
+		crd:generateEmbeddedObjectMeta=true output:crd:artifacts:config=config/components/crd/bases\
+		webhook output:webhook:artifacts:config=config/components/webhook\
+		paths="./..."
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -149,15 +153,15 @@ endif
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply --server-side -f -
+	$(KUSTOMIZE) build config/components/crd | kubectl apply --server-side -f -
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build config/components/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
+	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
 	$(KUSTOMIZE) build config/default | kubectl apply --server-side -f -
 
 .PHONY: undeploy
@@ -224,3 +228,7 @@ test-integration: manifests generate fmt vet envtest ginkgo ## Run tests.
 .PHONY: test-e2e-kind
 test-e2e-kind: manifests generate kustomize fmt vet envtest ginkgo kind-image-build
 	E2E_KIND_VERSION=$(E2E_KIND_VERSION) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) IMAGE_TAG=$(IMAGE_TAG) ./hack/e2e-test.sh
+
+.PHONY: prometheus
+prometheus:
+	kubectl apply --server-side -k config/prometheus
