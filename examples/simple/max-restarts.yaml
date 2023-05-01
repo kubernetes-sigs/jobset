@@ -13,14 +13,13 @@ spec:
       spec:
         # Set backoff limit to 0 so job will immediately fail if any pod fails.
         backoffLimit: 0 
-        completionMode: Indexed
         completions: 2
         parallelism: 2
         template:
           spec:
             restartPolicy: Never
             containers:
-            - name: worker
+            - name: leader
               image: bash:latest
               # Default failure policy is to recreate all jobs if any jobs fails. 
               # The bash script provides a simple demonstration of it by failing
@@ -49,7 +48,6 @@ spec:
     template:
       spec:
         backoffLimit: 0 
-        completionMode: Indexed
         completions: 2
         parallelism: 2
         template:
