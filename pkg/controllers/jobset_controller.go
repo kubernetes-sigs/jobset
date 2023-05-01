@@ -505,7 +505,8 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 					Values:   []string{job.Name},
 				},
 			}},
-			TopologyKey: topologyKey,
+			TopologyKey:       topologyKey,
+			NamespaceSelector: &metav1.LabelSelector{},
 		})
 
 	// Pod anti-affinity ensures exclusively this job lands on the topology, preventing multiple jobs per topology domain.
@@ -522,7 +523,8 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 					Values:   []string{job.Name},
 				},
 			}},
-			TopologyKey: topologyKey,
+			TopologyKey:       topologyKey,
+			NamespaceSelector: &metav1.LabelSelector{},
 		})
 }
 
