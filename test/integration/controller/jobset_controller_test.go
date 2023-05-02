@@ -188,15 +188,16 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 					ReplicatedJob(testing.MakeReplicatedJob("test-exist-job").
 						Job(testing.MakeJobTemplate("test-exist-job", ns.Name).
 							PodSpec(testing.TestPodSpec).
-							CompletionMode(batchv1.IndexedCompletion).Obj()).
+							CompletionMode(batchv1.NonIndexedCompletion).Obj()).
 						EnableDNSHostnames(true).
+						Replicas(1).
 						Obj())
 			},
 			jobSetCreationShouldSucceed: true,
 			existingJob: func(ns *corev1.Namespace) *batchv1.Job {
 				return &batchv1.Job{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-job",
+						Name:      "test-exist-job",
 						Namespace: ns.Name,
 					},
 					Spec: batchv1.JobSpec{
@@ -213,8 +214,9 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 					ReplicatedJob(testing.MakeReplicatedJob("service-job").
 						Job(testing.MakeJobTemplate("service-job", ns.Name).
 							PodSpec(testing.TestPodSpec).
-							CompletionMode(batchv1.IndexedCompletion).Obj()).
+							CompletionMode(batchv1.NonIndexedCompletion).Obj()).
 						EnableDNSHostnames(true).
+						Replicas(1).
 						Obj())
 			},
 			jobSetCreationShouldSucceed: true,
