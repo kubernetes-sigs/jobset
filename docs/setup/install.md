@@ -23,36 +23,33 @@ Make sure the following conditions are met:
 [feature_gate]: https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
 
 
-<!-- Uncomment once we release the first version -->
-<!-- ## Install a released version -->
+## Install a released version
 
-<!-- To install a released version of Jobset in your cluster, run the following command: -->
+To install a released version of Jobset in your cluster, run the following command:
 
-<!-- ```shell -->
-<!-- VERSION=v0.1.0 -->
-<!-- kubectl apply -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml -->
-<!-- ``` -->
+```shell
+VERSION=v0.1.0
+kubectl apply -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
+```
 
-<!-- <\!-- Uncomment once we have a prometheus setup -\-> -->
-<!-- <\!-- ### Add metrics scraping for prometheus-operator -\-> -->
+### Add metrics scraping for prometheus-operator
 
-<!-- <\!-- _Available in JobSet v0.2.1 and later_ -\-> -->
+To allow [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
+to scrape metrics from jobset components, run the following command:
 
-<!-- <\!-- To allow [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator) -\-> -->
-<!-- <\!-- to scrape metrics from jobset components, run the following command: -\-> -->
+```shell
+VERSION=v0.1.0
+kubectl apply -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/prometheus.yaml
+```
 
-<!-- <\!-- ```shell -\-> -->
-<!-- <\!-- kubectl apply -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/prometheus.yaml -\-> -->
-<!-- ``` -->
+### Uninstall
 
-<!-- ### Uninstall -->
+To uninstall a released version of JobSet from your cluster, run the following command: -->
 
-<!-- To uninstall a released version of JobSet from your cluster, run the following command: -->
-
-<!-- ```shell -->
-<!-- VERSION=v0.1.0 -->
-<!-- kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml -->
-<!-- ``` -->
+```shell
+VERSION=v0.1.0
+kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml -->
+```
 
 <!-- <\!-- Uncomment once we have component config setup -\-> -->
 <!-- <\!-- ## Install a custom-configured released version -\-> -->
