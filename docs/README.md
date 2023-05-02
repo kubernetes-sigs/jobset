@@ -21,3 +21,7 @@ Look up common tasks and how to perform them using a short sequence
 of steps.
 
 [**View tasks**](tasks)
+
+## Reference
+This sections contains JobSet reference information.
+[**View reference**](reference)
