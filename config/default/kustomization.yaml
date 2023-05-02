@@ -13,14 +13,14 @@ namePrefix: jobset-
 #  someName: someValue
 
 resources:
-- ../crd
-- ../rbac
-- ../manager
+- ../components/crd
+- ../components/rbac
+- ../components/manager
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in
 # crd/kustomization.yaml
-- ../webhook
+- ../components/webhook
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER'. 'WEBHOOK' components are required.
-- ../internalcert
+- ../components/internalcert
 # [PROMETHEUS] To enable prometheus monitor, uncomment all sections with 'PROMETHEUS'.
 #- ../prometheus
 

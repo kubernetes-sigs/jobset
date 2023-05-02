@@ -1,2 +1,7 @@
+
+# This overlay builds the prometheus component to be used in combination
+# with other overlays.
+
+namespace: jobset-system
 resources:
-- monitor.yaml
+- ../components/prometheus
