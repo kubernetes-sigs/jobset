@@ -232,3 +232,13 @@ test-e2e-kind: manifests generate kustomize fmt vet envtest ginkgo kind-image-bu
 .PHONY: prometheus
 prometheus:
 	kubectl apply --server-side -k config/prometheus
+
+##@ Release
+.PHONY: artifacts
+artifacts: kustomize
+	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
+	if [ -d artifacts ]; then rm -rf artifacts; fi
+	mkdir -p artifacts
+	$(KUSTOMIZE) build config/default -o artifacts/manifests.yaml
+	$(KUSTOMIZE) build config/prometheus -o artifacts/prometheus.yaml
+	@$(call clean-manifests)
