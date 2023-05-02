@@ -87,21 +87,27 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 		func(tc *testCase) {
 			ctx := context.Background()
 
-			// Create JobSet.
-			ginkgo.By("creating jobset")
-			js := tc.makeJobSet(ns).Obj()
-
 			if tc.existingJob != nil {
 				ginkgo.By("create an existing job")
 				existingJob := tc.existingJob(ns)
 				gomega.Expect(k8sClient.Create(ctx, existingJob)).Should(gomega.Succeed())
+				// We'll need to retry getting this newly created job, given that creation may not immediately happen.
+				gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: existingJob.Name, Namespace: existingJob.Namespace}, &batchv1.Job{}), timeout, interval).Should(gomega.Succeed())
 			}
 
 			if tc.existingService != nil {
 				ginkgo.By("create an existing service")
 				existingService := tc.existingService(ns)
 				gomega.Expect(k8sClient.Create(ctx, existingService)).Should(gomega.Succeed())
+				// We'll need to retry getting this newly created job, given that creation may not immediately happen.
+				gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: existingService.Name, Namespace: existingService.Namespace}, &corev1.Service{}), timeout, interval).Should(gomega.Succeed())
+
 			}
+
+			// Create JobSet.
+			ginkgo.By("creating jobset")
+			js := tc.makeJobSet(ns).Obj()
+
 			// If we are expected a validation error creating the jobset, end the test early.
 			if !tc.jobSetCreationShouldSucceed {
 				ginkgo.By("checking that jobset creation fails")
@@ -179,10 +185,10 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 		ginkgo.Entry("existing job conflicts with jobset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-exist-job", ns.Name).
-					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("test-exist-job").
+						Job(testing.MakeJobTemplate("test-exist-job", ns.Name).
 							PodSpec(testing.TestPodSpec).
-							CompletionMode(batchv1.NonIndexedCompletion).Obj()).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
 						EnableDNSHostnames(true).
 						Obj())
 			},
@@ -204,10 +210,10 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 		ginkgo.Entry("existing service conflicts with jobset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-exist-service", ns.Name).
-					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("service-job").
+						Job(testing.MakeJobTemplate("service-job", ns.Name).
 							PodSpec(testing.TestPodSpec).
-							CompletionMode(batchv1.NonIndexedCompletion).Obj()).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
 						EnableDNSHostnames(true).
 						Obj())
 			},
@@ -215,7 +221,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 			existingService: func(ns *corev1.Namespace) *corev1.Service {
 				return &corev1.Service{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "js-exist-service-indexed-test-job",
+						Name:      "js-exist-service-service-job",
 						Namespace: ns.Name,
 					},
 					Spec: corev1.ServiceSpec{
