@@ -42,6 +42,19 @@ VERSION=v0.1.0
 kubectl apply -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/prometheus.yaml
 ```
 
+### Use cert manager instead of internal cert
+To use cert-manager instead of internal cert, you first need to install cert-manager on your cluster. To do this, run the following command:
+
+```shell
+VERSION=v1.11.0
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/$VERSION/cert-manager.yaml
+```
+
+Next, in the file ``jobset/config/default/kustomization.yaml`` replace ``../components/internalcert`` with
+``../components/certmanager`` then uncomment all the lines beginning with ``[CERTMANAGER]``.
+
+Finally, apply these configurations to your cluster with ``kubectl apply -k config/default``.
+
 ### Uninstall
 
 To uninstall a released version of JobSet from your cluster, run the following command: -->
