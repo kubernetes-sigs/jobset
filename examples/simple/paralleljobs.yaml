@@ -15,9 +15,10 @@ spec:
             containers:
             - name: sleep
               image: busybox
-              command:
-              - sleep
-              - 100
+              command: 
+                - sleep
+              args:
+                - 100s
   - name: driver
     template:
       spec:
@@ -29,8 +30,9 @@ spec:
             containers:
             - name: sleep
               image: busybox
-              command:
-              - sleep
-              - 100
+              command: 
+                - sleep
+              args:
+                - 100s
 
                 
