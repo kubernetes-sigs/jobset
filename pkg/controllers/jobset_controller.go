@@ -137,25 +137,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, nil
 		}
 	} else {
-		// If JobSpec is unsuspended, ensure all active child Jobs are also
-		// unsuspended and update the suspend condition to true.
-		for _, job := range ownedJobs.active {
-			if pointer.BoolDeref(job.Spec.Suspend, false) != false {
-				job.Spec.Suspend = pointer.Bool(false)
-				if r.Update(ctx, job); err != nil {
-					log.Error(err, "unsuspending job", "job", klog.KObj(job))
-					return ctrl.Result{}, nil
-				}
-			}
-		}
-		if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
-			Type:               string(jobset.JobSetSuspended),
-			Status:             metav1.ConditionStatus(corev1.ConditionFalse),
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ResumeJobs",
-			Message:            "jobset is resumed",
-		}); err != nil {
-			log.Error(err, "updating jobset status")
+		if err := r.resumeJobSetIfNecessary(ctx, &js, ownedJobs); err != nil {
 			return ctrl.Result{}, nil
 		}
 	}
@@ -245,6 +227,32 @@ func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet,
 		LastTransitionTime: metav1.Now(),
 		Reason:             "SuspendedJobs",
 		Message:            "jobset is suspended",
+	}); err != nil {
+		log.Error(err, "updating jobset status")
+		return err
+	}
+	return nil
+}
+
+func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	log := ctrl.LoggerFrom(ctx)
+	// If JobSpec is unsuspended, ensure all active child Jobs are also
+	// unsuspended and update the suspend condition to true.
+	for _, job := range ownedJobs.active {
+		if pointer.BoolDeref(job.Spec.Suspend, false) != false {
+			job.Spec.Suspend = pointer.Bool(false)
+			if err := r.Update(ctx, job); err != nil {
+				log.Error(err, "unsuspending job", "job", klog.KObj(job))
+				return err
+			}
+		}
+	}
+	if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
+		Type:               string(jobset.JobSetSuspended),
+		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ResumeJobs",
+		Message:            "jobset is resumed",
 	}); err != nil {
 		log.Error(err, "updating jobset status")
 		return err
