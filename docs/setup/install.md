@@ -23,7 +23,7 @@ Make sure the following conditions are met:
 [feature_gate]: https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
 
 
-## Install a released version
+# Install a released version
 
 To install a released version of Jobset in your cluster, run the following command:
 
@@ -46,13 +46,13 @@ If you are using [kube-prometheus](https://github.com/prometheus-operator/kube-p
 can be scraped without performing this step.
 
 
-### Uninstall
+## Uninstall
 
-To uninstall a released version of JobSet from your cluster, run the following command: -->
+To uninstall a released version of JobSet from your cluster, run the following command:
 
 ```shell
 VERSION=v0.1.0
-kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml -->
+kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
 ```
 
 <!-- <\!-- Uncomment once we have component config setup -\-> -->
@@ -103,7 +103,7 @@ kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$V
 <!-- <\!-- kubectl apply -f manifests.yaml -\-> -->
 <!-- <\!-- ``` -\-> -->
 
-## Install the latest development version
+# Install the latest development version
 
 To install the latest development version of Jobset in your cluster, run the
 following command:
@@ -126,7 +126,7 @@ kubectl apply --server-side -k github.com/kubernetes-sigs/jobset/config/promethe
 If you are using [kube-prometheus](https://github.com/prometheus-operator/kube-prometheus), metrics
 can be scraped without performing this step.
 
-### Uninstall
+## Uninstall
 
 To uninstall JobSet, run the following command:
 
@@ -134,7 +134,7 @@ To uninstall JobSet, run the following command:
 kubectl delete -k github.com/kubernetes-sigs/jobset/config/default
 ```
 
-## Build and install from source
+# Build and install from source
 
 To build Jobset from source and install Jobset in your cluster, run the following
 commands:
@@ -158,7 +158,7 @@ make prometheus
 If you are using [kube-prometheus](https://github.com/prometheus-operator/kube-prometheus), metrics
 can be scraped without performing this step.
 
-### Uninstall
+## Uninstall
 
 To uninstall JobSet, run the following command:
 
@@ -166,7 +166,7 @@ To uninstall JobSet, run the following command:
 make undeploy
 ```
 
-## Optional: Use cert manager instead of internal cert
+# Optional: Use cert manager instead of internal cert
 JobSet webhooks use an internal certificate by default. However, if you wish to use cert-manager (which
 supports cert rotation), instead of internal cert, you can by performing the following steps. 
 
