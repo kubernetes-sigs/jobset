@@ -550,6 +550,8 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 
 	annotations := cloneMap(obj.GetAnnotations())
+	labels[jobset.JobSetNameKey] = js.Name
+	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 
