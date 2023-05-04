@@ -29,12 +29,12 @@ To install a released version of Jobset in your cluster, run the following comma
 
 ```shell
 VERSION=v0.1.0
-kubectl apply -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
 ```
 
-### Add metrics scraping for prometheus-operator
+### Optional: Add metrics scraping for prometheus-operator
 
-To allow [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
+If you are using [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
 to scrape metrics from jobset components, run the following command:
 
 ```shell
@@ -42,18 +42,9 @@ VERSION=v0.1.0
 kubectl apply -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/prometheus.yaml
 ```
 
-### Use cert manager instead of internal cert
-To use cert-manager instead of internal cert, you first need to install cert-manager on your cluster. To do this, run the following command:
+If you are using [kube-prometheus](https://github.com/prometheus-operator/kube-prometheus), metrics
+can be scraped without performing this step.
 
-```shell
-VERSION=v1.11.0
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/$VERSION/cert-manager.yaml
-```
-
-Next, in the file ``jobset/config/default/kustomization.yaml`` replace ``../components/internalcert`` with
-``../components/certmanager`` then uncomment all the lines beginning with ``[CERTMANAGER]``.
-
-Finally, apply these configurations to your cluster with ``kubectl apply -k config/default``.
 
 ### Uninstall
 
@@ -123,14 +114,17 @@ kubectl apply --server-side -k github.com/kubernetes-sigs/jobset/config/default?
 
 The controller runs in the `jobset-system` namespace.
 
-### Add metrics scraping for prometheus-operator
+### Optional: Add metrics scraping for prometheus-operator
 
-To allow [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
-to scrape metrics from jobset components, run the following command:
+If you are using [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
+to scrape metrics from jobset components, you need to run the following command so it can access
+the metrics:
 
 ```shell
 kubectl apply --server-side -k github.com/kubernetes-sigs/jobset/config/prometheus?ref=main
 ```
+If you are using [kube-prometheus](https://github.com/prometheus-operator/kube-prometheus), metrics
+can be scraped without performing this step.
 
 ### Uninstall
 
@@ -151,14 +145,18 @@ cd jobset
 IMAGE_REGISTRY=<registry>/<project> make image-push deploy
 ```
 
-### Add metrics scraping for prometheus-operator
+### Optional: Add metrics scraping for prometheus-operator
 
-To allow [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
-to scrape metrics from jobset components, run the following command:
+If you are using [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
+to scrape metrics from jobset components, you need to run the following command so it has access
+to the metrics:
 
 ```shell
 make prometheus
 ```
+
+If you are using [kube-prometheus](https://github.com/prometheus-operator/kube-prometheus), metrics
+can be scraped without performing this step.
 
 ### Uninstall
 
@@ -167,3 +165,19 @@ To uninstall JobSet, run the following command:
 ```sh
 make undeploy
 ```
+
+## Optional: Use cert manager instead of internal cert
+JobSet webhooks use an internal certificate by default. However, if you wish to use cert-manager (which
+supports cert rotation), instead of internal cert, you can by performing the following steps. 
+
+First, install cert-manager on your cluster by running the following command:
+
+```shell
+VERSION=v1.11.0
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/$VERSION/cert-manager.yaml
+```
+
+Next, in the file ``jobset/config/default/kustomization.yaml`` replace ``../components/internalcert`` with
+``../components/certmanager`` then uncomment all the lines beginning with ``[CERTMANAGER]``.
+
+Finally, apply these configurations to your cluster with ``kubectl apply --server-side -k config/default``.
