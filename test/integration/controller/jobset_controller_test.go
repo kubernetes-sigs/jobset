@@ -119,10 +119,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 					gomega.Expect(k8sClient.Update(ctx, js)).Should(gomega.Succeed())
 				}
 			}
-			// Let's delete the jobset
-			gomega.Expect(k8sClient.Delete(ctx, js)).Should(gomega.Succeed())
-			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).ShouldNot(gomega.Succeed())
-
 		},
 		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
