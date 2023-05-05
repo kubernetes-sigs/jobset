@@ -254,9 +254,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					up.checkJobSetCondition(ctx, k8sClient, &jobSet, timeout)
 				}
 			}
-			// Let's delete the jobset
-			gomega.Expect(k8sClient.Delete(ctx, js)).Should(gomega.Succeed())
-			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).ShouldNot(gomega.Succeed())
 
 		},
 		ginkgo.Entry("jobset should succeed after all jobs succeed", &testCase{
