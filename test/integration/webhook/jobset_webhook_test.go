@@ -28,6 +28,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/util/testing"
+	"sigs.k8s.io/jobset/test/util"
 )
 
 const (
@@ -60,8 +61,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		// Delete test namespace after each test.
-		gomega.Expect(k8sClient.Delete(ctx, ns)).To(gomega.Succeed())
+		gomega.Expect(util.DeleteNamespace(ctx, k8sClient, ns)).Should(gomega.Succeed())
 	})
 
 	type testCase struct {

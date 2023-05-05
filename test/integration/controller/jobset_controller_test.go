@@ -64,6 +64,10 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 		}, timeout, interval).Should(gomega.BeTrue())
 	})
 
+	ginkgo.AfterEach(func() {
+		gomega.Expect(util.DeleteNamespace(ctx, k8sClient, ns)).Should(gomega.Succeed())
+	})
+
 	// jobSetUpdate contains the mutations to perform on the jobset and the
 	// checks to perform afterwards.
 	type jobSetUpdate struct {
@@ -115,7 +119,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 					gomega.Expect(k8sClient.Update(ctx, js)).Should(gomega.Succeed())
 				}
 			}
-
 			// Let's delete the jobset
 			gomega.Expect(k8sClient.Delete(ctx, js)).Should(gomega.Succeed())
 			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).ShouldNot(gomega.Succeed())
@@ -189,6 +192,10 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			}
 			return true
 		}, timeout, interval).Should(gomega.BeTrue())
+	})
+
+	ginkgo.AfterEach(func() {
+		gomega.Expect(util.DeleteNamespace(ctx, k8sClient, ns)).Should(gomega.Succeed())
 	})
 
 	// update contains the mutations to perform on the jobs/jobset and the
