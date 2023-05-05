@@ -184,6 +184,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 		}),
 		ginkgo.Entry("existing job conflicts with jobset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				ginkgo.By("making js-exist-job")
 				return testing.MakeJobSet("js-exist-job", ns.Name).
 					ReplicatedJob(testing.MakeReplicatedJob("test-exist-job").
 						Job(testing.MakeJobTemplate("test-exist-job", ns.Name).
@@ -197,7 +198,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 			existingJob: func(ns *corev1.Namespace) *batchv1.Job {
 				return &batchv1.Job{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-exist-job",
+						Name:      "test-exist-job-0",
 						Namespace: ns.Name,
 					},
 					Spec: batchv1.JobSpec{
