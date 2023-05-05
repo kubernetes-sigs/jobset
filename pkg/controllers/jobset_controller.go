@@ -111,6 +111,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// If all jobs have succeeded, JobSet has succeeded.
+	// TODO(#120): ensure that the successful jobs counted are actually the ones that we expect JobSet to have
 	if len(ownedJobs.successful) == totalJobs(&js) {
 		if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
