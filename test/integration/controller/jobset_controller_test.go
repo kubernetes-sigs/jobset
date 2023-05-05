@@ -64,11 +64,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 		}, timeout, interval).Should(gomega.BeTrue())
 	})
 
-	ginkgo.AfterEach(func() {
-		// Delete test namespace after each test.
-		gomega.Expect(k8sClient.Delete(ctx, ns)).To(gomega.Succeed())
-	})
-
 	// jobSetUpdate contains the mutations to perform on the jobset and the
 	// checks to perform afterwards.
 	type jobSetUpdate struct {
@@ -120,6 +115,11 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 					gomega.Expect(k8sClient.Update(ctx, js)).Should(gomega.Succeed())
 				}
 			}
+
+			// Let's delete the jobset
+			gomega.Expect(k8sClient.Delete(ctx, js)).Should(gomega.Succeed())
+			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).ShouldNot(gomega.Succeed())
+
 		},
 		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
@@ -191,11 +191,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}, timeout, interval).Should(gomega.BeTrue())
 	})
 
-	ginkgo.AfterEach(func() {
-		// Delete test namespace after each test.
-		gomega.Expect(k8sClient.Delete(ctx, ns)).To(gomega.Succeed())
-	})
-
 	// update contains the mutations to perform on the jobs/jobset and the
 	// checks to perform afterwards.
 	type update struct {
@@ -256,6 +251,10 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					up.checkJobSetCondition(ctx, k8sClient, &jobSet, timeout)
 				}
 			}
+			// Let's delete the jobset
+			gomega.Expect(k8sClient.Delete(ctx, js)).Should(gomega.Succeed())
+			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).ShouldNot(gomega.Succeed())
+
 		},
 		ginkgo.Entry("jobset should succeed after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
