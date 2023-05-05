@@ -93,19 +93,20 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	ownedJobs, err := r.getChildJobs(ctx, &js)
 	if err != nil {
 		log.Error(err, "getting jobs owned by jobset")
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 
 	// Delete any jobs marked for deletion.
 	if err := r.deleteJobs(ctx, &js, ownedJobs.delete); err != nil {
 		log.Error(err, "deleting jobs")
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 
 	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
 		if err := r.executeFailurePolicy(ctx, &js, ownedJobs); err != nil {
 			log.Error(err, "executing failure policy")
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
@@ -119,7 +120,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			Message: "jobset completed successfully",
 		}); err != nil {
 			log.Error(err, "updating jobset status")
-			return ctrl.Result{}, nil
+			return ctrl.Result{}, err
 		}
 	}
 
@@ -127,18 +128,20 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// jobs that are ready to be started.
 	if err := r.createJobs(ctx, &js, ownedJobs); err != nil {
 		log.Error(err, "creating jobs")
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 
 	// Handle suspending a jobset or resuming a suspended jobset.
 	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
 	if jobsetSuspended {
 		if err := r.suspendJobSet(ctx, &js, ownedJobs); err != nil {
-			return ctrl.Result{}, nil
+			log.Error(err, "suspending jobset")
+			return ctrl.Result{}, err
 		}
 	} else {
 		if err := r.resumeJobSetIfNecessary(ctx, &js, ownedJobs); err != nil {
-			return ctrl.Result{}, nil
+			log.Error(err, "resuming jobset")
+			return ctrl.Result{}, err
 		}
 	}
 
@@ -211,53 +214,41 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 }
 
 func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	log := ctrl.LoggerFrom(ctx)
 	for _, job := range ownedJobs.active {
 		if !pointer.BoolDeref(job.Spec.Suspend, false) {
 			job.Spec.Suspend = pointer.Bool(true)
 			if err := r.Update(ctx, job); err != nil {
-				log.Error(err, "suspending job", "job", klog.KObj(job))
 				return err
 			}
 		}
 	}
-	if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
+	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
 		Type:               string(jobset.JobSetSuspended),
 		Status:             metav1.ConditionStatus(corev1.ConditionTrue),
 		LastTransitionTime: metav1.Now(),
 		Reason:             "SuspendedJobs",
 		Message:            "jobset is suspended",
-	}); err != nil {
-		log.Error(err, "updating jobset status")
-		return err
-	}
-	return nil
+	})
 }
 
 func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	log := ctrl.LoggerFrom(ctx)
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
 	for _, job := range ownedJobs.active {
 		if pointer.BoolDeref(job.Spec.Suspend, false) != false {
 			job.Spec.Suspend = pointer.Bool(false)
 			if err := r.Update(ctx, job); err != nil {
-				log.Error(err, "unsuspending job", "job", klog.KObj(job))
 				return err
 			}
 		}
 	}
-	if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
+	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
 		Type:               string(jobset.JobSetSuspended),
 		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
 		LastTransitionTime: metav1.Now(),
 		Reason:             "ResumeJobs",
 		Message:            "jobset is resumed",
-	}); err != nil {
-		log.Error(err, "updating jobset status")
-		return err
-	}
-	return nil
+	})
 }
 
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
