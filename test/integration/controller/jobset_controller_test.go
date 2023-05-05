@@ -267,6 +267,20 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("jobset should not succeed if any job is not completed", &testCase{
+			makeJobSet: testJobSet,
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("completing all but 1 job")
+						for i := 0; i < len(jobList.Items)-1; i++ {
+							completeJob(&jobList.Items[i])
+						}
+					},
+					expectedJobSetCondition: "", // active
+				},
+			},
+		}),
 		ginkgo.Entry("jobset with no failure policy should fail if any jobs fail", &testCase{
 			makeJobSet: testJobSet,
 			updates: []*update{
