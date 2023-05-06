@@ -100,12 +100,13 @@ func checkJobSetStatus(ctx context.Context, k8sClient client.Client, js *jobset.
 	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
 		return false, err
 	}
+	found := 0
 	for _, want := range conditions {
 		for _, c := range fetchedJS.Status.Conditions {
 			if c.Type == want.Type && c.Status == want.Status {
-				return true, nil
+				found += 1
 			}
 		}
 	}
-	return len(conditions) == len(fetchedJS.Status.Conditions), nil
+	return found == len(conditions), nil
 }
