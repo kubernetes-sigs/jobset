@@ -203,7 +203,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		jobUpdateFn          func(*batchv1.JobList)
 		checkJobSetState     func(*jobset.JobSet)
 		checkJobState        func(*jobset.JobSet)
-		checkJobSetCondition func(*jobset.JobSet)
+		checkJobSetCondition func(context.Context, client.Client, *jobset.JobSet, time.Duration)
 	}
 
 	type testCase struct {
@@ -228,7 +228,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
 
 			ginkgo.By("checking all jobs were created successfully")
-			gomega.Eventually(util.CheckNumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
 
 			// Perform a series of updates to jobset resources and check resulting jobset state after each update.
 			for _, up := range tc.updates {
@@ -253,7 +253,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 				// Check jobset status if specified.
 				if up.checkJobSetCondition != nil {
-					up.checkJobSetCondition(&jobSet)
+					up.checkJobSetCondition(ctx, k8sClient, &jobSet, timeout)
 				}
 			}
 		},
@@ -262,7 +262,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			updates: []*update{
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: jobSetCompleted,
+					checkJobSetCondition: util.JobSetCompleted,
 				},
 			},
 		}),
@@ -276,10 +276,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 							completeJob(&jobList.Items[i])
 						}
 					},
-					checkJobSetCondition: func(js *jobset.JobSet) {
-						ginkgo.By(fmt.Sprintf(`checking jobset status is active`))
-						gomega.Consistently(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, []metav1.Condition{}).Should(gomega.Equal(true))
-					},
+					checkJobSetCondition: util.JobSetActive,
 				},
 			},
 		}),
@@ -290,7 +287,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
 					},
-					checkJobSetCondition: jobSetFailed,
+					checkJobSetCondition: util.JobSetFailed,
 				},
 			},
 		}),
@@ -302,7 +299,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: jobSetCompleted,
+					checkJobSetCondition: util.JobSetCompleted,
 				},
 			},
 		}),
@@ -314,7 +311,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: jobSetCompleted,
+					checkJobSetCondition: util.JobSetCompleted,
 				},
 			},
 		}),
@@ -328,7 +325,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
 					},
-					checkJobSetCondition: jobSetFailed,
+					checkJobSetCondition: util.JobSetFailed,
 				},
 			},
 		}),
@@ -353,7 +350,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[1])
 					},
-					checkJobSetCondition: jobSetFailed,
+					checkJobSetCondition: util.JobSetFailed,
 				},
 			},
 		}),
@@ -377,7 +374,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: jobSetCompleted,
+					checkJobSetCondition: util.JobSetCompleted,
 				},
 			},
 		}),
@@ -392,7 +389,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are suspended")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
 					},
-					checkJobSetCondition: jobSetSuspended,
+					checkJobSetCondition: util.JobSetSuspended,
 				},
 			},
 		}),
@@ -406,7 +403,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are suspended")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
 					},
-					checkJobSetCondition: jobSetSuspended,
+					checkJobSetCondition: util.JobSetSuspended,
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
@@ -416,11 +413,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are resumed")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
 					},
-					checkJobSetCondition: jobSetResumed,
+					checkJobSetCondition: util.JobSetResumed,
 				},
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: jobSetCompleted,
+					checkJobSetCondition: util.JobSetCompleted,
 				},
 			},
 		}),
@@ -443,7 +440,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are suspended")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
 					},
-					checkJobSetCondition: jobSetSuspended,
+					checkJobSetCondition: util.JobSetSuspended,
 				},
 			},
 		}),
@@ -556,50 +553,6 @@ func checkExpectedServices(js *jobset.JobSet) {
 		}
 		return len(svcList.Items), nil
 	}).Should(gomega.Equal(numExpectedServices(js)))
-}
-
-func jobSetCompleted(js *jobset.JobSet) {
-	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", jobset.JobSetCompleted))
-	conditions := []metav1.Condition{
-		{
-			Type:   string(jobset.JobSetCompleted),
-			Status: metav1.ConditionTrue,
-		},
-	}
-	gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
-}
-
-func jobSetFailed(js *jobset.JobSet) {
-	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", jobset.JobSetFailed))
-	conditions := []metav1.Condition{
-		{
-			Type:   string(jobset.JobSetFailed),
-			Status: metav1.ConditionTrue,
-		},
-	}
-	gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
-}
-
-func jobSetSuspended(js *jobset.JobSet) {
-	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", jobset.JobSetSuspended))
-	conditions := []metav1.Condition{
-		{
-			Type:   string(jobset.JobSetSuspended),
-			Status: metav1.ConditionTrue,
-		},
-	}
-	gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
-}
-
-func jobSetResumed(js *jobset.JobSet) {
-	ginkgo.By("checking jobset status is resumed")
-	conditions := []metav1.Condition{
-		{
-			Type:   string(jobset.JobSetSuspended),
-			Status: metav1.ConditionFalse,
-		},
-	}
-	gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
 }
 
 // 2 replicated jobs:
