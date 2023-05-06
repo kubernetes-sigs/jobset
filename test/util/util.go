@@ -17,23 +17,26 @@ import (
 	"context"
 
 	batchv1 "k8s.io/api/batch/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 )
 
-func CheckJobSetStatus(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, condition jobset.JobSetConditionType) (bool, error) {
+func CheckJobSetStatus(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, conditions []metav1.Condition) (bool, error) {
 	var fetchedJS jobset.JobSet
 	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
 		return false, err
 	}
-	for _, c := range fetchedJS.Status.Conditions {
-		if c.Type == string(condition) {
-			return true, nil
+	for _, want := range conditions {
+		for _, c := range fetchedJS.Status.Conditions {
+			if c.Type == want.Type && c.Status == want.Status {
+				return true, nil
+			}
 		}
 	}
-	return false, nil
+	return len(conditions) == len(fetchedJS.Status.Conditions), nil
 }
 
 func NumExpectedJobs(js *jobset.JobSet) int {
