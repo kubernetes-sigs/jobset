@@ -93,19 +93,20 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	ownedJobs, err := r.getChildJobs(ctx, &js)
 	if err != nil {
 		log.Error(err, "getting jobs owned by jobset")
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 
 	// Delete any jobs marked for deletion.
 	if err := r.deleteJobs(ctx, &js, ownedJobs.delete); err != nil {
 		log.Error(err, "deleting jobs")
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 
 	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
 		if err := r.executeFailurePolicy(ctx, &js, ownedJobs); err != nil {
 			log.Error(err, "executing failure policy")
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
@@ -119,7 +120,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			Message: "jobset completed successfully",
 		}); err != nil {
 			log.Error(err, "updating jobset status")
-			return ctrl.Result{}, nil
+			return ctrl.Result{}, err
 		}
 	}
 
@@ -127,7 +128,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// jobs that are ready to be started.
 	if err := r.createJobs(ctx, &js, ownedJobs); err != nil {
 		log.Error(err, "creating jobs")
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 
 	// If JobSet is suspended, ensure the suspend condition is set and suspend all active child jobs.
@@ -138,7 +139,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				job.Spec.Suspend = pointer.Bool(true)
 				if r.Update(ctx, job); err != nil {
 					log.Error(err, "suspending job", "job", klog.KObj(job))
-					return ctrl.Result{}, nil
+					return ctrl.Result{}, err
 				}
 			}
 		}
@@ -150,7 +151,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			Message:            "jobset is suspended",
 		}); err != nil {
 			log.Error(err, "updating jobset status")
-			return ctrl.Result{}, nil
+			return ctrl.Result{}, err
 		}
 
 		// If JobSpec is unsuspended, ensure all active child Jobs are also
@@ -161,7 +162,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				job.Spec.Suspend = pointer.Bool(false)
 				if r.Update(ctx, job); err != nil {
 					log.Error(err, "unsuspending job", "job", klog.KObj(job))
-					return ctrl.Result{}, nil
+					return ctrl.Result{}, err
 				}
 			}
 		}
@@ -173,7 +174,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			Message:            "jobset is resumed",
 		}); err != nil {
 			log.Error(err, "updating jobset status")
-			return ctrl.Result{}, nil
+			return ctrl.Result{}, err
 		}
 	}
 
