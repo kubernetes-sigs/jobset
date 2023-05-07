@@ -112,7 +112,8 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// If all jobs have succeeded, JobSet has succeeded.
-	if len(ownedJobs.successful) == len(js.Spec.ReplicatedJobs) {
+	// TODO(#120): ensure that the successful jobs counted are actually the ones that we expect JobSet to have
+	if len(ownedJobs.successful) == totalJobs(&js) {
 		if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
@@ -588,6 +589,14 @@ func jobSetFinished(js *jobset.JobSet) bool {
 
 func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {
 	return rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames
+}
+
+func totalJobs(js *jobset.JobSet) int {
+	totalJobs := 0
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		totalJobs += rjob.Replicas
+	}
+	return totalJobs
 }
 
 func concat[T any](slices ...[]T) []T {
