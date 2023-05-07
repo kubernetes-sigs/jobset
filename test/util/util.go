@@ -15,26 +15,20 @@ package util
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 )
 
-func CheckJobSetStatus(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, condition jobset.JobSetConditionType) (bool, error) {
-	var fetchedJS jobset.JobSet
-	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
-		return false, err
-	}
-	for _, c := range fetchedJS.Status.Conditions {
-		if c.Type == string(condition) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
+const interval = time.Millisecond * 250
 
 func NumExpectedJobs(js *jobset.JobSet) int {
 	expectedJobs := 0
@@ -44,10 +38,75 @@ func NumExpectedJobs(js *jobset.JobSet) int {
 	return expectedJobs
 }
 
-func CheckNumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (int, error) {
+func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (int, error) {
 	var jobList batchv1.JobList
 	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
 		return -1, err
 	}
 	return len(jobList.Items), nil
+}
+
+func JobSetCompleted(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
+	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", jobset.JobSetCompleted))
+	conditions := []metav1.Condition{
+		{
+			Type:   string(jobset.JobSetCompleted),
+			Status: metav1.ConditionTrue,
+		},
+	}
+	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
+}
+
+func JobSetFailed(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
+	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", jobset.JobSetFailed))
+	conditions := []metav1.Condition{
+		{
+			Type:   string(jobset.JobSetFailed),
+			Status: metav1.ConditionTrue,
+		},
+	}
+	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
+}
+
+func JobSetSuspended(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
+	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", jobset.JobSetSuspended))
+	conditions := []metav1.Condition{
+		{
+			Type:   string(jobset.JobSetSuspended),
+			Status: metav1.ConditionTrue,
+		},
+	}
+	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
+}
+
+func JobSetResumed(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
+	ginkgo.By("checking jobset status is resumed")
+	conditions := []metav1.Condition{
+		{
+			Type:   string(jobset.JobSetSuspended),
+			Status: metav1.ConditionFalse,
+		},
+	}
+	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
+}
+
+func JobSetActive(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
+	ginkgo.By("checking jobset status is active")
+	gomega.Consistently(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, []metav1.Condition{}).Should(gomega.Equal(true))
+}
+
+func checkJobSetStatus(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, conditions []metav1.Condition) (bool, error) {
+	var fetchedJS jobset.JobSet
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
+		return false, err
+	}
+	found := 0
+	for _, want := range conditions {
+		for _, c := range fetchedJS.Status.Conditions {
+			if c.Type == want.Type && c.Status == want.Status {
+				found += 1
+			}
+		}
+	}
+	return found == len(conditions), nil
 }

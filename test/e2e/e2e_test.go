@@ -75,11 +75,11 @@ var _ = ginkgo.Describe("JobSet", func() {
 			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
 
 			ginkgo.By("checking all jobs were created successfully")
-			gomega.Eventually(util.CheckNumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
 
 			// Check jobset status if specified.
 			ginkgo.By("checking jobset condition")
-			gomega.Eventually(util.CheckJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, jobset.JobSetCompleted).Should(gomega.Equal(true))
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
 		})
 	})
 }) // end of Describe
@@ -96,6 +96,10 @@ func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 		podHostnames = append(podHostnames, fmt.Sprintf("%s-%s-%d-0.%s-%s", jsName, rjobName, jobIdx, jsName, rjobName))
 	}
 
+	// This bash script loops infinitely until it successfully pings all pods by hostname.
+	// Once successful, it sleeps for 5 seconds to reduce flakiness, since occasionally
+	// all pods but one will successfully ping eachother and complete before the last one
+	// successfully pings them all, resulting in a failed test run.
 	cmd := fmt.Sprintf(`for pod in {"%s","%s","%s","%s"}
 do
 	gotStatus="-1"
@@ -110,7 +114,8 @@ do
 		fi
 	done                                                         
 	echo "Successfully pinged pod: $pod"
-done`, podHostnames[0], podHostnames[1], podHostnames[2], podHostnames[3])
+done
+sleep 5`, podHostnames[0], podHostnames[1], podHostnames[2], podHostnames[3])
 
 	return testing.MakeJobSet(jsName, ns.Name).
 		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
