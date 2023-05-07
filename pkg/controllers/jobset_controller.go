@@ -15,6 +15,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -25,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -33,7 +35,10 @@ import (
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 )
 
-const RestartsKey string = "jobset.sigs.k8s.io/restart-attempt"
+const (
+	RestartsKey       string = "jobset.sigs.k8s.io/restart-attempt"
+	parallelDeletions int    = 50
+)
 
 var (
 	jobOwnerKey = ".metadata.controller"
@@ -97,7 +102,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Delete any jobs marked for deletion.
-	if err := r.deleteJobs(ctx, &js, ownedJobs.delete); err != nil {
+	if err := r.deleteJobs(ctx, ownedJobs.delete); err != nil {
 		log.Error(err, "deleting jobs")
 		return ctrl.Result{}, err
 	}
@@ -364,32 +369,24 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 	return nil
 }
 
-func (r *JobSetReconciler) deleteJobs(ctx context.Context, js *jobset.JobSet, jobsForDeletion []*batchv1.Job) error {
+func (r *JobSetReconciler) deleteJobs(ctx context.Context, jobsForDeletion []*batchv1.Job) error {
 	log := ctrl.LoggerFrom(ctx)
-
-	var wg sync.WaitGroup
-	var finalErr error
-
-	// Delete all jobs in parallel.
-	// TODO: limit number of goroutines used here.
-	for _, job := range jobsForDeletion {
-		job := job
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			// Delete job. This deletion event will trigger another reconcilliation,
-			// where the jobs are recreated.
-			backgroundPolicy := metav1.DeletePropagationBackground
-			if err := r.Delete(ctx, job, &client.DeleteOptions{PropagationPolicy: &backgroundPolicy}); client.IgnoreNotFound(err) != nil {
-				finalErr = err
-				return
-			}
-			log.V(2).Info("successfully deleted job", "job", klog.KObj(job), "restart attempt", job.Labels[job.Labels[RestartsKey]])
-		}()
-	}
-	wg.Wait()
-	return finalErr
+	lock := &sync.Mutex{}
+	var finalErrs []error
+	workqueue.ParallelizeUntil(ctx, parallelDeletions, len(jobsForDeletion), func(i int) {
+		targetJob := jobsForDeletion[i]
+		// Delete job. This deletion event will trigger another reconciliation,
+		// where the jobs are recreated.
+		backgroundPolicy := metav1.DeletePropagationBackground
+		if err := r.Delete(ctx, targetJob, &client.DeleteOptions{PropagationPolicy: &backgroundPolicy}); client.IgnoreNotFound(err) != nil {
+			lock.Lock()
+			defer lock.Unlock()
+			finalErrs = append(finalErrs, err)
+			return
+		}
+		log.V(2).Info("successfully deleted job", "job", klog.KObj(targetJob), "restart attempt", targetJob.Labels[targetJob.Labels[RestartsKey]])
+	})
+	return errors.Join(finalErrs...)
 }
 
 // updateStatus updates the status of a JobSet.
