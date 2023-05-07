@@ -57,6 +57,8 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	ctx, cancel = context.WithCancel(context.Background())
+
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "config", "components", "crd", "bases")},
@@ -84,13 +86,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	jobSetController := controllers.NewJobSetReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetEventRecorderFor("jobset"))
 
-	err = controllers.SetupIndexes(k8sManager.GetFieldIndexer())
+	err = controllers.SetupIndexes(ctx, k8sManager.GetFieldIndexer())
 	Expect(err).ToNot(HaveOccurred())
 
 	err = jobSetController.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
-
-	ctx, cancel = context.WithCancel(context.Background())
 
 	go func() {
 		defer GinkgoRecover()
