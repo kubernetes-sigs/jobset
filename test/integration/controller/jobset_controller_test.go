@@ -254,7 +254,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					up.checkJobSetCondition(ctx, k8sClient, &jobSet, timeout)
 				}
 			}
-
 		},
 		ginkgo.Entry("jobset should succeed after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
