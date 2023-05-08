@@ -19,6 +19,7 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/jobset/pkg/util/validation"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,21 +37,22 @@ var _ webhook.Defaulter = &JobSet{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *JobSet) Default() {
-	for i, _ := range r.Spec.ReplicatedJobs {
+	replicatedJob := r.Spec.ReplicatedJobs
+	for i := range replicatedJob {
 		// Default job completion mode to indexed.
-		if r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
-			r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
+		if replicatedJob[i].Template.Spec.CompletionMode == nil {
+			replicatedJob[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
 		}
 		// Enable DNS hostnames by default.
-		if r.Spec.ReplicatedJobs[i].Network == nil {
-			r.Spec.ReplicatedJobs[i].Network = &Network{}
+		if replicatedJob[i].Network == nil {
+			replicatedJob[i].Network = &Network{}
 		}
-		if r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil {
-			r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames = pointer.Bool(true)
+		if replicatedJob[i].Network.EnableDNSHostnames == nil {
+			replicatedJob[i].Network.EnableDNSHostnames = pointer.Bool(true)
 		}
 		// Default pod restart policy to OnFailure.
-		if r.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
-			r.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
+		if replicatedJob[i].Template.Spec.Template.Spec.RestartPolicy == "" {
+			replicatedJob[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 		}
 	}
 
@@ -62,14 +64,19 @@ var _ webhook.Validator = &JobSet{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *JobSet) ValidateCreate() error {
-	for i := range r.Spec.ReplicatedJobs {
-		enableDNSHostnames := r.Spec.ReplicatedJobs[i].Network != nil &&
-			r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames != nil && *r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames
-		indexed := r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode != nil &&
-			*r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == batchv1.IndexedCompletion
+	replicatedJob := r.Spec.ReplicatedJobs
+	for i := range replicatedJob {
+		enableDNSHostnames := replicatedJob[i].Network != nil &&
+			replicatedJob[i].Network.EnableDNSHostnames != nil && *replicatedJob[i].Network.EnableDNSHostnames
+		indexed := replicatedJob[i].Template.Spec.CompletionMode != nil &&
+			*replicatedJob[i].Template.Spec.CompletionMode == batchv1.IndexedCompletion
 
 		if enableDNSHostnames && !indexed {
 			return fmt.Errorf("EnableDNSHostnames requires job to be in indexed completion mode")
+		}
+
+		if err := validation.ValidationJobTemplateSpec(replicatedJob[i].Template); err != nil {
+			return fmt.Errorf("validate jobTemplateSpec error: %v", err)
 		}
 	}
 	return nil
