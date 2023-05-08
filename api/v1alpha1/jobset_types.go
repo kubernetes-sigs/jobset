@@ -120,11 +120,13 @@ type Network struct {
 // Operator defines the target of a SuccessPolicy or FailurePolicy.
 type Operator string
 
-// OperatorAll applies to all jobs in the JobSet.
-const OperatorAll Operator = "All"
+const (
+	// OperatorAll applies to all jobs in the JobSet.
+	OperatorAll Operator = "All"
 
-// OperatorAny applies to any job in the Jobset.
-const OperatorAny Operator = "Any"
+	// OperatorAny applies to any job in the Jobset.
+	OperatorAny Operator = "Any"
+)
 
 type FailurePolicy struct {
 	// MaxRestarts defines the limit on the number of JobSet restarts.
