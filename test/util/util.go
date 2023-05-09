@@ -123,11 +123,11 @@ func DeleteNamespace(ctx context.Context, c client.Client, ns *corev1.Namespace)
 	if err := c.DeleteAllOf(ctx, &jobset.JobSet{}, client.InNamespace(ns.Name)); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	err := c.DeleteAllOf(ctx, &batchv1.Job{}, client.InNamespace(ns.Name), client.PropagationPolicy(metav1.DeletePropagationBackground))
+	err := c.DeleteAllOf(ctx, &batchv1.Job{}, client.InNamespace(ns.Name), client.PropagationPolicy(metav1.DeletePropagationForeground))
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	if err := c.DeleteAllOf(ctx, &corev1.Service{}, client.InNamespace(ns.Name)); err != nil && !apierrors.IsNotFound(err) {
+	if err := c.DeleteAllOf(ctx, &corev1.Service{}, client.InNamespace(ns.Name), client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 	if err := c.Delete(ctx, ns); err != nil && !apierrors.IsNotFound(err) {
