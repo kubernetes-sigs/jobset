@@ -139,7 +139,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Handle suspending a jobset or resuming a suspended jobset.
 	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
 	if jobsetSuspended {
-		if err := r.suspendJobSet(ctx, &js, ownedJobs); err != nil {
+		if err := r.suspendJobSet(ctx, &js); err != nil {
 			log.Error(err, "suspending jobset")
 			return ctrl.Result{}, err
 		}
@@ -219,7 +219,14 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	return &ownedJobs, nil
 }
 
-func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet) error {
+	log := ctrl.LoggerFrom(ctx)
+	ownedJobs, err := r.getChildJobs(ctx, js)
+	if err != nil {
+		log.Error(err, "getting jobs owned by jobset")
+		return err
+	}
+
 	for _, job := range ownedJobs.active {
 		if !pointer.BoolDeref(job.Spec.Suspend, false) {
 			job.Spec.Suspend = pointer.Bool(true)
@@ -247,6 +254,11 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
+	ownedJobs, err := r.getChildJobs(ctx, js)
+	if err != nil {
+		log.Error(err, "getting jobs owned by jobset")
+		return err
+	}
 	for _, job := range ownedJobs.active {
 		if pointer.BoolDeref(job.Spec.Suspend, false) != false {
 			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {

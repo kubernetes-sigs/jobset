@@ -129,6 +129,24 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 					shouldSucceed: true,
 					fn: func(js *jobset.JobSet) {
 						js.Spec.Suspend = pointer.Bool(true)
+						// Try mutating jobs list.
+						var jobset jobset.JobSet
+						gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset), timeout, interval).Should(gomega.Succeed())
+
+						jobset.Spec.ReplicatedJobs = append(jobset.Spec.ReplicatedJobs, testing.MakeReplicatedJob("test-job").
+							Job(testing.MakeJobTemplate("test-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+							EnableDNSHostnames(true).
+							Obj())
+					},
+				},
+				{
+					fn: func(js *jobset.JobSet) {
+						var newjs jobset.JobSet
+						gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newjs), timeout, interval).Should(gomega.Succeed())
+						// Try mutating failure policy.
+						newjs.Spec.FailurePolicy = &jobset.FailurePolicy{
+							MaxRestarts: 3,
+						}
 					},
 				},
 			},
@@ -140,7 +158,10 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 				{
 					shouldSucceed: true,
 					fn: func(js *jobset.JobSet) {
-						js.Spec.Suspend = pointer.Bool(true)
+						var newjs jobset.JobSet
+						gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newjs), timeout, interval).Should(gomega.Succeed())
+
+						newjs.Spec.Suspend = pointer.Bool(true)
 					},
 				},
 			},
@@ -564,7 +585,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// Fetch headless service created for replicated job and delete it.
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						var svc corev1.Service
-						gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: controllers.GenSubdomain(js, &js.Spec.ReplicatedJobs[1]), Namespace: js.Namespace}, &svc)).Should(gomega.Succeed())
+						gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: controllers.GenSubdomain(js, &js.Spec.ReplicatedJobs[1]), Namespace: js.Namespace}, &svc)).Should(gomega.Succeed())
 						gomega.Eventually(k8sClient.Delete(ctx, &svc)).Should(gomega.Succeed())
 					},
 					// Service should be recreated during reconciliation.
@@ -593,27 +614,36 @@ func completeAllJobs(jobList *batchv1.JobList) {
 	}
 }
 
-func completeJob(job *batchv1.Job) {
-	ginkgo.By(fmt.Sprintf("completing job: %s", job.Name))
-	job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+func completeJob(stalejob *batchv1.Job) {
+	ginkgo.By(fmt.Sprintf("completing job: %s", stalejob.Name))
+
+	var jobGet batchv1.Job
+	gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: stalejob.Name, Namespace: stalejob.Namespace}, &jobGet), timeout, interval).Should(gomega.Succeed())
+
+	jobGet.Status.Conditions = append(jobGet.Status.Conditions, batchv1.JobCondition{
 		Type:   batchv1.JobComplete,
 		Status: corev1.ConditionTrue,
 	})
-	gomega.Eventually(k8sClient.Status().Update(ctx, job), timeout, interval).Should(gomega.Succeed())
+	gomega.Eventually(k8sClient.Status().Update(ctx, &jobGet), timeout, interval).Should(gomega.Succeed())
 }
 
-func failJob(job *batchv1.Job) {
-	ginkgo.By(fmt.Sprintf("failing job: %s", job.Name))
-	job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{
+func failJob(stalejob *batchv1.Job) {
+	var jobGet batchv1.Job
+	gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: stalejob.Name, Namespace: stalejob.Namespace}, &jobGet), timeout, interval).Should(gomega.Succeed())
+
+	ginkgo.By(fmt.Sprintf("failing job: %s", jobGet.Name))
+	jobGet.Status.Conditions = append(jobGet.Status.Conditions, batchv1.JobCondition{
 		Type:   batchv1.JobFailed,
 		Status: corev1.ConditionTrue,
 	})
-	gomega.Eventually(k8sClient.Status().Update(ctx, job), timeout, interval).Should(gomega.Succeed())
+	gomega.Eventually(k8sClient.Status().Update(ctx, &jobGet), timeout, interval).Should(gomega.Succeed())
 }
 
 func suspendJobSet(js *jobset.JobSet, suspend bool) {
-	js.Spec.Suspend = pointer.Bool(suspend)
-	gomega.Eventually(k8sClient.Update(ctx, js), timeout, interval).Should(gomega.Succeed())
+	var jobset jobset.JobSet
+	gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset), timeout, interval).Should(gomega.Succeed())
+	jobset.Spec.Suspend = pointer.Bool(suspend)
+	gomega.Eventually(k8sClient.Update(ctx, &jobset), timeout, interval).Should(gomega.Succeed())
 }
 
 func updateJobSetNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[string]string) {
