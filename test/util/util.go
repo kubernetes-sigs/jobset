@@ -21,7 +21,11 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -109,4 +113,27 @@ func checkJobSetStatus(ctx context.Context, k8sClient client.Client, js *jobset.
 		}
 	}
 	return found == len(conditions), nil
+}
+
+// DeleteNamespace deletes all objects the tests typically create in the namespace.
+func DeleteNamespace(ctx context.Context, c client.Client, ns *corev1.Namespace) error {
+	if ns == nil {
+		return nil
+	}
+	err := c.DeleteAllOf(ctx, &jobset.JobSet{}, client.InNamespace(ns.Name), client.PropagationPolicy(metav1.DeletePropagationForeground))
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	err = c.DeleteAllOf(ctx, &batchv1.Job{}, client.InNamespace(ns.Name), client.PropagationPolicy(metav1.DeletePropagationForeground))
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	err = c.DeleteAllOf(ctx, &corev1.Service{}, client.InNamespace(ns.Name), client.PropagationPolicy(metav1.DeletePropagationForeground))
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	if err := c.Delete(ctx, ns); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
 }
