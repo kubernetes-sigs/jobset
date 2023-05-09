@@ -158,8 +158,8 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func SetupIndexes(indexer client.FieldIndexer) error {
-	return indexer.IndexField(context.Background(), &batchv1.Job{}, jobOwnerKey, func(obj client.Object) []string {
+func SetupIndexes(ctx context.Context, indexer client.FieldIndexer) error {
+	return indexer.IndexField(ctx, &batchv1.Job{}, jobOwnerKey, func(obj client.Object) []string {
 		o := obj.(*batchv1.Job)
 		owner := metav1.GetControllerOf(o)
 		if owner == nil {

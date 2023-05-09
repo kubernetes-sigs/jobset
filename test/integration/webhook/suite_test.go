@@ -100,7 +100,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = controllers.SetupIndexes(mgr.GetFieldIndexer())
+	err = controllers.SetupIndexes(ctx, mgr.GetFieldIndexer())
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&jobset.JobSet{}).SetupWebhookWithManager(mgr)
