@@ -138,6 +138,11 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// Handle suspending a jobset or resuming a suspended jobset.
 	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
+	if err := r.Get(ctx, req.NamespacedName, &js); err != nil {
+		// we'll ignore not-found errors, since there is nothing we can do here.
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
 	if jobsetSuspended {
 		if err := r.suspendJobSet(ctx, &js, ownedJobs); err != nil {
 			log.Error(err, "suspending jobset")
