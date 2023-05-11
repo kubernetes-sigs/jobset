@@ -9501,6 +9501,8 @@ spec:
                     description: Operator determines either All or Any of the selected
                       jobs should succeed to consider the JobSet successful
                     type: string
+                required:
+                - operator
                 type: object
                 x-kubernetes-validations:
                 - message: Value is immutable

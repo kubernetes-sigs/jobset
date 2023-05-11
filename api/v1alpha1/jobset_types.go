@@ -136,7 +136,7 @@ type FailurePolicy struct {
 
 type SuccessPolicy struct {
 	// Operator determines either All or Any of the selected jobs should succeed to consider the JobSet successful
-	Operator Operator `json:"operator,omitempty"`
+	Operator Operator `json:"operator"`
 
 	// JobSelector selects the jobs that the policy will apply to. The selector only applies to the jobs created by the JobSet.
 	// An empty selector will match all jobs.

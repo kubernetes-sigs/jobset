@@ -288,6 +288,54 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "success policy is already set",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					SuccessPolicy: &SuccessPolicy{
+						Operator: OperatorAny,
+						JobSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"key": "value",
+							},
+						},
+					},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: TestPodTemplate,
+								},
+							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+						},
+					},
+				},
+			},
+			want: &JobSet{
+				Spec: JobSetSpec{
+					SuccessPolicy: &SuccessPolicy{
+						Operator: OperatorAny,
+						JobSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"key": "value",
+							},
+						},
+					},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
