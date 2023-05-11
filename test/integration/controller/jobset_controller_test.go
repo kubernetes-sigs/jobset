@@ -130,17 +130,20 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 					fn: func(js *jobset.JobSet) {
 						js.Spec.Suspend = pointer.Bool(true)
 						// Try mutating jobs list.
+						ginkgo.By("mutating jobs list")
 						var jobset jobset.JobSet
 						gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset), timeout, interval).Should(gomega.Succeed())
 
-						jobset.Spec.ReplicatedJobs = append(jobset.Spec.ReplicatedJobs, testing.MakeReplicatedJob("test-job").
-							Job(testing.MakeJobTemplate("test-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+						jobset.Spec.ReplicatedJobs = append(jobset.Spec.ReplicatedJobs, testing.MakeReplicatedJob(ns.Name).
+							Job(testing.MakeJobTemplate(ns.Name, ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 							EnableDNSHostnames(true).
 							Obj())
 					},
 				},
 				{
 					fn: func(js *jobset.JobSet) {
+						ginkgo.By("mutating failure policy list")
+
 						var newjs jobset.JobSet
 						gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newjs), timeout, interval).Should(gomega.Succeed())
 						// Try mutating failure policy.
