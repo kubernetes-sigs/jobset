@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -238,10 +239,17 @@ func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet,
 }
 
 func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	nodeAffinities := map[string]map[string]string{}
+	for _, replicatedJob := range js.Spec.ReplicatedJobs {
+		nodeAffinities[fmt.Sprintf("%s-%s", js.Name, replicatedJob.Name)] = replicatedJob.Template.Spec.Template.Spec.NodeSelector
+	}
+
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
 	for _, job := range ownedJobs.active {
 		if pointer.BoolDeref(job.Spec.Suspend, false) != false {
+			i := strings.LastIndex(job.Name, "-")
+			job.Spec.Template.Spec.NodeSelector = nodeAffinities[job.Name[:i]]
 			job.Spec.Suspend = pointer.Bool(false)
 			if err := r.Update(ctx, job); err != nil {
 				return err
