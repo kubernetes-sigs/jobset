@@ -9442,9 +9442,6 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
-                x-kubernetes-validations:
-                - message: Value is immutable
-                  rule: self == oldSelf
               successPolicy:
                 description: SuccessPolicy configures when to declare the JobSet as
                   succeeded. The JobSet is always declared succeeded if all jobs in
