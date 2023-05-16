@@ -122,29 +122,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 				}
 			}
 		},
-		ginkgo.Entry("validate jobset spec is immutable", &testCase{
-			makeJobSet:                  testJobSet,
-			jobSetCreationShouldSucceed: true,
-			updates: []*jobSetUpdate{
-				{
-					fn: func(js *jobset.JobSet) {
-						// Try mutating jobs list.
-						js.Spec.ReplicatedJobs = append(js.Spec.ReplicatedJobs, testing.MakeReplicatedJob("test-job").
-							Job(testing.MakeJobTemplate("test-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
-							EnableDNSHostnames(true).
-							Obj())
-					},
-				},
-				{
-					fn: func(js *jobset.JobSet) {
-						// Try mutating failure policy.
-						js.Spec.FailurePolicy = &jobset.FailurePolicy{
-							MaxRestarts: 3,
-						}
-					},
-				},
-			},
-		}),
 		ginkgo.Entry("setting suspend is allowed", &testCase{
 			makeJobSet:                  testJobSet,
 			jobSetCreationShouldSucceed: true,
@@ -649,6 +626,8 @@ func suspendJobSet(js *jobset.JobSet, suspend bool) {
 func updateJobSetNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[string]string) {
 	for index := range js.Spec.ReplicatedJobs {
 		js.Spec.ReplicatedJobs[index].
+			Template.Spec.Template.Spec.Hostname = "test"
+		js.Spec.ReplicatedJobs[index].
 			Template.Spec.Template.Spec.NodeSelector = nodeSelectors[js.Name+"-"+js.Spec.ReplicatedJobs[index].Name]
 	}
 	gomega.Eventually(k8sClient.Update(ctx, js), timeout, interval).Should(gomega.Succeed())
@@ -677,18 +656,20 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
 		return false, err
 	}
-
+	jobsChanged := 0
 	// Check if all jobs with name prefix js.Name+replicatedJobName have updated node selectors.
 	for _, job := range jobList.Items {
 		for index, nodeSelector := range nodeSelectors {
-			if strings.HasPrefix(job.Name, index) &&
-				!reflect.DeepEqual(job.Spec.Template.Spec.NodeSelector, nodeSelector) {
+			if strings.HasPrefix(job.Name, index) {
+				if reflect.DeepEqual(job.Spec.Template.Spec.NodeSelector, nodeSelector) {
+					jobsChanged++
+					continue
+				}
 				return false, nil
 			}
 		}
 	}
-
-	return true, nil
+	return len(nodeSelectors) <= jobsChanged, nil
 }
 
 func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {

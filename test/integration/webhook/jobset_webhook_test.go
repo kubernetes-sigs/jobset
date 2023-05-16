@@ -68,6 +68,9 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		makeJobSet               func(ns *corev1.Namespace) *testing.JobSetWrapper
 		jobSetCreationShouldFail bool
 		defaultsApplied          func(*jobset.JobSet) bool
+		verbType                 string
+		updateJobSet             func(set *jobset.JobSet)
+		updateShouldFails        bool
 	}
 
 	ginkgo.DescribeTable("defaulting on jobset creation",
@@ -90,8 +93,23 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			var fetchedJS jobset.JobSet
 			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &fetchedJS), timeout, interval).Should(gomega.Succeed())
 
-			// Check defaulting.
-			gomega.Expect(tc.defaultsApplied(&fetchedJS)).Should(gomega.Equal(true))
+			switch tc.verbType {
+			case "create":
+				// Check defaulting.
+				gomega.Expect(tc.defaultsApplied(&fetchedJS)).Should(gomega.Equal(true))
+			case "update":
+				tc.updateJobSet(&fetchedJS)
+				// Verify jobset created successfully.
+				ginkgo.By("checking that jobset updation succeeds")
+
+				if tc.updateShouldFails {
+					gomega.Expect(k8sClient.Update(ctx, &fetchedJS)).Should(gomega.Not(gomega.Succeed()))
+				} else {
+					gomega.Expect(k8sClient.Update(ctx, &fetchedJS)).Should(gomega.Succeed())
+				}
+
+			}
+
 		},
 		ginkgo.Entry("job.spec.completionMode defaults to indexed if unset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
@@ -154,6 +172,45 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			defaultsApplied: func(js *jobset.JobSet) bool {
 				return js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.RestartPolicy == corev1.RestartPolicyOnFailure
 			},
+			verbType: "create",
+		}),
+		ginkgo.Entry("validate jobSet should not fails on NodeSelectors Update", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			verbType: "update",
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.NodeSelector = map[string]string{"test": "test"}
+			},
+			updateShouldFails: false,
+		}),
+		ginkgo.Entry("validate jobSet should fail for other fields update except NodeSelector", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						Job(testing.MakeJobTemplate("test-job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			verbType: "update",
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Hostname = "test"
+			},
+			updateShouldFails: true,
 		}),
 		ginkgo.Entry("success policy defaults to all", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {

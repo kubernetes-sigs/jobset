@@ -16,6 +16,7 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
@@ -81,7 +82,15 @@ func (js *JobSet) ValidateCreate() error {
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (js *JobSet) ValidateUpdate(old runtime.Object) error {
-	return nil
+	oldObj := old.(*JobSet)
+	var allErr []error
+	for index := range js.Spec.ReplicatedJobs {
+		oldObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = r.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
+		if !reflect.DeepEqual(oldObj.Spec.ReplicatedJobs, js.Spec.ReplicatedJobs) {
+			allErr = append(allErr, fmt.Errorf("the spec.ReplicatedJobs value is imutable excepting Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector"))
+		}
+	}
+	return errors.Join(allErr...)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
