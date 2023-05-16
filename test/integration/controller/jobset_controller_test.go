@@ -533,6 +533,8 @@ func suspendJobSet(js *jobset.JobSet, suspend bool) {
 func updateJobSetNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[string]string) {
 	for index := range js.Spec.ReplicatedJobs {
 		js.Spec.ReplicatedJobs[index].
+			Template.Spec.Template.Spec.Hostname = "test"
+		js.Spec.ReplicatedJobs[index].
 			Template.Spec.Template.Spec.NodeSelector = nodeSelectors[js.Name+"-"+js.Spec.ReplicatedJobs[index].Name]
 	}
 	gomega.Eventually(k8sClient.Update(ctx, js), timeout, interval).Should(gomega.Succeed())
