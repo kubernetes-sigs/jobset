@@ -146,7 +146,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
-					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, JobSelector: &metav1.LabelSelector{}}).
 					ReplicatedJob(testing.MakeReplicatedJob("test-job").
 						Job(testing.MakeJobTemplate("test-job", ns.Name).
 							PodSpec(testing.TestPodSpec).
@@ -282,27 +281,22 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("success policy 'all' with job selector", &testCase{
+		ginkgo.Entry("success policy 'all' with replicated jobs specified", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
-					// All jobs with index 0 must complete for jobset to succeed.
 					SuccessPolicy(&jobset.SuccessPolicy{
-						Operator: jobset.OperatorAll,
-						JobSelector: &metav1.LabelSelector{
-							MatchLabels: map[string]string{
-								jobset.JobIndexKey: "0",
-							},
-						},
+						Operator:           jobset.OperatorAll,
+						ReplicatedJobNames: []string{"replicated-job-a"},
 					})
 			},
 			updates: []*update{
 				{
-					// Jobset has 2 replicated jobs, so there are 2 jobs with index 0.
-					// Complete only one of them here and confirm the jobset is still active.
+					// Jobset has 2 replicated jobs, but only 1 is selected in the success policy.
+					// Complete all the jobs in the other replicated job and ensure the jobset is still active.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
-						ginkgo.By("completing 1 of 2 jobs with job index 0")
+						ginkgo.By("completing all jobs from different replicated job")
 						for i := 0; i < len(jobList.Items); i++ {
-							if jobList.Items[i].Labels[jobset.JobIndexKey] == "0" {
+							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-b" {
 								completeJob(&jobList.Items[i])
 								break
 							}
@@ -311,12 +305,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: util.JobSetActive,
 				},
 				{
-					// Now ensure both jobs with job index 0 are completed, and ensure
-					// the jobset is marked as succeeded.
+					// Now complete the job in the replicated job selected by the success policy
+					// and ensure the jobset completes.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
-						ginkgo.By("completing 2 of 2 jobs with job index 0")
+						ginkgo.By("completing all jobs in replicated job selected by success policy")
 						for i := 0; i < len(jobList.Items); i++ {
-							if jobList.Items[i].Labels[jobset.JobIndexKey] == "0" {
+							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-a" {
 								completeJob(&jobList.Items[i])
 							}
 						}
@@ -325,27 +319,21 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("success policy 'any' with job selector", &testCase{
+		ginkgo.Entry("success policy 'any' with replicated job specified", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
-					// Any jobs with index 0 must complete for jobset to succeed.
+					// If any of the 3 jobs in replicated-job-b succeeds, the jobset is marked completed.
 					SuccessPolicy(&jobset.SuccessPolicy{
-						Operator: jobset.OperatorAny,
-						JobSelector: &metav1.LabelSelector{
-							MatchLabels: map[string]string{
-								jobset.JobIndexKey: "0",
-							},
-						},
+						Operator:           jobset.OperatorAny,
+						ReplicatedJobNames: []string{"replicated-job-b"},
 					})
 			},
 			updates: []*update{
 				{
-					// Jobset has 2 replicated jobs, so there are 2 jobs with index 0.
-					// Complete only one of them here and confirm the jobset succeeds.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
-						ginkgo.By("completing 1 of 2 jobs with job index 0")
+						ginkgo.By("completing 1 of 3 jobs in replicated-job-b")
 						for i := 0; i < len(jobList.Items); i++ {
-							if jobList.Items[i].Labels[jobset.JobIndexKey] == "0" {
+							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-b" {
 								completeJob(&jobList.Items[i])
 								break
 							}
@@ -355,12 +343,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("success policy 'any' without job selector", &testCase{
+		ginkgo.Entry("success policy 'any' without replicated job specified", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					SuccessPolicy(&jobset.SuccessPolicy{
-						Operator:    jobset.OperatorAny,
-						JobSelector: &metav1.LabelSelector{},
+						Operator:           jobset.OperatorAny,
+						ReplicatedJobNames: []string{}, // applies to all replicatedJobs
 					})
 			},
 			updates: []*update{
@@ -653,7 +641,6 @@ func checkExpectedServices(js *jobset.JobSet) {
 // - one with 3 replicas and DNS hostnames enabled
 func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet("test-js", ns.Name).
-		SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, JobSelector: &metav1.LabelSelector{}}).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).

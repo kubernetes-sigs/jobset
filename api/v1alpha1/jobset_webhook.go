@@ -14,10 +14,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -26,9 +23,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func (r *JobSet) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (js *JobSet) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
+		For(js).
 		Complete()
 }
 
@@ -37,37 +34,31 @@ func (r *JobSet) SetupWebhookWithManager(mgr ctrl.Manager) error {
 var _ webhook.Defaulter = &JobSet{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *JobSet) Default() {
-	for i, _ := range r.Spec.ReplicatedJobs {
+func (js *JobSet) Default() {
+	// Default success policy to operator "All" targeting all replicatedJobs.
+	if js.Spec.SuccessPolicy == nil {
+		js.Spec.SuccessPolicy = &SuccessPolicy{Operator: OperatorAll, ReplicatedJobNames: []string{}}
+	}
+	// If operator is set but replicated jobs is not, target all replicatedJobs.
+	if js.Spec.SuccessPolicy.ReplicatedJobNames == nil {
+		js.Spec.SuccessPolicy.ReplicatedJobNames = []string{}
+	}
+	for i, _ := range js.Spec.ReplicatedJobs {
 		// Default job completion mode to indexed.
-		if r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
-			r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
+		if js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
+			js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
 		}
 		// Enable DNS hostnames by default.
-		if r.Spec.ReplicatedJobs[i].Network == nil {
-			r.Spec.ReplicatedJobs[i].Network = &Network{}
+		if js.Spec.ReplicatedJobs[i].Network == nil {
+			js.Spec.ReplicatedJobs[i].Network = &Network{}
 		}
-		if r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil {
-			r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames = pointer.Bool(true)
+		if js.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil {
+			js.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames = pointer.Bool(true)
 		}
 		// Default pod restart policy to OnFailure.
-		if r.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
-			r.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
+		if js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
+			js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 		}
-	}
-
-	// Default success policy to all jobs.
-	if r.Spec.SuccessPolicy == nil {
-		r.Spec.SuccessPolicy = &SuccessPolicy{
-			Operator:    OperatorAll,
-			JobSelector: &metav1.LabelSelector{},
-		}
-	}
-	if r.Spec.SuccessPolicy.Operator == "" {
-		r.Spec.SuccessPolicy.Operator = OperatorAll
-	}
-	if r.Spec.SuccessPolicy.JobSelector == nil {
-		r.Spec.SuccessPolicy.JobSelector = &metav1.LabelSelector{}
 	}
 }
 
@@ -76,19 +67,17 @@ func (r *JobSet) Default() {
 var _ webhook.Validator = &JobSet{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *JobSet) ValidateCreate() error {
-	path := field.NewPath("spec")
-	validation.ValidateLabelSelector(r.Spec.SuccessPolicy.JobSelector, validation.LabelSelectorValidationOptions{}, path.Child("successPolicy.jobSelector"))
+func (js *JobSet) ValidateCreate() error {
 	return nil
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *JobSet) ValidateUpdate(old runtime.Object) error {
+func (js *JobSet) ValidateUpdate(old runtime.Object) error {
 	return nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *JobSet) ValidateDelete() error {
+func (js *JobSet) ValidateDelete() error {
 	return nil
 }
 

@@ -139,9 +139,9 @@ type SuccessPolicy struct {
 	// +kubebuilder:validation:Enum=All;Any
 	Operator Operator `json:"operator"`
 
-	// JobSelector selects the jobs that the policy will apply to. The selector only applies to the jobs created by the JobSet.
-	// An empty selector will match all jobs.
-	JobSelector *metav1.LabelSelector `json:"job_selector,omitempty"`
+	// ReplicatedJobNames are the names of the replicated jobs the operator will apply to.
+	// An empty list will apply to all replicatedJobs.
+	ReplicatedJobNames []string `json:"replicatedJobNames,omitempty"`
 }
 
 func init() {

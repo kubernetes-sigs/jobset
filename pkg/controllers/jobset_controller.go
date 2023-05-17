@@ -23,7 +23,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -179,12 +178,6 @@ func SetupIndexes(ctx context.Context, indexer client.FieldIndexer) error {
 func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) (*childJobs, error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	// Set up the success policy's job selector.
-	jobSelector, err := metav1.LabelSelectorAsSelector(js.Spec.SuccessPolicy.JobSelector)
-	if err != nil {
-		return nil, err
-	}
-
 	// Get all active jobs owned by JobSet.
 	var childJobList batchv1.JobList
 	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{jobOwnerKey: js.Name}); err != nil {
@@ -216,8 +209,8 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		case batchv1.JobFailed:
 			ownedJobs.failed = append(ownedJobs.failed, &childJobList.Items[i])
 		case batchv1.JobComplete:
-			// Only add completed jobs which match the success policy's jobSelector.
-			if jobSelector.Matches(labels.Set(job.Labels)) {
+			// Only add completed jobs which are part of a replicated job listed in the success policy.
+			if jobMatchesSuccessPolicy(js, &job) {
 				ownedJobs.successful = append(ownedJobs.successful, &childJobList.Items[i])
 			}
 		}
@@ -341,18 +334,13 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 	case jobset.OperatorAny:
 		return r.successPolicyAny(ctx, js, ownedJobs)
 	default:
-		return fmt.Errorf("invalid operator %s", js.Spec.SuccessPolicy.Operator)
+		return nil
 	}
 }
 
 func (r *JobSetReconciler) successPolicyAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
-	// Set up the success policy's job selector.
-	jobSelector, err := metav1.LabelSelectorAsSelector(js.Spec.SuccessPolicy.JobSelector)
-	if err != nil {
-		return err
-	}
-	if len(ownedJobs.successful) == numJobsExpectedToSucceed(js, jobSelector) {
+	if len(ownedJobs.successful) == numJobsExpectedToSucceed(js) {
 		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
@@ -646,17 +634,18 @@ func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {
 	return rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames
 }
 
-func numJobsExpectedToSucceed(js *jobset.JobSet, jobSelector labels.Selector) int {
+func jobMatchesSuccessPolicy(js *jobset.JobSet, job *batchv1.Job) bool {
+	return contains(js.Spec.SuccessPolicy.ReplicatedJobNames, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
+}
+
+func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 	var jobsExpectedToSucceed int
-	// For operator any, only 1 job matching the jobSelector needs to succeed for
-	// the jobset to succeed.
-	if js.Spec.SuccessPolicy.Operator == jobset.OperatorAny {
+	switch js.Spec.SuccessPolicy.Operator {
+	case jobset.OperatorAny:
 		jobsExpectedToSucceed = 1
-	} else {
-		// For operator all, every job matching the jobSelector needs to succeed for
-		// the jobset to succeed.
+	case jobset.OperatorAll:
 		for _, rjob := range js.Spec.ReplicatedJobs {
-			if jobSelector.Matches(labels.Set(rjob.Template.Labels)) {
+			if contains(js.Spec.SuccessPolicy.ReplicatedJobNames, rjob.Name) {
 				jobsExpectedToSucceed += rjob.Replicas
 			}
 		}
@@ -678,4 +667,13 @@ func cloneMap[K, V comparable](m map[K]V) map[K]V {
 		copy[k] = v
 	}
 	return copy
+}
+
+func contains[T comparable](slice []T, element T) bool {
+	for _, item := range slice {
+		if item == element {
+			return true
+		}
+	}
+	return false
 }
