@@ -180,5 +180,21 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				return operatorDefaulted && selectorDefaulted
 			},
 		}),
+		ginkgo.Entry("success policy defaults to all", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-success-policy", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						Job(testing.MakeJobTemplate("test-job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				operatorDefaulted := js.Spec.SuccessPolicy != nil && js.Spec.SuccessPolicy.Operator == jobset.OperatorAll
+				selectorDefaulted := js.Spec.SuccessPolicy.JobSelector != nil && js.Spec.SuccessPolicy.JobSelector.Size() == 0
+				return operatorDefaulted && selectorDefaulted
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe

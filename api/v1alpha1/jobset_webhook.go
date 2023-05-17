@@ -15,7 +15,9 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -75,6 +77,8 @@ var _ webhook.Validator = &JobSet{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *JobSet) ValidateCreate() error {
+	path := field.NewPath("spec")
+	validation.ValidateLabelSelector(r.Spec.SuccessPolicy.JobSelector, validation.LabelSelectorValidationOptions{}, path.Child("successPolicy.jobSelector"))
 	return nil
 }
 

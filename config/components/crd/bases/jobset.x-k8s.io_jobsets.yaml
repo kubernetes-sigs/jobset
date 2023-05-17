@@ -9500,6 +9500,9 @@ spec:
                   operator:
                     description: Operator determines either All or Any of the selected
                       jobs should succeed to consider the JobSet successful
+                    enum:
+                    - All
+                    - Any
                     type: string
                 required:
                 - operator

@@ -121,10 +121,10 @@ type Network struct {
 type Operator string
 
 const (
-	// OperatorAll applies to all jobs in the JobSet.
+	// OperatorAll applies to all jobs matching the jobSelector.
 	OperatorAll Operator = "All"
 
-	// OperatorAny applies to any job in the Jobset.
+	// OperatorAny applies to any single job matching the jobSelector.
 	OperatorAny Operator = "Any"
 )
 
@@ -136,6 +136,7 @@ type FailurePolicy struct {
 
 type SuccessPolicy struct {
 	// Operator determines either All or Any of the selected jobs should succeed to consider the JobSet successful
+	// +kubebuilder:validation:Enum=All;Any
 	Operator Operator `json:"operator"`
 
 	// JobSelector selects the jobs that the policy will apply to. The selector only applies to the jobs created by the JobSet.
