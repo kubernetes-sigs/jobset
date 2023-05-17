@@ -14,6 +14,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -53,6 +54,19 @@ func (r *JobSet) Default() {
 		}
 	}
 
+	// Default success policy to all jobs.
+	if r.Spec.SuccessPolicy == nil {
+		r.Spec.SuccessPolicy = &SuccessPolicy{
+			Operator:    OperatorAll,
+			JobSelector: &metav1.LabelSelector{},
+		}
+	}
+	if r.Spec.SuccessPolicy.Operator == "" {
+		r.Spec.SuccessPolicy.Operator = OperatorAll
+	}
+	if r.Spec.SuccessPolicy.JobSelector == nil {
+		r.Spec.SuccessPolicy.JobSelector = &metav1.LabelSelector{}
+	}
 }
 
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha1-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha1,name=vjobset.kb.io,admissionReviewVersions=v1

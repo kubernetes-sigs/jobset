@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	timeout  = 10 * time.Second
+	timeout  = 5 * time.Second
 	interval = time.Millisecond * 250
 )
 
@@ -141,6 +141,18 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 						}
 					},
 				},
+			},
+		}),
+		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, JobSelector: &metav1.LabelSelector{}}).
+					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+						Job(testing.MakeJobTemplate("test-job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.NonIndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
 			},
 		}),
 		ginkgo.Entry("setting suspend is allowed", &testCase{
@@ -267,6 +279,97 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						}
 					},
 					checkJobSetCondition: util.JobSetActive,
+				},
+			},
+		}),
+		ginkgo.Entry("success policy 'all' with job selector", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					// All jobs with index 0 must complete for jobset to succeed.
+					SuccessPolicy(&jobset.SuccessPolicy{
+						Operator: jobset.OperatorAll,
+						JobSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								jobset.JobIndexKey: "0",
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					// Jobset has 2 replicated jobs, so there are 2 jobs with index 0.
+					// Complete only one of them here and confirm the jobset is still active.
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("completing 1 of 2 jobs with job index 0")
+						for i := 0; i < len(jobList.Items); i++ {
+							if jobList.Items[i].Labels[jobset.JobIndexKey] == "0" {
+								completeJob(&jobList.Items[i])
+								break
+							}
+						}
+					},
+					checkJobSetCondition: util.JobSetActive,
+				},
+				{
+					// Now ensure both jobs with job index 0 are completed, and ensure
+					// the jobset is marked as succeeded.
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("completing 2 of 2 jobs with job index 0")
+						for i := 0; i < len(jobList.Items); i++ {
+							if jobList.Items[i].Labels[jobset.JobIndexKey] == "0" {
+								completeJob(&jobList.Items[i])
+							}
+						}
+					},
+					checkJobSetCondition: util.JobSetCompleted,
+				},
+			},
+		}),
+		ginkgo.Entry("success policy 'any' with job selector", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					// Any jobs with index 0 must complete for jobset to succeed.
+					SuccessPolicy(&jobset.SuccessPolicy{
+						Operator: jobset.OperatorAny,
+						JobSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								jobset.JobIndexKey: "0",
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					// Jobset has 2 replicated jobs, so there are 2 jobs with index 0.
+					// Complete only one of them here and confirm the jobset succeeds.
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("completing 1 of 2 jobs with job index 0")
+						for i := 0; i < len(jobList.Items); i++ {
+							if jobList.Items[i].Labels[jobset.JobIndexKey] == "0" {
+								completeJob(&jobList.Items[i])
+								break
+							}
+						}
+					},
+					checkJobSetCondition: util.JobSetCompleted,
+				},
+			},
+		}),
+		ginkgo.Entry("success policy 'any' without job selector", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					SuccessPolicy(&jobset.SuccessPolicy{
+						Operator:    jobset.OperatorAny,
+						JobSelector: &metav1.LabelSelector{},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("completing a job")
+						completeJob(&jobList.Items[1])
+					},
+					checkJobSetCondition: util.JobSetCompleted,
 				},
 			},
 		}),
@@ -550,6 +653,7 @@ func checkExpectedServices(js *jobset.JobSet) {
 // - one with 3 replicas and DNS hostnames enabled
 func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet("test-js", ns.Name).
+		SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, JobSelector: &metav1.LabelSelector{}}).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).

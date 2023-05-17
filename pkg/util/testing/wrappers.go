@@ -53,6 +53,12 @@ func MakeJobSet(name, ns string) *JobSetWrapper {
 	}
 }
 
+// SuccessPolicy sets the value of jobSet.spec.successPolicy
+func (j *JobSetWrapper) SuccessPolicy(policy *jobset.SuccessPolicy) *JobSetWrapper {
+	j.Spec.SuccessPolicy = policy
+	return j
+}
+
 // FailurePolicy sets the value of jobSet.spec.failurePolicy
 func (j *JobSetWrapper) FailurePolicy(policy *jobset.FailurePolicy) *JobSetWrapper {
 	j.Spec.FailurePolicy = policy

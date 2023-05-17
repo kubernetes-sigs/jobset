@@ -47,6 +47,13 @@ type JobSetSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
 
+	// SuccessPolicy, if set, configures when to declare the JobSet as
+	// succeeded.
+	// The JobSet is always declared succeeded if all jobs in the set
+	// finished with status complete.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	SuccessPolicy *SuccessPolicy `json:"successPolicy,omitempty"`
+
 	// FailurePolicy, if set, configures when to declare the JobSet as
 	// failed.
 	// The JobSet is always declared failed if all jobs in the set
@@ -110,10 +117,28 @@ type Network struct {
 	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
 }
 
+// Operator defines the target of a SuccessPolicy or FailurePolicy.
+type Operator string
+
+// OperatorAll applies to all jobs in the JobSet.
+const OperatorAll Operator = "All"
+
+// OperatorAny applies to any job in the Jobset.
+const OperatorAny Operator = "Any"
+
 type FailurePolicy struct {
 	// MaxRestarts defines the limit on the number of JobSet restarts.
 	// A restart is achieved by recreating all active child jobs.
 	MaxRestarts int `json:"maxRestarts,omitempty"`
+}
+
+type SuccessPolicy struct {
+	// Operator determines either All or Any of the selected jobs should succeed to consider the JobSet successful
+	Operator Operator `json:"operator,omitempty"`
+
+	// JobSelector selects the jobs that the policy will apply to. The selector only applies to the jobs created by the JobSet.
+	// An empty selector will match all jobs.
+	JobSelector *metav1.LabelSelector `json:"job_selector,omitempty"`
 }
 
 func init() {

@@ -23,6 +23,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -61,6 +62,9 @@ type childJobs struct {
 
 	// Jobs marked for deletion are mutually exclusive with the set of jobs in active, successful, and failed.
 	delete []*batchv1.Job
+
+	// Total number of jobs matching the success policy's job selector.
+	matchingSuccessSelector int
 }
 
 func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *JobSetReconciler {
@@ -118,16 +122,12 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// If all jobs have succeeded, JobSet has succeeded.
 	// TODO(#120): ensure that the successful jobs counted are actually the ones that we expect JobSet to have
-	if len(ownedJobs.successful) == totalJobs(&js) {
-		if err := r.ensureCondition(ctx, &js, corev1.EventTypeNormal, metav1.Condition{
-			Type:    string(jobset.JobSetCompleted),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  "AllJobsCompleted",
-			Message: "jobset completed successfully",
-		}); err != nil {
-			log.Error(err, "updating jobset status")
+	if len(ownedJobs.successful) > 0 {
+		if err := r.executeSuccessPolicy(ctx, &js, ownedJobs); err != nil {
+			log.Error(err, "executing success policy")
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{}, nil
 	}
 
 	// If job has not failed or succeeded, continue creating any
@@ -183,14 +183,29 @@ func SetupIndexes(ctx context.Context, indexer client.FieldIndexer) error {
 func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) (*childJobs, error) {
 	log := ctrl.LoggerFrom(ctx)
 
+	// Set up the success policy's job selector.
+	labelMap, err := metav1.LabelSelectorAsMap(js.Spec.SuccessPolicy.JobSelector)
+	if err != nil {
+		return nil, err
+	}
+	jobSelector := labels.Set(labelMap).AsSelector()
+
 	// Get all active jobs owned by JobSet.
 	var childJobList batchv1.JobList
 	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{jobOwnerKey: js.Name}); err != nil {
 		return nil, err
 	}
+
 	// Categorize each job into a bucket: active, successful, failed, or delete.
 	ownedJobs := childJobs{}
 	for i, job := range childJobList.Items {
+
+		// Check if this job matches the success policy's job selector.
+		matchingSuccessSelector := jobSelector.Matches(labels.Set(job.Labels))
+		if matchingSuccessSelector {
+			ownedJobs.matchingSuccessSelector += 1
+		}
+
 		// Jobs with jobset.sigs.k8s.io/restart-attempt < jobset.status.restarts are marked for
 		// deletion, as they were part of the previous JobSet run.
 		jobRestarts, err := strconv.Atoi(job.Labels[RestartsKey])
@@ -213,7 +228,10 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		case batchv1.JobFailed:
 			ownedJobs.failed = append(ownedJobs.failed, &childJobList.Items[i])
 		case batchv1.JobComplete:
-			ownedJobs.successful = append(ownedJobs.successful, &childJobList.Items[i])
+			// Only add completed jobs which match the success policy's jobSelector.
+			if matchingSuccessSelector {
+				ownedJobs.successful = append(ownedJobs.successful, &childJobList.Items[i])
+			}
 		}
 	}
 	return &ownedJobs, nil
@@ -328,13 +346,55 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 	return nil
 }
 
+func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	switch js.Spec.SuccessPolicy.Operator {
+	case jobset.OperatorAll:
+		return r.successPolicyAll(ctx, js, ownedJobs)
+	case jobset.OperatorAny:
+		return r.successPolicyAny(ctx, js, ownedJobs)
+	default:
+		return fmt.Errorf("invalid operator %s", js.Spec.SuccessPolicy.Operator)
+	}
+}
+
+func (r *JobSetReconciler) successPolicyAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	log := ctrl.LoggerFrom(ctx)
+	if len(ownedJobs.successful) == ownedJobs.matchingSuccessSelector {
+		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
+			Type:    string(jobset.JobSetCompleted),
+			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Reason:  "AllJobsCompleted",
+			Message: "jobset completed successfully",
+		}); err != nil {
+			log.Error(err, "updating jobset status")
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *JobSetReconciler) successPolicyAny(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	log := ctrl.LoggerFrom(ctx)
+	if len(ownedJobs.successful) > 0 {
+		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
+			Type:    string(jobset.JobSetCompleted),
+			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Reason:  "AnyJobCompleted",
+			Message: "jobset completed successfully",
+		}); err != nil {
+			log.Error(err, "updating jobset status")
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	// If no failure policy is defined, the default failure policy is to mark the JobSet
 	// as failed if any of its jobs have failed.
 	if js.Spec.FailurePolicy == nil {
 		return r.failJobSet(ctx, js)
 	}
-
 	// To reach this point a job must have failed.
 	return r.executeRestartPolicy(ctx, js, ownedJobs)
 }
@@ -591,14 +651,6 @@ func jobSetFinished(js *jobset.JobSet) bool {
 
 func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {
 	return rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames
-}
-
-func totalJobs(js *jobset.JobSet) int {
-	totalJobs := 0
-	for _, rjob := range js.Spec.ReplicatedJobs {
-		totalJobs += rjob.Replicas
-	}
-	return totalJobs
 }
 
 func concat[T any](slices ...[]T) []T {

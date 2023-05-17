@@ -6,6 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
 
@@ -23,6 +24,10 @@ var TestPodTemplate = corev1.PodTemplateSpec{
 }
 
 func TestJobSetDefaulting(t *testing.T) {
+	defaultSuccessPolicy := &SuccessPolicy{
+		Operator:    OperatorAll,
+		JobSelector: &metav1.LabelSelector{},
+	}
 	testCases := []struct {
 		name string
 		js   *JobSet
@@ -32,6 +37,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "job completion mode is unset",
 			js: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -46,6 +52,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -64,6 +71,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "job completion mode is set to non-indexed",
 			js: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -79,6 +87,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -97,6 +106,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "enableDNSHostnames is unset",
 			js: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -111,6 +121,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -129,6 +140,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "enableDNSHostnames is false",
 			js: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -144,6 +156,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -162,6 +175,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "pod restart policy unset",
 			js: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -179,6 +193,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -201,6 +216,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "pod restart policy set",
 			js: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -220,6 +236,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &JobSet{
 				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -229,6 +246,39 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "success policy is unset",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: TestPodTemplate,
+								},
+							},
+							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+						},
+					},
+				},
+			},
+			want: &JobSet{
+				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
