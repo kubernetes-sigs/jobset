@@ -12,10 +12,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package util
+package collections
 
 func Concat[T any](slices ...[]T) []T {
-	var result []T
+	var result = make([]T, 0)
 	for _, slice := range slices {
 		result = append(result, slice...)
 	}

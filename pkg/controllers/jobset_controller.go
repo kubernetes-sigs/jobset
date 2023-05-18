@@ -33,7 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
-	"sigs.k8s.io/jobset/pkg/util/util"
+	util "sigs.k8s.io/jobset/pkg/util/collections"
 )
 
 const (
@@ -326,39 +326,12 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 }
 
 func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	switch js.Spec.SuccessPolicy.Operator {
-	case jobset.OperatorAll:
-		return r.successPolicyAll(ctx, js, ownedJobs)
-	case jobset.OperatorAny:
-		return r.successPolicyAny(ctx, js, ownedJobs)
-	default:
-		return nil
-	}
-}
-
-func (r *JobSetReconciler) successPolicyAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
-	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) == numJobsExpectedToSucceed(js) {
+	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
 		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "AllJobsCompleted",
-			Message: "jobset completed successfully",
-		}); err != nil {
-			log.Error(err, "updating jobset status")
-			return err
-		}
-	}
-	return nil
-}
-
-func (r *JobSetReconciler) successPolicyAny(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	log := ctrl.LoggerFrom(ctx)
-	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) > 0 {
-		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
-			Type:    string(jobset.JobSetCompleted),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  "AnyJobCompleted",
 			Message: "jobset completed successfully",
 		}); err != nil {
 			log.Error(err, "updating jobset status")
@@ -633,11 +606,11 @@ func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {
 }
 
 func jobMatchesSuccessPolicy(js *jobset.JobSet, job *batchv1.Job) bool {
-	return len(js.Spec.SuccessPolicy.ReplicatedJobNames) == 0 || util.Contains(js.Spec.SuccessPolicy.ReplicatedJobNames, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
+	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || util.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
 }
 
 func replicatedJobMatchesSuccessPolicy(js *jobset.JobSet, rjob *jobset.ReplicatedJob) bool {
-	return len(js.Spec.SuccessPolicy.ReplicatedJobNames) == 0 || util.Contains(js.Spec.SuccessPolicy.ReplicatedJobNames, rjob.Name)
+	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || util.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, rjob.Name)
 }
 
 func numJobsMatchingSuccessPolicy(js *jobset.JobSet, jobs []*batchv1.Job) int {

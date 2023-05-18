@@ -167,7 +167,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			defaultsApplied: func(js *jobset.JobSet) bool {
 				operatorDefaulted := js.Spec.SuccessPolicy != nil && js.Spec.SuccessPolicy.Operator == jobset.OperatorAll
-				selectorDefaulted := len(js.Spec.SuccessPolicy.ReplicatedJobNames) == 0
+				selectorDefaulted := len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0
 				return operatorDefaulted && selectorDefaulted
 			},
 		}),
@@ -175,8 +175,8 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("success-policy", ns.Name).
 					SuccessPolicy(&jobset.SuccessPolicy{
-						Operator:           jobset.OperatorAll,
-						ReplicatedJobNames: []string{"does-not-exist"},
+						Operator:             jobset.OperatorAll,
+						TargetReplicatedJobs: []string{"does-not-exist"},
 					}).
 					ReplicatedJob(testing.MakeReplicatedJob("rjob").
 						Job(testing.MakeJobTemplate("job", ns.Name).

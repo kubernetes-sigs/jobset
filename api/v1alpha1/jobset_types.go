@@ -139,9 +139,9 @@ type SuccessPolicy struct {
 	// +kubebuilder:validation:Enum=All;Any
 	Operator Operator `json:"operator"`
 
-	// ReplicatedJobNames are the names of the replicated jobs the operator will apply to.
-	// An empty list will apply to all replicatedJobs.
-	ReplicatedJobNames []string `json:"replicatedJobNames,omitempty"`
+	// TargetReplicatedJobs are the names of the replicated jobs the operator will apply to.
+	// A null or empty list will apply to all replicatedJobs.
+	TargetReplicatedJobs []string `json:"replicatedJobNames,omitempty"`
 }
 
 func init() {

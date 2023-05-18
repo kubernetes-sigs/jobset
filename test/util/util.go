@@ -137,3 +137,13 @@ func DeleteNamespace(ctx context.Context, c client.Client, ns *corev1.Namespace)
 	}
 	return nil
 }
+
+func JobsFromReplicatedJob(jobList *batchv1.JobList, rjob string) []*batchv1.Job {
+	matching := make([]*batchv1.Job, 0)
+	for i := 0; i < len(jobList.Items); i++ {
+		if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == rjob {
+			matching = append(matching, &jobList.Items[i])
+		}
+	}
+	return matching
+}

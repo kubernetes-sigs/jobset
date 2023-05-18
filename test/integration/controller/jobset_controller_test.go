@@ -33,7 +33,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/util/testing"
-	"sigs.k8s.io/jobset/test/util"
+	testutil "sigs.k8s.io/jobset/test/util"
 )
 
 const (
@@ -65,7 +65,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		gomega.Expect(util.DeleteNamespace(ctx, k8sClient, ns)).Should(gomega.Succeed())
+		gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).Should(gomega.Succeed())
 	})
 
 	// jobSetUpdate contains the mutations to perform on the jobset and the
@@ -195,7 +195,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		gomega.Expect(util.DeleteNamespace(ctx, k8sClient, ns)).Should(gomega.Succeed())
+		gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).Should(gomega.Succeed())
 	})
 
 	// update contains the mutations to perform on the jobs/jobset and the
@@ -230,7 +230,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
 
 			ginkgo.By("checking all jobs were created successfully")
-			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
+			gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
 
 			// Perform a series of updates to jobset resources and check resulting jobset state after each update.
 			for _, up := range tc.updates {
@@ -244,7 +244,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
 					var jobList batchv1.JobList
 					gomega.Eventually(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)), timeout, interval).Should(gomega.Succeed())
-					gomega.Expect(len(jobList.Items)).To(gomega.Equal(util.NumExpectedJobs(js)))
+					gomega.Expect(len(jobList.Items)).To(gomega.Equal(testutil.NumExpectedJobs(js)))
 					up.jobUpdateFn(&jobList)
 				}
 
@@ -264,7 +264,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			updates: []*update{
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: util.JobSetCompleted,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -278,7 +278,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 							completeJob(&jobList.Items[i])
 						}
 					},
-					checkJobSetCondition: util.JobSetActive,
+					checkJobSetCondition: testutil.JobSetActive,
 				},
 			},
 		}),
@@ -286,8 +286,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					SuccessPolicy(&jobset.SuccessPolicy{
-						Operator:           jobset.OperatorAll,
-						ReplicatedJobNames: []string{"replicated-job-a"},
+						Operator:             jobset.OperatorAll,
+						TargetReplicatedJobs: []string{"replicated-job-a"},
 					})
 			},
 			updates: []*update{
@@ -295,26 +295,22 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// Complete all the jobs in one replicated job, then ensure the JobSet is still active.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						ginkgo.By("completing all jobs from replicated-job-a")
-						for i := 0; i < len(jobList.Items); i++ {
-							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-a" {
-								completeJob(&jobList.Items[i])
-							}
+						for _, job := range testutil.JobsFromReplicatedJob(jobList, "replicated-job-a") {
+							completeJob(job)
 						}
 					},
-					checkJobSetCondition: util.JobSetActive,
+					checkJobSetCondition: testutil.JobSetActive,
 				},
 				{
-					// Now complete the job in the replicated job selected by the success policy
+					// Now complete the job in the other replicated job selected by the success policy
 					// and ensure the jobset completes.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						ginkgo.By("completing all jobs from replicated-job-b")
-						for i := 0; i < len(jobList.Items); i++ {
-							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-b" {
-								completeJob(&jobList.Items[i])
-							}
+						for _, job := range testutil.JobsFromReplicatedJob(jobList, "replicated-job-b") {
+							completeJob(job)
 						}
 					},
-					checkJobSetCondition: util.JobSetCompleted,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -322,8 +318,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					SuccessPolicy(&jobset.SuccessPolicy{
-						Operator:           jobset.OperatorAll,
-						ReplicatedJobNames: []string{"replicated-job-a"},
+						Operator:             jobset.OperatorAll,
+						TargetReplicatedJobs: []string{"replicated-job-b"},
 					})
 			},
 			updates: []*update{
@@ -332,27 +328,32 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// Complete all the jobs in the other replicated job and ensure the jobset is still active.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						ginkgo.By("completing all jobs from different replicated job")
-						for i := 0; i < len(jobList.Items); i++ {
-							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-b" {
-								completeJob(&jobList.Items[i])
-								break
-							}
+						for _, job := range testutil.JobsFromReplicatedJob(jobList, "replicated-job-a") {
+							completeJob(job)
 						}
 					},
-					checkJobSetCondition: util.JobSetActive,
+					checkJobSetCondition: testutil.JobSetActive,
 				},
 				{
-					// Now complete the job in the replicated job selected by the success policy
+					// Complete 1 job from the target replicated job and ensure the jobset is still active.
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("completing 1st job in replicated job selected by success policy")
+						jobs := testutil.JobsFromReplicatedJob(jobList, "replicated-job-b")
+						completeJob(jobs[0])
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					// Now complete the remaining jobs in the replicated job selected by the success policy
 					// and ensure the jobset completes.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
-						ginkgo.By("completing all jobs in replicated job selected by success policy")
-						for i := 0; i < len(jobList.Items); i++ {
-							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-a" {
-								completeJob(&jobList.Items[i])
-							}
+						ginkgo.By("completing remaining jobs in replicated job selected by success policy")
+						jobs := testutil.JobsFromReplicatedJob(jobList, "replicated-job-b")
+						for i := 1; i < len(jobs); i++ {
+							completeJob(jobs[i])
 						}
 					},
-					checkJobSetCondition: util.JobSetCompleted,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -361,22 +362,20 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				return testJobSet(ns).
 					// If any of the 3 jobs in replicated-job-b succeeds, the jobset is marked completed.
 					SuccessPolicy(&jobset.SuccessPolicy{
-						Operator:           jobset.OperatorAny,
-						ReplicatedJobNames: []string{"replicated-job-b"},
+						Operator:             jobset.OperatorAny,
+						TargetReplicatedJobs: []string{"replicated-job-b"},
 					})
 			},
 			updates: []*update{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						ginkgo.By("completing 1 of 3 jobs in replicated-job-b")
-						for i := 0; i < len(jobList.Items); i++ {
-							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-b" {
-								completeJob(&jobList.Items[i])
-								break
-							}
+						for _, job := range testutil.JobsFromReplicatedJob(jobList, "replicated-job-b") {
+							completeJob(job)
+							break
 						}
 					},
-					checkJobSetCondition: util.JobSetCompleted,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -384,8 +383,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					SuccessPolicy(&jobset.SuccessPolicy{
-						Operator:           jobset.OperatorAny,
-						ReplicatedJobNames: []string{}, // applies to all replicatedJobs
+						Operator:             jobset.OperatorAny,
+						TargetReplicatedJobs: []string{}, // applies to all replicatedJobs
 					})
 			},
 			updates: []*update{
@@ -394,7 +393,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("completing a job")
 						completeJob(&jobList.Items[1])
 					},
-					checkJobSetCondition: util.JobSetCompleted,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -405,7 +404,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
 					},
-					checkJobSetCondition: util.JobSetFailed,
+					checkJobSetCondition: testutil.JobSetFailed,
 				},
 			},
 		}),
@@ -417,7 +416,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: util.JobSetCompleted,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -429,7 +428,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: util.JobSetCompleted,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -443,7 +442,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
 					},
-					checkJobSetCondition: util.JobSetFailed,
+					checkJobSetCondition: testutil.JobSetFailed,
 				},
 			},
 		}),
@@ -468,7 +467,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[1])
 					},
-					checkJobSetCondition: util.JobSetFailed,
+					checkJobSetCondition: testutil.JobSetFailed,
 				},
 			},
 		}),
@@ -492,7 +491,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: util.JobSetCompleted,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -507,7 +506,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are suspended")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
 					},
-					checkJobSetCondition: util.JobSetSuspended,
+					checkJobSetCondition: testutil.JobSetSuspended,
 				},
 			},
 		}),
@@ -521,7 +520,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are suspended")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
 					},
-					checkJobSetCondition: util.JobSetSuspended,
+					checkJobSetCondition: testutil.JobSetSuspended,
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
@@ -531,11 +530,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are resumed")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
 					},
-					checkJobSetCondition: util.JobSetResumed,
+					checkJobSetCondition: testutil.JobSetResumed,
 				},
 				{
 					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: util.JobSetCompleted,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -558,7 +557,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are suspended")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
 					},
-					checkJobSetCondition: util.JobSetSuspended,
+					checkJobSetCondition: testutil.JobSetSuspended,
 				},
 			},
 		}),
@@ -632,7 +631,7 @@ func matchJobsSuspendState(js *jobset.JobSet, suspend bool) (bool, error) {
 		return false, err
 	}
 	// Check we have the right number of jobs.
-	if len(jobList.Items) != util.NumExpectedJobs(js) {
+	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
 		return false, nil
 	}
 
@@ -650,7 +649,7 @@ func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
 		return false, err
 	}
 	// Check we have the right number of jobs.
-	if len(jobList.Items) != util.NumExpectedJobs(js) {
+	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
 		return false, nil
 	}
 	// Check all the jobs restart counter has been incremented.
@@ -678,7 +677,7 @@ func checkExpectedServices(js *jobset.JobSet) {
 // - one with 3 replicas and DNS hostnames enabled
 func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet("test-js", ns.Name).
-		SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, ReplicatedJobNames: []string{}}).
+		SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).
