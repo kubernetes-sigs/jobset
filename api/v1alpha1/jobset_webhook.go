@@ -14,10 +14,14 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"errors"
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/jobset/pkg/util/util"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -64,7 +68,15 @@ var _ webhook.Validator = &JobSet{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (js *JobSet) ValidateCreate() error {
-	return nil
+	var allErrs []error
+	// Validate that replicatedJobs listed in success policy are part of this JobSet.
+	validReplicatedJobs := replicatedJobNamesFromSpec(js)
+	for _, rjobName := range js.Spec.SuccessPolicy.ReplicatedJobNames {
+		if !util.Contains(validReplicatedJobs, rjobName) {
+			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
+		}
+	}
+	return errors.Join(allErrs...)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
@@ -79,4 +91,12 @@ func (js *JobSet) ValidateDelete() error {
 
 func completionModePtr(mode batchv1.CompletionMode) *batchv1.CompletionMode {
 	return &mode
+}
+
+func replicatedJobNamesFromSpec(js *JobSet) []string {
+	names := []string{}
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		names = append(names, rjob.Name)
+	}
+	return names
 }

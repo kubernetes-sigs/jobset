@@ -65,8 +65,9 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 	})
 
 	type testCase struct {
-		makeJobSet      func(ns *corev1.Namespace) *testing.JobSetWrapper
-		defaultsApplied func(*jobset.JobSet) bool
+		makeJobSet               func(ns *corev1.Namespace) *testing.JobSetWrapper
+		jobSetCreationShouldFail bool
+		defaultsApplied          func(*jobset.JobSet) bool
 	}
 
 	ginkgo.DescribeTable("defaulting on jobset creation",
@@ -79,6 +80,10 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
+			if tc.jobSetCreationShouldFail {
+				gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Not(gomega.Succeed()))
+				return
+			}
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
 
 			// We'll need to retry getting this newly created jobset, given that creation may not immediately happen.
@@ -165,6 +170,22 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				selectorDefaulted := len(js.Spec.SuccessPolicy.ReplicatedJobNames) == 0
 				return operatorDefaulted && selectorDefaulted
 			},
+		}),
+		ginkgo.Entry("success policy with invalid replicatedJob name is rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("success-policy", ns.Name).
+					SuccessPolicy(&jobset.SuccessPolicy{
+						Operator:           jobset.OperatorAll,
+						ReplicatedJobNames: []string{"does-not-exist"},
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
 		}),
 	) // end of DescribeTable
 }) // end of Describe

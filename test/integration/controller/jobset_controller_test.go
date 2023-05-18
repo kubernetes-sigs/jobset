@@ -282,6 +282,42 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("success policy 'all' with empty replicated jobs list", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					SuccessPolicy(&jobset.SuccessPolicy{
+						Operator:           jobset.OperatorAll,
+						ReplicatedJobNames: []string{"replicated-job-a"},
+					})
+			},
+			updates: []*update{
+				{
+					// Complete all the jobs in one replicated job, then ensure the JobSet is still active.
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("completing all jobs from replicated-job-a")
+						for i := 0; i < len(jobList.Items); i++ {
+							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-a" {
+								completeJob(&jobList.Items[i])
+							}
+						}
+					},
+					checkJobSetCondition: util.JobSetActive,
+				},
+				{
+					// Now complete the job in the replicated job selected by the success policy
+					// and ensure the jobset completes.
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("completing all jobs from replicated-job-b")
+						for i := 0; i < len(jobList.Items); i++ {
+							if jobList.Items[i].Labels[jobset.ReplicatedJobNameKey] == "replicated-job-b" {
+								completeJob(&jobList.Items[i])
+							}
+						}
+					},
+					checkJobSetCondition: util.JobSetCompleted,
+				},
+			},
+		}),
 		ginkgo.Entry("success policy 'all' with replicated jobs specified", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
