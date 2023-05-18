@@ -209,6 +209,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			verbType: "update",
 			updateJobSet: func(js *jobset.JobSet) {
 				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Hostname = "test"
+				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Subdomain = "test"
 			},
 			updateShouldFails: true,
 		}),

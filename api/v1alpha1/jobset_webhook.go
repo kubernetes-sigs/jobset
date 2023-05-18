@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
@@ -82,12 +83,17 @@ func (js *JobSet) ValidateCreate() error {
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (js *JobSet) ValidateUpdate(old runtime.Object) error {
-	oldObj := old.(*JobSet)
+	oldObjCopy := old.DeepCopyObject().(*JobSet)
 	var allErr []error
+	var updatableFields = []string{
+		"`template.spec.template.spec.nodeSelector`",
+	}
 	for index := range js.Spec.ReplicatedJobs {
-		oldObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = r.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
-		if !reflect.DeepEqual(oldObj.Spec.ReplicatedJobs, js.Spec.ReplicatedJobs) {
-			allErr = append(allErr, fmt.Errorf("the spec.ReplicatedJobs value is imutable excepting Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector"))
+		oldObjCopy.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = js.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
+		if !reflect.DeepEqual(oldObjCopy.Spec.ReplicatedJobs, js.Spec.ReplicatedJobs) {
+			allErr = append(allErr, fmt.Errorf(
+				fmt.Sprintf("%s update validation: spec.ReplicatedJobs updates may not change fields other than %s", r.Spec.ReplicatedJobs[index].Name, strings.Join(updatableFields, ", ")),
+			))
 		}
 	}
 	return errors.Join(allErr...)
