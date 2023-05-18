@@ -47,7 +47,7 @@ type JobSetSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
 
-	// SuccessPolicy, if set, configures when to declare the JobSet as
+	// SuccessPolicy configures when to declare the JobSet as
 	// succeeded.
 	// The JobSet is always declared succeeded if all jobs in the set
 	// finished with status complete.

@@ -23,7 +23,7 @@ var TestPodTemplate = corev1.PodTemplateSpec{
 }
 
 func TestJobSetDefaulting(t *testing.T) {
-	defaultSuccessPolicy := &SuccessPolicy{Operator: OperatorAll, ReplicatedJobNames: []string{}}
+	defaultSuccessPolicy := &SuccessPolicy{Operator: OperatorAll}
 	testCases := []struct {
 		name string
 		js   *JobSet
@@ -320,8 +320,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: &SuccessPolicy{
-						Operator:           OperatorAny,
-						ReplicatedJobNames: []string{},
+						Operator: OperatorAny,
 					},
 					ReplicatedJobs: []ReplicatedJob{
 						{

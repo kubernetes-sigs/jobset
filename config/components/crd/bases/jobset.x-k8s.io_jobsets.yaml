@@ -9446,9 +9446,9 @@ spec:
                 - message: Value is immutable
                   rule: self == oldSelf
               successPolicy:
-                description: SuccessPolicy, if set, configures when to declare the
-                  JobSet as succeeded. The JobSet is always declared succeeded if
-                  all jobs in the set finished with status complete.
+                description: SuccessPolicy configures when to declare the JobSet as
+                  succeeded. The JobSet is always declared succeeded if all jobs in
+                  the set finished with status complete.
                 properties:
                   operator:
                     description: Operator determines either All or Any of the selected

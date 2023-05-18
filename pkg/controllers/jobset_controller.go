@@ -209,10 +209,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		case batchv1.JobFailed:
 			ownedJobs.failed = append(ownedJobs.failed, &childJobList.Items[i])
 		case batchv1.JobComplete:
-			// Only add completed jobs which are part of a replicated job listed in the success policy.
-			if jobMatchesSuccessPolicy(js, &job) {
-				ownedJobs.successful = append(ownedJobs.successful, &childJobList.Items[i])
-			}
+			ownedJobs.successful = append(ownedJobs.successful, &childJobList.Items[i])
 		}
 	}
 	return &ownedJobs, nil
@@ -340,7 +337,7 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 
 func (r *JobSetReconciler) successPolicyAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
-	if len(ownedJobs.successful) == numJobsExpectedToSucceed(js) {
+	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) == numJobsExpectedToSucceed(js) {
 		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
@@ -356,7 +353,7 @@ func (r *JobSetReconciler) successPolicyAll(ctx context.Context, js *jobset.JobS
 
 func (r *JobSetReconciler) successPolicyAny(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
-	if len(ownedJobs.successful) > 0 {
+	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) > 0 {
 		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
@@ -635,7 +632,18 @@ func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {
 }
 
 func jobMatchesSuccessPolicy(js *jobset.JobSet, job *batchv1.Job) bool {
-	return contains(js.Spec.SuccessPolicy.ReplicatedJobNames, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
+	// An empty list of replicatedJob names in a success policy applies to all replicatedJobs.
+	return len(js.Spec.SuccessPolicy.ReplicatedJobNames) == 0 || contains(js.Spec.SuccessPolicy.ReplicatedJobNames, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
+}
+
+func numJobsMatchingSuccessPolicy(js *jobset.JobSet, jobs []*batchv1.Job) int {
+	total := 0
+	for _, job := range jobs {
+		if jobMatchesSuccessPolicy(js, job) {
+			total += 1
+		}
+	}
+	return total
 }
 
 func numJobsExpectedToSucceed(js *jobset.JobSet) int {
@@ -645,7 +653,8 @@ func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 		jobsExpectedToSucceed = 1
 	case jobset.OperatorAll:
 		for _, rjob := range js.Spec.ReplicatedJobs {
-			if contains(js.Spec.SuccessPolicy.ReplicatedJobNames, rjob.Name) {
+			// An empty list of replicatedJob names will target all replicatedJobs.
+			if len(js.Spec.SuccessPolicy.ReplicatedJobNames) == 0 || contains(js.Spec.SuccessPolicy.ReplicatedJobNames, rjob.Name) {
 				jobsExpectedToSucceed += rjob.Replicas
 			}
 		}

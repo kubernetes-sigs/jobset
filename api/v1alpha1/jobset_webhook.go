@@ -37,11 +37,7 @@ var _ webhook.Defaulter = &JobSet{}
 func (js *JobSet) Default() {
 	// Default success policy to operator "All" targeting all replicatedJobs.
 	if js.Spec.SuccessPolicy == nil {
-		js.Spec.SuccessPolicy = &SuccessPolicy{Operator: OperatorAll, ReplicatedJobNames: []string{}}
-	}
-	// If operator is set but replicated jobs is not, target all replicatedJobs.
-	if js.Spec.SuccessPolicy.ReplicatedJobNames == nil {
-		js.Spec.SuccessPolicy.ReplicatedJobNames = []string{}
+		js.Spec.SuccessPolicy = &SuccessPolicy{Operator: OperatorAll}
 	}
 	for i, _ := range js.Spec.ReplicatedJobs {
 		// Default job completion mode to indexed.

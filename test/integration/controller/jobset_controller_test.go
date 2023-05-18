@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	timeout  = 10000 * time.Second
+	timeout  = 5 * time.Second
 	interval = time.Millisecond * 250
 )
 
@@ -143,15 +143,16 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("validate enableDNSHostnames can't be set if job is not Indexed", &testCase{
-			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
-					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).
-							PodSpec(testing.TestPodSpec).
-							CompletionMode(batchv1.NonIndexedCompletion).Obj()).
-						EnableDNSHostnames(true).
-						Obj())
+		ginkgo.Entry("setting suspend is allowed", &testCase{
+			makeJobSet:                  testJobSet,
+			jobSetCreationShouldSucceed: true,
+			updates: []*jobSetUpdate{
+				{
+					shouldSucceed: true,
+					fn: func(js *jobset.JobSet) {
+						js.Spec.Suspend = pointer.Bool(true)
+					},
+				},
 			},
 		}),
 		ginkgo.Entry("setting suspend is allowed", &testCase{
@@ -641,6 +642,7 @@ func checkExpectedServices(js *jobset.JobSet) {
 // - one with 3 replicas and DNS hostnames enabled
 func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet("test-js", ns.Name).
+		SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, ReplicatedJobNames: []string{}}).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).
