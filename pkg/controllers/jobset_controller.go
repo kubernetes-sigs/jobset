@@ -119,11 +119,14 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// If any jobs have succeeded, execute the JobSet success policy.
 	if len(ownedJobs.successful) > 0 {
-		if err := r.executeSuccessPolicy(ctx, &js, ownedJobs); err != nil {
+		completed, err := r.executeSuccessPolicy(ctx, &js, ownedJobs)
+		if err != nil {
 			log.Error(err, "executing success policy")
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{}, nil
+		if completed {
+			return ctrl.Result{}, nil
+		}
 	}
 
 	// If job has not failed or succeeded, continue creating any
@@ -325,7 +328,10 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 	return nil
 }
 
-func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+// executeSuccessPolicy checks the completed jobs against the jobset success policy
+// and updates the jobset status to completed if the success policy conditions are met.
+// Returns a boolean value indicating if the jobset was completed or not.
+func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
 	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
 		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
@@ -335,10 +341,11 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 			Message: "jobset completed successfully",
 		}); err != nil {
 			log.Error(err, "updating jobset status")
-			return err
+			return false, err
 		}
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
