@@ -16,9 +16,9 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -84,15 +84,18 @@ func (js *JobSet) ValidateCreate() error {
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (js *JobSet) ValidateUpdate(old runtime.Object) error {
 	oldObjCopy := old.DeepCopyObject().(*JobSet)
+	if pointer.BoolDeref(oldObjCopy.Spec.Suspend, false) {
+		return nil
+	}
 	var allErr []error
 	var updatableFields = []string{
 		"`template.spec.template.spec.nodeSelector`",
 	}
 	for index := range js.Spec.ReplicatedJobs {
 		oldObjCopy.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = js.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
-		if !reflect.DeepEqual(oldObjCopy.Spec.ReplicatedJobs, js.Spec.ReplicatedJobs) {
+		if !apiequality.Semantic.DeepEqual(oldObjCopy.Spec.ReplicatedJobs, js.Spec.ReplicatedJobs) {
 			allErr = append(allErr, fmt.Errorf(
-				fmt.Sprintf("%s update validation: spec.ReplicatedJobs updates may not change fields other than %s", r.Spec.ReplicatedJobs[index].Name, strings.Join(updatableFields, ", ")),
+				fmt.Sprintf("%s update validation: spec.ReplicatedJobs updates may not change fields other than %s", js.Spec.ReplicatedJobs[index].Name, strings.Join(updatableFields, ", ")),
 			))
 		}
 	}

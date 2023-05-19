@@ -18,15 +18,14 @@ package controllertest
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
@@ -180,13 +179,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 	// update contains the mutations to perform on the jobs/jobset and the
 	// checks to perform afterwards.
 	type update struct {
-		jobSetUpdateFn            func(*jobset.JobSet)
-		jobUpdateFn               func(*batchv1.JobList)
-		jobSetUpdateNodeSelectors func(set *jobset.JobSet)
-		checkJobSetState          func(*jobset.JobSet)
-		checkJobState             func(*jobset.JobSet)
-		checkJobNodeSelectors     func(*jobset.JobSet)
-		checkJobSetCondition      func(context.Context, client.Client, *jobset.JobSet, time.Duration)
+		jobSetUpdateFn       func(*jobset.JobSet)
+		jobUpdateFn          func(*batchv1.JobList)
+		checkJobSetState     func(*jobset.JobSet)
+		checkJobState        func(*jobset.JobSet)
+		checkJobSetCondition func(context.Context, client.Client, *jobset.JobSet, time.Duration)
 	}
 
 	type testCase struct {
@@ -224,10 +221,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				var jobSet jobset.JobSet
 				gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobSet), timeout, interval).Should(gomega.Succeed())
 
-				if up.jobSetUpdateNodeSelectors != nil {
-					up.jobSetUpdateNodeSelectors(&jobSet)
-				}
-
 				if up.jobSetUpdateFn != nil {
 					up.jobSetUpdateFn(&jobSet)
 				} else if up.jobUpdateFn != nil {
@@ -241,11 +234,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				// Check jobset state if specified.
 				if up.checkJobSetState != nil {
 					up.checkJobSetState(&jobSet)
-				}
-
-				// Check jobset node selectors if updated
-				if up.checkJobNodeSelectors != nil {
-					up.checkJobNodeSelectors(&jobSet)
 				}
 
 				// Check jobset status if specified.
@@ -518,6 +506,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: testutil.JobSetSuspended,
 				},
 				{
+					jobSetUpdateFn: func(set *jobset.JobSet) {
+						updateJobSetNodeSelectors(set, nodeSelectors)
+					},
+				},
+				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						suspendJobSet(js, false)
 					},
@@ -525,12 +518,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are resumed")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
 					},
-					checkJobNodeSelectors: func(js *jobset.JobSet) {
-						gomega.Eventually(matchJobsNodeSelectors, timeout, interval).WithArguments(js, nodeSelectors).Should(gomega.Equal(true))
-					},
 					checkJobSetCondition: testutil.JobSetResumed,
 				},
 				{
+					checkJobState: func(js *jobset.JobSet) {
+						gomega.Eventually(matchJobsNodeSelectors, timeout, interval).WithArguments(js, nodeSelectors).Should(gomega.Equal(true))
+					},
 					jobUpdateFn:          completeAllJobs,
 					checkJobSetCondition: testutil.JobSetCompleted,
 				},
@@ -656,20 +649,27 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
 		return false, err
 	}
+	// Count number of changed jobs
 	jobsChanged := 0
-	// Check if all jobs with name prefix js.Name+replicatedJobName have updated node selectors.
 	for _, job := range jobList.Items {
-		for index, nodeSelector := range nodeSelectors {
-			if strings.HasPrefix(job.Name, index) {
-				if reflect.DeepEqual(job.Spec.Template.Spec.NodeSelector, nodeSelector) {
-					jobsChanged++
-					continue
-				}
-				return false, nil
-			}
+		nodeSelectorKey, ok := job.Labels[jobset.ReplicatedJobNameKey]
+		if !ok {
+			return false, fmt.Errorf(fmt.Sprintf("%s job missing ReplicatedJobName label", job.Name))
+		}
+		if apiequality.Semantic.DeepEqual(job.Spec.Template.Spec.NodeSelector, nodeSelectors[nodeSelectorKey]) {
+			jobsChanged++
+			continue
+		}
+		return false, nil
+	}
+	// Calculate expected number of changed jobs
+	wantJobsChanged := 0
+	for _, rj := range js.Spec.ReplicatedJobs {
+		if _, exists := nodeSelectors[rj.Name]; exists {
+			wantJobsChanged += rj.Replicas
 		}
 	}
-	return len(nodeSelectors) <= jobsChanged, nil
+	return wantJobsChanged == jobsChanged, nil
 }
 
 func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
