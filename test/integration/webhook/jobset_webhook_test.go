@@ -65,8 +65,9 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 	})
 
 	type testCase struct {
-		makeJobSet      func(ns *corev1.Namespace) *testing.JobSetWrapper
-		defaultsApplied func(*jobset.JobSet) bool
+		makeJobSet               func(ns *corev1.Namespace) *testing.JobSetWrapper
+		jobSetCreationShouldFail bool
+		defaultsApplied          func(*jobset.JobSet) bool
 	}
 
 	ginkgo.DescribeTable("defaulting on jobset creation",
@@ -79,6 +80,10 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
+			if tc.jobSetCreationShouldFail {
+				gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Not(gomega.Succeed()))
+				return
+			}
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
 
 			// We'll need to retry getting this newly created jobset, given that creation may not immediately happen.
@@ -91,8 +96,8 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		ginkgo.Entry("job.spec.completionMode defaults to indexed if unset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("completionmode-unset", ns.Name).
-					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
 							PodSpec(testing.TestPodSpec).Obj()).
 						EnableDNSHostnames(true).
 						Obj())
@@ -105,9 +110,9 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		ginkgo.Entry("job.spec.completionMode unchanged if already set", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("completionmode-nonindexed", ns.Name).
-					ReplicatedJob(testing.MakeReplicatedJob("test-job").
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
 						EnableDNSHostnames(false).
-						Job(testing.MakeJobTemplate("test-job", ns.Name).
+						Job(testing.MakeJobTemplate("job", ns.Name).
 							CompletionMode(batchv1.NonIndexedCompletion).
 							PodSpec(testing.TestPodSpec).Obj()).
 						Obj())
@@ -120,8 +125,8 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		ginkgo.Entry("enableDNSHostnames defaults to true if unset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("enablednshostnames-unset", ns.Name).
-					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
 							CompletionMode(batchv1.IndexedCompletion).
 							PodSpec(testing.TestPodSpec).Obj()).
 						Obj())
@@ -133,8 +138,8 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		ginkgo.Entry("pod restart policy defaults to OnFailure if unset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("enablednshostnames-unset", ns.Name).
-					ReplicatedJob(testing.MakeReplicatedJob("test-job").
-						Job(testing.MakeJobTemplate("test-job", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
 							CompletionMode(batchv1.IndexedCompletion).
 							PodSpec(corev1.PodSpec{
 								Containers: []corev1.Container{
@@ -149,6 +154,38 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			defaultsApplied: func(js *jobset.JobSet) bool {
 				return js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.RestartPolicy == corev1.RestartPolicyOnFailure
 			},
+		}),
+		ginkgo.Entry("success policy defaults to all", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("success-policy", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				operatorDefaulted := js.Spec.SuccessPolicy != nil && js.Spec.SuccessPolicy.Operator == jobset.OperatorAll
+				selectorDefaulted := len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0
+				return operatorDefaulted && selectorDefaulted
+			},
+		}),
+		ginkgo.Entry("success policy with invalid replicatedJob name is rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("success-policy", ns.Name).
+					SuccessPolicy(&jobset.SuccessPolicy{
+						Operator:             jobset.OperatorAll,
+						TargetReplicatedJobs: []string{"does-not-exist"},
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
 		}),
 	) // end of DescribeTable
 }) // end of Describe

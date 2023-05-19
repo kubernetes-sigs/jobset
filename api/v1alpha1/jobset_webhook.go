@@ -14,18 +14,22 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"errors"
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	util "sigs.k8s.io/jobset/pkg/util/collections"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
-func (r *JobSet) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (js *JobSet) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
+		For(js).
 		Complete()
 }
 
@@ -34,25 +38,28 @@ func (r *JobSet) SetupWebhookWithManager(mgr ctrl.Manager) error {
 var _ webhook.Defaulter = &JobSet{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *JobSet) Default() {
-	for i, _ := range r.Spec.ReplicatedJobs {
+func (js *JobSet) Default() {
+	// Default success policy to operator "All" targeting all replicatedJobs.
+	if js.Spec.SuccessPolicy == nil {
+		js.Spec.SuccessPolicy = &SuccessPolicy{Operator: OperatorAll}
+	}
+	for i, _ := range js.Spec.ReplicatedJobs {
 		// Default job completion mode to indexed.
-		if r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
-			r.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
+		if js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
+			js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
 		}
 		// Enable DNS hostnames by default.
-		if r.Spec.ReplicatedJobs[i].Network == nil {
-			r.Spec.ReplicatedJobs[i].Network = &Network{}
+		if js.Spec.ReplicatedJobs[i].Network == nil {
+			js.Spec.ReplicatedJobs[i].Network = &Network{}
 		}
-		if r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil {
-			r.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames = pointer.Bool(true)
+		if js.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil {
+			js.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames = pointer.Bool(true)
 		}
 		// Default pod restart policy to OnFailure.
-		if r.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
-			r.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
+		if js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
+			js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 		}
 	}
-
 }
 
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha1-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha1,name=vjobset.kb.io,admissionReviewVersions=v1
@@ -60,20 +67,36 @@ func (r *JobSet) Default() {
 var _ webhook.Validator = &JobSet{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *JobSet) ValidateCreate() error {
-	return nil
+func (js *JobSet) ValidateCreate() error {
+	var allErrs []error
+	// Validate that replicatedJobs listed in success policy are part of this JobSet.
+	validReplicatedJobs := replicatedJobNamesFromSpec(js)
+	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
+		if !util.Contains(validReplicatedJobs, rjobName) {
+			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
+		}
+	}
+	return errors.Join(allErrs...)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *JobSet) ValidateUpdate(old runtime.Object) error {
+func (js *JobSet) ValidateUpdate(old runtime.Object) error {
 	return nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *JobSet) ValidateDelete() error {
+func (js *JobSet) ValidateDelete() error {
 	return nil
 }
 
 func completionModePtr(mode batchv1.CompletionMode) *batchv1.CompletionMode {
 	return &mode
+}
+
+func replicatedJobNamesFromSpec(js *JobSet) []string {
+	names := []string{}
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		names = append(names, rjob.Name)
+	}
+	return names
 }

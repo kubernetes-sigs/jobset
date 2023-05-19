@@ -9445,6 +9445,31 @@ spec:
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
+              successPolicy:
+                description: SuccessPolicy configures when to declare the JobSet as
+                  succeeded. The JobSet is always declared succeeded if all jobs in
+                  the set finished with status complete.
+                properties:
+                  operator:
+                    description: Operator determines either All or Any of the selected
+                      jobs should succeed to consider the JobSet successful
+                    enum:
+                    - All
+                    - Any
+                    type: string
+                  replicatedJobNames:
+                    description: TargetReplicatedJobs are the names of the replicated
+                      jobs the operator will apply to. A null or empty list will apply
+                      to all replicatedJobs.
+                    items:
+                      type: string
+                    type: array
+                required:
+                - operator
+                type: object
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               suspend:
                 description: Suspend suspends all running child Jobs when set to true.
                 type: boolean
