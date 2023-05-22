@@ -18,8 +18,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/go-cmp/cmp"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -83,23 +85,22 @@ func (js *JobSet) ValidateCreate() error {
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (js *JobSet) ValidateUpdate(old runtime.Object) error {
-	oldObjCopy := old.DeepCopyObject().(*JobSet)
-	if pointer.BoolDeref(oldObjCopy.Spec.Suspend, false) {
-		return nil
-	}
-	var allErr []error
+	mungedSpec := js.Spec.DeepCopy()
+	oldSpec := old.(*JobSet).Spec
 	var updatableFields = []string{
-		"`template.spec.template.spec.nodeSelector`",
+		"`template.spec.template.spec.nodeSelector` when jobset is suspended",
 	}
-	for index := range js.Spec.ReplicatedJobs {
-		oldObjCopy.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = js.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
-		if !apiequality.Semantic.DeepEqual(oldObjCopy.Spec.ReplicatedJobs, js.Spec.ReplicatedJobs) {
-			allErr = append(allErr, fmt.Errorf(
-				fmt.Sprintf("%s update validation: spec.ReplicatedJobs updates may not change fields other than %s", js.Spec.ReplicatedJobs[index].Name, strings.Join(updatableFields, ", ")),
-			))
+	if pointer.BoolDeref(oldSpec.Suspend, false) {
+		for index := range js.Spec.ReplicatedJobs {
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
 		}
 	}
-	return errors.Join(allErr...)
+
+	if !apiequality.Semantic.DeepEqual(oldSpec, mungedSpec) {
+		specDiff := cmp.Diff(oldSpec, mungedSpec)
+		return field.Forbidden(field.NewPath("spec"), fmt.Sprintf("jobset updates may not change fields other than %s\n%v", strings.Join(updatableFields, ","), specDiff))
+	}
+	return nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
