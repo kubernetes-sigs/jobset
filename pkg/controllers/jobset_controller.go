@@ -22,6 +22,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -149,6 +150,8 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 	}
+	// Calculate PodsReady and update statuses for each ReplicatedJob
+	r.calculateAndUpdateReplicatedJobsStatuses(ctx, &js, ownedJobs)
 
 	return ctrl.Result{}, nil
 }
@@ -217,6 +220,63 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		}
 	}
 	return &ownedJobs, nil
+}
+
+func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) {
+	log := ctrl.LoggerFrom(ctx)
+
+	// Prepare replicatedJobsReady for optimal iteration
+	replicatedJobsReady := map[string]int32{}
+	for _, replicatedJob := range js.Spec.ReplicatedJobs {
+		replicatedJobsReady[replicatedJob.Name] = 0
+	}
+
+	// Calculate ReadyPods for each Replicated Job
+	for _, job := range append(jobs.active, append(jobs.successful, jobs.failed...)...) {
+		ready := pointer.Int32Deref(job.Status.Ready, 0)
+		// parallelism is always set as it is otherwise defaulted by k8s to 1
+		podsCount := *(job.Spec.Parallelism)
+		if job.Spec.Completions != nil && *job.Spec.Completions < podsCount {
+			podsCount = *job.Spec.Completions
+		}
+		if job.Status.Succeeded+ready >= podsCount {
+			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
+				replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]++
+			} else {
+				log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label", job.Name))
+			}
+		}
+	}
+
+	status := js.Status.DeepCopy().ReplicatedJobsStatus
+	// Update current ReplicatedJobsStatuses
+	for index := range status {
+		val, ok := replicatedJobsReady[status[index].Name]
+		if !ok {
+			log.Info(fmt.Sprintf("the %s replicated job is not anymore relevant", status[index].Name))
+			status = append(status[:index], status[index+1:]...)
+		} else {
+			status[index].ReadyJobs = val
+		}
+		delete(replicatedJobsReady, status[index].Name)
+	}
+
+	// Add new ReplicatedJobsStatuses
+	for name, readyJobs := range replicatedJobsReady {
+		status = append(status, jobset.ReplicatedJobStatus{
+			Name:      name,
+			ReadyJobs: readyJobs,
+		})
+	}
+
+	// Check if status ReplicatedJobsStatus has changed
+	if apiequality.Semantic.DeepEqual(js.Status.ReplicatedJobsStatus, status) {
+		return
+	}
+	js.Status.ReplicatedJobsStatus = status
+	if err := r.Status().Update(ctx, js); err != nil {
+		log.Error(err, fmt.Sprintf("jobset update error"))
+	}
 }
 
 func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {

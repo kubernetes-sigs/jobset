@@ -74,6 +74,20 @@ type JobSetStatus struct {
 
 	// Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
 	Restarts int `json:"restarts,omitempty"`
+
+	// ReplicatedJobsStatus track the number of PodsReady for each replicatedJob.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	ReplicatedJobsStatus []ReplicatedJobStatus `json:"ReplicatedJobsStatus,omitempty"`
+}
+
+// ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
+type ReplicatedJobStatus struct {
+	Name string `json:"name"`
+
+	// +kubebuilder:default=0
+	ReadyJobs int32 `json:"readyJobs"`
 }
 
 // +kubebuilder:object:root=true

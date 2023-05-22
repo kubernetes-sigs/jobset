@@ -9477,6 +9477,27 @@ spec:
           status:
             description: JobSetStatus defines the observed state of JobSet
             properties:
+              ReplicatedJobsStatus:
+                description: ReplicatedJobsStatus track the number of PodsReady for
+                  each replicatedJob.
+                items:
+                  description: ReplicatedJobStatus defines the observed ReplicatedJobs
+                    Readiness.
+                  properties:
+                    name:
+                      type: string
+                    readyJobs:
+                      default: 0
+                      format: int32
+                      type: integer
+                  required:
+                  - name
+                  - readyJobs
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               conditions:
                 items:
                   description: "Condition contains details for one aspect of the current
