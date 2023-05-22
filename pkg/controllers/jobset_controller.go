@@ -238,11 +238,24 @@ func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet,
 }
 
 func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	nodeAffinities := map[string]map[string]string{}
+	for _, replicatedJob := range js.Spec.ReplicatedJobs {
+		nodeAffinities[replicatedJob.Name] = replicatedJob.Template.Spec.Template.Spec.NodeSelector
+	}
+
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
 	for _, job := range ownedJobs.active {
 		if pointer.BoolDeref(job.Spec.Suspend, false) != false {
+			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
+				job.Spec.Template.Spec.NodeSelector = nodeAffinities[job.Labels[jobset.ReplicatedJobNameKey]]
+			} else {
+				log.Error(nil, "job missing ReplicatedJobName label")
+			}
 			job.Spec.Suspend = pointer.Bool(false)
+			job.Status.StartTime = nil
 			if err := r.Update(ctx, job); err != nil {
 				return err
 			}

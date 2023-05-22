@@ -44,7 +44,6 @@ type JobSetSpec struct {
 	// ReplicatedJobs is the group of jobs that will form the set.
 	// +listType=map
 	// +listMapKey=name
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
 
 	// SuccessPolicy configures when to declare the JobSet as
