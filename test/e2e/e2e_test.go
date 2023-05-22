@@ -97,7 +97,7 @@ func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	}
 
 	// This bash script loops infinitely until it successfully pings all pods by hostname.
-	// Once successful, it sleeps for 5 seconds to reduce flakiness, since occasionally
+	// Once successful, it sleeps for a short period to reduce flakiness, since occasionally
 	// all pods but one will successfully ping eachother and complete before the last one
 	// successfully pings them all, resulting in a failed test run.
 	cmd := fmt.Sprintf(`for pod in {"%s","%s","%s","%s"}
@@ -115,7 +115,7 @@ do
 	done                                                         
 	echo "Successfully pinged pod: $pod"
 done
-sleep 5`, podHostnames[0], podHostnames[1], podHostnames[2], podHostnames[3])
+sleep 30`, podHostnames[0], podHostnames[1], podHostnames[2], podHostnames[3])
 
 	return testing.MakeJobSet(jsName, ns.Name).
 		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
