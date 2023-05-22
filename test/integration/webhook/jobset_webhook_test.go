@@ -168,6 +168,22 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				return js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.RestartPolicy == corev1.RestartPolicyOnFailure
 			},
 		}),
+		ginkgo.Entry("validate jobSet should not fail on NodeSelectors Update when jobset is suspended", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					Suspend(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.NodeSelector = map[string]string{"test": "test"}
+			},
+			updateShouldFail: false,
+		}),
 		ginkgo.Entry("validate jobSet should fail on NodeSelectors Update", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
@@ -186,6 +202,26 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		ginkgo.Entry("validate jobSet immutable for fields over than NodeSelector when jobSet is not suspended", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Hostname = "test"
+				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Subdomain = "test"
+			},
+			updateShouldFail: true,
+		}),
+		ginkgo.Entry("validate jobSet immutable for fields over than NodeSelector when jobSet is suspended", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					Suspend(true).
 					ReplicatedJob(testing.MakeReplicatedJob("rjob").
 						Job(testing.MakeJobTemplate("job", ns.Name).
 							PodSpec(testing.TestPodSpec).
