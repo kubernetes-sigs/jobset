@@ -38,7 +38,7 @@ IMAGE_BUILD_EXTRA_OPTS += -t $(IMAGE_EXTRA_TAG)
 endif
 
 
-## ARTIFACTS ?= $(PROJECT_DIR)/bin
+ARTIFACTS ?= $(PROJECT_DIR)/bin
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -108,11 +108,8 @@ vet: ## Run go vet against code.
 	$(GO_CMD) vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./pkg/... ./api/... -coverprofile cover.out
-
-## test: manifests generate fmt vet envtest gotestsum
-## KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GOTESTSUM) --junitfile $(ARTIFACTS)/junit.xml -- ./pkg/... ./api/... -coverprofile  $(ARTIFACTS)/cover.out
+test: manifests generate fmt vet envtest gotestsum
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GOTESTSUM) --junitfile $(ARTIFACTS)/junit.xml -- ./pkg/... ./api/... -coverprofile  $(ARTIFACTS)/cover.out
 
 .PHONY: verify
 verify: vet fmt-verify manifests generate
