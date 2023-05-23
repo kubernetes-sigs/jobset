@@ -255,8 +255,11 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 				log.Error(nil, "job missing ReplicatedJobName label")
 			}
 			job.Spec.Suspend = pointer.Bool(false)
-			job.Status.StartTime = nil
 			if err := r.Update(ctx, job); err != nil {
+				return err
+			}
+			job.Status.StartTime = nil
+			if err := r.Status().Update(ctx, job); err != nil {
 				return err
 			}
 		}
