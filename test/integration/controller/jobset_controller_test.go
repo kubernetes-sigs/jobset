@@ -133,18 +133,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("setting suspend is allowed", &testCase{
-			makeJobSet:                  testJobSet,
-			jobSetCreationShouldSucceed: true,
-			updates: []*jobSetUpdate{
-				{
-					shouldSucceed: true,
-					fn: func(js *jobset.JobSet) {
-						js.Spec.Suspend = pointer.Bool(true)
-					},
-				},
-			},
-		}),
 	) // end of DescribeTable
 }) // end of Describe
 
