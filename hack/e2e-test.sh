@@ -1,6 +1,7 @@
 export KUSTOMIZE=$PWD/bin/kustomize
 export GINKGO=$PWD/bin/ginkgo
 export KIND=$PWD/bin/kind
+
 function cleanup {
     if [ $USE_EXISTING_CLUSTER == 'false' ] 
     then 
@@ -27,4 +28,4 @@ trap cleanup EXIT
 startup
 kind_load
 jobset_deploy
-$GINKGO -v ./test/e2e/...
+$GINKGO --junit-report=junit.xml --output-dir=$ARTIFACTS -v ./test/e2e/...
