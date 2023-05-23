@@ -247,11 +247,6 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
-	ownedJobs, err := r.getChildJobs(ctx, js)
-	if err != nil {
-		log.Error(err, "getting jobs owned by jobset")
-		return err
-	}
 	for _, job := range ownedJobs.active {
 		if pointer.BoolDeref(job.Spec.Suspend, false) != false {
 			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
