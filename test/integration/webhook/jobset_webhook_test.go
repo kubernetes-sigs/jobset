@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/util/testing"
@@ -269,6 +270,37 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("suspend jobset", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.Suspend = pointer.Bool(true)
+			},
+			updateShouldFail: false,
+		}),
+		ginkgo.Entry("resume jobset", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					Suspend(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.Suspend = pointer.Bool(false)
+			},
+			updateShouldFail: false,
 		}),
 	) // end of DescribeTable
 }) // end of Describe

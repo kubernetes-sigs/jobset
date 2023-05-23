@@ -96,8 +96,8 @@ func (js *JobSet) ValidateUpdate(old runtime.Object) error {
 		}
 	}
 
-	if !apiequality.Semantic.DeepEqual(oldSpec, *mungedSpec) {
-		specDiff := cmp.Diff(oldSpec, *mungedSpec)
+	if !apiequality.Semantic.DeepEqual(oldSpec.ReplicatedJobs, mungedSpec.ReplicatedJobs) {
+		specDiff := cmp.Diff(oldSpec.ReplicatedJobs, mungedSpec.ReplicatedJobs)
 		return field.Forbidden(field.NewPath("spec"), fmt.Sprintf("jobset updates may not change fields other than %s\n%v", strings.Join(updatableFields, ","), specDiff))
 	}
 	return nil
