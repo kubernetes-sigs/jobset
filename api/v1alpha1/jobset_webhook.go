@@ -16,10 +16,8 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/google/go-cmp/cmp"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/pointer"
@@ -87,20 +85,13 @@ func (js *JobSet) ValidateCreate() error {
 func (js *JobSet) ValidateUpdate(old runtime.Object) error {
 	mungedSpec := js.Spec.DeepCopy()
 	oldSpec := old.(*JobSet).Spec
-	var updatableFields = []string{
-		"`template.spec.template.spec.nodeSelector` when jobset is suspended",
-	}
 	if pointer.BoolDeref(oldSpec.Suspend, false) {
 		for index := range js.Spec.ReplicatedJobs {
 			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
 		}
 	}
-
-	if !apiequality.Semantic.DeepEqual(oldSpec, *mungedSpec) {
-		specDiff := cmp.Diff(oldSpec, *mungedSpec)
-		return field.Forbidden(field.NewPath("spec"), fmt.Sprintf("jobset updates may not change fields other than %s\n%v", strings.Join(updatableFields, ","), specDiff))
-	}
-	return nil
+	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
+	return apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldSpec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs")).ToAggregate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
