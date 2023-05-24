@@ -302,5 +302,38 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: false,
 		}),
+		ginkgo.Entry("SuccessPolicy should be immutable", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				newSuccessPolicy := js.Spec.SuccessPolicy.DeepCopy()
+				newSuccessPolicy.TargetReplicatedJobs = []string{"test", "test2"}
+				js.Spec.SuccessPolicy = newSuccessPolicy
+			},
+			updateShouldFail: true,
+		}),
+		ginkgo.Entry("FailurePolicy should be immutable", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 3}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						EnableDNSHostnames(true).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.FailurePolicy = &jobset.FailurePolicy{MaxRestarts: 21}
+			},
+			updateShouldFail: true,
+		}),
 	) // end of DescribeTable
 }) // end of Describe
