@@ -258,12 +258,11 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 			if err := r.Update(ctx, job); err != nil {
 				return err
 			}
-			if job.Status.StartTime == nil {
-				continue
-			}
-			job.Status.StartTime = nil
-			if err := r.Status().Update(ctx, job); err != nil {
-				return err
+			if job.Status.StartTime != nil {
+				job.Status.StartTime = nil
+				if err := r.Status().Update(ctx, job); err != nil {
+					return err
+				}
 			}
 		}
 	}
