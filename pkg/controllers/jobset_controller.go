@@ -225,7 +225,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	return &ownedJobs, nil
 }
 func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) error {
-	status, err := calculateReplicatedJobStatuses(js, jobs)
+	status, err := r.calculateReplicatedJobStatuses(ctx, js, jobs)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,9 @@ func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.
 	return r.Status().Update(ctx, js)
 }
 
-func calculateReplicatedJobStatuses(js *jobset.JobSet, jobs *childJobs) ([]jobset.ReplicatedJobStatus, error) {
+func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) ([]jobset.ReplicatedJobStatus, error) {
+	log := ctrl.LoggerFrom(ctx)
+
 	// Prepare replicatedJobsReady for optimal iteration
 	replicatedJobsReady := map[string]int32{}
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
@@ -256,7 +258,7 @@ func calculateReplicatedJobStatuses(js *jobset.JobSet, jobs *childJobs) ([]jobse
 			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
 				replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]++
 			} else {
-				return nil, fmt.Errorf(fmt.Sprintf("job %s missing ReplicatedJobName label", job.Name))
+				log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label", job.Name))
 			}
 		}
 	}
