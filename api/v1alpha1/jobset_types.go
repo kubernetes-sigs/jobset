@@ -75,7 +75,7 @@ type JobSetStatus struct {
 	// Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
 	Restarts int `json:"restarts,omitempty"`
 
-	// ReplicatedJobsStatus track the number of PodsReady for each replicatedJob.
+	// ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.
 	// +optional
 	// +listType=map
 	// +listMapKey=name

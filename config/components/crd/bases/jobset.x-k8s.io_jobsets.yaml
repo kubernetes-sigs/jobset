@@ -9478,7 +9478,7 @@ spec:
             description: JobSetStatus defines the observed state of JobSet
             properties:
               ReplicatedJobsStatus:
-                description: ReplicatedJobsStatus track the number of PodsReady for
+                description: ReplicatedJobsStatus track the number of JobsReady for
                   each replicatedJob.
                 items:
                   description: ReplicatedJobStatus defines the observed ReplicatedJobs
