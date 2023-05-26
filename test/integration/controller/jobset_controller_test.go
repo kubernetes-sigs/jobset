@@ -635,7 +635,7 @@ func checkJobSetReplicatedJobsStatus(js *jobset.JobSet) bool {
 	}
 	readyJobsStatus := map[string]int32{}
 	for _, replicatedJobStatus := range js.Status.ReplicatedJobsStatus {
-		readyJobsStatus[replicatedJobStatus.Name] = replicatedJobStatus.ReadyJobs
+		readyJobsStatus[replicatedJobStatus.Name] = replicatedJobStatus.Ready
 	}
 	return apiequality.Semantic.DeepEqual(readyJobs, readyJobsStatus)
 }

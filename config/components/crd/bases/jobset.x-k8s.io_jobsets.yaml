@@ -9486,16 +9486,16 @@ spec:
                   properties:
                     name:
                       type: string
-                    readyJobs:
+                    ready:
                       format: int32
                       type: integer
-                    succeededJobs:
+                    succeeded:
                       format: int32
                       type: integer
                   required:
                   - name
-                  - readyJobs
-                  - succeededJobs
+                  - ready
+                  - succeeded
                   type: object
                 type: array
                 x-kubernetes-list-map-keys:

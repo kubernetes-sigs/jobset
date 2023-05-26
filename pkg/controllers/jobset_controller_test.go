@@ -23,7 +23,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
@@ -716,7 +715,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 		expected []jobset.ReplicatedJobStatus
 	}{
 		{
-			name: "all jobs are ready, no succeeded jobs",
+			name: "partial jobs are ready, no succeeded jobs",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
 					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
@@ -734,55 +733,66 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 						jobName:           "test-jobset-replicated-job-1-test-job-0",
 						ns:                ns,
 						replicas:          1,
-						jobIdx:            0,
-						parallelism:       pointer.Int32(1),
-						completions:       pointer.Int32(1),
-						ready:             pointer.Int32(1),
-						succeeded:         1}).Suspend(false).Obj(),
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(1).Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
 						jobName:           "test-jobset-replicated-job-2-test-job-0",
 						ns:                ns,
 						replicas:          3,
-						jobIdx:            0,
-						parallelism:       pointer.Int32(5),
-						ready:             pointer.Int32(2),
-						succeeded:         3}).Obj(),
+						jobIdx:            0}).
+						Parallelism(5).
+						Ready(2).
+						Succeeded(3).Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
 						jobName:           "test-jobset-replicated-job-2-test-job-1",
 						ns:                ns,
 						replicas:          3,
-						jobIdx:            0,
-						parallelism:       pointer.Int32(3),
-						completions:       pointer.Int32(2),
-						ready:             pointer.Int32(1),
-						succeeded:         1}).Obj(),
+						jobIdx:            0}).
+						Parallelism(3).
+						Completions(2).
+						Ready(1).
+						Succeeded(1).Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
 						jobName:           "test-jobset-replicated-job-2-test-job-2",
 						ns:                ns,
 						replicas:          3,
-						jobIdx:            0,
-						parallelism:       pointer.Int32(2),
-						completions:       pointer.Int32(3),
-						ready:             pointer.Int32(2),
-						succeeded:         1}).Obj(),
+						jobIdx:            0}).
+						Parallelism(2).
+						Completions(3).
+						Ready(2).
+						Succeeded(1).Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-3",
+						ns:                ns,
+						replicas:          3,
+						jobIdx:            0}).
+						Parallelism(4).
+						Completions(5).
+						Ready(2).
+						Succeeded(1).Obj(),
 				},
 			},
 			expected: []jobset.ReplicatedJobStatus{
 				{
-					Name:          "replicated-job-1",
-					ReadyJobs:     1,
-					SucceededJobs: 0,
+					Name:      "replicated-job-1",
+					Ready:     1,
+					Succeeded: 0,
 				},
 				{
-					Name:          "replicated-job-2",
-					ReadyJobs:     3,
-					SucceededJobs: 0,
+					Name:      "replicated-job-2",
+					Ready:     3,
+					Succeeded: 0,
 				},
 			},
 		},
@@ -799,14 +809,14 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					Obj()).Obj(),
 			expected: []jobset.ReplicatedJobStatus{
 				{
-					Name:          "replicated-job-1",
-					ReadyJobs:     0,
-					SucceededJobs: 0,
+					Name:      "replicated-job-1",
+					Ready:     0,
+					Succeeded: 0,
 				},
 				{
-					Name:          "replicated-job-2",
-					ReadyJobs:     0,
-					SucceededJobs: 0,
+					Name:      "replicated-job-2",
+					Ready:     0,
+					Succeeded: 0,
 				},
 			},
 		},
@@ -829,44 +839,22 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 						jobName:           "test-jobset-replicated-job-2-test-job-0",
 						ns:                ns,
 						replicas:          3,
-						jobIdx:            0,
-						parallelism:       pointer.Int32(5),
-						ready:             pointer.Int32(2),
-						succeeded:         3}).Obj(),
-					makeJob(&makeJobArgs{
-						jobSetName:        jobSetName,
-						replicatedJobName: "replicated-job-2",
-						jobName:           "test-jobset-replicated-job-2-test-job-1",
-						ns:                ns,
-						replicas:          3,
-						jobIdx:            0,
-						parallelism:       pointer.Int32(3),
-						completions:       pointer.Int32(2),
-						ready:             pointer.Int32(1),
-						succeeded:         1}).Obj(),
-					makeJob(&makeJobArgs{
-						jobSetName:        jobSetName,
-						replicatedJobName: "replicated-job-2",
-						jobName:           "test-jobset-replicated-job-2-test-job-2",
-						ns:                ns,
-						replicas:          3,
-						jobIdx:            0,
-						parallelism:       pointer.Int32(2),
-						completions:       pointer.Int32(3),
-						ready:             pointer.Int32(2),
-						succeeded:         1}).Obj(),
+						jobIdx:            0}).
+						Parallelism(5).
+						Ready(2).
+						Succeeded(3).Obj(),
 				},
 			},
 			expected: []jobset.ReplicatedJobStatus{
 				{
-					Name:          "replicated-job-1",
-					ReadyJobs:     0,
-					SucceededJobs: 0,
+					Name:      "replicated-job-1",
+					Ready:     0,
+					Succeeded: 0,
 				},
 				{
-					Name:          "replicated-job-2",
-					ReadyJobs:     3,
-					SucceededJobs: 0,
+					Name:      "replicated-job-2",
+					Ready:     1,
+					Succeeded: 0,
 				},
 			},
 		},
@@ -895,14 +883,14 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 			},
 			expected: []jobset.ReplicatedJobStatus{
 				{
-					Name:          "replicated-job-1",
-					ReadyJobs:     0,
-					SucceededJobs: 1,
+					Name:      "replicated-job-1",
+					Ready:     0,
+					Succeeded: 1,
 				},
 				{
-					Name:          "replicated-job-2",
-					ReadyJobs:     0,
-					SucceededJobs: 1,
+					Name:      "replicated-job-2",
+					Ready:     0,
+					Succeeded: 1,
 				},
 			},
 		},
@@ -929,23 +917,10 @@ type makeJobArgs struct {
 	replicas          int
 	jobIdx            int
 	restarts          int
-	parallelism       *int32
-	completions       *int32
-	succeeded         int
-	ready             *int32
 }
 
 func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
-		JobSpec(batchv1.JobSpec{
-			Parallelism: args.parallelism,
-			Completions: args.completions,
-		}).
-		JobStatus(
-			batchv1.JobStatus{
-				Succeeded: int32(args.succeeded),
-				Ready:     args.ready,
-			}).
 		JobLabels(map[string]string{
 			jobset.JobSetNameKey:         args.jobSetName,
 			jobset.ReplicatedJobNameKey:  args.replicatedJobName,

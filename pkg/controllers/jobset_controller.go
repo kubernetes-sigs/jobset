@@ -238,9 +238,12 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 	log := ctrl.LoggerFrom(ctx)
 
 	// Prepare replicatedJobsReady for optimal iteration
-	replicatedJobsReady := map[string]*[2]int32{}
+	replicatedJobsReady := map[string]map[string]int32{}
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
-		replicatedJobsReady[replicatedJob.Name] = &[2]int32{0, 0}
+		replicatedJobsReady[replicatedJob.Name] = map[string]int32{
+			"ready":     0,
+			"succeeded": 0,
+		}
 	}
 
 	// Calculate jobsReady for each Replicated Job
@@ -253,7 +256,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 		}
 		if job.Status.Succeeded+ready >= podsCount {
 			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
-				replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]][0]++
+				replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["ready"]++
 			} else {
 				log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label", job.Name))
 			}
@@ -262,16 +265,16 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 
 	// Calculate succeededJobs
 	for _, job := range jobs.successful {
-		replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]][1]++
+		replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["succeeded"]++
 	}
 
 	// Calculate ReplicatedJobsStatus
 	var rjStatus []jobset.ReplicatedJobStatus
 	for name, status := range replicatedJobsReady {
 		rjStatus = append(rjStatus, jobset.ReplicatedJobStatus{
-			Name:          name,
-			ReadyJobs:     status[0],
-			SucceededJobs: status[1],
+			Name:      name,
+			Ready:     status["ready"],
+			Succeeded: status["succeeded"],
 		})
 	}
 	return rjStatus
