@@ -225,10 +225,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	return &ownedJobs, nil
 }
 func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) error {
-	status, err := r.calculateReplicatedJobStatuses(ctx, js, jobs)
-	if err != nil {
-		return err
-	}
+	status := r.calculateReplicatedJobStatuses(ctx, js, jobs)
 	// Check if status ReplicatedJobsStatus has changed
 	if apiequality.Semantic.DeepEqual(js.Status.ReplicatedJobsStatus, status) {
 		return nil
@@ -237,17 +234,17 @@ func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.
 	return r.Status().Update(ctx, js)
 }
 
-func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) ([]jobset.ReplicatedJobStatus, error) {
+func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) []jobset.ReplicatedJobStatus {
 	log := ctrl.LoggerFrom(ctx)
 
 	// Prepare replicatedJobsReady for optimal iteration
-	replicatedJobsReady := map[string]int32{}
+	replicatedJobsReady := map[string]*[2]int32{}
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
-		replicatedJobsReady[replicatedJob.Name] = 0
+		replicatedJobsReady[replicatedJob.Name] = &[2]int32{0, 0}
 	}
 
 	// Calculate jobsReady for each Replicated Job
-	for _, job := range append(jobs.active, append(jobs.successful, jobs.failed...)...) {
+	for _, job := range jobs.active {
 		ready := pointer.Int32Deref(job.Status.Ready, 0)
 		// parallelism is always set as it is otherwise defaulted by k8s to 1
 		podsCount := *(job.Spec.Parallelism)
@@ -256,36 +253,28 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 		}
 		if job.Status.Succeeded+ready >= podsCount {
 			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
-				replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]++
+				replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]][0]++
 			} else {
 				log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label", job.Name))
 			}
 		}
 	}
 
-	// Update current ReplicatedJobsStatuses
-	rjStatus := js.Status.DeepCopy().ReplicatedJobsStatus
-	for index := range rjStatus {
-		val, ok := replicatedJobsReady[rjStatus[index].Name]
-		if !ok {
-			// the current replicated job is not anymore relevant
-			rjStatus = append(rjStatus[:index], rjStatus[index+1:]...)
-		} else {
-			rjStatus[index].ReadyJobs = val
-		}
-		// Delete updated ReplicatedJobsReady from replicatedJobsReady
-		// it will be used to append non-existent ones
-		delete(replicatedJobsReady, rjStatus[index].Name)
+	// Calculate succeededJobs
+	for _, job := range jobs.successful {
+		replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]][1]++
 	}
 
-	// Add new ReplicatedJobsStatuses
-	for name, readyJobs := range replicatedJobsReady {
+	// Calculate ReplicatedJobsStatus
+	var rjStatus []jobset.ReplicatedJobStatus
+	for name, status := range replicatedJobsReady {
 		rjStatus = append(rjStatus, jobset.ReplicatedJobStatus{
-			Name:      name,
-			ReadyJobs: readyJobs,
+			Name:          name,
+			ReadyJobs:     status[0],
+			SucceededJobs: status[1],
 		})
 	}
-	return rjStatus, nil
+	return rjStatus
 }
 
 func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {

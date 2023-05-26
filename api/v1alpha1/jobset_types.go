@@ -84,10 +84,9 @@ type JobSetStatus struct {
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
 type ReplicatedJobStatus struct {
-	Name string `json:"name"`
-
-	// +kubebuilder:default=0
-	ReadyJobs int32 `json:"readyJobs"`
+	Name          string `json:"name"`
+	ReadyJobs     int32  `json:"readyJobs"`
+	SucceededJobs int32  `json:"succeededJobs"`
 }
 
 // +kubebuilder:object:root=true

@@ -235,6 +235,18 @@ func (j *JobWrapper) Subdomain(subdomain string) *JobWrapper {
 	return j
 }
 
+// JobSpec sets the job spec.
+func (j *JobWrapper) JobSpec(jobSpec batchv1.JobSpec) *JobWrapper {
+	j.Spec = jobSpec
+	return j
+}
+
+// JobStatus sets the job spec.
+func (j *JobWrapper) JobStatus(jobSpec batchv1.JobStatus) *JobWrapper {
+	j.Status = jobSpec
+	return j
+}
+
 // Obj returns the wrapped Job.
 func (j *JobWrapper) Obj() *batchv1.Job {
 	return &j.Job

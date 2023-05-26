@@ -9487,12 +9487,15 @@ spec:
                     name:
                       type: string
                     readyJobs:
-                      default: 0
+                      format: int32
+                      type: integer
+                    succeededJobs:
                       format: int32
                       type: integer
                   required:
                   - name
                   - readyJobs
+                  - succeededJobs
                   type: object
                 type: array
                 x-kubernetes-list-map-keys:
