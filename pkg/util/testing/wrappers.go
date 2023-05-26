@@ -235,6 +235,30 @@ func (j *JobWrapper) Subdomain(subdomain string) *JobWrapper {
 	return j
 }
 
+// Parallelism sets the job spec parallelism.
+func (j *JobWrapper) Parallelism(parallelism int32) *JobWrapper {
+	j.Spec.Parallelism = pointer.Int32(parallelism)
+	return j
+}
+
+// Completions sets the job spec completions.
+func (j *JobWrapper) Completions(completions int32) *JobWrapper {
+	j.Spec.Completions = pointer.Int32(completions)
+	return j
+}
+
+// Succeeded sets the job status succeeded.
+func (j *JobWrapper) Succeeded(succeeded int32) *JobWrapper {
+	j.Status.Succeeded = succeeded
+	return j
+}
+
+// Ready sets the job status ready.
+func (j *JobWrapper) Ready(ready int32) *JobWrapper {
+	j.Status.Ready = pointer.Int32(ready)
+	return j
+}
+
 // Obj returns the wrapped Job.
 func (j *JobWrapper) Obj() *batchv1.Job {
 	return &j.Job

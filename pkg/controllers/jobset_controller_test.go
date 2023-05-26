@@ -14,6 +14,8 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"strconv"
 	"testing"
 
@@ -21,6 +23,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	jobset "sigs.k8s.io/jobset/api/v1alpha1"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
@@ -695,6 +698,212 @@ func TestUpdateConditions(t *testing.T) {
 			gotUpdate := updateCondition(jsWithConditions, tc.newCondition)
 			if gotUpdate != tc.expectedUpdate {
 				t.Errorf("updateCondition return mismatch")
+			}
+		})
+	}
+}
+
+func TestCalculateReplicatedJobStatuses(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name     string
+		js       *jobset.JobSet
+		jobs     childJobs
+		expected []jobset.ReplicatedJobStatus
+	}{
+		{
+			name: "partial jobs are ready, no succeeded jobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-2").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(3).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(1).Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-0",
+						ns:                ns,
+						replicas:          3,
+						jobIdx:            0}).
+						Parallelism(5).
+						Ready(2).
+						Succeeded(3).Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-1",
+						ns:                ns,
+						replicas:          3,
+						jobIdx:            0}).
+						Parallelism(3).
+						Completions(2).
+						Ready(1).
+						Succeeded(1).Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-2",
+						ns:                ns,
+						replicas:          3,
+						jobIdx:            0}).
+						Parallelism(2).
+						Completions(3).
+						Ready(2).
+						Succeeded(1).Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-3",
+						ns:                ns,
+						replicas:          3,
+						jobIdx:            0}).
+						Parallelism(4).
+						Completions(5).
+						Ready(2).
+						Succeeded(1).Obj(),
+				},
+			},
+			expected: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-1",
+					Ready:     1,
+					Succeeded: 0,
+				},
+				{
+					Name:      "replicated-job-2",
+					Ready:     3,
+					Succeeded: 0,
+				},
+			},
+		},
+		{
+			name: "no jobs created",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-2").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(3).
+					Obj()).Obj(),
+			expected: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-1",
+					Ready:     0,
+					Succeeded: 0,
+				},
+				{
+					Name:      "replicated-job-2",
+					Ready:     0,
+					Succeeded: 0,
+				},
+			},
+		},
+		{
+			name: "partial jobs created",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-2").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(3).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-0",
+						ns:                ns,
+						replicas:          3,
+						jobIdx:            0}).
+						Parallelism(5).
+						Ready(2).
+						Succeeded(3).Obj(),
+				},
+			},
+			expected: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-1",
+					Ready:     0,
+					Succeeded: 0,
+				},
+				{
+					Name:      "replicated-job-2",
+					Ready:     1,
+					Succeeded: 0,
+				},
+			},
+		},
+		{
+			name: "no ready jobs, only succeeded jobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-2").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(3).
+					Obj()).Obj(),
+			jobs: childJobs{
+				successful: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-0"}).Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0"}).Obj(),
+				},
+			},
+			expected: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-1",
+					Ready:     0,
+					Succeeded: 1,
+				},
+				{
+					Name:      "replicated-job-2",
+					Ready:     0,
+					Succeeded: 1,
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := JobSetReconciler{Client: (fake.NewClientBuilder()).Build()}
+			statuses := r.calculateReplicatedJobStatuses(context.TODO(), tc.js, &tc.jobs)
+			var less interface{} = func(a, b jobset.ReplicatedJobStatus) bool {
+				return a.Name < b.Name
+			}
+			if diff := cmp.Diff(tc.expected, statuses, cmpopts.SortSlices(less)); diff != "" {
+				t.Errorf("calculateReplicatedJobStatuses() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

@@ -22,6 +22,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -149,6 +150,11 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 	}
+	// Calculate JobsReady and update statuses for each ReplicatedJob
+	if err := r.calculateAndUpdateReplicatedJobsStatuses(ctx, &js, ownedJobs); err != nil {
+		log.Error(err, "updating replicated jobs statuses")
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -217,6 +223,61 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		}
 	}
 	return &ownedJobs, nil
+}
+func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) error {
+	status := r.calculateReplicatedJobStatuses(ctx, js, jobs)
+	// Check if status ReplicatedJobsStatus has changed
+	if apiequality.Semantic.DeepEqual(js.Status.ReplicatedJobsStatus, status) {
+		return nil
+	}
+	js.Status.ReplicatedJobsStatus = status
+	return r.Status().Update(ctx, js)
+}
+
+func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) []jobset.ReplicatedJobStatus {
+	log := ctrl.LoggerFrom(ctx)
+
+	// Prepare replicatedJobsReady for optimal iteration
+	replicatedJobsReady := map[string]map[string]int32{}
+	for _, replicatedJob := range js.Spec.ReplicatedJobs {
+		replicatedJobsReady[replicatedJob.Name] = map[string]int32{
+			"ready":     0,
+			"succeeded": 0,
+		}
+	}
+
+	// Calculate jobsReady for each Replicated Job
+	for _, job := range jobs.active {
+		ready := pointer.Int32Deref(job.Status.Ready, 0)
+		// parallelism is always set as it is otherwise defaulted by k8s to 1
+		podsCount := *(job.Spec.Parallelism)
+		if job.Spec.Completions != nil && *job.Spec.Completions < podsCount {
+			podsCount = *job.Spec.Completions
+		}
+		if job.Status.Succeeded+ready >= podsCount {
+			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
+				replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["ready"]++
+			} else {
+				log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label", job.Name))
+			}
+		}
+	}
+
+	// Calculate succeededJobs
+	for _, job := range jobs.successful {
+		replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["succeeded"]++
+	}
+
+	// Calculate ReplicatedJobsStatus
+	var rjStatus []jobset.ReplicatedJobStatus
+	for name, status := range replicatedJobsReady {
+		rjStatus = append(rjStatus, jobset.ReplicatedJobStatus{
+			Name:      name,
+			Ready:     status["ready"],
+			Succeeded: status["succeeded"],
+		})
+	}
+	return rjStatus
 }
 
 func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {

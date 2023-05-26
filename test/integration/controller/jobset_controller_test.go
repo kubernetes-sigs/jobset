@@ -560,8 +560,63 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("jobset replicatedJobsStatuses should create and update", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Suspend(false)
+			},
+			updates: []*update{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are not suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+					},
+				},
+				{
+					jobUpdateFn: makeAllJobsReady,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(func() bool {
+							gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js)).Should(gomega.Succeed())
+							return checkJobSetReplicatedJobsStatus(js)
+						}, timeout, interval).Should(gomega.Equal(true))
+					},
+				},
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe
+
+func makeAllJobsReady(jl *batchv1.JobList) {
+	for _, job := range jl.Items {
+		job.Status.Ready = job.Spec.Parallelism
+		gomega.Eventually(k8sClient.Status().Update(ctx, &job), timeout, interval).Should(gomega.Succeed())
+	}
+}
+
+func checkJobSetReplicatedJobsStatus(js *jobset.JobSet) bool {
+	var jobList batchv1.JobList
+	gomega.Eventually(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
+	readyJobs := map[string]int32{}
+	for _, job := range jobList.Items {
+		ready := pointer.Int32Deref(job.Status.Ready, 0)
+		// parallelism is always set as it is otherwise defaulted by k8s to 1
+		podsCount := *(job.Spec.Parallelism)
+		if job.Spec.Completions != nil && *job.Spec.Completions < podsCount {
+			podsCount = *job.Spec.Completions
+		}
+		if job.Status.Succeeded+ready >= podsCount {
+			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
+				readyJobs[job.Labels[jobset.ReplicatedJobNameKey]]++
+			}
+		}
+	}
+	readyJobsStatus := map[string]int32{}
+	for _, replicatedJobStatus := range js.Status.ReplicatedJobsStatus {
+		readyJobsStatus[replicatedJobStatus.Name] = replicatedJobStatus.Ready
+	}
+	return apiequality.Semantic.DeepEqual(readyJobs, readyJobsStatus)
+}
 
 func numExpectedServices(js *jobset.JobSet) int {
 	// Expect 1 headless service per replicatedJob.
