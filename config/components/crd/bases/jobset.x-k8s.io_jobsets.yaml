@@ -14,7 +14,19 @@ spec:
     singular: jobset
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Number of restarts
+      jsonPath: .status.restarts
+      name: Restarts
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Completed")].status
+      name: Completed
+      type: string
+    - description: Time this JobSet was created
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: JobSet is the Schema for the jobsets API
