@@ -170,7 +170,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		jobSetUpdateFn       func(*jobset.JobSet)
 		jobUpdateFn          func(*batchv1.JobList)
 		checkJobSetState     func(*jobset.JobSet)
-		checkJobState        func(*jobset.JobSet)
 		checkJobSetCondition func(context.Context, client.Client, *jobset.JobSet, time.Duration)
 	}
 
@@ -509,7 +508,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: testutil.JobSetResumed,
 				},
 				{
-					checkJobState: func(js *jobset.JobSet) {
+					checkJobSetState: func(js *jobset.JobSet) {
 						gomega.Eventually(matchJobsNodeSelectors, timeout, interval).WithArguments(js, nodeSelectors).Should(gomega.Equal(true))
 					},
 					jobUpdateFn:          completeAllJobs,
@@ -638,20 +637,22 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 	// Count number of updated jobs
 	jobsUpdated := 0
 	for _, job := range jobList.Items {
-		nodeSelectorKey, ok := job.Labels[jobset.ReplicatedJobNameKey]
+		rjobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
 		if !ok {
 			return false, fmt.Errorf(fmt.Sprintf("%s job missing ReplicatedJobName label", job.Name))
 		}
-		if !apiequality.Semantic.DeepEqual(job.Spec.Template.Spec.NodeSelector, nodeSelectors[nodeSelectorKey]) {
+		key := nodeSelectorKey(js.Name, rjobName)
+		if !apiequality.Semantic.DeepEqual(job.Spec.Template.Spec.NodeSelector, nodeSelectors[key]) {
 			return false, nil
 		}
 		jobsUpdated++
 	}
 	// Calculate expected number of updated jobs
 	wantJobsUpdated := 0
-	for _, rj := range js.Spec.ReplicatedJobs {
-		if _, exists := nodeSelectors[rj.Name]; exists {
-			wantJobsUpdated += rj.Replicas
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		key := nodeSelectorKey(js.Name, rjob.Name)
+		if _, exists := nodeSelectors[key]; exists {
+			wantJobsUpdated += rjob.Replicas
 		}
 	}
 	return wantJobsUpdated == jobsUpdated, nil
@@ -684,6 +685,10 @@ func checkExpectedServices(js *jobset.JobSet) {
 		}
 		return len(svcList.Items), nil
 	}).Should(gomega.Equal(numExpectedServices(js)))
+}
+
+func nodeSelectorKey(jobSetName, rjobName string) string {
+	return fmt.Sprintf("%s-%s", jobSetName, rjobName)
 }
 
 // 2 replicated jobs:
