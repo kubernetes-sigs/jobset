@@ -91,16 +91,20 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	ctx = ctrl.LoggerInto(ctx, log)
 	log.V(2).Info("Reconciling JobSet")
 
-	// If JobSet is already completed or failed, we don't need to reconcile anything.
-	if jobSetFinished(&js) {
-		return ctrl.Result{}, nil
-	}
-
 	// Get Jobs owned by JobSet.
 	ownedJobs, err := r.getChildJobs(ctx, &js)
 	if err != nil {
 		log.Error(err, "getting jobs owned by jobset")
 		return ctrl.Result{}, err
+	}
+
+	// If JobSet is already completed or failed, clean up active child jobs.
+	if jobSetFinished(&js) {
+		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
+			log.Error(err, "deleting jobs")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
 	}
 
 	// Delete any jobs marked for deletion.

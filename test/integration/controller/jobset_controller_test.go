@@ -257,7 +257,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				return testJobSet(ns).
 					SuccessPolicy(&jobset.SuccessPolicy{
 						Operator:             jobset.OperatorAll,
-						TargetReplicatedJobs: []string{"replicated-job-a"},
+						TargetReplicatedJobs: []string{},
 					})
 			},
 			updates: []*update{
@@ -502,13 +502,13 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						suspendJobSet(js, false)
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
-						ginkgo.By("checking all jobs are resumed")
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
 					},
 					checkJobSetCondition: testutil.JobSetResumed,
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking jobs have expected node selectors")
 						gomega.Eventually(matchJobsNodeSelectors, timeout, interval).WithArguments(js, nodeSelectors).Should(gomega.Equal(true))
 					},
 					jobUpdateFn:          completeAllJobs,
@@ -579,6 +579,48 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 							gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js)).Should(gomega.Succeed())
 							return checkJobSetReplicatedJobsStatus(js)
 						}, timeout, interval).Should(gomega.Equal(true))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("active jobs are deleted after jobset succeeds", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					SuccessPolicy(&jobset.SuccessPolicy{
+						Operator:             jobset.OperatorAny,
+						TargetReplicatedJobs: []string{}, // applies to all replicatedJobs
+					})
+			},
+			updates: []*update{
+				// Complete a job, and ensure JobSet completes based on 'any' success policy.
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						completeJob(&jobList.Items[1])
+					},
+					checkJobSetCondition: testutil.JobSetCompleted,
+				},
+				// Ensure remaining active jobs are deleted.
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						checkNoActiveJobs(js, 1)
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("active jobs are deleted after jobset fails", &testCase{
+			makeJobSet: testJobSet,
+			updates: []*update{
+				// Fail a job to trigger jobset failure.
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJob(&jobList.Items[0])
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+				// Ensure remaining active jobs are deleted.
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						checkNoActiveJobs(js, 1)
 					},
 				},
 			},
@@ -738,6 +780,36 @@ func checkExpectedServices(js *jobset.JobSet) {
 		}
 		return len(svcList.Items), nil
 	}).Should(gomega.Equal(numExpectedServices(js)))
+}
+
+// Check one headless service per job was created successfully.
+func checkNoActiveJobs(js *jobset.JobSet, numFinishedJobs int) {
+	ginkgo.By("checking there are no active jobs")
+	gomega.Eventually(func() (bool, error) {
+		var jobList batchv1.JobList
+		if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+			return false, err
+		}
+		for _, job := range jobList.Items {
+			if jobActive(&job) {
+				return false, nil
+			}
+		}
+		return len(jobList.Items) == numFinishedJobs, nil
+	}, timeout, interval).Should(gomega.Equal(true))
+}
+
+func jobActive(job *batchv1.Job) bool {
+	if len(job.Status.Conditions) == 0 {
+		return true
+	}
+	active := true
+	for _, c := range job.Status.Conditions {
+		if (c.Type == batchv1.JobComplete || c.Type == batchv1.JobFailed) && c.Status == corev1.ConditionTrue {
+			active = false
+		}
+	}
+	return active
 }
 
 // 2 replicated jobs:
