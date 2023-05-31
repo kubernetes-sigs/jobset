@@ -782,7 +782,8 @@ func checkExpectedServices(js *jobset.JobSet) {
 	}).Should(gomega.Equal(numExpectedServices(js)))
 }
 
-// Check one headless service per job was created successfully.
+// Check that there are no active jobs owned by jobset, and the
+// only remaining jobs are the finished ones.
 func checkNoActiveJobs(js *jobset.JobSet, numFinishedJobs int) {
 	ginkgo.By("checking there are no active jobs")
 	gomega.Eventually(func() (bool, error) {
