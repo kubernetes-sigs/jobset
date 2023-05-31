@@ -311,6 +311,8 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 	for _, job := range ownedJobs.active {
 		if pointer.BoolDeref(job.Spec.Suspend, false) != false {
 			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
+				// When resuming a job, its nodeSelectors should match that of the replicatedJob template
+				// that it was created from, which may have been updated while it was suspended.
 				job.Spec.Template.Spec.NodeSelector = nodeAffinities[job.Labels[jobset.ReplicatedJobNameKey]]
 			} else {
 				log.Error(nil, "job missing ReplicatedJobName label")

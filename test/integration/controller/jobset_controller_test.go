@@ -170,7 +170,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		jobSetUpdateFn       func(*jobset.JobSet)
 		jobUpdateFn          func(*batchv1.JobList)
 		checkJobSetState     func(*jobset.JobSet)
-		checkJobState        func(*jobset.JobSet)
 		checkJobSetCondition func(context.Context, client.Client, *jobset.JobSet, time.Duration)
 	}
 
@@ -181,8 +180,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 	}
 
 	nodeSelectors := map[string]map[string]string{
-		"test-js-replicated-job-a": {"node-selector-test-a": "node-selector-test-a"},
-		"test-js-replicated-job-b": {"node-selector-test-b": "node-selector-test-b"},
+		"replicated-job-a": {"node-selector-test-a": "node-selector-test-a"},
+		"replicated-job-b": {"node-selector-test-b": "node-selector-test-b"},
 	}
 
 	ginkgo.DescribeTable("jobset is created and its jobs go through a series of updates",
@@ -509,7 +508,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: testutil.JobSetResumed,
 				},
 				{
-					checkJobState: func(js *jobset.JobSet) {
+					checkJobSetState: func(js *jobset.JobSet) {
 						gomega.Eventually(matchJobsNodeSelectors, timeout, interval).WithArguments(js, nodeSelectors).Should(gomega.Equal(true))
 					},
 					jobUpdateFn:          completeAllJobs,
@@ -662,7 +661,7 @@ func suspendJobSet(js *jobset.JobSet, suspend bool) {
 func updateJobSetNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[string]string) {
 	for index := range js.Spec.ReplicatedJobs {
 		js.Spec.ReplicatedJobs[index].
-			Template.Spec.Template.Spec.NodeSelector = nodeSelectors[js.Name+"-"+js.Spec.ReplicatedJobs[index].Name]
+			Template.Spec.Template.Spec.NodeSelector = nodeSelectors[js.Spec.ReplicatedJobs[index].Name]
 	}
 	gomega.Eventually(k8sClient.Update(ctx, js), timeout, interval).Should(gomega.Succeed())
 }
@@ -693,20 +692,20 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 	// Count number of updated jobs
 	jobsUpdated := 0
 	for _, job := range jobList.Items {
-		nodeSelectorKey, ok := job.Labels[jobset.ReplicatedJobNameKey]
+		rjobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
 		if !ok {
 			return false, fmt.Errorf(fmt.Sprintf("%s job missing ReplicatedJobName label", job.Name))
 		}
-		if !apiequality.Semantic.DeepEqual(job.Spec.Template.Spec.NodeSelector, nodeSelectors[nodeSelectorKey]) {
+		if !apiequality.Semantic.DeepEqual(job.Spec.Template.Spec.NodeSelector, nodeSelectors[rjobName]) {
 			return false, nil
 		}
 		jobsUpdated++
 	}
 	// Calculate expected number of updated jobs
 	wantJobsUpdated := 0
-	for _, rj := range js.Spec.ReplicatedJobs {
-		if _, exists := nodeSelectors[rj.Name]; exists {
-			wantJobsUpdated += rj.Replicas
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		if _, exists := nodeSelectors[rjob.Name]; exists {
+			wantJobsUpdated += rjob.Replicas
 		}
 	}
 	return wantJobsUpdated == jobsUpdated, nil
