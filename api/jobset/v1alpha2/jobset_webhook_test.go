@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
 
@@ -38,6 +39,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -45,7 +47,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									Template: TestPodTemplate,
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -53,6 +54,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -61,7 +63,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -72,6 +73,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -80,7 +82,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -88,6 +89,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -96,7 +98,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -122,6 +123,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -130,7 +132,49 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "subdomain defaults to jobset name",
+			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "custom-jobset",
+				},
+				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "custom-jobset",
+				},
+				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					Network: &Network{
+						EnableDNSHostnames: pointer.Bool(true),
+						Subdomain:          "custom-jobset",
+					},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
 						},
 					},
 				},
@@ -141,6 +185,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(false)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -149,7 +194,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(false)},
 						},
 					},
 				},
@@ -157,6 +201,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(false)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -165,7 +210,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(false)},
 						},
 					},
 				},
@@ -176,6 +220,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -186,7 +231,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -194,6 +238,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -206,7 +251,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -217,6 +261,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -229,7 +274,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -237,6 +281,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -249,7 +294,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -259,6 +303,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "success policy unset",
 			js: &JobSet{
 				Spec: JobSetSpec{
+					Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -271,7 +316,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -279,6 +323,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -291,7 +336,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -304,6 +348,7 @@ func TestJobSetDefaulting(t *testing.T) {
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
 					},
+					Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -316,7 +361,6 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
@@ -326,6 +370,7 @@ func TestJobSetDefaulting(t *testing.T) {
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
 					},
+					Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -338,14 +383,12 @@ func TestJobSetDefaulting(t *testing.T) {
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},
-							Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
 						},
 					},
 				},
 			},
 		},
 	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.js.Default()

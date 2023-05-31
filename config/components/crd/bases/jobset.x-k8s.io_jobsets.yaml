@@ -60,6 +60,23 @@ spec:
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
+              network:
+                description: Network defines the networking options for the jobset.
+                properties:
+                  enableDNSHostnames:
+                    description: 'EnableDNSHostnames allows pods to be reached via
+                      their hostnames. Pods will be reachable using the fully qualified
+                      pod hostname: <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>'
+                    type: boolean
+                  subdomain:
+                    description: Subdomain is an explicit choice for a network subdomain
+                      name When set, any replicated job in the set is added to this
+                      network. Defaults to <jobSet.name> if not set.
+                    type: string
+                type: object
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               replicatedJobs:
                 description: ReplicatedJobs is the group of jobs that will form the
                   set.
@@ -69,17 +86,6 @@ spec:
                       description: Name is the name of the entry and will be used
                         as a suffix for the Job name.
                       type: string
-                    network:
-                      description: Network defines the networking options for the
-                        job.
-                      properties:
-                        enableDNSHostnames:
-                          description: 'EnableDNSHostnames allows pods to be reached
-                            via their hostnames. Pods will be reachable using the
-                            fully qualified pod hostname, which is in the format:
-                            <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>'
-                          type: boolean
-                      type: object
                     replicas:
                       default: 1
                       description: 'Replicas is the number of jobs that will be created

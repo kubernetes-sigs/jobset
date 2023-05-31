@@ -46,6 +46,11 @@ type JobSetSpec struct {
 	// +listMapKey=name
 	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
 
+	// Network defines the networking options for the jobset.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +optional
+	Network *Network `json:"network,omitempty"`
+
 	// SuccessPolicy configures when to declare the JobSet as
 	// succeeded.
 	// The JobSet is always declared succeeded if all jobs in the set
@@ -118,9 +123,7 @@ type ReplicatedJob struct {
 	Name string `json:"name"`
 	// Template defines the template of the Job that will be created.
 	Template batchv1.JobTemplateSpec `json:"template"`
-	// Network defines the networking options for the job.
-	// +optional
-	Network *Network `json:"network,omitempty"`
+
 	// Replicas is the number of jobs that will be created from this ReplicatedJob's template.
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
@@ -129,10 +132,16 @@ type ReplicatedJob struct {
 
 type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
-	// Pods will be reachable using the fully qualified pod hostname, which is in the format:
-	// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>
+	// Pods will be reachable using the fully qualified pod hostname:
+	// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>
 	// +optional
 	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
+
+	// Subdomain is an explicit choice for a network subdomain name
+	// When set, any replicated job in the set is added to this network.
+	// Defaults to <jobSet.name> if not set.
+	// +optional
+	Subdomain string `json:"subdomain,omitempty"`
 }
 
 // Operator defines the target of a SuccessPolicy or FailurePolicy.

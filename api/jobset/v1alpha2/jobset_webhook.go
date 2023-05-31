@@ -20,8 +20,10 @@ import (
 
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/pointer"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	util "sigs.k8s.io/jobset/pkg/util/collections"
@@ -52,12 +54,17 @@ func (js *JobSet) Default() {
 			js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
 		}
 		// Enable DNS hostnames by default.
-		if js.Spec.ReplicatedJobs[i].Network == nil {
-			js.Spec.ReplicatedJobs[i].Network = &Network{}
+		if js.Spec.Network == nil {
+			js.Spec.Network = &Network{}
 		}
-		if js.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames == nil {
-			js.Spec.ReplicatedJobs[i].Network.EnableDNSHostnames = pointer.Bool(true)
+		if js.Spec.Network.EnableDNSHostnames == nil {
+			js.Spec.Network.EnableDNSHostnames = pointer.Bool(true)
 		}
+		// Subdomain defaults to the JobSet name
+		if js.Spec.Network.Subdomain == "" {
+			js.Spec.Network.Subdomain = js.Name
+		}
+
 		// Default pod restart policy to OnFailure.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
 			js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
@@ -74,6 +81,16 @@ func (js *JobSet) ValidateCreate() error {
 	var allErrs []error
 	// Validate that replicatedJobs listed in success policy are part of this JobSet.
 	validReplicatedJobs := replicatedJobNamesFromSpec(js)
+
+	// Ensure that a provided subdomain is a valid DNS name
+	if js.Spec.Network != nil && js.Spec.Network.Subdomain != "" {
+
+		// This can return 1 or 2 errors, validating max length and format
+		for _, errMessage := range validation.IsDNS1123Subdomain(js.Spec.Network.Subdomain) {
+			allErrs = append(allErrs, fmt.Errorf(errMessage))
+		}
+	}
+
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		var parallelism int32 = 1
 		if rjob.Template.Spec.Parallelism != nil {
