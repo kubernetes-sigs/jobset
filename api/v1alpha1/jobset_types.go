@@ -93,6 +93,7 @@ type ReplicatedJobStatus struct {
 // +kubebuilder:printcolumn:name="Restarts",JSONPath=".status.restarts",type=string,description="Number of restarts"
 // +kubebuilder:printcolumn:name="Completed",type="string",priority=0,JSONPath=".status.conditions[?(@.type==\"Completed\")].status"
 // +kubebuilder:printcolumn:name="Age",JSONPath=".metadata.creationTimestamp",type=date,description="Time this JobSet was created"
+// +genclient
 // JobSet is the Schema for the jobsets API
 type JobSet struct {
 	metav1.TypeMeta   `json:",inline"`
