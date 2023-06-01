@@ -314,6 +314,12 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 	// unsuspended and update the suspend condition to true.
 	for _, job := range ownedJobs.active {
 		if pointer.BoolDeref(job.Spec.Suspend, false) != false {
+			if job.Status.StartTime != nil {
+				job.Status.StartTime = nil
+				if err := r.Status().Update(ctx, job); err != nil {
+					return err
+				}
+			}
 			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
 				// When resuming a job, its nodeSelectors should match that of the replicatedJob template
 				// that it was created from, which may have been updated while it was suspended.
@@ -324,12 +330,6 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 			job.Spec.Suspend = pointer.Bool(false)
 			if err := r.Update(ctx, job); err != nil {
 				return err
-			}
-			if job.Status.StartTime != nil {
-				job.Status.StartTime = nil
-				if err := r.Status().Update(ctx, job); err != nil {
-					return err
-				}
 			}
 		}
 	}
