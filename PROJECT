@@ -15,7 +15,7 @@ resources:
   domain: x-k8s.io
   group: jobset
   kind: JobSet
-  path: sigs.k8s.io/jobset/api/v1alpha1
+  path: sigs.k8s.io/jobset/api/jobset/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
