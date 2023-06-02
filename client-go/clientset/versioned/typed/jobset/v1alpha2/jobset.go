@@ -16,6 +16,8 @@ package v1alpha2
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +25,7 @@ import (
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobsetv1alpha2 "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1alpha2"
 	scheme "sigs.k8s.io/jobset/client-go/clientset/versioned/scheme"
 )
 
@@ -43,6 +46,8 @@ type JobSetInterface interface {
 	List(ctx context.Context, opts v1.ListOptions) (*v1alpha2.JobSetList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha2.JobSet, err error)
+	Apply(ctx context.Context, jobSet *jobsetv1alpha2.JobSetApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha2.JobSet, err error)
+	ApplyStatus(ctx context.Context, jobSet *jobsetv1alpha2.JobSetApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha2.JobSet, err error)
 	JobSetExpansion
 }
 
@@ -184,6 +189,62 @@ func (c *jobSets) Patch(ctx context.Context, name string, pt types.PatchType, da
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied jobSet.
+func (c *jobSets) Apply(ctx context.Context, jobSet *jobsetv1alpha2.JobSetApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha2.JobSet, err error) {
+	if jobSet == nil {
+		return nil, fmt.Errorf("jobSet provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(jobSet)
+	if err != nil {
+		return nil, err
+	}
+	name := jobSet.Name
+	if name == nil {
+		return nil, fmt.Errorf("jobSet.Name must be provided to Apply")
+	}
+	result = &v1alpha2.JobSet{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("jobsets").
+		Name(*name).
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *jobSets) ApplyStatus(ctx context.Context, jobSet *jobsetv1alpha2.JobSetApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha2.JobSet, err error) {
+	if jobSet == nil {
+		return nil, fmt.Errorf("jobSet provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(jobSet)
+	if err != nil {
+		return nil, err
+	}
+
+	name := jobSet.Name
+	if name == nil {
+		return nil, fmt.Errorf("jobSet.Name must be provided to Apply")
+	}
+
+	result = &v1alpha2.JobSet{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("jobsets").
+		Name(*name).
+		SubResource("status").
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)

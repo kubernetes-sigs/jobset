@@ -26,6 +26,7 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	util "sigs.k8s.io/jobset/pkg/util/collections"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -77,7 +78,7 @@ func (js *JobSet) Default() {
 var _ webhook.Validator = &JobSet{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (js *JobSet) ValidateCreate() error {
+func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 	var allErrs []error
 	// Validate that replicatedJobs listed in success policy are part of this JobSet.
 	validReplicatedJobs := replicatedJobNamesFromSpec(js)
@@ -105,11 +106,11 @@ func (js *JobSet) ValidateCreate() error {
 			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
 		}
 	}
-	return errors.Join(allErrs...)
+	return nil, errors.Join(allErrs...)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (js *JobSet) ValidateUpdate(old runtime.Object) error {
+func (js *JobSet) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	mungedSpec := js.Spec.DeepCopy()
 	oldSpec := old.(*JobSet).Spec
 	if pointer.BoolDeref(oldSpec.Suspend, false) {
@@ -118,12 +119,12 @@ func (js *JobSet) ValidateUpdate(old runtime.Object) error {
 		}
 	}
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
-	return apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldSpec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs")).ToAggregate()
+	return nil, apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldSpec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs")).ToAggregate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (js *JobSet) ValidateDelete() error {
-	return nil
+func (js *JobSet) ValidateDelete() (admission.Warnings, error) {
+	return nil, nil
 }
 
 func completionModePtr(mode batchv1.CompletionMode) *batchv1.CompletionMode {
