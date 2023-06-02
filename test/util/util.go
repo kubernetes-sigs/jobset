@@ -132,7 +132,7 @@ func DeleteNamespace(ctx context.Context, c client.Client, ns *corev1.Namespace)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	if err := c.Delete(ctx, ns); err != nil && !apierrors.IsNotFound(err) {
+	if err := c.Delete(ctx, ns, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 	return nil

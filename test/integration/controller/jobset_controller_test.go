@@ -43,24 +43,6 @@ const (
 )
 
 var _ = ginkgo.Describe("JobSet validation", func() {
-	// Each test runs in a separate namespace.
-	var ns *corev1.Namespace
-
-	ginkgo.BeforeEach(func() {
-		// Create test namespace before each test.
-		ns = &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "test-ns-",
-			},
-		}
-		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
-
-	})
-
-	ginkgo.AfterEach(func() {
-		gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
-	})
-
 	// jobSetUpdate contains the mutations to perform on the jobset and the
 	// checks to perform afterwards.
 	type jobSetUpdate struct {
@@ -77,6 +59,18 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 	ginkgo.DescribeTable("JobSet validation during creation and updates",
 		func(tc *testCase) {
 			ctx := context.Background()
+
+			// Create test namespace for each entry.
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			defer func() {
+				gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+			}()
 
 			// Create JobSet.
 			ginkgo.By("creating jobset")
