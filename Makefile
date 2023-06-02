@@ -56,6 +56,9 @@ USE_EXISTING_CLUSTER ?= false
 # Default will delete default kind cluster
 KIND_CLUSTER_NAME ?= kind
 
+# Use same code-generator version as k8s.io/api
+CODEGEN_VERSION := $(shell $(GO_CMD) list -m -f '{{.Version}}' k8s.io/api)
+
 .PHONY: all
 all: build
 
@@ -87,8 +90,9 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 		paths="./..."
 
 .PHONY: generate
-generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: controller-gen code-generator ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	./hack/update-codegen.sh $(GO_CMD) $(PROJECT_DIR)/bin
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -112,7 +116,8 @@ test: manifests generate fmt vet envtest gotestsum
 
 .PHONY: verify
 verify: vet fmt-verify manifests generate
-	git --no-pager diff --exit-code config api
+	git --no-pager diff --exit-code config api client-go
+	
 
 ##@ Build
 
@@ -201,6 +206,13 @@ controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessar
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen && $(LOCALBIN)/controller-gen --version | grep -q $(CONTROLLER_TOOLS_VERSION) || \
 	GOBIN=$(LOCALBIN) $(GO_CMD) install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+
+CODEGEN = $(shell pwd)/bin/code-generator
+CODEGEN_ROOT = $(shell $(GO_CMD) env GOMODCACHE)/k8s.io/code-generator@$(CODEGEN_VERSION)
+.PHONY: code-generator
+code-generator:
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install k8s.io/code-generator/cmd/client-gen@$(CODEGEN_VERSION)
+	cp -f $(CODEGEN_ROOT)/generate-groups.sh $(PROJECT_DIR)/bin/
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
