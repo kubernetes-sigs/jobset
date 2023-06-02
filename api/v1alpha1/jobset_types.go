@@ -156,7 +156,7 @@ type SuccessPolicy struct {
 
 	// TargetReplicatedJobs are the names of the replicated jobs the operator will apply to.
 	// A null or empty list will apply to all replicatedJobs.
-	TargetReplicatedJobs []string `json:"replicatedJobNames,omitempty"`
+	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
 }
 
 func init() {

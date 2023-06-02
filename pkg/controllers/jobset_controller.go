@@ -313,7 +313,13 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
 	for _, job := range ownedJobs.active {
-		if pointer.BoolDeref(job.Spec.Suspend, false) != false {
+		if pointer.BoolDeref(job.Spec.Suspend, false) {
+			if job.Status.StartTime != nil {
+				job.Status.StartTime = nil
+				if err := r.Status().Update(ctx, job); err != nil {
+					return err
+				}
+			}
 			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
 				// When resuming a job, its nodeSelectors should match that of the replicatedJob template
 				// that it was created from, which may have been updated while it was suspended.
@@ -324,12 +330,6 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 			job.Spec.Suspend = pointer.Bool(false)
 			if err := r.Update(ctx, job); err != nil {
 				return err
-			}
-			if job.Status.StartTime != nil {
-				job.Status.StartTime = nil
-				if err := r.Status().Update(ctx, job); err != nil {
-					return err
-				}
 			}
 		}
 	}
@@ -417,7 +417,6 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 // and updates the jobset status to completed if the success policy conditions are met.
 // Returns a boolean value indicating if the jobset was completed or not.
 func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) (bool, error) {
-	log := ctrl.LoggerFrom(ctx)
 	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
 		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
@@ -425,7 +424,6 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 			Reason:  "AllJobsCompleted",
 			Message: "jobset completed successfully",
 		}); err != nil {
-			log.Error(err, "updating jobset status")
 			return false, err
 		}
 		return true, nil
@@ -535,7 +533,7 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 			return false
 		}
 	}
-	// condition doesn't exist, update only if the status is false
+	// condition doesn't exist, update only if the status is true
 	if condition.Status == metav1.ConditionTrue {
 		js.Status.Conditions = append(js.Status.Conditions, condition)
 		return true
