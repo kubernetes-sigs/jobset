@@ -86,6 +86,7 @@ type ReplicatedJobStatus struct {
 	Name      string `json:"name"`
 	Ready     int32  `json:"ready"`
 	Succeeded int32  `json:"succeeded"`
+	Failed    int32  `json:"failed"`
 }
 
 // +genclient
