@@ -247,6 +247,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 		replicatedJobsReady[replicatedJob.Name] = map[string]int32{
 			"ready":     0,
 			"succeeded": 0,
+			"failed":    0,
 		}
 	}
 
@@ -272,6 +273,10 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 		replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["succeeded"]++
 	}
 
+	for _, job := range jobs.failed {
+		replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["failed"]++
+	}
+
 	// Calculate ReplicatedJobsStatus
 	var rjStatus []jobset.ReplicatedJobStatus
 	for name, status := range replicatedJobsReady {
@@ -279,6 +284,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			Name:      name,
 			Ready:     status["ready"],
 			Succeeded: status["succeeded"],
+			Failed:    status["failed"],
 		})
 	}
 	return rjStatus

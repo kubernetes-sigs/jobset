@@ -895,6 +895,50 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "no ready jobs, only failed jobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-2").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(3).
+					Obj()).Obj(),
+			jobs: childJobs{
+				failed: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-0"}).Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0"}).Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-1"}).Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-2"}).Obj(),
+				},
+			},
+			expected: []jobset.ReplicatedJobStatus{
+				{
+					Name:   "replicated-job-1",
+					Ready:  0,
+					Failed: 3,
+				},
+				{
+					Name:   "replicated-job-2",
+					Ready:  0,
+					Failed: 1,
+				},
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

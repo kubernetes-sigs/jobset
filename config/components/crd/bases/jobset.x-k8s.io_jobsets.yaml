@@ -9553,6 +9553,9 @@ spec:
                   description: ReplicatedJobStatus defines the observed ReplicatedJobs
                     Readiness.
                   properties:
+                    failed:
+                      format: int32
+                      type: integer
                     name:
                       type: string
                     ready:
@@ -9562,6 +9565,7 @@ spec:
                       format: int32
                       type: integer
                   required:
+                  - failed
                   - name
                   - ready
                   - succeeded
