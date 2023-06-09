@@ -77,7 +77,7 @@ func (js *JobSet) ValidateCreate() error {
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		sum := int64(*(rjob.Template.Spec.Parallelism)) + int64(rjob.Replicas)
 		if sum > math.MaxInt32 || sum < math.MinInt32 {
-			allErrs = append(allErrs, fmt.Errorf("the sum of values of replicas and parallelism fields are out of range int32 type"))
+			allErrs = append(allErrs, fmt.Errorf("the sum replicas and parallelism are out of range int32 type in replicatedJob name '%s'", rjob.Name))
 		}
 	}
 	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {

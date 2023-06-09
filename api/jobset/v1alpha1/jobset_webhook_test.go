@@ -363,11 +363,12 @@ func TestValidateCreate(t *testing.T) {
 		want error
 	}{
 		{
-			name: "reach out of positive int32 range",
+			name: "reach out of int32 range",
 			js: &JobSet{
 				Spec: JobSetSpec{
 					ReplicatedJobs: []ReplicatedJob{
 						{
+							Name:     "test-jobset-replicated-job-0",
 							Replicas: math.MaxInt32,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -375,20 +376,8 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 						},
-					},
-					SuccessPolicy: &SuccessPolicy{},
-				},
-			},
-			want: errors.Join(
-				fmt.Errorf("the sum of values of replicas and parallelism fields are out of range int32 type"),
-			),
-		},
-		{
-			name: "reach out of negative int32 range",
-			js: &JobSet{
-				Spec: JobSetSpec{
-					ReplicatedJobs: []ReplicatedJob{
 						{
+							Name:     "test-jobset-replicated-job-1",
 							Replicas: math.MinInt32,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -401,7 +390,8 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("the sum of values of replicas and parallelism fields are out of range int32 type"),
+				fmt.Errorf("the sum replicas and parallelism are out of range int32 type in replicatedJob name 'test-jobset-replicated-job-0'"),
+				fmt.Errorf("the sum replicas and parallelism are out of range int32 type in replicatedJob name 'test-jobset-replicated-job-1'"),
 			),
 		},
 		{
