@@ -17,4 +17,4 @@ limitations under the License.
 // +kubebuilder:object:generate=true
 // +groupName=jobset.x-k8s.io
 
-package v1alpha1
+package v1alpha2

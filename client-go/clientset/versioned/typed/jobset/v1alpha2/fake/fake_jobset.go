@@ -22,34 +22,34 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
-	v1alpha1 "sigs.k8s.io/jobset/api/jobset/v1alpha1"
+	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
 // FakeJobSets implements JobSetInterface
 type FakeJobSets struct {
-	Fake *FakeJobsetV1alpha1
+	Fake *FakeJobsetV1alpha2
 	ns   string
 }
 
-var jobsetsResource = v1alpha1.SchemeGroupVersion.WithResource("jobsets")
+var jobsetsResource = v1alpha2.SchemeGroupVersion.WithResource("jobsets")
 
-var jobsetsKind = v1alpha1.SchemeGroupVersion.WithKind("JobSet")
+var jobsetsKind = v1alpha2.SchemeGroupVersion.WithKind("JobSet")
 
 // Get takes name of the jobSet, and returns the corresponding jobSet object, and an error if there is any.
-func (c *FakeJobSets) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.JobSet, err error) {
+func (c *FakeJobSets) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha2.JobSet, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(jobsetsResource, c.ns, name), &v1alpha1.JobSet{})
+		Invokes(testing.NewGetAction(jobsetsResource, c.ns, name), &v1alpha2.JobSet{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.JobSet), err
+	return obj.(*v1alpha2.JobSet), err
 }
 
 // List takes label and field selectors, and returns the list of JobSets that match those selectors.
-func (c *FakeJobSets) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.JobSetList, err error) {
+func (c *FakeJobSets) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha2.JobSetList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(jobsetsResource, jobsetsKind, c.ns, opts), &v1alpha1.JobSetList{})
+		Invokes(testing.NewListAction(jobsetsResource, jobsetsKind, c.ns, opts), &v1alpha2.JobSetList{})
 
 	if obj == nil {
 		return nil, err
@@ -59,8 +59,8 @@ func (c *FakeJobSets) List(ctx context.Context, opts v1.ListOptions) (result *v1
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &v1alpha1.JobSetList{ListMeta: obj.(*v1alpha1.JobSetList).ListMeta}
-	for _, item := range obj.(*v1alpha1.JobSetList).Items {
+	list := &v1alpha2.JobSetList{ListMeta: obj.(*v1alpha2.JobSetList).ListMeta}
+	for _, item := range obj.(*v1alpha2.JobSetList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -76,43 +76,43 @@ func (c *FakeJobSets) Watch(ctx context.Context, opts v1.ListOptions) (watch.Int
 }
 
 // Create takes the representation of a jobSet and creates it.  Returns the server's representation of the jobSet, and an error, if there is any.
-func (c *FakeJobSets) Create(ctx context.Context, jobSet *v1alpha1.JobSet, opts v1.CreateOptions) (result *v1alpha1.JobSet, err error) {
+func (c *FakeJobSets) Create(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.CreateOptions) (result *v1alpha2.JobSet, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(jobsetsResource, c.ns, jobSet), &v1alpha1.JobSet{})
+		Invokes(testing.NewCreateAction(jobsetsResource, c.ns, jobSet), &v1alpha2.JobSet{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.JobSet), err
+	return obj.(*v1alpha2.JobSet), err
 }
 
 // Update takes the representation of a jobSet and updates it. Returns the server's representation of the jobSet, and an error, if there is any.
-func (c *FakeJobSets) Update(ctx context.Context, jobSet *v1alpha1.JobSet, opts v1.UpdateOptions) (result *v1alpha1.JobSet, err error) {
+func (c *FakeJobSets) Update(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.UpdateOptions) (result *v1alpha2.JobSet, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(jobsetsResource, c.ns, jobSet), &v1alpha1.JobSet{})
+		Invokes(testing.NewUpdateAction(jobsetsResource, c.ns, jobSet), &v1alpha2.JobSet{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.JobSet), err
+	return obj.(*v1alpha2.JobSet), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeJobSets) UpdateStatus(ctx context.Context, jobSet *v1alpha1.JobSet, opts v1.UpdateOptions) (*v1alpha1.JobSet, error) {
+func (c *FakeJobSets) UpdateStatus(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.UpdateOptions) (*v1alpha2.JobSet, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(jobsetsResource, "status", c.ns, jobSet), &v1alpha1.JobSet{})
+		Invokes(testing.NewUpdateSubresourceAction(jobsetsResource, "status", c.ns, jobSet), &v1alpha2.JobSet{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.JobSet), err
+	return obj.(*v1alpha2.JobSet), err
 }
 
 // Delete takes name of the jobSet and deletes it. Returns an error if one occurs.
 func (c *FakeJobSets) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(jobsetsResource, c.ns, name, opts), &v1alpha1.JobSet{})
+		Invokes(testing.NewDeleteActionWithOptions(jobsetsResource, c.ns, name, opts), &v1alpha2.JobSet{})
 
 	return err
 }
@@ -121,17 +121,17 @@ func (c *FakeJobSets) Delete(ctx context.Context, name string, opts v1.DeleteOpt
 func (c *FakeJobSets) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(jobsetsResource, c.ns, listOpts)
 
-	_, err := c.Fake.Invokes(action, &v1alpha1.JobSetList{})
+	_, err := c.Fake.Invokes(action, &v1alpha2.JobSetList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched jobSet.
-func (c *FakeJobSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.JobSet, err error) {
+func (c *FakeJobSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha2.JobSet, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(jobsetsResource, c.ns, name, pt, data, subresources...), &v1alpha1.JobSet{})
+		Invokes(testing.NewPatchSubresourceAction(jobsetsResource, c.ns, name, pt, data, subresources...), &v1alpha2.JobSet{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.JobSet), err
+	return obj.(*v1alpha2.JobSet), err
 }
