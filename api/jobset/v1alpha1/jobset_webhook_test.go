@@ -363,7 +363,7 @@ func TestValidateCreate(t *testing.T) {
 		want error
 	}{
 		{
-			name: "reach out of int32 range",
+			name: "number of pods exceeds the limit",
 			js: &JobSet{
 				Spec: JobSetSpec{
 					ReplicatedJobs: []ReplicatedJob{
@@ -390,21 +390,19 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("the sum replicas and parallelism are out of range int32 type in replicatedJob name 'test-jobset-replicated-job-0'"),
-				fmt.Errorf("the sum replicas and parallelism are out of range int32 type in replicatedJob name 'test-jobset-replicated-job-1'"),
+				fmt.Errorf("the product of replicas and parallelism must not exceed 2147483647 for replicatedJob 'test-jobset-replicated-job-0'"),
+				fmt.Errorf("the product of replicas and parallelism must not exceed 2147483647 for replicatedJob 'test-jobset-replicated-job-1'"),
 			),
 		},
 		{
-			name: "inside of int32",
+			name: "number of pods within the limit",
 			js: &JobSet{
 				Spec: JobSetSpec{
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Replicas: 1,
 							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Parallelism: pointer.Int32(1),
-								},
+								Spec: batchv1.JobSpec{},
 							},
 						},
 					},

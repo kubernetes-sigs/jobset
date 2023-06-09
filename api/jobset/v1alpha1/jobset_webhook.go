@@ -75,9 +75,11 @@ func (js *JobSet) ValidateCreate() error {
 	// Validate that replicatedJobs listed in success policy are part of this JobSet.
 	validReplicatedJobs := replicatedJobNamesFromSpec(js)
 	for _, rjob := range js.Spec.ReplicatedJobs {
-		sum := int64(*(rjob.Template.Spec.Parallelism)) + int64(rjob.Replicas)
-		if sum > math.MaxInt32 || sum < math.MinInt32 {
-			allErrs = append(allErrs, fmt.Errorf("the sum replicas and parallelism are out of range int32 type in replicatedJob name '%s'", rjob.Name))
+		if rjob.Template.Spec.Parallelism == nil {
+			rjob.Template.Spec.Parallelism = pointer.Int32(1)
+		}
+		if int64(*(rjob.Template.Spec.Parallelism))*int64(rjob.Replicas) > math.MaxInt32 {
+			allErrs = append(allErrs, fmt.Errorf("the product of replicas and parallelism must not exceed %d for replicatedJob '%s'", math.MaxInt32, rjob.Name))
 		}
 	}
 	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
