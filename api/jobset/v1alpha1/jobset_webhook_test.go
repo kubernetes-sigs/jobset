@@ -1,9 +1,13 @@
 package v1alpha1
 
 import (
+	"errors"
+	"fmt"
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
@@ -348,6 +352,82 @@ func TestJobSetDefaulting(t *testing.T) {
 			if diff := cmp.Diff(tc.want, tc.js); diff != "" {
 				t.Errorf("unexpected jobset defaulting: (-want/+got): %s", diff)
 			}
+		})
+	}
+}
+
+func TestValidateCreate(t *testing.T) {
+	testCases := []struct {
+		name string
+		js   *JobSet
+		want error
+	}{
+		{
+			name: "reach out of positive int32 range",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Replicas: math.MaxInt32,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: pointer.Int32(math.MaxInt32),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("the sum of values of replicas and parallelism fields are out of range int32 type"),
+			),
+		},
+		{
+			name: "reach out of negative int32 range",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Replicas: math.MinInt32,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: pointer.Int32(math.MinInt32),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("the sum of values of replicas and parallelism fields are out of range int32 type"),
+			),
+		},
+		{
+			name: "inside of int32",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: pointer.Int32(1),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.js.ValidateCreate(), tc.want)
 		})
 	}
 }
