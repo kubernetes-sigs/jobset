@@ -70,7 +70,7 @@ kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$V
 <!-- <\!-- 3. In the `jobset-manager-config` ConfigMap manifest, edit the -\-> -->
 <!-- <\!-- `controller_manager_config.yaml` data entry. The entry represents -\-> -->
 <!-- <\!-- the default JobSet Configuration -\-> -->
-<!-- <\!-- struct ([v1alpha1@v0.1.3](https://pkg.go.dev/sigs.k8s.io/jobset@v0.1.3/apis/config/v1alpha1#Configuration)). -\-> -->
+<!-- <\!-- struct ([v1alpha2@v0.1.3](https://pkg.go.dev/sigs.k8s.io/jobset@v0.1.3/apis/config/v1alpha2#Configuration)). -\-> -->
 <!-- <\!-- The contents of the ConfigMap are similar to the following: -\-> -->
 
 
@@ -82,7 +82,7 @@ kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$V
 <!-- <\!--   namespace: jobset-system -\-> -->
 <!-- <\!-- data: -\-> -->
 <!-- <\!--   controller_manager_config.yaml: | -\-> -->
-<!-- <\!--     apiVersion: config.jobset.x-k8s.io/v1alpha1 -\-> -->
+<!-- <\!--     apiVersion: config.jobset.x-k8s.io/v1alpha2 -\-> -->
 <!-- <\!--     kind: Configuration -\-> -->
 <!-- <\!--     namespace: jobset-system -\-> -->
 <!-- <\!--     health: -\-> -->

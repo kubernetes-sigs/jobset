@@ -26,5 +26,5 @@ bash "${CODEGEN_PKG}/generate-groups.sh" \
   "all" \
   sigs.k8s.io/jobset/client-go \
   sigs.k8s.io/jobset/api \
-  jobset:v1alpha1 \
+  jobset:v1alpha2 \
   --go-header-file ./boilerplate.go.txt

@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha1"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
 const interval = time.Millisecond * 250
