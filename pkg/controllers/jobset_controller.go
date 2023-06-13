@@ -235,7 +235,12 @@ func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.
 		return nil
 	}
 	js.Status.ReplicatedJobsStatus = status
+	js.Status.Active = r.isActive(jobs)
 	return r.Status().Update(ctx, js)
+}
+
+func (r *JobSetReconciler) isActive(jobs *childJobs) bool {
+	return isActiveChildJobs(jobs.active, jobs.successful, jobs.failed)
 }
 
 func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) []jobset.ReplicatedJobStatus {
@@ -739,4 +744,15 @@ func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 		}
 	}
 	return total
+}
+
+func isActiveChildJobs(allJobs ...[]*batchv1.Job) bool {
+	for _, jobs := range allJobs {
+		for _, job := range jobs {
+			if job.Status.Active > 0 {
+				return true
+			}
+		}
+	}
+	return false
 }

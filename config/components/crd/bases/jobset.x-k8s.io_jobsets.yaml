@@ -9656,6 +9656,9 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              active:
+                description: Active shows if there is at least one active child task
+                type: boolean
               conditions:
                 items:
                   description: "Condition contains details for one aspect of the current

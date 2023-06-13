@@ -960,6 +960,63 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 	}
 }
 
+func TestActiveStatus(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name     string
+		js       *jobset.JobSet
+		jobs     childJobs
+		expected bool
+	}{
+		{
+			name: "active jobset status if at least one child job has active status",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "active-jobset-replicated-job-1-test-job-0"}).
+						Parallelism(1).
+						Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "active-jobset-replicated-job-1-test-job-1"}).
+						Parallelism(1).
+						Obj(),
+				},
+				failed: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "failed-jobset-replicated-job-1-test-job-0"}).
+						Parallelism(1).
+						Active(1).
+						Obj(),
+				},
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := JobSetReconciler{Client: (fake.NewClientBuilder()).Build()}
+			isActive := r.isActive(&tc.jobs)
+			if diff := cmp.Diff(tc.expected, isActive); diff != "" {
+				t.Errorf("isActive() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 type makeJobArgs struct {
 	jobSetName        string
 	replicatedJobName string
