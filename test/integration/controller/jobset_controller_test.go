@@ -672,19 +672,12 @@ func numExpectedServices(js *jobset.JobSet) int {
 func completeAllJobs(jobList *batchv1.JobList) {
 	ginkgo.By("completing all jobs")
 	for _, job := range jobList.Items {
-		updateJobStatusConditions(&job, batchv1.JobStatus{
-			Succeeded: int32(len(jobList.Items)),
-			Conditions: append(job.Status.Conditions, batchv1.JobCondition{
-				Type:   batchv1.JobComplete,
-				Status: corev1.ConditionTrue,
-			}),
-		})
+		completeJob(&job)
 	}
 }
 
 func completeJob(job *batchv1.Job) {
 	updateJobStatusConditions(job, batchv1.JobStatus{
-		Succeeded: 1,
 		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
 			Type:   batchv1.JobComplete,
 			Status: corev1.ConditionTrue,
@@ -705,7 +698,6 @@ func updateJobStatusConditions(job *batchv1.Job, status batchv1.JobStatus) {
 
 func failJob(job *batchv1.Job) {
 	updateJobStatusConditions(job, batchv1.JobStatus{
-		Failed: 1,
 		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
 			Type:   batchv1.JobFailed,
 			Status: corev1.ConditionTrue,
