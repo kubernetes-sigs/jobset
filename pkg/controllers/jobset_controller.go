@@ -235,12 +235,7 @@ func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.
 		return nil
 	}
 	js.Status.ReplicatedJobsStatus = status
-	js.Status.Active = r.isActive(jobs)
 	return r.Status().Update(ctx, js)
-}
-
-func (r *JobSetReconciler) isActive(jobs *childJobs) bool {
-	return isActiveChildJobs(jobs.active, jobs.successful, jobs.failed)
 }
 
 func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) []jobset.ReplicatedJobStatus {
@@ -253,6 +248,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			"ready":     0,
 			"succeeded": 0,
 			"failed":    0,
+			"active":    0,
 		}
 	}
 
@@ -271,6 +267,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 				log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label", job.Name))
 			}
 		}
+		replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["active"] += job.Status.Active
 	}
 
 	// Calculate succeededJobs
@@ -290,6 +287,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			Ready:     status["ready"],
 			Succeeded: status["succeeded"],
 			Failed:    status["failed"],
+			Active:    status["active"],
 		})
 	}
 	return rjStatus
@@ -744,15 +742,4 @@ func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 		}
 	}
 	return total
-}
-
-func isActiveChildJobs(allJobs ...[]*batchv1.Job) bool {
-	for _, jobs := range allJobs {
-		for _, job := range jobs {
-			if job.Status.Active > 0 {
-				return true
-			}
-		}
-	}
-	return false
 }

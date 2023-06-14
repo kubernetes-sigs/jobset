@@ -945,6 +945,55 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "active jobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-2").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(3).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
+						Parallelism(5).
+						Active(3).
+						Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
+						Parallelism(5).
+						Active(2).
+						Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-1"}).
+						Parallelism(1).
+						Active(3).
+						Obj(),
+				},
+			},
+			expected: []jobset.ReplicatedJobStatus{
+				{
+					Name:   "replicated-job-1",
+					Ready:  0,
+					Active: 3,
+				},
+				{
+					Name:   "replicated-job-2",
+					Ready:  0,
+					Active: 5,
+				},
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -955,63 +1004,6 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 			}
 			if diff := cmp.Diff(tc.expected, statuses, cmpopts.SortSlices(less)); diff != "" {
 				t.Errorf("calculateReplicatedJobStatuses() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestActiveStatus(t *testing.T) {
-	var (
-		jobSetName = "test-jobset"
-		ns         = "default"
-	)
-	tests := []struct {
-		name     string
-		js       *jobset.JobSet
-		jobs     childJobs
-		expected bool
-	}{
-		{
-			name: "active jobset status if at least one child job has active status",
-			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
-					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
-					Replicas(1).
-					Obj()).Obj(),
-			jobs: childJobs{
-				active: []*batchv1.Job{
-					makeJob(&makeJobArgs{
-						jobSetName:        jobSetName,
-						replicatedJobName: "replicated-job-1",
-						jobName:           "active-jobset-replicated-job-1-test-job-0"}).
-						Parallelism(1).
-						Obj(),
-					makeJob(&makeJobArgs{
-						jobSetName:        jobSetName,
-						replicatedJobName: "replicated-job-1",
-						jobName:           "active-jobset-replicated-job-1-test-job-1"}).
-						Parallelism(1).
-						Obj(),
-				},
-				failed: []*batchv1.Job{
-					makeJob(&makeJobArgs{
-						jobSetName:        jobSetName,
-						replicatedJobName: "replicated-job-1",
-						jobName:           "failed-jobset-replicated-job-1-test-job-0"}).
-						Parallelism(1).
-						Active(1).
-						Obj(),
-				},
-			},
-			expected: true,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			r := JobSetReconciler{Client: (fake.NewClientBuilder()).Build()}
-			isActive := r.isActive(&tc.jobs)
-			if diff := cmp.Diff(tc.expected, isActive); diff != "" {
-				t.Errorf("isActive() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

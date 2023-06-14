@@ -80,9 +80,6 @@ type JobSetStatus struct {
 	// Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
 	Restarts int `json:"restarts,omitempty"`
 
-	// Active shows if there is at least one active child task
-	Active bool `json:"active,omitempty"`
-
 	// ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.
 	// +optional
 	// +listType=map
@@ -96,6 +93,7 @@ type ReplicatedJobStatus struct {
 	Ready     int32  `json:"ready"`
 	Succeeded int32  `json:"succeeded"`
 	Failed    int32  `json:"failed"`
+	Active    int32  `json:"active"`
 }
 
 // +genclient
