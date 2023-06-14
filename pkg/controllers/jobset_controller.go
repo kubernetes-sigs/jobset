@@ -217,7 +217,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 
 		// Jobs with jobset.sigs.k8s.io/restart-attempt == jobset.status.restarts are part of
 		// the current JobSet run, and marked either active, successful, or failed.
-		_, finishedType := jobFinished(&job)
+		_, finishedType := JobFinished(&job)
 		switch finishedType {
 		case "": // active
 			ownedJobs.active = append(ownedJobs.active, &childJobList.Items[i])
@@ -680,7 +680,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	obj.SetAnnotations(annotations)
 }
 
-func jobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
+func JobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 	for _, c := range job.Status.Conditions {
 		if (c.Type == batchv1.JobComplete || c.Type == batchv1.JobFailed) && c.Status == corev1.ConditionTrue {
 			return true, c.Type
