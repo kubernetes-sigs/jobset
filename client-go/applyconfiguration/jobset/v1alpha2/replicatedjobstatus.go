@@ -21,6 +21,7 @@ type ReplicatedJobStatusApplyConfiguration struct {
 	Ready     *int32  `json:"ready,omitempty"`
 	Succeeded *int32  `json:"succeeded,omitempty"`
 	Failed    *int32  `json:"failed,omitempty"`
+	Active    *int32  `json:"active,omitempty"`
 }
 
 // ReplicatedJobStatusApplyConfiguration constructs an declarative configuration of the ReplicatedJobStatus type for use with
@@ -58,5 +59,13 @@ func (b *ReplicatedJobStatusApplyConfiguration) WithSucceeded(value int32) *Repl
 // If called multiple times, the Failed field is set to the value of the last call.
 func (b *ReplicatedJobStatusApplyConfiguration) WithFailed(value int32) *ReplicatedJobStatusApplyConfiguration {
 	b.Failed = &value
+	return b
+}
+
+// WithActive sets the Active field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Active field is set to the value of the last call.
+func (b *ReplicatedJobStatusApplyConfiguration) WithActive(value int32) *ReplicatedJobStatusApplyConfiguration {
+	b.Active = &value
 	return b
 }

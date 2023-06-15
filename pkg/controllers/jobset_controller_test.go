@@ -963,21 +963,20 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 						replicatedJobName: "replicated-job-1",
 						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
 						Parallelism(5).
-						Active(3).
+						Active(1).
 						Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
 						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
 						Parallelism(5).
-						Active(2).
 						Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
 						jobName:           "test-jobset-replicated-job-2-test-job-1"}).
 						Parallelism(1).
-						Active(3).
+						Active(1).
 						Obj(),
 				},
 			},
@@ -985,12 +984,12 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 				{
 					Name:   "replicated-job-1",
 					Ready:  0,
-					Active: 3,
+					Active: 1,
 				},
 				{
 					Name:   "replicated-job-2",
 					Ready:  0,
-					Active: 5,
+					Active: 1,
 				},
 			},
 		},
