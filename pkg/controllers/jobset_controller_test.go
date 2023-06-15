@@ -523,10 +523,12 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "pod dns hostnames enabled",
 			js: testutils.MakeJobSet(jobSetName, ns).
+				EnableDNSHostnames(true).
+				Subdomain(jobSetName).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Subdomain(jobSetName).
 					Replicas(1).
-					EnableDNSHostnames(true).
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -539,17 +541,19 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicas:          1,
 					jobIdx:            0}).
 					Suspend(false).
-					Subdomain("test-jobset-replicated-job").Obj(),
+					Subdomain(jobSetName).Obj(),
 			},
 		},
 		{
 			name: "suspend job set",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Suspend(true).
+				EnableDNSHostnames(true).
+				Subdomain(jobSetName).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Subdomain(jobSetName).
 					Replicas(1).
-					EnableDNSHostnames(true).
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -562,17 +566,19 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicas:          1,
 					jobIdx:            0}).
 					Suspend(true).
-					Subdomain("test-jobset-replicated-job").Obj(),
+					Subdomain(jobSetName).Obj(),
 			},
 		},
 		{
 			name: "resume job set",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Suspend(false).
+				EnableDNSHostnames(true).
+				Subdomain(jobSetName).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Subdomain(jobSetName).
 					Replicas(1).
-					EnableDNSHostnames(true).
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -585,7 +591,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicas:          1,
 					jobIdx:            0}).
 					Suspend(false).
-					Subdomain("test-jobset-replicated-job").Obj(),
+					Subdomain(jobSetName).Obj(),
 			},
 		},
 	}

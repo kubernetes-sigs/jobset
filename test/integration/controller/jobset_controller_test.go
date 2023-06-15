@@ -513,7 +513,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// Fetch headless service created for replicated job and delete it.
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						var svc corev1.Service
-						gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: controllers.GenSubdomain(js, &js.Spec.ReplicatedJobs[1]), Namespace: js.Namespace}, &svc)).To(gomega.Succeed())
+						gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: controllers.GenSubdomain(js), Namespace: js.Namespace}, &svc)).To(gomega.Succeed())
 						gomega.Expect(k8sClient.Delete(ctx, &svc)).To(gomega.Succeed())
 					},
 					// Service should be recreated during reconciliation.
@@ -622,12 +622,10 @@ func checkJobSetReplicatedJobsStatus(js *jobset.JobSet) bool {
 }
 
 func numExpectedServices(js *jobset.JobSet) int {
-	// Expect 1 headless service per replicatedJob.
+	// Expect 1 headless service per jobset, if network and hostnames enabled
 	expected := 0
-	for _, rjob := range js.Spec.ReplicatedJobs {
-		if rjob.Network != nil && rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames {
-			expected += 1
-		}
+	if js.Spec.Network != nil && *js.Spec.Network.EnableDNSHostnames {
+		expected = 1
 	}
 	return expected
 }
@@ -805,15 +803,17 @@ func jobActive(job *batchv1.Job) bool {
 // - one with 1 replica
 // - one with 3 replicas and DNS hostnames enabled
 func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
-	return testing.MakeJobSet("test-js", ns.Name).
+	jobSetName := "test-js"
+	return testing.MakeJobSet(jobSetName, ns.Name).
 		SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+		EnableDNSHostnames(true).
+		Subdomain(jobSetName).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).
 			Obj()).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-b").
 			Job(testing.MakeJobTemplate("test-job-B", ns.Name).PodSpec(testing.TestPodSpec).CompletionMode(batchv1.IndexedCompletion).Obj()).
-			EnableDNSHostnames(true).
 			Replicas(3).
 			Obj())
 }

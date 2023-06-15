@@ -351,19 +351,23 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
 
+	// If pod DNS hostnames are enabled, create a headless service for the JobSet
+	if dnsHostnamesEnabled(js) {
+
+		// Don't try to create a headless service without a subdomain
+		if js.Spec.Network.Subdomain == "" {
+			return fmt.Errorf("a subdomain should be set if dns hostnames are enabled")
+		}
+		if err := r.createHeadlessSvcIfNotExist(ctx, js); err != nil {
+			return err
+		}
+	}
+
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		jobs, err := constructJobsFromTemplate(js, &rjob, ownedJobs)
 		if err != nil {
 			return err
 		}
-
-		// If pod DNS hostnames are enabled, create a headless service per replicatedjob.
-		if dnsHostnamesEnabled(&rjob) {
-			if err := r.createHeadlessSvcIfNotExist(ctx, js, &rjob); err != nil {
-				return err
-			}
-		}
-
 		for _, job := range jobs {
 			// Set jobset controller as owner of the job for garbage collection and reconcilation.
 			if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
@@ -383,24 +387,23 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 
 // TODO: look into adopting service and updating the selector
 // if it is not matching the job selector.
-func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *jobset.JobSet, rjob *jobset.ReplicatedJob) error {
+func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *jobset.JobSet) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// Check if service already exists. Service name is <jobSetName>-<replicatedJobName>.
-	// If the service does not exist, create it.
+	// Check if service already exists. The service name should match the subdomain specified in
+	// Spec.Network.Subdomain, with default of <jobSetName> set by the webhook.
+	// If the service doesn't exist in the same namespace, create it.
 	var headlessSvc corev1.Service
-	subdomain := GenSubdomain(js, rjob)
-	if err := r.Get(ctx, types.NamespacedName{Name: subdomain, Namespace: js.Namespace}, &headlessSvc); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: js.Spec.Network.Subdomain, Namespace: js.Namespace}, &headlessSvc); err != nil {
 		headlessSvc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      subdomain,
+				Name:      js.Spec.Network.Subdomain,
 				Namespace: js.Namespace,
 			},
 			Spec: corev1.ServiceSpec{
 				ClusterIP: "None",
 				Selector: map[string]string{
-					jobset.JobSetNameKey:        js.Name,
-					jobset.ReplicatedJobNameKey: rjob.Name,
+					jobset.JobSetNameKey: js.Name,
 				},
 			},
 		}
@@ -578,8 +581,8 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 
 	// If enableDNSHostnames is set, update job spec to set subdomain as
 	// job name (a headless service with same name as job will be created later).
-	if dnsHostnamesEnabled(rjob) {
-		job.Spec.Template.Spec.Subdomain = GenSubdomain(js, rjob)
+	if dnsHostnamesEnabled(js) {
+		job.Spec.Template.Spec.Subdomain = js.Spec.Network.Subdomain
 	}
 
 	// If this job should be exclusive per topology, set the pod affinities/anti-affinities accordingly.
@@ -684,8 +687,12 @@ func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIndex int) str
 	return fmt.Sprintf("%s-%s-%d", js.Name, rjob.Name, jobIndex)
 }
 
-func GenSubdomain(js *jobset.JobSet, rjob *jobset.ReplicatedJob) string {
-	return fmt.Sprintf("%s-%s", js.Name, rjob.Name)
+func GenSubdomain(js *jobset.JobSet) string {
+	// If we have selected an explicit network name, use it
+	if js.Spec.Network.Subdomain != "" {
+		return js.Spec.Network.Subdomain
+	}
+	return js.Name
 }
 
 func jobSetFinished(js *jobset.JobSet) bool {
@@ -697,8 +704,8 @@ func jobSetFinished(js *jobset.JobSet) bool {
 	return false
 }
 
-func dnsHostnamesEnabled(rjob *jobset.ReplicatedJob) bool {
-	return rjob.Network.EnableDNSHostnames != nil && *rjob.Network.EnableDNSHostnames
+func dnsHostnamesEnabled(js *jobset.JobSet) bool {
+	return js.Spec.Network.EnableDNSHostnames != nil && *js.Spec.Network.EnableDNSHostnames
 }
 
 func jobMatchesSuccessPolicy(js *jobset.JobSet, job *batchv1.Job) bool {

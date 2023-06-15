@@ -48,6 +48,7 @@ func MakeJobSet(name, ns string) *JobSetWrapper {
 			},
 			Spec: jobset.JobSetSpec{
 				ReplicatedJobs: []jobset.ReplicatedJob{},
+				Network:        &jobset.Network{},
 			},
 		},
 	}
@@ -71,6 +72,12 @@ func (j *JobSetWrapper) SetAnnotations(annotations map[string]string) *JobSetWra
 	return j
 }
 
+// Subdomain sets the JobSet Network subdomain.
+func (j *JobSetWrapper) Subdomain(subdomain string) *JobSetWrapper {
+	j.Spec.Network.Subdomain = subdomain
+	return j
+}
+
 // Obj returns the inner JobSet.
 func (j *JobSetWrapper) Obj() *jobset.JobSet {
 	return &j.JobSet
@@ -88,6 +95,18 @@ func (j *JobSetWrapper) Suspend(suspend bool) *JobSetWrapper {
 	return j
 }
 
+// NetworkSubdomain sets the value of JobSet.Network.Subdomain
+func (j *JobSetWrapper) NetworkSubdomain(val string) *JobSetWrapper {
+	j.JobSet.Spec.Network.Subdomain = val
+	return j
+}
+
+// EnableDNSHostnames sets the value of ReplicatedJob.Network.EnableDNSHostnames.
+func (j *JobSetWrapper) EnableDNSHostnames(val bool) *JobSetWrapper {
+	j.JobSet.Spec.Network.EnableDNSHostnames = pointer.Bool(val)
+	return j
+}
+
 // ReplicatedJobWrapper wraps a ReplicatedJob.
 type ReplicatedJobWrapper struct {
 	jobset.ReplicatedJob
@@ -97,8 +116,7 @@ type ReplicatedJobWrapper struct {
 func MakeReplicatedJob(name string) *ReplicatedJobWrapper {
 	return &ReplicatedJobWrapper{
 		jobset.ReplicatedJob{
-			Name:    name,
-			Network: &jobset.Network{},
+			Name: name,
 		},
 	}
 }
@@ -109,15 +127,16 @@ func (r *ReplicatedJobWrapper) Job(jobSpec batchv1.JobTemplateSpec) *ReplicatedJ
 	return r
 }
 
-// EnableDNSHostnames sets the value of ReplicatedJob.Network.EnableDNSHostnames.
-func (r *ReplicatedJobWrapper) EnableDNSHostnames(val bool) *ReplicatedJobWrapper {
-	r.ReplicatedJob.Network.EnableDNSHostnames = pointer.Bool(val)
-	return r
-}
-
 // Replicas sets the value of the ReplicatedJob.Replicas.
 func (r *ReplicatedJobWrapper) Replicas(val int) *ReplicatedJobWrapper {
 	r.ReplicatedJob.Replicas = val
+	return r
+}
+
+// Subdomain sets the subdomain on the PodSpec
+// We artificially do this because the webhook does not work in testing
+func (r *ReplicatedJobWrapper) Subdomain(subdomain string) *ReplicatedJobWrapper {
+	r.Template.Spec.Template.Spec.Subdomain = subdomain
 	return r
 }
 
