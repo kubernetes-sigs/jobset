@@ -15,11 +15,12 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-apt update -y
-apt-get install python3.10 -y
-apt-get install python3-pip -y
-apt-get install python3-venv -y
-
+if [ -z `which python3` ]; then
+    apt update -y
+    apt-get install python3.10 -y
+    apt-get install python3-pip -y
+    apt-get install python3-venv -y
+fi
 
 repo_root="$(dirname "${BASH_SOURCE}")/../.."
 

@@ -21,10 +21,9 @@ import (
 // ReplicatedJobApplyConfiguration represents an declarative configuration of the ReplicatedJob type for use
 // with apply.
 type ReplicatedJobApplyConfiguration struct {
-	Name     *string                    `json:"name,omitempty"`
-	Template *v1.JobTemplateSpec        `json:"template,omitempty"`
-	Network  *NetworkApplyConfiguration `json:"network,omitempty"`
-	Replicas *int                       `json:"replicas,omitempty"`
+	Name     *string             `json:"name,omitempty"`
+	Template *v1.JobTemplateSpec `json:"template,omitempty"`
+	Replicas *int                `json:"replicas,omitempty"`
 }
 
 // ReplicatedJobApplyConfiguration constructs an declarative configuration of the ReplicatedJob type for use with
@@ -46,14 +45,6 @@ func (b *ReplicatedJobApplyConfiguration) WithName(value string) *ReplicatedJobA
 // If called multiple times, the Template field is set to the value of the last call.
 func (b *ReplicatedJobApplyConfiguration) WithTemplate(value v1.JobTemplateSpec) *ReplicatedJobApplyConfiguration {
 	b.Template = &value
-	return b
-}
-
-// WithNetwork sets the Network field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Network field is set to the value of the last call.
-func (b *ReplicatedJobApplyConfiguration) WithNetwork(value *NetworkApplyConfiguration) *ReplicatedJobApplyConfiguration {
-	b.Network = value
 	return b
 }
 

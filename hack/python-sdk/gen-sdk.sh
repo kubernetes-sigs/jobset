@@ -42,9 +42,11 @@ if [[ ! -f "$SWAGGER_CODEGEN_JAR" ]]; then
   wget -O "${SWAGGER_CODEGEN_JAR}" ${SWAGGER_JAR_URL}
 fi
 
-apt update -y
-echo "Installing OpenJDK 11"
-apt-get install openjdk-11-jdk -y
+if [ -z `which java` ]; then
+  echo "Installing OpenJDK 11"
+  apt update -y
+  apt-get install openjdk-11-jdk -y
+fi
 
 echo "Generating swagger file ..."
 go run "${repo_root}"/hack/swagger/main.go ${VERSION} >"${SWAGGER_CODEGEN_FILE}"

@@ -18,6 +18,7 @@ package v1alpha2
 // with apply.
 type JobSetSpecApplyConfiguration struct {
 	ReplicatedJobs []ReplicatedJobApplyConfiguration `json:"replicatedJobs,omitempty"`
+	Network        *NetworkApplyConfiguration        `json:"network,omitempty"`
 	SuccessPolicy  *SuccessPolicyApplyConfiguration  `json:"successPolicy,omitempty"`
 	FailurePolicy  *FailurePolicyApplyConfiguration  `json:"failurePolicy,omitempty"`
 	Suspend        *bool                             `json:"suspend,omitempty"`
@@ -39,6 +40,14 @@ func (b *JobSetSpecApplyConfiguration) WithReplicatedJobs(values ...*ReplicatedJ
 		}
 		b.ReplicatedJobs = append(b.ReplicatedJobs, *values[i])
 	}
+	return b
+}
+
+// WithNetwork sets the Network field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Network field is set to the value of the last call.
+func (b *JobSetSpecApplyConfiguration) WithNetwork(value *NetworkApplyConfiguration) *JobSetSpecApplyConfiguration {
+	b.Network = value
 	return b
 }
 
