@@ -18,6 +18,10 @@ set -o pipefail
 if [ -z `which python3` ]; then
     apt update -y
     apt-get install python3.10 -y
+fi
+
+if [ -z `which pip` ]; then
+    apt update -y
     apt-get install python3-pip -y
 fi
 
