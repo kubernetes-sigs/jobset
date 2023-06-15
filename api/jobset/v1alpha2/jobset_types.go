@@ -11,6 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// +k8s:openapi-gen=true
 package v1alpha2
 
 import (
@@ -95,6 +96,7 @@ type ReplicatedJobStatus struct {
 }
 
 // +genclient
+// +k8s:openapi-gen=true
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Restarts",JSONPath=".status.restarts",type=string,description="Number of restarts"

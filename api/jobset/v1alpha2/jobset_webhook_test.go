@@ -458,7 +458,8 @@ func TestValidateCreate(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.js.ValidateCreate(), tc.want)
+			_, err := tc.js.ValidateCreate()
+			assert.Equal(t, err, tc.want)
 		})
 	}
 }

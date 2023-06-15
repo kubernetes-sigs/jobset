@@ -1,0 +1,14 @@
+# JobsetV1alpha2JobSetSpec
+
+JobSetSpec defines the desired state of JobSet
+## Properties
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**failure_policy** | [**JobsetV1alpha2FailurePolicy**](JobsetV1alpha2FailurePolicy.md) |  | [optional] 
+**replicated_jobs** | [**list[JobsetV1alpha2ReplicatedJob]**](JobsetV1alpha2ReplicatedJob.md) | ReplicatedJobs is the group of jobs that will form the set. | [optional] 
+**success_policy** | [**JobsetV1alpha2SuccessPolicy**](JobsetV1alpha2SuccessPolicy.md) |  | [optional] 
+**suspend** | **bool** | Suspend suspends all running child Jobs when set to true. | [optional] 
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+

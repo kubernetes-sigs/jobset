@@ -1,0 +1,228 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "Python SDK for the JobSet API",
+    "title": "JobSet SDK",
+    "version": "v0.1.4"
+  },
+  "paths": {},
+  "definitions": {
+    "jobset.v1alpha2.FailurePolicy": {
+      "type": "object",
+      "properties": {
+        "maxRestarts": {
+          "description": "MaxRestarts defines the limit on the number of JobSet restarts. A restart is achieved by recreating all active child jobs.",
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "jobset.v1alpha2.JobSet": {
+      "description": "JobSet is the Schema for the jobsets API",
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/v1.ObjectMeta"
+        },
+        "spec": {
+          "default": {},
+          "$ref": "#/definitions/jobset.v1alpha2.JobSetSpec"
+        },
+        "status": {
+          "default": {},
+          "$ref": "#/definitions/jobset.v1alpha2.JobSetStatus"
+        }
+      }
+    },
+    "jobset.v1alpha2.JobSetList": {
+      "description": "JobSetList contains a list of JobSet",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/jobset.v1alpha2.JobSet"
+          }
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/v1.ListMeta"
+        }
+      }
+    },
+    "jobset.v1alpha2.JobSetSpec": {
+      "description": "JobSetSpec defines the desired state of JobSet",
+      "type": "object",
+      "properties": {
+        "failurePolicy": {
+          "description": "FailurePolicy, if set, configures when to declare the JobSet as failed. The JobSet is always declared failed if all jobs in the set finished with status failed.",
+          "$ref": "#/definitions/jobset.v1alpha2.FailurePolicy"
+        },
+        "replicatedJobs": {
+          "description": "ReplicatedJobs is the group of jobs that will form the set.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/jobset.v1alpha2.ReplicatedJob"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "successPolicy": {
+          "description": "SuccessPolicy configures when to declare the JobSet as succeeded. The JobSet is always declared succeeded if all jobs in the set finished with status complete.",
+          "$ref": "#/definitions/jobset.v1alpha2.SuccessPolicy"
+        },
+        "suspend": {
+          "description": "Suspend suspends all running child Jobs when set to true.",
+          "type": "boolean"
+        }
+      }
+    },
+    "jobset.v1alpha2.JobSetStatus": {
+      "description": "JobSetStatus defines the observed state of JobSet",
+      "type": "object",
+      "properties": {
+        "ReplicatedJobsStatus": {
+          "description": "ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/jobset.v1alpha2.ReplicatedJobStatus"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "restarts": {
+          "description": "Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).",
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "jobset.v1alpha2.Network": {
+      "type": "object",
+      "properties": {
+        "enableDNSHostnames": {
+          "description": "EnableDNSHostnames allows pods to be reached via their hostnames. Pods will be reachable using the fully qualified pod hostname, which is in the format: \u003cjobSet.name\u003e-\u003cspec.replicatedJob.name\u003e-\u003cjob-index\u003e-\u003cpod-index\u003e.\u003cjobSet.name\u003e-\u003cspec.replicatedJob.name\u003e",
+          "type": "boolean"
+        }
+      }
+    },
+    "jobset.v1alpha2.ReplicatedJob": {
+      "type": "object",
+      "required": [
+        "name",
+        "template"
+      ],
+      "properties": {
+        "name": {
+          "description": "Name is the name of the entry and will be used as a suffix for the Job name.",
+          "type": "string",
+          "default": ""
+        },
+        "network": {
+          "description": "Network defines the networking options for the job.",
+          "$ref": "#/definitions/jobset.v1alpha2.Network"
+        },
+        "replicas": {
+          "description": "Replicas is the number of jobs that will be created from this ReplicatedJob's template. Jobs names will be in the format: \u003cjobSet.name\u003e-\u003cspec.replicatedJob.name\u003e-\u003cjob-index\u003e",
+          "type": "integer",
+          "format": "int32"
+        },
+        "template": {
+          "description": "Template defines the template of the Job that will be created.",
+          "default": {},
+          "$ref": "#/definitions/v1.JobTemplateSpec"
+        }
+      }
+    },
+    "jobset.v1alpha2.ReplicatedJobStatus": {
+      "description": "ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.",
+      "type": "object",
+      "required": [
+        "name",
+        "ready",
+        "succeeded",
+        "failed"
+      ],
+      "properties": {
+        "failed": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
+        "name": {
+          "type": "string",
+          "default": ""
+        },
+        "ready": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
+        "succeeded": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        }
+      }
+    },
+    "jobset.v1alpha2.SuccessPolicy": {
+      "type": "object",
+      "required": [
+        "operator"
+      ],
+      "properties": {
+        "operator": {
+          "description": "Operator determines either All or Any of the selected jobs should succeed to consider the JobSet successful",
+          "type": "string",
+          "default": ""
+        },
+        "targetReplicatedJobs": {
+          "description": "TargetReplicatedJobs are the names of the replicated jobs the operator will apply to. A null or empty list will apply to all replicatedJobs.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      }
+    }
+  }
+}

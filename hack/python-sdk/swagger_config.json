@@ -1,0 +1,8 @@
+{
+    "packageName": "jobset",
+    "projectName": "jobset",
+    "packageVersion": "0.1.4",
+    "typeMappings": {
+      "V1Time": "datetime"
+    }
+  }
