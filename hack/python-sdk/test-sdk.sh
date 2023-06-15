@@ -19,21 +19,14 @@ if [ -z `which python3` ]; then
     apt update -y
     apt-get install python3.10 -y
     apt-get install python3-pip -y
-    apt-get install python3-venv -y
 fi
 
 repo_root="$(dirname "${BASH_SOURCE}")/../.."
 
 cd "${repo_root}/sdk/python"
 
-# remove existing virtual env (for local testing)
-rm -rf venv
-
-# make new virtual env
-python3 -m venv venv
-
 # install test requirements
-venv/bin/pip3 install -r test-requirements.txt
+python3 -m pip install -r test-requirements.txt
 
 # run unit tests
-venv/bin/python3 -m pytest test/
+python3 -m pytest test/
