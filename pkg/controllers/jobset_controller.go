@@ -98,6 +98,12 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	// Calculate JobsReady and update statuses for each ReplicatedJob
+	if err := r.calculateAndUpdateReplicatedJobsStatuses(ctx, &js, ownedJobs); err != nil {
+		log.Error(err, "updating replicated jobs statuses")
+		return ctrl.Result{}, err
+	}
+
 	// If JobSet is already completed or failed, clean up active child jobs.
 	if jobSetFinished(&js) {
 		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
@@ -153,12 +159,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			log.Error(err, "resuming jobset")
 			return ctrl.Result{}, err
 		}
-	}
-
-	// Calculate JobsReady and update statuses for each ReplicatedJob
-	if err := r.calculateAndUpdateReplicatedJobsStatuses(ctx, &js, ownedJobs); err != nil {
-		log.Error(err, "updating replicated jobs statuses")
-		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
