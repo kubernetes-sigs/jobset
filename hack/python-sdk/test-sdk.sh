@@ -15,14 +15,28 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+PYTHON_PATH=""
+
 if [ -z `which python3` ]; then
-    apt update -y
-    apt-get install python3.10 -y
+    cd /tmp
+    curl -O https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz
+    tar -xf Python-3.10.0.tgz
+
+    cd Python-3.10.0
+    ./configure --enable-optimizations
+    make -j 4
+    make altinstall
+
+    PYTHON_PATH="/usr/local/bin/python3.10"
+    echo "Python 3.10 is located at: ${PYTHON_PATH}"
+    export PATH=/usr/local/bin:$PATH
+else
+    PYTHON_PATH=$(which python3.10)
 fi
 
 if [ -z `which pip` ]; then
-    apt update -y
-    apt-get install python3-pip -y
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+    "${PYTHON_PATH}" get-pip.py
 fi
 
 repo_root="$(dirname "${BASH_SOURCE}")/../.."
@@ -30,7 +44,7 @@ repo_root="$(dirname "${BASH_SOURCE}")/../.."
 cd "${repo_root}/sdk/python"
 
 # install test requirements
-python3 -m pip install -r test-requirements.txt
+"${PYTHON_PATH}" -m pip install -r test-requirements.txt
 
 # run unit tests
-python3 -m pytest test/
+"${PYTHON_PATH}" -m pytest test/
