@@ -154,6 +154,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 	}
+
 	// Calculate JobsReady and update statuses for each ReplicatedJob
 	if err := r.calculateAndUpdateReplicatedJobsStatuses(ctx, &js, ownedJobs); err != nil {
 		log.Error(err, "updating replicated jobs statuses")
@@ -248,11 +249,16 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			"ready":     0,
 			"succeeded": 0,
 			"failed":    0,
+			"active":    0,
 		}
 	}
 
 	// Calculate jobsReady for each Replicated Job
 	for _, job := range jobs.active {
+		if job.Labels == nil || (job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] == "") {
+			log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label, can't update status", job.Name))
+			continue
+		}
 		ready := pointer.Int32Deref(job.Status.Ready, 0)
 		// parallelism is always set as it is otherwise defaulted by k8s to 1
 		podsCount := *(job.Spec.Parallelism)
@@ -260,11 +266,10 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			podsCount = *job.Spec.Completions
 		}
 		if job.Status.Succeeded+ready >= podsCount {
-			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
-				replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["ready"]++
-			} else {
-				log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label", job.Name))
-			}
+			replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["ready"]++
+		}
+		if job.Status.Active > 0 {
+			replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["active"]++
 		}
 	}
 
@@ -285,6 +290,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			Ready:     status["ready"],
 			Succeeded: status["succeeded"],
 			Failed:    status["failed"],
+			Active:    status["active"],
 		})
 	}
 	return rjStatus

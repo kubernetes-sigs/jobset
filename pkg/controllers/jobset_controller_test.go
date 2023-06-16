@@ -945,6 +945,54 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "active jobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-2").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(3).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
+						Parallelism(5).
+						Active(1).
+						Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
+						Parallelism(5).
+						Obj(),
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-2",
+						jobName:           "test-jobset-replicated-job-2-test-job-1"}).
+						Parallelism(1).
+						Active(1).
+						Obj(),
+				},
+			},
+			expected: []jobset.ReplicatedJobStatus{
+				{
+					Name:   "replicated-job-1",
+					Ready:  0,
+					Active: 1,
+				},
+				{
+					Name:   "replicated-job-2",
+					Ready:  0,
+					Active: 1,
+				},
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

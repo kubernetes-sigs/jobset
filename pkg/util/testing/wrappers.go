@@ -272,6 +272,12 @@ func (j *JobWrapper) Succeeded(succeeded int32) *JobWrapper {
 	return j
 }
 
+// Active sets the job status active.
+func (j *JobWrapper) Active(active int32) *JobWrapper {
+	j.Status.Active = active
+	return j
+}
+
 // Ready sets the job status ready.
 func (j *JobWrapper) Ready(ready int32) *JobWrapper {
 	j.Status.Ready = pointer.Int32(ready)
