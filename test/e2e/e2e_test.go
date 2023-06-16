@@ -146,9 +146,6 @@ func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	cmd := getPingCommand(podHostnames)
 	return testing.MakeJobSet(jsName, ns.Name).
 		EnableDNSHostnames(true).
-		NetworkSubdomain(jsName).
-		// We have to explicitly set it since the webhook does not work
-		Subdomain(jsName).
 		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
 			Job(testing.MakeJobTemplate("job", ns.Name).
 				PodSpec(corev1.PodSpec{
@@ -184,13 +181,10 @@ func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet(jsName, ns.Name).
 		EnableDNSHostnames(true).
 		NetworkSubdomain(subdomain).
-		// We have to explicitly set it since the webhook does not work
-		Subdomain(subdomain).
 		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
 			Job(testing.MakeJobTemplate("job", ns.Name).
 				PodSpec(corev1.PodSpec{
 					RestartPolicy: "Never",
-					Subdomain:     subdomain,
 					Containers: []corev1.Container{
 						{
 							Name:    "ping-test-container",

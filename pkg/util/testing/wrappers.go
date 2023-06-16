@@ -72,12 +72,6 @@ func (j *JobSetWrapper) SetAnnotations(annotations map[string]string) *JobSetWra
 	return j
 }
 
-// Subdomain sets the JobSet Network subdomain.
-func (j *JobSetWrapper) Subdomain(subdomain string) *JobSetWrapper {
-	j.Spec.Network.Subdomain = subdomain
-	return j
-}
-
 // Obj returns the inner JobSet.
 func (j *JobSetWrapper) Obj() *jobset.JobSet {
 	return &j.JobSet

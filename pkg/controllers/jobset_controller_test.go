@@ -524,7 +524,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "pod dns hostnames enabled",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				EnableDNSHostnames(true).
-				Subdomain(jobSetName).
+				NetworkSubdomain(jobSetName).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Subdomain(jobSetName).
@@ -549,7 +549,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Suspend(true).
 				EnableDNSHostnames(true).
-				Subdomain(jobSetName).
+				NetworkSubdomain(jobSetName).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Subdomain(jobSetName).
@@ -574,7 +574,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Suspend(false).
 				EnableDNSHostnames(true).
-				Subdomain(jobSetName).
+				NetworkSubdomain(jobSetName).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Subdomain(jobSetName).
