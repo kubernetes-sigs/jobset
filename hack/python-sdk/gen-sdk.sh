@@ -21,6 +21,7 @@ set -o nounset
 set -o pipefail
 set -x
 
+export DEBIAN_FRONTEND=noninteractive
 repo_root="$(dirname "${BASH_SOURCE}")/../.."
 
 SWAGGER_JAR_URL="https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/4.3.1/openapi-generator-cli-4.3.1.jar"
@@ -44,7 +45,7 @@ fi
 
 if [ -z `which java` ]; then
   echo "Installing OpenJDK 11"
-  apt update -y
+  apt-get update -y 
   apt-get install openjdk-11-jdk -y
 fi
 

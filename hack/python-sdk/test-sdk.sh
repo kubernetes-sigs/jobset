@@ -16,14 +16,17 @@
 set -o errexit
 set -o nounset
 set -o pipefail
+set -x
+
+export DEBIAN_FRONTEND=noninteractive
 
 if [ -z `which python3` ]; then
-    apt update -y
+    apt-get update -y
     apt-get install python3.10 -y
 fi
 
 if [ -z `which pip` ]; then
-    apt update -y
+    apt-get update -y
     apt-get install python3-pip -y
 fi
 
