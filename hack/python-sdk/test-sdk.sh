@@ -21,13 +21,11 @@ set -x
 export DEBIAN_FRONTEND=noninteractive
 
 if [ -z `which python3` ]; then
-    apt-get update -y
-    apt-get install python3.10 -y
+    apt-get update -y && apt-get install python3.10 -y
 fi
 
 if [ -z `which pip` ]; then
-    apt-get update -y
-    apt-get install python3-pip -y
+    apt-get update -y && apt-get install python3-pip -y
 fi
 
 repo_root="$(dirname "${BASH_SOURCE}")/../.."
