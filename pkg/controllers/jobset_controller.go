@@ -98,6 +98,12 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	// Calculate JobsReady and update statuses for each ReplicatedJob
+	if err := r.calculateAndUpdateReplicatedJobsStatuses(ctx, &js, ownedJobs); err != nil {
+		log.Error(err, "updating replicated jobs statuses")
+		return ctrl.Result{}, err
+	}
+
 	// If JobSet is already completed or failed, clean up active child jobs.
 	if jobSetFinished(&js) {
 		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
@@ -153,12 +159,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			log.Error(err, "resuming jobset")
 			return ctrl.Result{}, err
 		}
-	}
-
-	// Calculate JobsReady and update statuses for each ReplicatedJob
-	if err := r.calculateAndUpdateReplicatedJobsStatuses(ctx, &js, ownedJobs); err != nil {
-		log.Error(err, "updating replicated jobs statuses")
-		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
@@ -217,7 +217,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 
 		// Jobs with jobset.sigs.k8s.io/restart-attempt == jobset.status.restarts are part of
 		// the current JobSet run, and marked either active, successful, or failed.
-		_, finishedType := jobFinished(&job)
+		_, finishedType := JobFinished(&job)
 		switch finishedType {
 		case "": // active
 			ownedJobs.active = append(ownedJobs.active, &childJobList.Items[i])
@@ -680,7 +680,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	obj.SetAnnotations(annotations)
 }
 
-func jobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
+func JobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 	for _, c := range job.Status.Conditions {
 		if (c.Type == batchv1.JobComplete || c.Type == batchv1.JobFailed) && c.Status == corev1.ConditionTrue {
 			return true, c.Type

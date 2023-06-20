@@ -96,7 +96,7 @@ func TestIsJobFinished(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			finished, conditionType := jobFinished(&batchv1.Job{
+			finished, conditionType := JobFinished(&batchv1.Job{
 				Status: batchv1.JobStatus{
 					Conditions: tc.conditions,
 				},

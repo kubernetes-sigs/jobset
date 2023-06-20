@@ -521,6 +521,23 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("update replicatedJobsStatuses after all jobs succeed", &testCase{
+			makeJobSet: testJobSet,
+			updates: []*update{
+				{
+					jobUpdateFn:          completeAllJobs,
+					checkJobSetCondition: testutil.JobSetCompleted,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(func() bool {
+							gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js)).To(gomega.Succeed())
+							return checkJobSetReplicatedJobsStatus(js)
+						}, timeout, interval).Should(gomega.Equal(true))
+					},
+				},
+			},
+		}),
 		ginkgo.Entry("jobset replicatedJobsStatuses should create and update", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(false)
@@ -600,7 +617,14 @@ func makeAllJobsReady(jl *batchv1.JobList) {
 func checkJobSetReplicatedJobsStatus(js *jobset.JobSet) bool {
 	var jobList batchv1.JobList
 	gomega.Eventually(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
-	readyJobs := map[string]int32{}
+	jobsStatuses := map[string]map[string]int32{}
+	for _, job := range jobList.Items {
+		jobsStatuses[job.Labels[jobset.ReplicatedJobNameKey]] = map[string]int32{
+			"ready":     0,
+			"succeeded": 0,
+			"failed":    0,
+		}
+	}
 	for _, job := range jobList.Items {
 		ready := pointer.Int32Deref(job.Status.Ready, 0)
 		// parallelism is always set as it is otherwise defaulted by k8s to 1
@@ -608,17 +632,32 @@ func checkJobSetReplicatedJobsStatus(js *jobset.JobSet) bool {
 		if job.Spec.Completions != nil && *job.Spec.Completions < podsCount {
 			podsCount = *job.Spec.Completions
 		}
+
+		if isFinished, conditionType := controllers.JobFinished(&job); isFinished && conditionType == batchv1.JobComplete {
+			jobsStatuses[job.Labels[jobset.ReplicatedJobNameKey]]["succeeded"]++
+			continue
+		}
+
+		if isFinished, conditionType := controllers.JobFinished(&job); isFinished && conditionType == batchv1.JobFailed {
+			jobsStatuses[job.Labels[jobset.ReplicatedJobNameKey]]["failed"]++
+			continue
+		}
+
 		if job.Status.Succeeded+ready >= podsCount {
 			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
-				readyJobs[job.Labels[jobset.ReplicatedJobNameKey]]++
+				jobsStatuses[job.Labels[jobset.ReplicatedJobNameKey]]["ready"]++
 			}
 		}
 	}
-	readyJobsStatus := map[string]int32{}
+	replicatedJobsStatuses := map[string]map[string]int32{}
 	for _, replicatedJobStatus := range js.Status.ReplicatedJobsStatus {
-		readyJobsStatus[replicatedJobStatus.Name] = replicatedJobStatus.Ready
+		replicatedJobsStatuses[replicatedJobStatus.Name] = map[string]int32{
+			"ready":     replicatedJobStatus.Ready,
+			"succeeded": replicatedJobStatus.Succeeded,
+			"failed":    replicatedJobStatus.Failed,
+		}
 	}
-	return apiequality.Semantic.DeepEqual(readyJobs, readyJobsStatus)
+	return apiequality.Semantic.DeepEqual(jobsStatuses, replicatedJobsStatuses)
 }
 
 func numExpectedServices(js *jobset.JobSet) int {
@@ -638,34 +677,32 @@ func completeAllJobs(jobList *batchv1.JobList) {
 }
 
 func completeJob(job *batchv1.Job) {
-	ginkgo.By(fmt.Sprintf("completing job: %s", job.Name))
+	updateJobStatusConditions(job, batchv1.JobStatus{
+		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
+			Type:   batchv1.JobComplete,
+			Status: corev1.ConditionTrue,
+		}),
+	})
+}
+
+func updateJobStatusConditions(job *batchv1.Job, status batchv1.JobStatus) {
 	gomega.Eventually(func() error {
 		var jobGet batchv1.Job
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &jobGet); err != nil {
 			return err
 		}
-		jobGet.Status.Conditions = append(jobGet.Status.Conditions, batchv1.JobCondition{
-			Type:   batchv1.JobComplete,
-			Status: corev1.ConditionTrue,
-		})
+		jobGet.Status = status
 		return k8sClient.Status().Update(ctx, &jobGet)
 	}, timeout, interval).Should(gomega.Succeed())
-
 }
 
 func failJob(job *batchv1.Job) {
-	ginkgo.By(fmt.Sprintf("failing job: %s", job.Name))
-	gomega.Eventually(func() error {
-		var jobGet batchv1.Job
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &jobGet); err != nil {
-			return err
-		}
-		jobGet.Status.Conditions = append(jobGet.Status.Conditions, batchv1.JobCondition{
+	updateJobStatusConditions(job, batchv1.JobStatus{
+		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
 			Type:   batchv1.JobFailed,
 			Status: corev1.ConditionTrue,
-		})
-		return k8sClient.Status().Update(ctx, &jobGet)
-	}, timeout, interval).Should(gomega.Succeed())
+		}),
+	})
 }
 
 func suspendJobSet(js *jobset.JobSet, suspend bool) {
