@@ -844,7 +844,7 @@ func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet(jobSetName, ns.Name).
 		SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
 		EnableDNSHostnames(true).
-		Subdomain(jobSetName).
+		NetworkSubdomain(jobSetName).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).
