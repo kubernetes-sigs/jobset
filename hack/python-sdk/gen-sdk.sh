@@ -43,9 +43,10 @@ if [[ ! -f "$SWAGGER_CODEGEN_JAR" ]]; then
 fi
 
 if [ -z `which java` ]; then
-  echo "Installing OpenJDK 11"
-  apt update -y
-  apt-get install openjdk-11-jdk -y
+  apt-get update -y
+  # TODO: update this fallback (remove it) when openjdk-11 completely deprecated
+  echo "Installing OpenJDK 11 with fallback to OpenJDK 17"
+  apt-get install -y openjdk-11-jdk || apt-get install -y openjdk-17-jdk
 fi
 
 echo "Generating swagger file ..."
