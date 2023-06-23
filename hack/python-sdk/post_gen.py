@@ -109,7 +109,7 @@ def add_imports() -> None:
         f.writelines(new_lines)
 
 
-def _apply_regex(replacements: list[tuple[str, str]], input_str: str) -> str:
+def _apply_regex(replacements, input_str: str) -> str:
     for pattern, replacement in replacements:
         input_str = re.sub(pattern, replacement, input_str)
     return input_str
