@@ -15,30 +15,10 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# We always need to install python3-venv, so makes sense to update once
-apt update -y
-
-if [ -z `which python3` ]; then
-    # Default python for bookworm (golang 1.19/1.20) is 3.11
-    # so this should already be installed
-    apt-get install python3 -y
-fi
-
-if [ -z `which pip` ]; then
-    apt-get install python3-pip -y
-fi
-
 repo_root="$(dirname "${BASH_SOURCE}")/../.."
 
 cd "${repo_root}/sdk/python"
 
-# We need to create a virtual environment for testing
-apt-get install -y python3-venv
-python3 -m venv env
-source env/bin/activate
+docker build -f Dockerfile -t python-unit .
 
-# install test requirements
-pip install .[test]
-
-# run unit tests
-pytest test/
+docker run -it python-unit pytest test

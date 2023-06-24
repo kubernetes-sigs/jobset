@@ -2,7 +2,7 @@ import jobset
 from jobset.models.jobset_v1alpha2_job_set import JobsetV1alpha2JobSet
 from kubernetes.client.models.v1_job_template_spec import V1JobTemplateSpec
 
-jobset_example = JobsetV1alpha2JobSet(
+jobset_example = jobset.models.jobset_v1alpha2_job_set.JobsetV1alpha2JobSet(
     api_version="0",
     kind="0",
     metadata=None,
