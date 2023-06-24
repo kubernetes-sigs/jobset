@@ -38,7 +38,7 @@ python3 -m venv env
 source env/bin/activate
 
 # install test requirements
-pip install -r test-requirements.txt
+pip install .[test]
 
 # run unit tests
 pytest test/

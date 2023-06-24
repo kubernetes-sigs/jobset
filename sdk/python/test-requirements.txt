@@ -1,4 +1,0 @@
-kubernetes
-pytest>=6.2.5
-pytest-cov>=2.8.1
-pytest-randomly==1.2.3 # needed for python 2.7+3.4
