@@ -33,6 +33,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
                             and the value is json key in definition.
     """
     openapi_types = {
+        'active': 'int',
         'failed': 'int',
         'name': 'str',
         'ready': 'int',
@@ -40,28 +41,54 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     }
 
     attribute_map = {
+        'active': 'active',
         'failed': 'failed',
         'name': 'name',
         'ready': 'ready',
         'succeeded': 'succeeded'
     }
 
-    def __init__(self, failed=0, name='', ready=0, succeeded=0, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, active=0, failed=0, name='', ready=0, succeeded=0, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2ReplicatedJobStatus - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
+        self._active = None
         self._failed = None
         self._name = None
         self._ready = None
         self._succeeded = None
         self.discriminator = None
 
+        self.active = active
         self.failed = failed
         self.name = name
         self.ready = ready
         self.succeeded = succeeded
+
+    @property
+    def active(self):
+        """Gets the active of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
+
+
+        :return: The active of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
+        :rtype: int
+        """
+        return self._active
+
+    @active.setter
+    def active(self, active):
+        """Sets the active of this JobsetV1alpha2ReplicatedJobStatus.
+
+
+        :param active: The active of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
+        :type: int
+        """
+        if self.local_vars_configuration.client_side_validation and active is None:  # noqa: E501
+            raise ValueError("Invalid value for `active`, must not be `None`")  # noqa: E501
+
+        self._active = active
 
     @property
     def failed(self):

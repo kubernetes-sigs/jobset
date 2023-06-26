@@ -44,11 +44,12 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                 spec = jobset.models.jobset_v1alpha2_job_set_spec.JobsetV1alpha2JobSetSpec(
                     failure_policy = jobset.models.jobset_v1alpha2_failure_policy.JobsetV1alpha2FailurePolicy(
                         max_restarts = 56, ), 
+                    network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
+                        enable_dns_hostnames = True, 
+                        subdomain = '0', ), 
                     replicated_jobs = [
                         jobset.models.jobset_v1alpha2_replicated_job.JobsetV1alpha2ReplicatedJob(
                             name = '0', 
-                            network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
-                                enable_dns_hostnames = True, ), 
                             replicas = 56, 
                             template = V1JobTemplateSpec(), )
                         ], 
@@ -61,6 +62,7 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                 status = jobset.models.jobset_v1alpha2_job_set_status.JobsetV1alpha2JobSetStatus(
                     replicated_jobs_status = [
                         jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
+                            active = 56, 
                             failed = 56, 
                             name = '0', 
                             ready = 56, 

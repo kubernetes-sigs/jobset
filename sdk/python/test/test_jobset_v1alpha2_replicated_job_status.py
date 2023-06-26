@@ -38,6 +38,7 @@ class TestJobsetV1alpha2ReplicatedJobStatus(unittest.TestCase):
         # model = jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus()  # noqa: E501
         if include_optional :
             return JobsetV1alpha2ReplicatedJobStatus(
+                active = 56, 
                 failed = 56, 
                 name = '0', 
                 ready = 56, 
@@ -45,6 +46,7 @@ class TestJobsetV1alpha2ReplicatedJobStatus(unittest.TestCase):
             )
         else :
             return JobsetV1alpha2ReplicatedJobStatus(
+                active = 56,
                 failed = 56,
                 name = '0',
                 ready = 56,

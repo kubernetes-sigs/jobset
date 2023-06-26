@@ -79,6 +79,10 @@
           "description": "FailurePolicy, if set, configures when to declare the JobSet as failed. The JobSet is always declared failed if all jobs in the set finished with status failed.",
           "$ref": "#/definitions/jobset.v1alpha2.FailurePolicy"
         },
+        "network": {
+          "description": "Network defines the networking options for the jobset.",
+          "$ref": "#/definitions/jobset.v1alpha2.Network"
+        },
         "replicatedJobs": {
           "description": "ReplicatedJobs is the group of jobs that will form the set.",
           "type": "array",
@@ -139,8 +143,12 @@
       "type": "object",
       "properties": {
         "enableDNSHostnames": {
-          "description": "EnableDNSHostnames allows pods to be reached via their hostnames. Pods will be reachable using the fully qualified pod hostname, which is in the format: \u003cjobSet.name\u003e-\u003cspec.replicatedJob.name\u003e-\u003cjob-index\u003e-\u003cpod-index\u003e.\u003cjobSet.name\u003e-\u003cspec.replicatedJob.name\u003e",
+          "description": "EnableDNSHostnames allows pods to be reached via their hostnames. Pods will be reachable using the fully qualified pod hostname: \u003cjobSet.name\u003e-\u003cspec.replicatedJob.name\u003e-\u003cjob-index\u003e-\u003cpod-index\u003e.\u003csubdomain\u003e",
           "type": "boolean"
+        },
+        "subdomain": {
+          "description": "Subdomain is an explicit choice for a network subdomain name When set, any replicated job in the set is added to this network. Defaults to \u003cjobSet.name\u003e if not set.",
+          "type": "string"
         }
       }
     },
@@ -155,10 +163,6 @@
           "description": "Name is the name of the entry and will be used as a suffix for the Job name.",
           "type": "string",
           "default": ""
-        },
-        "network": {
-          "description": "Network defines the networking options for the job.",
-          "$ref": "#/definitions/jobset.v1alpha2.Network"
         },
         "replicas": {
           "description": "Replicas is the number of jobs that will be created from this ReplicatedJob's template. Jobs names will be in the format: \u003cjobSet.name\u003e-\u003cspec.replicatedJob.name\u003e-\u003cjob-index\u003e",
@@ -179,9 +183,15 @@
         "name",
         "ready",
         "succeeded",
-        "failed"
+        "failed",
+        "active"
       ],
       "properties": {
+        "active": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
         "failed": {
           "type": "integer",
           "format": "int32",

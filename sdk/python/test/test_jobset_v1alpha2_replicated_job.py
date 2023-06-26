@@ -39,8 +39,6 @@ class TestJobsetV1alpha2ReplicatedJob(unittest.TestCase):
         if include_optional :
             return JobsetV1alpha2ReplicatedJob(
                 name = '0', 
-                network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
-                    enable_dns_hostnames = True, ), 
                 replicas = 56, 
                 template = V1JobTemplateSpec()
             )

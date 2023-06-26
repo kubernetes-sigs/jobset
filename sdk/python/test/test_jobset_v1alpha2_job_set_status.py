@@ -40,6 +40,7 @@ class TestJobsetV1alpha2JobSetStatus(unittest.TestCase):
             return JobsetV1alpha2JobSetStatus(
                 replicated_jobs_status = [
                     jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
+                        active = 56, 
                         failed = 56, 
                         name = '0', 
                         ready = 56, 
