@@ -19,6 +19,6 @@ repo_root="$(dirname "${BASH_SOURCE}")/../.."
 
 cd "${repo_root}/sdk/python"
 
+## If non ubutnu machine, install docker in your path
 docker buildx build -f Dockerfile -t python-unit .
-
 docker run -it python-unit pytest test

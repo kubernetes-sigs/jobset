@@ -12,4 +12,4 @@ python3 -m pip install sdk/python/.
 
 This will install the jobset package into your virtual environment.
 
-See jobset.py for some examples of using the models.
+See create_jobset.py for some examples of using the models.
