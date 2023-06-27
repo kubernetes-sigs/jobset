@@ -222,12 +222,7 @@ code-generator:
 
 .PHONY: openapi-gen
 openapi-gen:
-	$(shell mkdir -p $(PROJECT_DIR)/bin)
 	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install k8s.io/code-generator/cmd/openapi-gen@latest
-	echo "$(GOPATH)"
-	ls "$(GOPATH)"
-	echo $(PROJECT_DIR)
-	ls "$(PROJECT_DIR)/bin"
 	$(PROJECT_DIR)/bin/openapi-gen --go-header-file hack/boilerplate.go.txt -i sigs.k8s.io/jobset/api/jobset/v1alpha2 -p sigs.k8s.io/jobset/api/jobset/v1alpha2 --alsologtostderr
 
 .PHONY: envtest
