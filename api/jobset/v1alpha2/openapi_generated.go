@@ -182,6 +182,12 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 							},
 						},
 					},
+					"network": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Network defines the networking options for the jobset.",
+							Ref:         ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.Network"),
+						},
+					},
 					"successPolicy": {
 						SchemaProps: spec.SchemaProps{
 							Description: "SuccessPolicy configures when to declare the JobSet as succeeded. The JobSet is always declared succeeded if all jobs in the set finished with status complete.",
@@ -205,7 +211,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob", "sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy"},
+			"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.Network", "sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob", "sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy"},
 	}
 }
 
@@ -282,8 +288,15 @@ func schema_jobset_api_jobset_v1alpha2_Network(ref common.ReferenceCallback) com
 				Properties: map[string]spec.Schema{
 					"enableDNSHostnames": {
 						SchemaProps: spec.SchemaProps{
-							Description: "EnableDNSHostnames allows pods to be reached via their hostnames. Pods will be reachable using the fully qualified pod hostname, which is in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>",
+							Description: "EnableDNSHostnames allows pods to be reached via their hostnames. Pods will be reachable using the fully qualified pod hostname: <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>",
 							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"subdomain": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Subdomain is an explicit choice for a network subdomain name When set, any replicated job in the set is added to this network. Defaults to <jobSet.name> if not set.",
+							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
@@ -314,12 +327,6 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref common.ReferenceCallbac
 							Ref:         ref("k8s.io/api/batch/v1.JobTemplateSpec"),
 						},
 					},
-					"network": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Network defines the networking options for the job.",
-							Ref:         ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.Network"),
-						},
-					},
 					"replicas": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Replicas is the number of jobs that will be created from this ReplicatedJob's template. Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>",
@@ -332,7 +339,7 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref common.ReferenceCallbac
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/batch/v1.JobTemplateSpec", "sigs.k8s.io/jobset/api/jobset/v1alpha2.Network"},
+			"k8s.io/api/batch/v1.JobTemplateSpec"},
 	}
 }
 
@@ -371,8 +378,15 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref common.ReferenceC
 							Format:  "int32",
 						},
 					},
+					"active": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int32",
+						},
+					},
 				},
-				Required: []string{"name", "ready", "succeeded", "failed"},
+				Required: []string{"name", "ready", "succeeded", "failed", "active"},
 			},
 		},
 	}

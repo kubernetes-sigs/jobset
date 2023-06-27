@@ -33,30 +33,35 @@ class JobsetV1alpha2Network(object):
                             and the value is json key in definition.
     """
     openapi_types = {
-        'enable_dns_hostnames': 'bool'
+        'enable_dns_hostnames': 'bool',
+        'subdomain': 'str'
     }
 
     attribute_map = {
-        'enable_dns_hostnames': 'enableDNSHostnames'
+        'enable_dns_hostnames': 'enableDNSHostnames',
+        'subdomain': 'subdomain'
     }
 
-    def __init__(self, enable_dns_hostnames=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, enable_dns_hostnames=None, subdomain=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2Network - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._enable_dns_hostnames = None
+        self._subdomain = None
         self.discriminator = None
 
         if enable_dns_hostnames is not None:
             self.enable_dns_hostnames = enable_dns_hostnames
+        if subdomain is not None:
+            self.subdomain = subdomain
 
     @property
     def enable_dns_hostnames(self):
         """Gets the enable_dns_hostnames of this JobsetV1alpha2Network.  # noqa: E501
 
-        EnableDNSHostnames allows pods to be reached via their hostnames. Pods will be reachable using the fully qualified pod hostname, which is in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>  # noqa: E501
+        EnableDNSHostnames allows pods to be reached via their hostnames. Pods will be reachable using the fully qualified pod hostname: <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>  # noqa: E501
 
         :return: The enable_dns_hostnames of this JobsetV1alpha2Network.  # noqa: E501
         :rtype: bool
@@ -67,13 +72,36 @@ class JobsetV1alpha2Network(object):
     def enable_dns_hostnames(self, enable_dns_hostnames):
         """Sets the enable_dns_hostnames of this JobsetV1alpha2Network.
 
-        EnableDNSHostnames allows pods to be reached via their hostnames. Pods will be reachable using the fully qualified pod hostname, which is in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>-<spec.replicatedJob.name>  # noqa: E501
+        EnableDNSHostnames allows pods to be reached via their hostnames. Pods will be reachable using the fully qualified pod hostname: <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>  # noqa: E501
 
         :param enable_dns_hostnames: The enable_dns_hostnames of this JobsetV1alpha2Network.  # noqa: E501
         :type: bool
         """
 
         self._enable_dns_hostnames = enable_dns_hostnames
+
+    @property
+    def subdomain(self):
+        """Gets the subdomain of this JobsetV1alpha2Network.  # noqa: E501
+
+        Subdomain is an explicit choice for a network subdomain name When set, any replicated job in the set is added to this network. Defaults to <jobSet.name> if not set.  # noqa: E501
+
+        :return: The subdomain of this JobsetV1alpha2Network.  # noqa: E501
+        :rtype: str
+        """
+        return self._subdomain
+
+    @subdomain.setter
+    def subdomain(self, subdomain):
+        """Sets the subdomain of this JobsetV1alpha2Network.
+
+        Subdomain is an explicit choice for a network subdomain name When set, any replicated job in the set is added to this network. Defaults to <jobSet.name> if not set.  # noqa: E501
+
+        :param subdomain: The subdomain of this JobsetV1alpha2Network.  # noqa: E501
+        :type: str
+        """
+
+        self._subdomain = subdomain
 
     def to_dict(self):
         """Returns the model properties as a dict"""

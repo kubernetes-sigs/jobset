@@ -34,33 +34,28 @@ class JobsetV1alpha2ReplicatedJob(object):
     """
     openapi_types = {
         'name': 'str',
-        'network': 'JobsetV1alpha2Network',
         'replicas': 'int',
         'template': 'V1JobTemplateSpec'
     }
 
     attribute_map = {
         'name': 'name',
-        'network': 'network',
         'replicas': 'replicas',
         'template': 'template'
     }
 
-    def __init__(self, name='', network=None, replicas=None, template=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, name='', replicas=None, template=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2ReplicatedJob - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._name = None
-        self._network = None
         self._replicas = None
         self._template = None
         self.discriminator = None
 
         self.name = name
-        if network is not None:
-            self.network = network
         if replicas is not None:
             self.replicas = replicas
         self.template = template
@@ -89,27 +84,6 @@ class JobsetV1alpha2ReplicatedJob(object):
             raise ValueError("Invalid value for `name`, must not be `None`")  # noqa: E501
 
         self._name = name
-
-    @property
-    def network(self):
-        """Gets the network of this JobsetV1alpha2ReplicatedJob.  # noqa: E501
-
-
-        :return: The network of this JobsetV1alpha2ReplicatedJob.  # noqa: E501
-        :rtype: JobsetV1alpha2Network
-        """
-        return self._network
-
-    @network.setter
-    def network(self, network):
-        """Sets the network of this JobsetV1alpha2ReplicatedJob.
-
-
-        :param network: The network of this JobsetV1alpha2ReplicatedJob.  # noqa: E501
-        :type: JobsetV1alpha2Network
-        """
-
-        self._network = network
 
     @property
     def replicas(self):

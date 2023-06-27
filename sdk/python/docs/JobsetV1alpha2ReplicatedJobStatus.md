@@ -4,6 +4,7 @@ ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**active** | **int** |  | [default to 0]
 **failed** | **int** |  | [default to 0]
 **name** | **str** |  | [default to '']
 **ready** | **int** |  | [default to 0]

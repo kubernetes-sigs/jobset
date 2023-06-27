@@ -38,7 +38,8 @@ class TestJobsetV1alpha2Network(unittest.TestCase):
         # model = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network()  # noqa: E501
         if include_optional :
             return JobsetV1alpha2Network(
-                enable_dns_hostnames = True
+                enable_dns_hostnames = True, 
+                subdomain = '0'
             )
         else :
             return JobsetV1alpha2Network(

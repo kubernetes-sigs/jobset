@@ -34,6 +34,7 @@ class JobsetV1alpha2JobSetSpec(object):
     """
     openapi_types = {
         'failure_policy': 'JobsetV1alpha2FailurePolicy',
+        'network': 'JobsetV1alpha2Network',
         'replicated_jobs': 'list[JobsetV1alpha2ReplicatedJob]',
         'success_policy': 'JobsetV1alpha2SuccessPolicy',
         'suspend': 'bool'
@@ -41,18 +42,20 @@ class JobsetV1alpha2JobSetSpec(object):
 
     attribute_map = {
         'failure_policy': 'failurePolicy',
+        'network': 'network',
         'replicated_jobs': 'replicatedJobs',
         'success_policy': 'successPolicy',
         'suspend': 'suspend'
     }
 
-    def __init__(self, failure_policy=None, replicated_jobs=None, success_policy=None, suspend=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, failure_policy=None, network=None, replicated_jobs=None, success_policy=None, suspend=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2JobSetSpec - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._failure_policy = None
+        self._network = None
         self._replicated_jobs = None
         self._success_policy = None
         self._suspend = None
@@ -60,6 +63,8 @@ class JobsetV1alpha2JobSetSpec(object):
 
         if failure_policy is not None:
             self.failure_policy = failure_policy
+        if network is not None:
+            self.network = network
         if replicated_jobs is not None:
             self.replicated_jobs = replicated_jobs
         if success_policy is not None:
@@ -87,6 +92,27 @@ class JobsetV1alpha2JobSetSpec(object):
         """
 
         self._failure_policy = failure_policy
+
+    @property
+    def network(self):
+        """Gets the network of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+
+
+        :return: The network of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :rtype: JobsetV1alpha2Network
+        """
+        return self._network
+
+    @network.setter
+    def network(self, network):
+        """Sets the network of this JobsetV1alpha2JobSetSpec.
+
+
+        :param network: The network of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :type: JobsetV1alpha2Network
+        """
+
+        self._network = network
 
     @property
     def replicated_jobs(self):
