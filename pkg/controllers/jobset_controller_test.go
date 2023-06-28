@@ -1026,12 +1026,14 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 			RestartsKey:                  strconv.Itoa(args.restarts),
+			jobset.NamespacedJobNameKey:  namespacedJobName(args.ns, args.jobName),
 		}).
 		JobAnnotations(map[string]string{
 			jobset.JobSetNameKey:         args.jobSetName,
 			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
 			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
+			jobset.NamespacedJobNameKey:  namespacedJobName(args.ns, args.jobName),
 		}).
 		PodLabels(map[string]string{
 			jobset.JobSetNameKey:         args.jobSetName,
@@ -1039,12 +1041,14 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 			RestartsKey:                  strconv.Itoa(args.restarts),
+			jobset.NamespacedJobNameKey:  namespacedJobName(args.ns, args.jobName),
 		}).
 		PodAnnotations(map[string]string{
 			jobset.JobSetNameKey:         args.jobSetName,
 			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
 			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
+			jobset.NamespacedJobNameKey:  namespacedJobName(args.ns, args.jobName),
 		})
 	return jobWrapper
 }
