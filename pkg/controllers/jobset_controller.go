@@ -670,14 +670,14 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[RestartsKey] = strconv.Itoa(js.Status.Restarts)
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
-	labels[jobset.NamespacedJobNameKey] = fmt.Sprintf("%s/%s", js.Namespace, jobName)
+	labels[jobset.NamespacedJobNameKey] = namespacedJobName(js.Namespace, jobName)
 
 	annotations := util.CloneMap(obj.GetAnnotations())
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
-	annotations[jobset.NamespacedJobNameKey] = fmt.Sprintf("%s/%s", js.Namespace, jobName)
+	annotations[jobset.NamespacedJobNameKey] = namespacedJobName(js.Namespace, jobName)
 
 	obj.SetLabels(labels)
 	obj.SetAnnotations(annotations)
@@ -705,7 +705,7 @@ func GenSubdomain(js *jobset.JobSet) string {
 }
 
 func namespacedJobName(ns string, jobName string) string {
-	return fmt.Sprintf("%s/%s", ns, jobName)
+	return fmt.Sprintf("%s-%s", ns, jobName)
 }
 
 func jobSetFinished(js *jobset.JobSet) bool {
