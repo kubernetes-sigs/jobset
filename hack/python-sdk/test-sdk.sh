@@ -19,6 +19,9 @@ repo_root="$(dirname "${BASH_SOURCE}")/../.."
 
 cd "${repo_root}/sdk/python"
 
+## For CI we found that docker wasn't started.
+## Should be a no-op if docker is up
+sudo systemctl start docker
 ## If non ubutnu machine, install docker in your path
 docker buildx build -f Dockerfile -t python-unit .
 docker run -it python-unit pytest test
