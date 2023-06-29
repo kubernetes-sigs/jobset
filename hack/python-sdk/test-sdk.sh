@@ -24,4 +24,4 @@ cd "${repo_root}/sdk/python"
 
 ## If non ubuntu machine, install docker in your path
 docker buildx build -f Dockerfile -t python-unit .
-docker run -it python-unit pytest test
+docker run python-unit pytest test
