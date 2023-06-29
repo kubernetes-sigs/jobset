@@ -623,9 +623,9 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 		corev1.PodAffinityTerm{
 			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      jobset.JobHashKey,
+					Key:      jobset.JobKey,
 					Operator: metav1.LabelSelectorOpIn,
-					Values:   []string{job.Labels[jobset.JobHashKey]},
+					Values:   []string{job.Labels[jobset.JobKey]},
 				},
 			}},
 			TopologyKey:       topologyKey,
@@ -637,13 +637,13 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 		corev1.PodAffinityTerm{
 			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      jobset.JobHashKey,
+					Key:      jobset.JobKey,
 					Operator: metav1.LabelSelectorOpExists,
 				},
 				{
-					Key:      jobset.JobHashKey,
+					Key:      jobset.JobKey,
 					Operator: metav1.LabelSelectorOpNotIn,
-					Values:   []string{job.Labels[jobset.JobHashKey]},
+					Values:   []string{job.Labels[jobset.JobKey]},
 				},
 			}},
 			TopologyKey:       topologyKey,
@@ -672,14 +672,13 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[RestartsKey] = strconv.Itoa(js.Status.Restarts)
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
-	labels[jobset.JobHashKey] = jobHashKey(js.Namespace, jobName)
+	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 
 	annotations := util.CloneMap(obj.GetAnnotations())
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
-	annotations[jobset.JobHashKey] = jobHashKey(js.Namespace, jobName)
 
 	obj.SetLabels(labels)
 	obj.SetAnnotations(annotations)
