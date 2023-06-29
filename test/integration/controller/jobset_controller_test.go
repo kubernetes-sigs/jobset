@@ -46,7 +46,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 	// jobSetUpdate contains the mutations to perform on the jobset and the
 	// checks to perform afterwards.
 	type jobSetUpdate struct {
-		fn            func(*jobset.JobSet)
+		fn func(*jobset.JobSet)
 	}
 
 	type testCase struct {
