@@ -47,7 +47,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 	// checks to perform afterwards.
 	type jobSetUpdate struct {
 		fn            func(*jobset.JobSet)
-		shouldSucceed bool
 	}
 
 	type testCase struct {
@@ -103,7 +102,6 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 			makeJobSet: testJobSet,
 			updates: []*jobSetUpdate{
 				{
-					shouldSucceed: true,
 					fn: func(js *jobset.JobSet) {
 						js.Spec.Suspend = pointer.Bool(true)
 					},
