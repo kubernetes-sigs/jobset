@@ -12,7 +12,7 @@ function cleanup {
 function startup {
     if [ $USE_EXISTING_CLUSTER == 'false' ] 
     then 
-        $KIND create cluster --name $KIND_CLUSTER_NAME --image $E2E_KIND_VERSION
+        $KIND create cluster --name $KIND_CLUSTER_NAME --image $E2E_KIND_VERSION --wait 1m
     fi
 }
 function kind_load {
