@@ -124,16 +124,19 @@ func TestSetExclusiveAffinities(t *testing.T) {
 	}{
 		{
 			name: "no existing affinities",
-			job:  testutils.MakeJob(jobName, ns).Obj(),
+			job: testutils.MakeJob(jobName, ns).
+				JobLabels(map[string]string{
+					jobset.JobKey: jobHashKey(ns, jobName),
+				}).Obj(),
 			wantAffinity: corev1.Affinity{
 				PodAffinity: &corev1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
-									Key:      jobset.JobNameKey,
+									Key:      jobset.JobKey,
 									Operator: metav1.LabelSelectorOpIn,
-									Values:   []string{jobName},
+									Values:   []string{jobHashKey(ns, jobName)},
 								},
 							}},
 							TopologyKey:       topologyKey,
@@ -146,13 +149,13 @@ func TestSetExclusiveAffinities(t *testing.T) {
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
-									Key:      jobset.JobNameKey,
+									Key:      jobset.JobKey,
 									Operator: metav1.LabelSelectorOpExists,
 								},
 								{
-									Key:      jobset.JobNameKey,
+									Key:      jobset.JobKey,
 									Operator: metav1.LabelSelectorOpNotIn,
-									Values:   []string{jobName},
+									Values:   []string{jobHashKey(ns, jobName)},
 								},
 							}},
 							TopologyKey:       topologyKey,
@@ -164,7 +167,10 @@ func TestSetExclusiveAffinities(t *testing.T) {
 		},
 		{
 			name: "existing affinities should be appended to, not replaced",
-			job: testutils.MakeJob(jobName, ns).Affinity(&corev1.Affinity{
+			job: testutils.MakeJob(jobName, ns).
+				JobLabels(map[string]string{
+					jobset.JobKey: jobHashKey(ns, jobName),
+				}).Affinity(&corev1.Affinity{
 				PodAffinity: &corev1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 						{
@@ -213,9 +219,9 @@ func TestSetExclusiveAffinities(t *testing.T) {
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
-									Key:      jobset.JobNameKey,
+									Key:      jobset.JobKey,
 									Operator: metav1.LabelSelectorOpIn,
-									Values:   []string{jobName},
+									Values:   []string{jobHashKey(ns, jobName)},
 								},
 							}},
 							TopologyKey:       topologyKey,
@@ -239,13 +245,13 @@ func TestSetExclusiveAffinities(t *testing.T) {
 						{
 							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
-									Key:      jobset.JobNameKey,
+									Key:      jobset.JobKey,
 									Operator: metav1.LabelSelectorOpExists,
 								},
 								{
-									Key:      jobset.JobNameKey,
+									Key:      jobset.JobKey,
 									Operator: metav1.LabelSelectorOpNotIn,
-									Values:   []string{jobName},
+									Values:   []string{jobHashKey(ns, jobName)},
 								},
 							}},
 							TopologyKey:       topologyKey,
@@ -488,9 +494,9 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 								{
 									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 										{
-											Key:      jobset.JobNameKey,
+											Key:      jobset.JobKey,
 											Operator: metav1.LabelSelectorOpIn,
-											Values:   []string{"test-jobset-replicated-job-0"},
+											Values:   []string{jobHashKey(ns, "test-jobset-replicated-job-0")},
 										},
 									}},
 									TopologyKey:       topologyDomain,
@@ -503,13 +509,13 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 								{
 									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 										{
-											Key:      jobset.JobNameKey,
+											Key:      jobset.JobKey,
 											Operator: metav1.LabelSelectorOpExists,
 										},
 										{
-											Key:      jobset.JobNameKey,
+											Key:      jobset.JobKey,
 											Operator: metav1.LabelSelectorOpNotIn,
-											Values:   []string{"test-jobset-replicated-job-0"},
+											Values:   []string{jobHashKey(ns, "test-jobset-replicated-job-0")},
 										},
 									}},
 									TopologyKey:       topologyDomain,
@@ -1026,6 +1032,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 			RestartsKey:                  strconv.Itoa(args.restarts),
+			jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 		}).
 		JobAnnotations(map[string]string{
 			jobset.JobSetNameKey:         args.jobSetName,
@@ -1039,6 +1046,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 			RestartsKey:                  strconv.Itoa(args.restarts),
+			jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 		}).
 		PodAnnotations(map[string]string{
 			jobset.JobSetNameKey:         args.jobSetName,

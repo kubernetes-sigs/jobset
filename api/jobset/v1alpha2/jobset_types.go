@@ -24,6 +24,7 @@ const (
 	ReplicatedJobReplicas string = "jobset.sigs.k8s.io/replicatedjob-replicas"
 	ReplicatedJobNameKey  string = "jobset.sigs.k8s.io/replicatedjob-name"
 	JobIndexKey           string = "jobset.sigs.k8s.io/job-index"
+	JobKey                string = "jobset.sigs.k8s.io/job-key"
 	JobNameKey            string = "job-name" // TODO(#26): Migrate to the fully qualified label name.
 	ExclusiveKey          string = "alpha.jobset.sigs.k8s.io/exclusive-topology"
 )
