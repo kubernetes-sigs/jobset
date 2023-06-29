@@ -15,6 +15,8 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -621,9 +623,9 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 		corev1.PodAffinityTerm{
 			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      jobset.JobNameKey,
+					Key:      jobset.JobHashKey,
 					Operator: metav1.LabelSelectorOpIn,
-					Values:   []string{job.Name},
+					Values:   []string{job.Labels[jobset.JobHashKey]},
 				},
 			}},
 			TopologyKey:       topologyKey,
@@ -635,13 +637,13 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 		corev1.PodAffinityTerm{
 			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      jobset.JobNameKey,
+					Key:      jobset.JobHashKey,
 					Operator: metav1.LabelSelectorOpExists,
 				},
 				{
-					Key:      jobset.JobNameKey,
+					Key:      jobset.JobHashKey,
 					Operator: metav1.LabelSelectorOpNotIn,
-					Values:   []string{job.Name},
+					Values:   []string{job.Labels[jobset.JobHashKey]},
 				},
 			}},
 			TopologyKey:       topologyKey,
@@ -670,14 +672,14 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[RestartsKey] = strconv.Itoa(js.Status.Restarts)
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
-	labels[jobset.NamespacedJobNameKey] = namespacedJobName(js.Namespace, jobName)
+	labels[jobset.JobHashKey] = jobHashKey(js.Namespace, jobName)
 
 	annotations := util.CloneMap(obj.GetAnnotations())
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
-	annotations[jobset.NamespacedJobNameKey] = namespacedJobName(js.Namespace, jobName)
+	annotations[jobset.JobHashKey] = jobHashKey(js.Namespace, jobName)
 
 	obj.SetLabels(labels)
 	obj.SetAnnotations(annotations)
@@ -704,8 +706,9 @@ func GenSubdomain(js *jobset.JobSet) string {
 	return js.Name
 }
 
-func namespacedJobName(ns string, jobName string) string {
-	return fmt.Sprintf("%s-%s", ns, jobName)
+// jobHashKey returns the SHA1 hash of the namespaced job name (i.e. <namespace>/<jobName>).
+func jobHashKey(ns string, jobName string) string {
+	return sha1Hash(fmt.Sprintf("%s/%s", ns, jobName))
 }
 
 func jobSetFinished(js *jobset.JobSet) bool {
@@ -752,4 +755,11 @@ func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 		}
 	}
 	return total
+}
+
+// sha1Hash accepts an input string and returns the 40 character SHA1 hash digest of the input string.
+func sha1Hash(s string) string {
+	h := sha1.New()
+	h.Write([]byte(s))
+	return hex.EncodeToString(h.Sum(nil))
 }
