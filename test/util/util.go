@@ -42,12 +42,12 @@ func NumExpectedJobs(js *jobset.JobSet) int32 {
 	return expectedJobs
 }
 
-func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (int, error) {
+func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (int32, error) {
 	var jobList batchv1.JobList
 	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
 		return -1, err
 	}
-	return len(jobList.Items), nil
+	return int32(len(jobList.Items)), nil
 }
 
 func JobSetCompleted(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {

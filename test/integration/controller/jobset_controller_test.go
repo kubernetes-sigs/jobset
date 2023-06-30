@@ -170,7 +170,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
 					var jobList batchv1.JobList
 					gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
-					gomega.Expect(len(jobList.Items)).To(gomega.Equal(testutil.NumExpectedJobs(js)))
+					gomega.Expect(int32(len(jobList.Items))).To(gomega.Equal(testutil.NumExpectedJobs(js)))
 					up.jobUpdateFn(&jobList)
 				}
 
