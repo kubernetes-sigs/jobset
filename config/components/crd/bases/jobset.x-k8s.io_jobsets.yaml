@@ -55,6 +55,7 @@ spec:
                     description: MaxRestarts defines the limit on the number of JobSet
                       restarts. A restart is achieved by recreating all active child
                       jobs.
+                    format: int32
                     type: integer
                 type: object
                 x-kubernetes-validations:
@@ -91,6 +92,7 @@ spec:
                       description: 'Replicas is the number of jobs that will be created
                         from this ReplicatedJob''s template. Jobs names will be in
                         the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>'
+                      format: int32
                       type: integer
                     template:
                       description: Template defines the template of the Job that will
@@ -9734,6 +9736,7 @@ spec:
               restarts:
                 description: Restarts tracks the number of times the JobSet has restarted
                   (i.e. recreated in case of RecreateAll policy).
+                format: int32
                 type: integer
             type: object
         type: object

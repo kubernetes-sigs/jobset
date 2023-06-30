@@ -212,7 +212,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
 			return nil, err
 		}
-		if jobRestarts < js.Status.Restarts {
+		if int32(jobRestarts) < js.Status.Restarts {
 			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
 			continue
 		}
@@ -559,7 +559,8 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 }
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
-	for jobIdx := 0; jobIdx < rjob.Replicas; jobIdx++ {
+	var jobIdx int32
+	for jobIdx = 0; jobIdx < rjob.Replicas; jobIdx++ {
 		jobName := genJobName(js, rjob, jobIdx)
 		if create := shouldCreateJob(jobName, ownedJobs); !create {
 			continue
@@ -573,7 +574,7 @@ func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ow
 	return jobs, nil
 }
 
-func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*batchv1.Job, error) {
+func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int32) (*batchv1.Job, error) {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      util.CloneMap(rjob.Template.Labels),
@@ -664,21 +665,21 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 	return true
 }
 
-func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
+func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int32) {
 	jobName := genJobName(js, rjob, jobIdx)
 	labels := util.CloneMap(obj.GetLabels())
 	labels[jobset.JobSetNameKey] = js.Name
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
-	labels[RestartsKey] = strconv.Itoa(js.Status.Restarts)
-	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
-	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+	labels[RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
+	labels[jobset.JobIndexKey] = strconv.Itoa(int(jobIdx))
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 
 	annotations := util.CloneMap(obj.GetAnnotations())
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
-	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
-	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
+	annotations[jobset.JobIndexKey] = strconv.Itoa(int(jobIdx))
 
 	obj.SetLabels(labels)
 	obj.SetAnnotations(annotations)
@@ -693,7 +694,7 @@ func JobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 	return false, ""
 }
 
-func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIndex int) string {
+func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIndex int32) string {
 	return fmt.Sprintf("%s-%s-%d", js.Name, rjob.Name, jobIndex)
 }
 
@@ -731,8 +732,8 @@ func replicatedJobMatchesSuccessPolicy(js *jobset.JobSet, rjob *jobset.Replicate
 	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || util.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, rjob.Name)
 }
 
-func numJobsMatchingSuccessPolicy(js *jobset.JobSet, jobs []*batchv1.Job) int {
-	total := 0
+func numJobsMatchingSuccessPolicy(js *jobset.JobSet, jobs []*batchv1.Job) int32 {
+	var total int32 = 0
 	for _, job := range jobs {
 		if jobMatchesSuccessPolicy(js, job) {
 			total += 1
@@ -741,8 +742,8 @@ func numJobsMatchingSuccessPolicy(js *jobset.JobSet, jobs []*batchv1.Job) int {
 	return total
 }
 
-func numJobsExpectedToSucceed(js *jobset.JobSet) int {
-	total := 0
+func numJobsExpectedToSucceed(js *jobset.JobSet) int32 {
+	total := int32(0)
 	switch js.Spec.SuccessPolicy.Operator {
 	case jobset.OperatorAny:
 		total = 1

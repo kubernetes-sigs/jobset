@@ -136,9 +136,10 @@ sleep 30`, hostnames[0], hostnames[1], hostnames[2], hostnames[3])
 func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	jsName := "js"
 	rjobName := "rjob"
-	replicas := 4
+	var replicas int32 = 4
+	var jobIdx int32 = 0
 	var podHostnames []string
-	for jobIdx := 0; jobIdx < replicas; jobIdx++ {
+	for jobIdx = 0; jobIdx < replicas; jobIdx++ {
 		// Pod hostname format:
 		// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<jobSet.name>
 		podHostnames = append(podHostnames, fmt.Sprintf("%s-%s-%d-0.%s", jsName, rjobName, jobIdx, jsName))
@@ -168,10 +169,11 @@ func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 	jsName := "js"
 	rjobName := "rjob"
-	replicas := 4
+	var replicas int32 = 4
+	var jobIdx int32 = 0
 	subdomain := "network-subdomain"
 	var podHostnames []string
-	for jobIdx := 0; jobIdx < replicas; jobIdx++ {
+	for jobIdx = 0; jobIdx < replicas; jobIdx++ {
 		// Pod hostname format:
 		// e.g.,js-rjob-0-0.network-subdomain.e2e-7vd7z.svc.cluster.local       js-rjob-0-0
 		// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>

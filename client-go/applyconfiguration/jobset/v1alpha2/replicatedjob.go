@@ -23,7 +23,7 @@ import (
 type ReplicatedJobApplyConfiguration struct {
 	Name     *string             `json:"name,omitempty"`
 	Template *v1.JobTemplateSpec `json:"template,omitempty"`
-	Replicas *int                `json:"replicas,omitempty"`
+	Replicas *int32              `json:"replicas,omitempty"`
 }
 
 // ReplicatedJobApplyConfiguration constructs an declarative configuration of the ReplicatedJob type for use with
@@ -51,7 +51,7 @@ func (b *ReplicatedJobApplyConfiguration) WithTemplate(value v1.JobTemplateSpec)
 // WithReplicas sets the Replicas field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Replicas field is set to the value of the last call.
-func (b *ReplicatedJobApplyConfiguration) WithReplicas(value int) *ReplicatedJobApplyConfiguration {
+func (b *ReplicatedJobApplyConfiguration) WithReplicas(value int32) *ReplicatedJobApplyConfiguration {
 	b.Replicas = &value
 	return b
 }

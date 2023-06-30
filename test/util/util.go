@@ -34,8 +34,8 @@ import (
 
 const interval = time.Millisecond * 250
 
-func NumExpectedJobs(js *jobset.JobSet) int {
-	expectedJobs := 0
+func NumExpectedJobs(js *jobset.JobSet) int32 {
+	var expectedJobs int32 = 0
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		expectedJobs += rjob.Replicas
 	}

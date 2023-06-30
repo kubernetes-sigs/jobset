@@ -731,7 +731,7 @@ func matchJobsSuspendState(js *jobset.JobSet, suspend bool) (bool, error) {
 		return false, err
 	}
 	// Check we have the right number of jobs.
-	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
+	if int32(len(jobList.Items)) != testutil.NumExpectedJobs(js) {
 		return false, nil
 	}
 
@@ -749,7 +749,7 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 		return false, err
 	}
 	// Count number of updated jobs
-	jobsUpdated := 0
+	var jobsUpdated int32 = 0
 	for _, job := range jobList.Items {
 		rjobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
 		if !ok {
@@ -761,7 +761,7 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 		jobsUpdated++
 	}
 	// Calculate expected number of updated jobs
-	wantJobsUpdated := 0
+	var wantJobsUpdated int32 = 0
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		if _, exists := nodeSelectors[rjob.Name]; exists {
 			wantJobsUpdated += rjob.Replicas
@@ -776,7 +776,7 @@ func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
 		return false, err
 	}
 	// Check we have the right number of jobs.
-	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
+	if int32(len(jobList.Items)) != testutil.NumExpectedJobs(js) {
 		return false, nil
 	}
 	// Check all the jobs restart counter has been incremented.
