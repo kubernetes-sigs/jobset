@@ -32,7 +32,18 @@ bash "${CODEGEN_PKG}/generate-groups.sh" \
   jobset:v1alpha2 \
   --go-header-file ./boilerplate.go.txt
 
-ls -R $GOPATH
+# if client-go files were generated outside of repo root, attempt to move them to the repo root.
+if [ ! -d "$REPO_ROOT/client-go" ]; then
 
-echo "moving generated files from $GOPATH/src/sigs.k8s.io/jobset/client-go to $REPO_ROOT/client-go"
-mv $GOPATH/src/sigs.k8s.io/jobset/client-go $REPO_ROOT
+  echo "$REPO_ROOT/client-go does not exist."
+
+  CLIENT_GO=$(find ~/go -regextype sed -regex ".*jobset.*client-go")
+  if [ -z "$CLIENT_GO" ]; then
+    echo "WARNING: generated client-go files were not found."
+  else
+    echo "moving generated files from $CLIENT_GO to $REPO_ROOT/client-go"
+    mv $CLIENT_GO $REPO_ROOT
+  fi
+
+fi
+
