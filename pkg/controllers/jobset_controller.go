@@ -671,14 +671,14 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	labels[RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
-	labels[jobset.JobIndexKey] = strconv.Itoa(int(jobIdx))
+	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 
 	annotations := util.CloneMap(obj.GetAnnotations())
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
-	annotations[jobset.JobIndexKey] = strconv.Itoa(int(jobIdx))
+	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 
 	obj.SetLabels(labels)
 	obj.SetAnnotations(annotations)

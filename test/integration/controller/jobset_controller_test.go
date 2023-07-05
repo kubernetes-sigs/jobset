@@ -170,7 +170,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
 					var jobList batchv1.JobList
 					gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
-					gomega.Expect(int32(len(jobList.Items))).To(gomega.Equal(testutil.NumExpectedJobs(js)))
+					gomega.Expect(len(jobList.Items)).To(gomega.Equal(testutil.NumExpectedJobs(js)))
 					up.jobUpdateFn(&jobList)
 				}
 
@@ -731,7 +731,7 @@ func matchJobsSuspendState(js *jobset.JobSet, suspend bool) (bool, error) {
 		return false, err
 	}
 	// Check we have the right number of jobs.
-	if int32(len(jobList.Items)) != testutil.NumExpectedJobs(js) {
+	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
 		return false, nil
 	}
 
@@ -776,7 +776,7 @@ func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
 		return false, err
 	}
 	// Check we have the right number of jobs.
-	if int32(len(jobList.Items)) != testutil.NumExpectedJobs(js) {
+	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
 		return false, nil
 	}
 	// Check all the jobs restart counter has been incremented.

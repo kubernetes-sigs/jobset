@@ -34,20 +34,20 @@ import (
 
 const interval = time.Millisecond * 250
 
-func NumExpectedJobs(js *jobset.JobSet) int32 {
-	var expectedJobs int32 = 0
+func NumExpectedJobs(js *jobset.JobSet) int {
+	expectedJobs := 0
 	for _, rjob := range js.Spec.ReplicatedJobs {
-		expectedJobs += rjob.Replicas
+		expectedJobs += int(rjob.Replicas)
 	}
 	return expectedJobs
 }
 
-func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (int32, error) {
+func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (int, error) {
 	var jobList batchv1.JobList
 	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
 		return -1, err
 	}
-	return int32(len(jobList.Items)), nil
+	return int(len(jobList.Items)), nil
 }
 
 func JobSetCompleted(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
