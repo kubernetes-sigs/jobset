@@ -37,7 +37,7 @@ if [ ! -d "$REPO_ROOT/client-go" ]; then
 
   echo "$REPO_ROOT/client-go does not exist."
 
-  CLIENT_GO=$(find ~/go -regextype sed -regex ".*jobset.*client-go")
+  CLIENT_GO=$(find $GOPATH -regextype sed -regex ".*jobset.*client-go")
   if [ -z "$CLIENT_GO" ]; then
     echo "WARNING: generated client-go files were not found."
   else
