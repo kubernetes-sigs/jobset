@@ -42,7 +42,7 @@ if [ ! -d "$REPO_ROOT/client-go" ]; then
     echo "WARNING: generated client-go files were not found."
   else
     echo "moving generated files from $CLIENT_GO to $REPO_ROOT/client-go"
-    mv $CLIENT_GO $REPO_ROOT
+    mv -f $CLIENT_GO $REPO_ROOT
   fi
 
 fi
