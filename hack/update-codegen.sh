@@ -21,6 +21,9 @@ set -o pipefail
 cd "$(dirname "${0}")"
 GO_CMD=${1:-go}
 CODEGEN_PKG=${2:-../bin}
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo "GOPATH=$GOPATH"
 
 bash "${CODEGEN_PKG}/generate-groups.sh" \
   "all" \
@@ -28,3 +31,6 @@ bash "${CODEGEN_PKG}/generate-groups.sh" \
   sigs.k8s.io/jobset/api \
   jobset:v1alpha2 \
   --go-header-file ./boilerplate.go.txt
+
+echo "moving generated files from $GOPATH/src to $REPO_ROOT/client-go"
+mv $GOPATH/src/client-go $REPO_ROOT
