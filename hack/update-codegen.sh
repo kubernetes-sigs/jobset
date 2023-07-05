@@ -34,5 +34,5 @@ bash "${CODEGEN_PKG}/generate-groups.sh" \
 
 ls -R $GOPATH
 
-echo "moving generated files from $GOPATH/src to $REPO_ROOT/client-go"
-mv $GOPATH/src/client-go $REPO_ROOT
+echo "moving generated files from $GOPATH/src/sigs.k8s.io/jobset/client-go to $REPO_ROOT/client-go"
+mv $GOPATH/src/sigs.k8s.io/jobset/client-go $REPO_ROOT
