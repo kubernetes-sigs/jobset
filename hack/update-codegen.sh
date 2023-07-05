@@ -32,5 +32,7 @@ bash "${CODEGEN_PKG}/generate-groups.sh" \
   jobset:v1alpha2 \
   --go-header-file ./boilerplate.go.txt
 
+ls -R $GOPATH
+
 echo "moving generated files from $GOPATH/src to $REPO_ROOT/client-go"
 mv $GOPATH/src/client-go $REPO_ROOT
