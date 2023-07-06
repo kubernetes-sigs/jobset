@@ -47,7 +47,7 @@ func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (i
 	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
 		return -1, err
 	}
-	return int(len(jobList.Items)), nil
+	return len(jobList.Items), nil
 }
 
 func JobSetCompleted(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
