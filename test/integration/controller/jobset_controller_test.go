@@ -764,7 +764,7 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 	var wantJobsUpdated int32 = 0
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		if _, exists := nodeSelectors[rjob.Name]; exists {
-			wantJobsUpdated += rjob.Replicas
+			wantJobsUpdated += int(rjob.Replicas)
 		}
 	}
 	return wantJobsUpdated == jobsUpdated, nil
