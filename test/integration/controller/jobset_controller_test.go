@@ -749,7 +749,7 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 		return false, err
 	}
 	// Count number of updated jobs
-	var jobsUpdated int32 = 0
+	jobsUpdated := 0
 	for _, job := range jobList.Items {
 		rjobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
 		if !ok {
@@ -761,7 +761,7 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 		jobsUpdated++
 	}
 	// Calculate expected number of updated jobs
-	var wantJobsUpdated int32 = 0
+	wantJobsUpdated := 0
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		if _, exists := nodeSelectors[rjob.Name]; exists {
 			wantJobsUpdated += int(rjob.Replicas)
