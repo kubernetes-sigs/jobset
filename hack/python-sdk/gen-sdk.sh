@@ -62,3 +62,6 @@ echo "Running post-generation script ..."
 "${repo_root}"/hack/python-sdk/post_gen.py
 
 echo "JobSet Python SDK is generated successfully to folder ${SDK_OUTPUT_PATH}/."
+
+# Remove setup.py
+rm ${SDK_OUTPUT_PATH}/setup.py
