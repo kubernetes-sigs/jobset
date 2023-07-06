@@ -37,7 +37,7 @@ replicated_job = (
 jobset_example = jobset.models.jobset_v1alpha2_job_set.JobsetV1alpha2JobSet(
     api_version="jobset.x-k8s.io/v1alpha2",
     kind="JobSet",
-    metadata=V1ObjectMeta(name="test"),
+    metadata=V1ObjectMeta(name="test-jobset"),
     spec=jobset.models.jobset_v1alpha2_job_set_spec.JobsetV1alpha2JobSetSpec(
         replicated_jobs=[replicated_job],
         suspend=True,
@@ -56,7 +56,7 @@ except ApiException as e:
         % e
     )
 
-# List a jobset
+# List jobsets
 try:
     api_response = api_instance.list_namespaced_custom_object(
         group, version, namespace, plural
@@ -70,8 +70,8 @@ except ApiException as e:
 
 # Get a jobset
 try:
-    api_response = api_instance.list_namespaced_custom_object(
-        group, version, namespace, plural, name="failurepolicy"
+    api_response = api_instance.get_namespaced_custom_object(
+        group, version, namespace, plural, "test-jobset"
     )
     pprint(api_response)
 except ApiException as e:
