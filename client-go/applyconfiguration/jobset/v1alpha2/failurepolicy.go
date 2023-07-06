@@ -17,7 +17,7 @@ package v1alpha2
 // FailurePolicyApplyConfiguration represents an declarative configuration of the FailurePolicy type for use
 // with apply.
 type FailurePolicyApplyConfiguration struct {
-	MaxRestarts *int `json:"maxRestarts,omitempty"`
+	MaxRestarts *int32 `json:"maxRestarts,omitempty"`
 }
 
 // FailurePolicyApplyConfiguration constructs an declarative configuration of the FailurePolicy type for use with
@@ -29,7 +29,7 @@ func FailurePolicy() *FailurePolicyApplyConfiguration {
 // WithMaxRestarts sets the MaxRestarts field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the MaxRestarts field is set to the value of the last call.
-func (b *FailurePolicyApplyConfiguration) WithMaxRestarts(value int) *FailurePolicyApplyConfiguration {
+func (b *FailurePolicyApplyConfiguration) WithMaxRestarts(value int32) *FailurePolicyApplyConfiguration {
 	b.MaxRestarts = &value
 	return b
 }

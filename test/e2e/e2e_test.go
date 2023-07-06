@@ -160,7 +160,7 @@ func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 						},
 					},
 				}).Obj()).
-			Replicas(replicas).
+			Replicas(int32(replicas)).
 			Obj())
 }
 
@@ -194,6 +194,6 @@ func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 						},
 					},
 				}).Obj()).
-			Replicas(replicas).
+			Replicas(int32(replicas)).
 			Obj())
 }

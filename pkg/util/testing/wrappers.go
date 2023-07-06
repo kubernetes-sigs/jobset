@@ -122,7 +122,7 @@ func (r *ReplicatedJobWrapper) Job(jobSpec batchv1.JobTemplateSpec) *ReplicatedJ
 }
 
 // Replicas sets the value of the ReplicatedJob.Replicas.
-func (r *ReplicatedJobWrapper) Replicas(val int) *ReplicatedJobWrapper {
+func (r *ReplicatedJobWrapper) Replicas(val int32) *ReplicatedJobWrapper {
 	r.ReplicatedJob.Replicas = val
 	return r
 }

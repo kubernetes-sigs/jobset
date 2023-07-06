@@ -212,7 +212,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
 			return nil, err
 		}
-		if jobRestarts < js.Status.Restarts {
+		if int32(jobRestarts) < js.Status.Restarts {
 			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
 			continue
 		}
@@ -559,7 +559,7 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 }
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
-	for jobIdx := 0; jobIdx < rjob.Replicas; jobIdx++ {
+	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
 		jobName := genJobName(js, rjob, jobIdx)
 		if create := shouldCreateJob(jobName, ownedJobs); !create {
 			continue
@@ -669,15 +669,15 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels := util.CloneMap(obj.GetLabels())
 	labels[jobset.JobSetNameKey] = js.Name
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
-	labels[RestartsKey] = strconv.Itoa(js.Status.Restarts)
-	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
+	labels[RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 
 	annotations := util.CloneMap(obj.GetAnnotations())
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
-	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(rjob.Replicas)
+	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 
 	obj.SetLabels(labels)
@@ -749,7 +749,7 @@ func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 	case jobset.OperatorAll:
 		for _, rjob := range js.Spec.ReplicatedJobs {
 			if replicatedJobMatchesSuccessPolicy(js, &rjob) {
-				total += rjob.Replicas
+				total += int(rjob.Replicas)
 			}
 		}
 	}

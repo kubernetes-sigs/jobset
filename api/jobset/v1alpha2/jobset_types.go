@@ -79,7 +79,7 @@ type JobSetStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
-	Restarts int `json:"restarts,omitempty"`
+	Restarts int32 `json:"restarts,omitempty"`
 
 	// ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.
 	// +optional
@@ -131,7 +131,7 @@ type ReplicatedJob struct {
 	// Replicas is the number of jobs that will be created from this ReplicatedJob's template.
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
-	Replicas int `json:"replicas,omitempty"`
+	Replicas int32 `json:"replicas,omitempty"`
 }
 
 type Network struct {
@@ -162,7 +162,7 @@ const (
 type FailurePolicy struct {
 	// MaxRestarts defines the limit on the number of JobSet restarts.
 	// A restart is achieved by recreating all active child jobs.
-	MaxRestarts int `json:"maxRestarts,omitempty"`
+	MaxRestarts int32 `json:"maxRestarts,omitempty"`
 }
 
 type SuccessPolicy struct {
