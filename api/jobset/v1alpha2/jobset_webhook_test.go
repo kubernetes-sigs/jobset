@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -453,6 +454,52 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(),
+		},
+		{
+			name: "success policy has non matching replicated job",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{
+						TargetReplicatedJobs: []string{"do not exist"},
+					},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid replicatedJob name 'do not exist' does not appear in .spec.ReplicatedJobs"),
+			),
+		},
+		{
+			name: "network has invalid dns name",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					Network: &Network{
+						EnableDNSHostnames: pointer.Bool(true),
+						Subdomain:          strings.Repeat("a", 257),
+					},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("must be no more than 253 characters"),
+			),
 		},
 	}
 
