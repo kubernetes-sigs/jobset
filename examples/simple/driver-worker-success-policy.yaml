@@ -4,7 +4,7 @@ metadata:
   name: success-policy
 spec:
 # We want to declare our JobSet successful if workers finish
-# If workers finish we should clean up the other jobsets.
+# If workers finish we should clean up the remaining replicatedJobs.
   successPolicy:
     operator: All
     targetReplicatedJobs:
