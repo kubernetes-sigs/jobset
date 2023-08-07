@@ -184,7 +184,8 @@
         "ready",
         "succeeded",
         "failed",
-        "active"
+        "active",
+        "suspended"
       ],
       "properties": {
         "active": {
@@ -207,6 +208,11 @@
           "default": 0
         },
         "succeeded": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
+        "suspended": {
           "type": "integer",
           "format": "int32",
           "default": 0

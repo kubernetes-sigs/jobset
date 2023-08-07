@@ -18,6 +18,7 @@ package controllertest
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -191,6 +192,18 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					jobUpdateFn:          completeAllJobs,
 					checkJobSetCondition: testutil.JobSetCompleted,
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Succeeded: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Succeeded: 1,
+							},
+						})
+					},
 				},
 			},
 		}),
@@ -203,8 +216,22 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						for i := 0; i < len(jobList.Items)-1; i++ {
 							completeJob(&jobList.Items[i])
 						}
+						ReadyJob(&jobList.Items[len(jobList.Items)-1])
 					},
 					checkJobSetCondition: testutil.JobSetActive,
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Succeeded: 2,
+								Ready:     1,
+							},
+							{
+								Name:      "replicated-job-a",
+								Succeeded: 1,
+							},
+						})
+					},
 				},
 			},
 		}),
@@ -434,6 +461,21 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetCondition: testutil.JobSetSuspended,
 				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("Check ReplicatedJobStatus for suspend")
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Suspended: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Suspended: 1,
+							},
+						})
+					},
+				},
 			},
 		}),
 		ginkgo.Entry("resume a suspended jobset", &testCase{
@@ -452,6 +494,19 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						updateJobSetNodeSelectors(js, nodeSelectors)
 					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("Check ReplicatedJobStatus for suspend")
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Suspended: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Suspended: 1,
+							},
+						})
+					},
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
@@ -469,6 +524,20 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					jobUpdateFn:          completeAllJobs,
 					checkJobSetCondition: testutil.JobSetCompleted,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Succeeded: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Succeeded: 1,
+							},
+						})
+					},
 				},
 			},
 		}),
@@ -671,7 +740,7 @@ func completeAllJobs(jobList *batchv1.JobList) {
 }
 
 func completeJob(job *batchv1.Job) {
-	updateJobStatusConditions(job, batchv1.JobStatus{
+	updateJobStatus(job, batchv1.JobStatus{
 		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
 			Type:   batchv1.JobComplete,
 			Status: corev1.ConditionTrue,
@@ -679,7 +748,13 @@ func completeJob(job *batchv1.Job) {
 	})
 }
 
-func updateJobStatusConditions(job *batchv1.Job, status batchv1.JobStatus) {
+func ReadyJob(job *batchv1.Job) {
+	updateJobStatus(job, batchv1.JobStatus{
+		Ready: job.Spec.Parallelism,
+	})
+}
+
+func updateJobStatus(job *batchv1.Job, status batchv1.JobStatus) {
 	gomega.Eventually(func() error {
 		var jobGet batchv1.Job
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &jobGet); err != nil {
@@ -691,7 +766,7 @@ func updateJobStatusConditions(job *batchv1.Job, status batchv1.JobStatus) {
 }
 
 func failJob(job *batchv1.Job) {
-	updateJobStatusConditions(job, batchv1.JobStatus{
+	updateJobStatus(job, batchv1.JobStatus{
 		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
 			Type:   batchv1.JobFailed,
 			Status: corev1.ConditionTrue,
@@ -828,6 +903,22 @@ func jobActive(job *batchv1.Job) bool {
 		}
 	}
 	return active
+}
+
+func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.ReplicatedJobStatus) {
+	gomega.Eventually(func() ([]jobset.ReplicatedJobStatus, error) {
+		newJs := jobset.JobSet{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
+			return nil, err
+		}
+		// ReplicatedStatus is a map and we are not guaranteed to have same order from run to run.
+		// This sort allows us to compare statuses consistently.
+		compareNames := func(i, j int) bool {
+			return newJs.Status.ReplicatedJobsStatus[i].Name > newJs.Status.ReplicatedJobsStatus[j].Name
+		}
+		sort.Slice(newJs.Status.ReplicatedJobsStatus, compareNames)
+		return newJs.Status.ReplicatedJobsStatus, nil
+	}, timeout, interval).Should(gomega.BeComparableTo(expectedStatus))
 }
 
 // 2 replicated jobs:

@@ -385,8 +385,15 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref common.ReferenceC
 							Format:  "int32",
 						},
 					},
+					"suspended": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int32",
+						},
+					},
 				},
-				Required: []string{"name", "ready", "succeeded", "failed", "active"},
+				Required: []string{"name", "ready", "succeeded", "failed", "active", "suspended"},
 			},
 		},
 	}

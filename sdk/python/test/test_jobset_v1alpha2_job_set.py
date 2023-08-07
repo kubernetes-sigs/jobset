@@ -69,7 +69,8 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             failed = 56, 
                             name = '0', 
                             ready = 56, 
-                            succeeded = 56, )
+                            succeeded = 56, 
+                            suspended = 56, )
                         ], 
                     restarts = 56, )
             )
