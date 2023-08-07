@@ -33,34 +33,55 @@ class JobsetV1alpha2JobSetStatus(object):
                             and the value is json key in definition.
     """
     openapi_types = {
-        'replicated_jobs_status': 'list[JobsetV1alpha2ReplicatedJobStatus]',
         'conditions': 'list[V1Condition]',
+        'replicated_jobs_status': 'list[JobsetV1alpha2ReplicatedJobStatus]',
         'restarts': 'int'
     }
 
     attribute_map = {
-        'replicated_jobs_status': 'ReplicatedJobsStatus',
         'conditions': 'conditions',
+        'replicated_jobs_status': 'replicatedJobsStatus',
         'restarts': 'restarts'
     }
 
-    def __init__(self, replicated_jobs_status=None, conditions=None, restarts=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, conditions=None, replicated_jobs_status=None, restarts=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2JobSetStatus - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
-        self._replicated_jobs_status = None
         self._conditions = None
+        self._replicated_jobs_status = None
         self._restarts = None
         self.discriminator = None
 
-        if replicated_jobs_status is not None:
-            self.replicated_jobs_status = replicated_jobs_status
         if conditions is not None:
             self.conditions = conditions
+        if replicated_jobs_status is not None:
+            self.replicated_jobs_status = replicated_jobs_status
         if restarts is not None:
             self.restarts = restarts
+
+    @property
+    def conditions(self):
+        """Gets the conditions of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+
+
+        :return: The conditions of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+        :rtype: list[V1Condition]
+        """
+        return self._conditions
+
+    @conditions.setter
+    def conditions(self, conditions):
+        """Sets the conditions of this JobsetV1alpha2JobSetStatus.
+
+
+        :param conditions: The conditions of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+        :type: list[V1Condition]
+        """
+
+        self._conditions = conditions
 
     @property
     def replicated_jobs_status(self):
@@ -84,27 +105,6 @@ class JobsetV1alpha2JobSetStatus(object):
         """
 
         self._replicated_jobs_status = replicated_jobs_status
-
-    @property
-    def conditions(self):
-        """Gets the conditions of this JobsetV1alpha2JobSetStatus.  # noqa: E501
-
-
-        :return: The conditions of this JobsetV1alpha2JobSetStatus.  # noqa: E501
-        :rtype: list[V1Condition]
-        """
-        return self._conditions
-
-    @conditions.setter
-    def conditions(self, conditions):
-        """Sets the conditions of this JobsetV1alpha2JobSetStatus.
-
-
-        :param conditions: The conditions of this JobsetV1alpha2JobSetStatus.  # noqa: E501
-        :type: list[V1Condition]
-        """
-
-        self._conditions = conditions
 
     @property
     def restarts(self):

@@ -14,6 +14,8 @@ from __future__ import absolute_import
 
 # Kubernetes imports
 from kubernetes.client.models.v1_job_template_spec import V1JobTemplateSpec
+# Kubernetes imports
+from kubernetes.client.models.v1_job_template_spec import V1JobTemplateSpec
 import unittest
 import datetime
 

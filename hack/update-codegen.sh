@@ -39,6 +39,7 @@ elif [ "$CLIENT_GO" != "$REPO_ROOT/client-go" ]; then
   echo "moving generated files from $CLIENT_GO to $REPO_ROOT/client-go"
   rm -rf $REPO_ROOT/client-go
   mv -f $CLIENT_GO $REPO_ROOT
+  
 fi
 
 
