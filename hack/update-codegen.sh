@@ -21,6 +21,7 @@ set -o pipefail
 cd "$(dirname "${0}")"
 GO_CMD=${1:-go}
 CODEGEN_PKG=${2:-../bin}
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 bash "${CODEGEN_PKG}/generate-groups.sh" \
   "all" \
@@ -28,8 +29,6 @@ bash "${CODEGEN_PKG}/generate-groups.sh" \
   sigs.k8s.io/jobset/api \
   jobset:v1alpha2 \
   --go-header-file ./boilerplate.go.txt
-<<<<<<< HEAD
-=======
 
 # if client-go files were generated outside of repo root, attempt to move them to the repo root.
 CLIENT_GO=$(find $GOPATH -regextype sed -regex ".*jobset.*client-go")
@@ -43,4 +42,3 @@ elif [ "$CLIENT_GO" != "$REPO_ROOT/client-go" ]; then
 fi
 
 
->>>>>>> silent openapi errors
