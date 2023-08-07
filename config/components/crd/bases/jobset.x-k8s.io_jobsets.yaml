@@ -9609,12 +9609,10 @@ spec:
                     - Any
                     type: string
                   targetReplicatedJobs:
-                    description: TargetReplicatedJobs are the names of the replicated
-                      jobs the operator will apply to. A null or empty list will apply
-                      to all replicatedJobs.
                     items:
                       type: string
                     type: array
+                    x-kubernetes-list-type: atomic
                 required:
                 - operator
                 type: object
@@ -9628,38 +9626,6 @@ spec:
           status:
             description: JobSetStatus defines the observed state of JobSet
             properties:
-              ReplicatedJobsStatus:
-                description: ReplicatedJobsStatus track the number of JobsReady for
-                  each replicatedJob.
-                items:
-                  description: ReplicatedJobStatus defines the observed ReplicatedJobs
-                    Readiness.
-                  properties:
-                    active:
-                      format: int32
-                      type: integer
-                    failed:
-                      format: int32
-                      type: integer
-                    name:
-                      type: string
-                    ready:
-                      format: int32
-                      type: integer
-                    succeeded:
-                      format: int32
-                      type: integer
-                  required:
-                  - active
-                  - failed
-                  - name
-                  - ready
-                  - succeeded
-                  type: object
-                type: array
-                x-kubernetes-list-map-keys:
-                - name
-                x-kubernetes-list-type: map
               conditions:
                 items:
                   description: "Condition contains details for one aspect of the current
@@ -9730,6 +9696,38 @@ spec:
                 type: array
                 x-kubernetes-list-map-keys:
                 - type
+                x-kubernetes-list-type: map
+              replicatedJobsStatus:
+                description: ReplicatedJobsStatus track the number of JobsReady for
+                  each replicatedJob.
+                items:
+                  description: ReplicatedJobStatus defines the observed ReplicatedJobs
+                    Readiness.
+                  properties:
+                    active:
+                      format: int32
+                      type: integer
+                    failed:
+                      format: int32
+                      type: integer
+                    name:
+                      type: string
+                    ready:
+                      format: int32
+                      type: integer
+                    succeeded:
+                      format: int32
+                      type: integer
+                  required:
+                  - active
+                  - failed
+                  - name
+                  - ready
+                  - succeeded
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
                 x-kubernetes-list-type: map
               restarts:
                 description: Restarts tracks the number of times the JobSet has restarted

@@ -22,8 +22,13 @@ import (
 // with apply.
 type JobSetStatusApplyConfiguration struct {
 	Conditions           []v1.Condition                          `json:"conditions,omitempty"`
+<<<<<<< HEAD
 	Restarts             *int                                    `json:"restarts,omitempty"`
 	ReplicatedJobsStatus []ReplicatedJobStatusApplyConfiguration `json:"ReplicatedJobsStatus,omitempty"`
+=======
+	Restarts             *int32                                  `json:"restarts,omitempty"`
+	ReplicatedJobsStatus []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
+>>>>>>> silent openapi errors
 }
 
 // JobSetStatusApplyConfiguration constructs an declarative configuration of the JobSetStatus type for use with
