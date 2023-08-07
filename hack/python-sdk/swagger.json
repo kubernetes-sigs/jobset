@@ -109,18 +109,6 @@
       "description": "JobSetStatus defines the observed state of JobSet",
       "type": "object",
       "properties": {
-        "ReplicatedJobsStatus": {
-          "description": "ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.",
-          "type": "array",
-          "items": {
-            "default": {},
-            "$ref": "#/definitions/jobset.v1alpha2.ReplicatedJobStatus"
-          },
-          "x-kubernetes-list-map-keys": [
-            "name"
-          ],
-          "x-kubernetes-list-type": "map"
-        },
         "conditions": {
           "type": "array",
           "items": {
@@ -129,6 +117,18 @@
           },
           "x-kubernetes-list-map-keys": [
             "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "replicatedJobsStatus": {
+          "description": "ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/jobset.v1alpha2.ReplicatedJobStatus"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
           ],
           "x-kubernetes-list-type": "map"
         },
@@ -230,7 +230,8 @@
           "items": {
             "type": "string",
             "default": ""
-          }
+          },
+          "x-kubernetes-list-type": "atomic"
         }
       }
     }
