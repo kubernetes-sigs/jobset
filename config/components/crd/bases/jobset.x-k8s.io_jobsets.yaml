@@ -9611,6 +9611,9 @@ spec:
                     - Any
                     type: string
                   targetReplicatedJobs:
+                    description: TargetReplicatedJobs are the names of the replicated
+                      jobs the operator will apply to. A null or empty list will apply
+                      to all replicatedJobs.
                     items:
                       type: string
                     type: array
