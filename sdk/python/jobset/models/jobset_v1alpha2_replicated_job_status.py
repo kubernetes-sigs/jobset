@@ -37,7 +37,8 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
         'failed': 'int',
         'name': 'str',
         'ready': 'int',
-        'succeeded': 'int'
+        'succeeded': 'int',
+        'suspended': 'int'
     }
 
     attribute_map = {
@@ -45,10 +46,11 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
         'failed': 'failed',
         'name': 'name',
         'ready': 'ready',
-        'succeeded': 'succeeded'
+        'succeeded': 'succeeded',
+        'suspended': 'suspended'
     }
 
-    def __init__(self, active=0, failed=0, name='', ready=0, succeeded=0, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, active=0, failed=0, name='', ready=0, succeeded=0, suspended=0, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2ReplicatedJobStatus - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
@@ -59,6 +61,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
         self._name = None
         self._ready = None
         self._succeeded = None
+        self._suspended = None
         self.discriminator = None
 
         self.active = active
@@ -66,6 +69,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
         self.name = name
         self.ready = ready
         self.succeeded = succeeded
+        self.suspended = suspended
 
     @property
     def active(self):
@@ -181,6 +185,29 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
             raise ValueError("Invalid value for `succeeded`, must not be `None`")  # noqa: E501
 
         self._succeeded = succeeded
+
+    @property
+    def suspended(self):
+        """Gets the suspended of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
+
+
+        :return: The suspended of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
+        :rtype: int
+        """
+        return self._suspended
+
+    @suspended.setter
+    def suspended(self, suspended):
+        """Sets the suspended of this JobsetV1alpha2ReplicatedJobStatus.
+
+
+        :param suspended: The suspended of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
+        :type: int
+        """
+        if self.local_vars_configuration.client_side_validation and suspended is None:  # noqa: E501
+            raise ValueError("Invalid value for `suspended`, must not be `None`")  # noqa: E501
+
+        self._suspended = suspended
 
     def to_dict(self):
         """Returns the model properties as a dict"""

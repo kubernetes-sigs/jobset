@@ -102,6 +102,7 @@ type ReplicatedJobStatus struct {
 	Succeeded int32  `json:"succeeded"`
 	Failed    int32  `json:"failed"`
 	Active    int32  `json:"active"`
+	Suspended int32  `json:"suspended"`
 }
 
 // +genclient
