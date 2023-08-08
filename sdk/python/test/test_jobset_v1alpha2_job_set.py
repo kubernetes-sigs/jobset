@@ -60,6 +60,9 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             ], ), 
                     suspend = True, ), 
                 status = jobset.models.jobset_v1alpha2_job_set_status.JobsetV1alpha2JobSetStatus(
+                    conditions = [
+                        None
+                        ], 
                     replicated_jobs_status = [
                         jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                             active = 56, 
@@ -67,9 +70,6 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             name = '0', 
                             ready = 56, 
                             succeeded = 56, )
-                        ], 
-                    conditions = [
-                        None
                         ], 
                     restarts = 56, )
             )

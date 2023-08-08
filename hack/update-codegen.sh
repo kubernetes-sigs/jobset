@@ -36,9 +36,11 @@ bash "${CODEGEN_PKG}/generate-groups.sh" \
 CLIENT_GO=$(find $GOPATH -regextype sed -regex ".*jobset.*client-go")
 if [ -z "$CLIENT_GO" ]; then
   echo "WARNING: generated client-go files were not found."
-elif [ "$CLIENT_GO" -ne "$REPO_ROOT/client-go" ]; then
+elif [ "$CLIENT_GO" != "$REPO_ROOT/client-go" ]; then
   echo "moving generated files from $CLIENT_GO to $REPO_ROOT/client-go"
+  rm -rf $REPO_ROOT/client-go
   mv -f $CLIENT_GO $REPO_ROOT
+  
 fi
 
 
