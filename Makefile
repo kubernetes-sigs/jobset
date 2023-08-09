@@ -104,6 +104,14 @@ fmt-verify:
 	    exit 1; \
 	fi
 
+.PHONY: toc-update
+toc-update:
+	./hack/update-toc.sh
+
+.PHONY: toc-verify
+toc-verify:
+	./hack/verify-toc.sh
+
 .PHONY: vet
 vet: ## Run go vet against code.
 	$(GO_CMD) vet ./...
@@ -118,7 +126,7 @@ test-python-sdk:
 	./hack/python-sdk/test-sdk.sh
 
 .PHONY: verify
-verify: vet fmt-verify manifests generate
+verify: vet fmt-verify manifests generate toc-verify
 	git --no-pager diff --exit-code config api client-go
 	
 
