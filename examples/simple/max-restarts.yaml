@@ -1,7 +1,7 @@
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
-  name: failurepolicy
+  name: max-restarts
 spec:
   # On failure, restart all jobs up to 3 times.
   failurePolicy:

@@ -1,0 +1,20 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: tensorflow
+spec:
+  replicatedJobs:
+  - name: tensorflow
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        backoffLimit: 5
+        template:
+          spec:
+            containers:
+            - name: tensorflow
+              image: kubeflow/tf-mnist-with-summaries:latest
+              command:
+              - "python"
+              - "/var/tf_mnist/mnist_with_summaries.py"
