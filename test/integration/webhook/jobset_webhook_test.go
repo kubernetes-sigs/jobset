@@ -25,7 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/util/testing"
@@ -282,7 +282,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			updateJobSet: func(js *jobset.JobSet) {
-				js.Spec.Suspend = pointer.Bool(true)
+				js.Spec.Suspend = ptr.To(true)
 			},
 			updateShouldFail: false,
 		}),
@@ -298,7 +298,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			updateJobSet: func(js *jobset.JobSet) {
-				js.Spec.Suspend = pointer.Bool(false)
+				js.Spec.Suspend = ptr.To(false)
 			},
 			updateShouldFail: false,
 		}),

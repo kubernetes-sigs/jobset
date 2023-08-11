@@ -31,7 +31,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -261,7 +261,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label, can't update status", job.Name))
 			continue
 		}
-		ready := pointer.Int32Deref(job.Status.Ready, 0)
+		ready := ptr.Deref(job.Status.Ready, 0)
 		// parallelism is always set as it is otherwise defaulted by k8s to 1
 		podsCount := *(job.Spec.Parallelism)
 		if job.Spec.Completions != nil && *job.Spec.Completions < podsCount {
@@ -300,8 +300,8 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 
 func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	for _, job := range ownedJobs.active {
-		if !pointer.BoolDeref(job.Spec.Suspend, false) {
-			job.Spec.Suspend = pointer.Bool(true)
+		if !ptr.Deref(job.Spec.Suspend, false) {
+			job.Spec.Suspend = ptr.To(true)
 			if err := r.Update(ctx, job); err != nil {
 				return err
 			}
@@ -327,7 +327,7 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
 	for _, job := range ownedJobs.active {
-		if pointer.BoolDeref(job.Spec.Suspend, false) {
+		if ptr.Deref(job.Spec.Suspend, false) {
 			if job.Status.StartTime != nil {
 				job.Status.StartTime = nil
 				if err := r.Status().Update(ctx, job); err != nil {
@@ -341,7 +341,7 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 			} else {
 				log.Error(nil, "job missing ReplicatedJobName label")
 			}
-			job.Spec.Suspend = pointer.Bool(false)
+			job.Spec.Suspend = ptr.To(false)
 			if err := r.Update(ctx, job); err != nil {
 				return err
 			}
@@ -599,7 +599,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	}
 	// if Suspend is set, then we assume all jobs will be suspended also.
 	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
-	job.Spec.Suspend = pointer.Bool(jobsetSuspended)
+	job.Spec.Suspend = ptr.To(jobsetSuspended)
 
 	return job, nil
 }
