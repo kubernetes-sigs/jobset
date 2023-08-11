@@ -28,7 +28,7 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -103,7 +103,7 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 			updates: []*jobSetUpdate{
 				{
 					fn: func(js *jobset.JobSet) {
-						js.Spec.Suspend = pointer.Bool(true)
+						js.Spec.Suspend = ptr.To(true)
 					},
 				},
 			},
@@ -620,7 +620,7 @@ func checkJobSetReplicatedJobsStatus(js *jobset.JobSet) bool {
 		}
 	}
 	for _, job := range jobList.Items {
-		ready := pointer.Int32Deref(job.Status.Ready, 0)
+		ready := ptr.Deref(job.Status.Ready, 0)
 		// parallelism is always set as it is otherwise defaulted by k8s to 1
 		podsCount := *(job.Spec.Parallelism)
 		if job.Spec.Completions != nil && *job.Spec.Completions < podsCount {
@@ -705,7 +705,7 @@ func suspendJobSet(js *jobset.JobSet, suspend bool) {
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jsGet); err != nil {
 			return err
 		}
-		jsGet.Spec.Suspend = pointer.Bool(suspend)
+		jsGet.Spec.Suspend = ptr.To(suspend)
 		return k8sClient.Update(ctx, &jsGet)
 	}, timeout, interval).Should(gomega.Succeed())
 }

@@ -17,7 +17,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
@@ -85,7 +85,7 @@ func (j *JobSetWrapper) ReplicatedJob(job jobset.ReplicatedJob) *JobSetWrapper {
 
 // Suspend adds a suspend flag to JobSet
 func (j *JobSetWrapper) Suspend(suspend bool) *JobSetWrapper {
-	j.JobSet.Spec.Suspend = pointer.Bool(suspend)
+	j.JobSet.Spec.Suspend = ptr.To(suspend)
 	return j
 }
 
@@ -97,7 +97,7 @@ func (j *JobSetWrapper) NetworkSubdomain(val string) *JobSetWrapper {
 
 // EnableDNSHostnames sets the value of ReplicatedJob.Network.EnableDNSHostnames.
 func (j *JobSetWrapper) EnableDNSHostnames(val bool) *JobSetWrapper {
-	j.JobSet.Spec.Network.EnableDNSHostnames = pointer.Bool(val)
+	j.JobSet.Spec.Network.EnableDNSHostnames = ptr.To(val)
 	return j
 }
 
@@ -226,7 +226,7 @@ func (j *JobWrapper) PodLabels(labels map[string]string) *JobWrapper {
 
 // Suspend sets suspend in the job spec.
 func (j *JobWrapper) Suspend(suspend bool) *JobWrapper {
-	j.Spec.Suspend = pointer.Bool(suspend)
+	j.Spec.Suspend = ptr.To(suspend)
 	return j
 }
 
@@ -250,13 +250,13 @@ func (j *JobWrapper) Subdomain(subdomain string) *JobWrapper {
 
 // Parallelism sets the job spec parallelism.
 func (j *JobWrapper) Parallelism(parallelism int32) *JobWrapper {
-	j.Spec.Parallelism = pointer.Int32(parallelism)
+	j.Spec.Parallelism = ptr.To(parallelism)
 	return j
 }
 
 // Completions sets the job spec completions.
 func (j *JobWrapper) Completions(completions int32) *JobWrapper {
-	j.Spec.Completions = pointer.Int32(completions)
+	j.Spec.Completions = ptr.To(completions)
 	return j
 }
 
@@ -274,7 +274,7 @@ func (j *JobWrapper) Active(active int32) *JobWrapper {
 
 // Ready sets the job status ready.
 func (j *JobWrapper) Ready(ready int32) *JobWrapper {
-	j.Status.Ready = pointer.Int32(ready)
+	j.Status.Ready = ptr.To(ready)
 	return j
 }
 
