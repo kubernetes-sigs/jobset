@@ -22,11 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
 	util "sigs.k8s.io/jobset/pkg/util/collections"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -49,7 +50,7 @@ func (js *JobSet) Default() {
 	if js.Spec.SuccessPolicy == nil {
 		js.Spec.SuccessPolicy = &SuccessPolicy{Operator: OperatorAll}
 	}
-	for i, _ := range js.Spec.ReplicatedJobs {
+	for i := range js.Spec.ReplicatedJobs {
 		// Default job completion mode to indexed.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
 			js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
@@ -59,7 +60,7 @@ func (js *JobSet) Default() {
 			js.Spec.Network = &Network{}
 		}
 		if js.Spec.Network.EnableDNSHostnames == nil {
-			js.Spec.Network.EnableDNSHostnames = pointer.Bool(true)
+			js.Spec.Network.EnableDNSHostnames = ptr.To(true)
 		}
 		// Subdomain defaults to the JobSet name
 		if js.Spec.Network.Subdomain == "" {
@@ -113,7 +114,7 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 func (js *JobSet) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	mungedSpec := js.Spec.DeepCopy()
 	oldSpec := old.(*JobSet).Spec
-	if pointer.BoolDeref(oldSpec.Suspend, false) {
+	if ptr.Deref(oldSpec.Suspend, false) {
 		for index := range js.Spec.ReplicatedJobs {
 			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
 		}

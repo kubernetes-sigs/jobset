@@ -52,13 +52,13 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
 
 		// Wait for namespace to exist before proceeding with test.
-		gomega.Eventually(func() bool {
+		gomega.Eventually(func() error {
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns.Namespace, Name: ns.Name}, ns)
 			if err != nil {
-				return false
+				return err
 			}
-			return true
-		}, timeout, interval).Should(gomega.BeTrue())
+			return nil
+		}, timeout, interval).Should(gomega.Succeed())
 	})
 
 	ginkgo.AfterEach(func() {
