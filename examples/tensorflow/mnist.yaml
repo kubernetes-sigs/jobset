@@ -14,7 +14,9 @@ spec:
           spec:
             containers:
             - name: tensorflow
-              image: kubeflow/tf-mnist-with-summaries:latest
+              image: docker.io/kubeflowkatib/tf-mnist-with-summaries:latest
               command:
               - "python"
-              - "/var/tf_mnist/mnist_with_summaries.py"
+              - "/opt/tf-mnist-with-summaries/mnist.py"
+              - "--epochs=1"
+              - "--log-path=/mnist-with-summaries-logs"
