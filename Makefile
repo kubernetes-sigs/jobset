@@ -116,6 +116,10 @@ toc-verify:
 vet: ## Run go vet against code.
 	$(GO_CMD) vet ./...
 
+.PHONY: ci-lint
+ci-lint: golangci-lint
+	$(GOLANGCI_LINT) run --timeout 15m0s
+
 .PHONY: test
 test: manifests fmt vet envtest gotestsum test-python-sdk
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GOTESTSUM) --junitfile $(ARTIFACTS)/junit.xml -- ./pkg/... ./api/... -coverprofile  $(ARTIFACTS)/cover.out
@@ -126,7 +130,7 @@ test-python-sdk:
 	./hack/python-sdk/test-sdk.sh
 
 .PHONY: verify
-verify: vet fmt-verify manifests generate toc-verify
+verify: vet fmt-verify ci-lint manifests generate toc-verify
 	git --no-pager diff --exit-code config api client-go
 	
 
@@ -278,6 +282,11 @@ artifacts: kustomize
 	$(KUSTOMIZE) build config/default -o artifacts/manifests.yaml
 	$(KUSTOMIZE) build config/prometheus -o artifacts/prometheus.yaml
 	@$(call clean-manifests)
+
+GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
+.PHONY: golangci-lint
+golangci-lint: ## Download golangci-lint locally if necessary.
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.2
 
 GOTESTSUM = $(shell pwd)/bin/gotestsum
 .PHONY: gotestsum

@@ -122,9 +122,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 	}
 
 	type testCase struct {
-		makeJobSet               func(*corev1.Namespace) *testing.JobSetWrapper
-		jobSetCreationShouldFail bool
-		updates                  []*update
+		makeJobSet func(*corev1.Namespace) *testing.JobSetWrapper
+		updates    []*update
 	}
 
 	nodeSelectors := map[string]map[string]string{

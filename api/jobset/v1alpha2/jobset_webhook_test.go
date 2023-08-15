@@ -12,7 +12,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // TestPodTemplate is the default pod template spec used for testing.
@@ -40,7 +40,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -55,7 +55,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -74,7 +74,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -90,7 +90,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -124,7 +124,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -165,7 +165,7 @@ func TestJobSetDefaulting(t *testing.T) {
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					Network: &Network{
-						EnableDNSHostnames: pointer.Bool(true),
+						EnableDNSHostnames: ptr.To(true),
 						Subdomain:          "custom-jobset",
 					},
 					ReplicatedJobs: []ReplicatedJob{
@@ -186,7 +186,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(false)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(false)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -202,7 +202,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(false)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(false)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -221,7 +221,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -239,7 +239,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -262,7 +262,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -282,7 +282,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -304,7 +304,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "success policy unset",
 			js: &JobSet{
 				Spec: JobSetSpec{
-					Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network: &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -324,7 +324,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -349,7 +349,7 @@ func TestJobSetDefaulting(t *testing.T) {
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
 					},
-					Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network: &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -371,7 +371,7 @@ func TestJobSetDefaulting(t *testing.T) {
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
 					},
-					Network: &Network{EnableDNSHostnames: pointer.Bool(true)},
+					Network: &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -416,7 +416,7 @@ func TestValidateCreate(t *testing.T) {
 							Replicas: math.MaxInt32,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: pointer.Int32(math.MaxInt32),
+									Parallelism: ptr.To[int32](math.MaxInt32),
 								},
 							},
 						},
@@ -425,7 +425,7 @@ func TestValidateCreate(t *testing.T) {
 							Replicas: math.MinInt32,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: pointer.Int32(math.MinInt32),
+									Parallelism: ptr.To[int32](math.MinInt32),
 								},
 							},
 						},
@@ -482,7 +482,7 @@ func TestValidateCreate(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					Network: &Network{
-						EnableDNSHostnames: pointer.Bool(true),
+						EnableDNSHostnames: ptr.To(true),
 						Subdomain:          strings.Repeat("a", 257),
 					},
 					ReplicatedJobs: []ReplicatedJob{
