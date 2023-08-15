@@ -1,3 +1,5 @@
+# Distributed training of a ResNet18 model to do image classification 
+# using the CIFAR-10 dataset and PyTorch.
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
@@ -14,7 +16,7 @@ spec:
           spec:
             containers:
             - name: pytorch
-              image: gcr.io/k8s-staging-jobset/pytorch-mnist:latest
+              image: gcr.io/k8s-staging-jobset/pytorch-resnet:latest
               ports:
               - containerPort: 3389
               env:
@@ -22,10 +24,6 @@ spec:
                 value: "pytorch-workers-0-0.pytorch"
               - name: MASTER_PORT
                 value: "3389"
-              - name: RANK
-                valueFrom:
-                  fieldRef:
-                    fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
               # Force python to not buffer output and write directly to stdout, so we can view training logs via `kubectl logs`.
               - name: PYTHONUNBUFFERED
                 value: "0"
@@ -33,4 +31,5 @@ spec:
               - bash
               - -xc
               - |
-                torchrun --rdzv_id=123 --nnodes=4 --nproc_per_node=1 --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT --node_rank=$RANK mnist.py --epochs=1 --log-interval=1  
+                torchrun --nproc_per_node=1 --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT resnet.py --backend=gloo --num_epochs=2
+                
