@@ -99,6 +99,7 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 	if err := controllers.SetupIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
 		setupLog.Error(err, "unable to setup indexes")
+		os.Exit(1)
 	}
 
 	// Cert won't be ready until manager starts, so start a goroutine here which
