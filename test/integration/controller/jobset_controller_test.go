@@ -396,6 +396,32 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("child job fails due to triggering PodFailurePolicy", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				// Set up JobSet which allows up to 3 restarts.
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 3,
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("fail job with condition reason indicating it matched a podFailurePolicy")
+						job := &jobList.Items[0]
+						updateJobStatusConditions(job, batchv1.JobStatus{
+							Conditions: append(job.Status.Conditions, batchv1.JobCondition{
+								Type:   batchv1.JobFailed,
+								Status: corev1.ConditionTrue,
+								Reason: controllers.JobConditionReasonPodFailurePolicy,
+							}),
+						})
+					},
+					// check JobSet fails immediately without restarting.
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+			},
+		}),
 		ginkgo.Entry("job succeeds after one failure", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).

@@ -45,8 +45,9 @@ const (
 )
 
 var (
-	jobOwnerKey = ".metadata.controller"
-	apiGVStr    = jobset.GroupVersion.String()
+	jobOwnerKey                        = ".metadata.controller"
+	apiGVStr                           = jobset.GroupVersion.String()
+	JobConditionReasonPodFailurePolicy = "PodFailurePolicy"
 )
 
 // JobSetReconciler reconciles a JobSet object
@@ -459,10 +460,28 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 }
 
 func (r *JobSetReconciler) executeRestartPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	if js.Spec.FailurePolicy.MaxRestarts == 0 {
+	if js.Spec.FailurePolicy.MaxRestarts == 0 || r.triggeredPodFailurePolicy(ctx, js, ownedJobs) {
 		return r.failJobSet(ctx, js)
 	}
 	return r.restartPolicyRecreateAll(ctx, js, ownedJobs)
+}
+
+// If a child job has failed due to triggering a PodFailurePolicy,
+// we should fail the JobSet immediately rather than restarting.
+// This allows the user to configure a PodFailurePolicy such that
+// job failures under certain conditions do not cause the JobSet to
+// restart, while others do.
+func (r *JobSetReconciler) triggeredPodFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) bool {
+	log := ctrl.LoggerFrom(ctx)
+	for _, failedJob := range ownedJobs.failed {
+		for _, c := range failedJob.Status.Conditions {
+			if c.Reason == JobConditionReasonPodFailurePolicy && c.Status == corev1.ConditionTrue {
+				log.V(2).Info("jobset %s child job %s failed due to triggering a PodFailurePolicy", js.Name, failedJob.Name)
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
