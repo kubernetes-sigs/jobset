@@ -398,11 +398,28 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("child job fails due to triggering PodFailurePolicy", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				// Set up JobSet which allows up to 3 restarts.
-				return testJobSet(ns).
-					FailurePolicy(&jobset.FailurePolicy{
-						MaxRestarts: 3,
-					})
+				jobSetName := "test-podfailurepolicy"
+				return testing.MakeJobSet(jobSetName, ns.Name).
+					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+					EnableDNSHostnames(true).
+					NetworkSubdomain(jobSetName).
+					ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
+						Job(testing.MakeJobTemplate("test-job-A", ns.Name).
+							PodFailurePolicy(&batchv1.PodFailurePolicy{
+								Rules: []batchv1.PodFailurePolicyRule{
+									{
+										Action: batchv1.PodFailurePolicyActionFailJob,
+										OnExitCodes: &batchv1.PodFailurePolicyOnExitCodesRequirement{
+											ContainerName: &testing.TestPodSpec.Containers[0].Name,
+											Operator:      "NotIn",
+											Values:        []int32{143}, // SIGTERM
+										},
+									},
+								},
+							}).
+							PodSpec(testing.TestPodSpec).Obj()).
+						Replicas(1).
+						Obj())
 			},
 			updates: []*update{
 				{

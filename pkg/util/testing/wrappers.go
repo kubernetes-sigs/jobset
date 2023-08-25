@@ -161,6 +161,12 @@ func MakeJobTemplate(name, ns string) *JobTemplateWrapper {
 	}
 }
 
+// PodFailurePolicy sets the job.spec.podFailurePolicy
+func (j *JobTemplateWrapper) PodFailurePolicy(podFailurePolicy *batchv1.PodFailurePolicy) *JobTemplateWrapper {
+	j.Spec.PodFailurePolicy = podFailurePolicy
+	return j
+}
+
 // CompletionMode sets the value of job.spec.completionMode
 func (j *JobTemplateWrapper) CompletionMode(mode batchv1.CompletionMode) *JobTemplateWrapper {
 	j.Spec.CompletionMode = &mode
