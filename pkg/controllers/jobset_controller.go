@@ -42,12 +42,16 @@ import (
 const (
 	RestartsKey       string = "jobset.sigs.k8s.io/restart-attempt"
 	parallelDeletions int    = 50
+
+	// The JobConditionReasonPodFailurePolicy constant is defined here
+	// since the constant is not exported as part of Job API and thus
+	// cannot be referenced directly, so we have to redefine it here for now.
+	JobConditionReasonPodFailurePolicy = "PodFailurePolicy"
 )
 
 var (
-	jobOwnerKey                        = ".metadata.controller"
-	apiGVStr                           = jobset.GroupVersion.String()
-	JobConditionReasonPodFailurePolicy = "PodFailurePolicy"
+	jobOwnerKey = ".metadata.controller"
+	apiGVStr    = jobset.GroupVersion.String()
 )
 
 // JobSetReconciler reconciles a JobSet object
