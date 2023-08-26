@@ -58,6 +58,8 @@ rules:
   - jobs/status
   verbs:
   - get
+  - patch
+  - update
 - apiGroups:
   - ""
   resources:
