@@ -91,6 +91,11 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 		for _, errMessage := range validation.IsDNS1123Subdomain(js.Spec.Network.Subdomain) {
 			allErrs = append(allErrs, fmt.Errorf(errMessage))
 		}
+
+		// Since subdomain name is also used as service name, it must adhere to RFC 1035 as well.
+		for _, errMessage := range validation.IsDNS1035Label(js.Spec.Network.Subdomain) {
+			allErrs = append(allErrs, fmt.Errorf(errMessage))
+		}
 	}
 
 	for _, rjob := range js.Spec.ReplicatedJobs {
