@@ -9,7 +9,7 @@ require (
 	github.com/open-policy-agent/cert-controller v0.8.0
 	github.com/stretchr/testify v1.8.4
 	k8s.io/api v0.27.4
-	k8s.io/apimachinery v0.27.4
+	k8s.io/apimachinery v0.27.5
 	k8s.io/client-go v0.27.4
 	k8s.io/code-generator v0.27.4
 	k8s.io/klog v1.0.0
