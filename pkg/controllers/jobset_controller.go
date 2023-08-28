@@ -479,7 +479,7 @@ func (r *JobSetReconciler) triggeredPodFailurePolicy(ctx context.Context, js *jo
 	log := ctrl.LoggerFrom(ctx)
 	for _, failedJob := range ownedJobs.failed {
 		for _, c := range failedJob.Status.Conditions {
-			if c.Reason == JobConditionReasonPodFailurePolicy && c.Status == corev1.ConditionTrue {
+			if c.Type == batchv1.JobFailed && c.Reason == JobConditionReasonPodFailurePolicy && c.Status == corev1.ConditionTrue {
 				log.V(2).Info("jobset %s child job %s failed due to triggering a PodFailurePolicy", js.Name, failedJob.Name)
 				return true
 			}
