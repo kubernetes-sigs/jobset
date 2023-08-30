@@ -238,7 +238,7 @@ func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.
 		return nil
 	}
 	js.Status.ReplicatedJobsStatus = status
-	return r.Status().Update(ctx, js)
+	return r.updateStatusWithoutSpec(ctx, js)
 }
 
 func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) []jobset.ReplicatedJobStatus {
@@ -510,18 +510,25 @@ func (r *JobSetReconciler) deleteJobs(ctx context.Context, jobsForDeletion []*ba
 
 // updateStatus updates the status of a JobSet.
 func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, eventType, eventReason, eventMsg string) error {
-	if err := r.Status().Update(ctx, js); err != nil {
+	if err := r.updateStatusWithoutSpec(ctx, js); err != nil {
 		return err
 	}
 	r.Record.Eventf(js, eventType, eventReason, eventMsg)
 	return nil
 }
 
+// to fix issue#141
+func (r *JobSetReconciler) updateStatusWithoutSpec(ctx context.Context, js *jobset.JobSet) error {
+	jobsetCopy := js.DeepCopy()
+	jobsetCopy.Spec = jobset.JobSetSpec{}
+	return r.Status().Update(ctx, jobsetCopy)
+}
+
 func (r *JobSetReconciler) ensureCondition(ctx context.Context, js *jobset.JobSet, eventType string, condition metav1.Condition) error {
 	if !updateCondition(js, condition) {
 		return nil
 	}
-	if err := r.Status().Update(ctx, js); err != nil {
+	if err := r.updateStatusWithoutSpec(ctx, js); err != nil {
 		return err
 	}
 
