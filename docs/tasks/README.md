@@ -9,7 +9,7 @@ In [pytorch](examples/pytorch), there are two examples using pytorch
 
 Each of these examples demonstrate how you use the JobSet API to run pytorch jobs.  
 
-Machine Learning images can be quite large so it make take some time to pull the images.
+Machine Learning images can be quite large so it may take some time to pull the images.
 
 ## Simple Examples
 
