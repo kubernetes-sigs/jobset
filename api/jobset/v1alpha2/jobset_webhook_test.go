@@ -547,7 +547,7 @@ func TestValidateCreate(t *testing.T) {
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Name:     "rj",
-							Replicas: 100,
+							Replicas: 101,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{},
 							},

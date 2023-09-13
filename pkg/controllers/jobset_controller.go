@@ -36,7 +36,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
-	util "sigs.k8s.io/jobset/pkg/util/collections"
+	"sigs.k8s.io/jobset/pkg/util/collections"
+	"sigs.k8s.io/jobset/pkg/util/names"
 )
 
 const (
@@ -560,7 +561,7 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
 	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
-		jobName := genJobName(js, rjob, jobIdx)
+		jobName := names.GenJobName(js.Name, rjob.Name, jobIdx)
 		if create := shouldCreateJob(jobName, ownedJobs); !create {
 			continue
 		}
@@ -576,9 +577,9 @@ func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ow
 func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*batchv1.Job, error) {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      util.CloneMap(rjob.Template.Labels),
-			Annotations: util.CloneMap(rjob.Template.Annotations),
-			Name:        genJobName(js, rjob, jobIdx),
+			Labels:      collections.CloneMap(rjob.Template.Labels),
+			Annotations: collections.CloneMap(rjob.Template.Annotations),
+			Name:        names.GenJobName(js.Name, rjob.Name, jobIdx),
 			Namespace:   js.Namespace,
 		},
 		Spec: *rjob.Template.Spec.DeepCopy(),
@@ -656,7 +657,7 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 	// TODO: maybe we can use a job map here so we can do O(1) lookups
 	// to check if the job already exists, rather than a linear scan
 	// through all the jobs owned by the jobset.
-	for _, job := range util.Concat(ownedJobs.active, ownedJobs.successful, ownedJobs.failed, ownedJobs.delete) {
+	for _, job := range collections.Concat(ownedJobs.active, ownedJobs.successful, ownedJobs.failed, ownedJobs.delete) {
 		if jobName == job.Name {
 			return false
 		}
@@ -665,8 +666,8 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 }
 
 func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
-	jobName := genJobName(js, rjob, jobIdx)
-	labels := util.CloneMap(obj.GetLabels())
+	jobName := names.GenJobName(js.Name, rjob.Name, jobIdx)
+	labels := collections.CloneMap(obj.GetLabels())
 	labels[jobset.JobSetNameKey] = js.Name
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	labels[RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
@@ -674,7 +675,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 
-	annotations := util.CloneMap(obj.GetAnnotations())
+	annotations := collections.CloneMap(obj.GetAnnotations())
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
@@ -691,10 +692,6 @@ func JobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 		}
 	}
 	return false, ""
-}
-
-func genJobName(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIndex int) string {
-	return fmt.Sprintf("%s-%s-%d", js.Name, rjob.Name, jobIndex)
 }
 
 func GenSubdomain(js *jobset.JobSet) string {
@@ -724,11 +721,11 @@ func dnsHostnamesEnabled(js *jobset.JobSet) bool {
 }
 
 func jobMatchesSuccessPolicy(js *jobset.JobSet, job *batchv1.Job) bool {
-	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || util.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
+	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || collections.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
 }
 
 func replicatedJobMatchesSuccessPolicy(js *jobset.JobSet, rjob *jobset.ReplicatedJob) bool {
-	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || util.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, rjob.Name)
+	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || collections.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, rjob.Name)
 }
 
 func numJobsMatchingSuccessPolicy(js *jobset.JobSet, jobs []*batchv1.Job) int {
