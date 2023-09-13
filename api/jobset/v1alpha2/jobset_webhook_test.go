@@ -537,6 +537,29 @@ func TestValidateCreate(t *testing.T) {
 				fmt.Errorf("a DNS-1035 label must consist of lower case alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character (e.g. 'my-name',  or 'abc-123', regex used for validation is '[a-z]([-a-z0-9]*[a-z0-9])?')"),
 			),
 		},
+		{
+			name: "jobset name will result in job name being too long",
+			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: strings.Repeat("a", 62),
+				},
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 100,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("must be no more than 63 characters"),
+			),
+		},
 	}
 
 	for _, tc := range testCases {

@@ -107,8 +107,8 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 			allErrs = append(allErrs, fmt.Errorf("the product of replicas and parallelism must not exceed %d for replicatedJob '%s'", math.MaxInt32, rjob.Name))
 		}
 		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
-		// Use job index 0 as the test example.
-		testJobName := fmt.Sprintf("%s-%s-%d", js.Name, rjob.Name, 0)
+		// Use the largest job index as it will have the longest name.
+		testJobName := fmt.Sprintf("%s-%s-%d", js.Name, rjob.Name, rjob.Replicas-1)
 		for _, errMessage := range validation.IsDNS1035Label(testJobName) {
 			allErrs = append(allErrs, fmt.Errorf(errMessage))
 		}
