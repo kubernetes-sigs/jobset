@@ -483,7 +483,7 @@ func TestValidateCreate(t *testing.T) {
 				Spec: JobSetSpec{
 					Network: &Network{
 						EnableDNSHostnames: ptr.To(true),
-						Subdomain:          strings.Repeat("a", 257),
+						Subdomain:          strings.Repeat("a", 64),
 					},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -498,7 +498,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("must be no more than 253 characters"),
+				fmt.Errorf("must be no more than 63 characters"),
 			),
 		},
 	}
