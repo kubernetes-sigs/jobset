@@ -24,7 +24,6 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
-
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	jobsetv1alpha2 "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1alpha2"
 )

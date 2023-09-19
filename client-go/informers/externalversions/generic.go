@@ -19,7 +19,6 @@ import (
 
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
-
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 

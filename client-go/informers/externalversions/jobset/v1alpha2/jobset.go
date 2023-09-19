@@ -22,7 +22,6 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
-
 	jobsetv1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	versioned "sigs.k8s.io/jobset/client-go/clientset/versioned"
 	internalinterfaces "sigs.k8s.io/jobset/client-go/informers/externalversions/internalinterfaces"

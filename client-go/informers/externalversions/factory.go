@@ -23,7 +23,6 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
-
 	versioned "sigs.k8s.io/jobset/client-go/clientset/versioned"
 	internalinterfaces "sigs.k8s.io/jobset/client-go/informers/externalversions/internalinterfaces"
 	jobset "sigs.k8s.io/jobset/client-go/informers/externalversions/jobset"

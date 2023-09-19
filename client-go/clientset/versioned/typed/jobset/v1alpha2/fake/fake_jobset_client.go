@@ -17,7 +17,6 @@ package fake
 import (
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
-
 	v1alpha2 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1alpha2"
 )
 
