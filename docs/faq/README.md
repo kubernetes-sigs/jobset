@@ -2,7 +2,7 @@
 
 ### "Webhook not available" error when attempting to create a JobSet
 
-Example error message:
+Example error: `failed calling webhook "mjobset.kb.io": failed to call webhook: Post "https://jobset-webhook-service.jobset-system.svc:443/mutate-jobset-x-k8s-io-v1alpha1-jobset?timeout=10s": no endpoints available for service "jobset-webhook-service"`
 
 **Cause**: Usually this means the JobSet controller manager Deployment pods are unschedulable for some reason.
 
