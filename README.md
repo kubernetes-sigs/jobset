@@ -8,6 +8,9 @@ Take a look at the [concepts](/docs/concepts/README.md) page for a brief descrip
 
 Read the [installation guide](/docs/setup/install.md) to learn more.
 
+## Troubleshooting common issues
+See the [FAQ](/docs/faq/README.md) for help with troubleshooting common issues.
+
 
 ## Community, discussion, contribution, and support
 
