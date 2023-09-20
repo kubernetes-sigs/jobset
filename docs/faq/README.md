@@ -7,7 +7,7 @@ Example error message:
 **Cause**: Usually this means the JobSet controller manager Deployment pods hey are unschedulable for some reason.
 
 **Solution**: Check if jobset-controller-manager deployment pods are running (`kubectl get pods -n jobset-system`).
-If they are in a `Pending` state, describ the pod to see why (`kubectl describe pod <pod> -n jobset-system`), you
+If they are in a `Pending` state, describe the pod to see why (`kubectl describe pod <pod> -n jobset-system`), you
 should see a message in the pod Events indicating why they are unschedulable. The solution will depend on why the pods
 are unschedulable. For example, if they unschedulable to due insufficient CPU/memory, the solution is to scale up your CPU node pools or turn on autoscaling.
 
