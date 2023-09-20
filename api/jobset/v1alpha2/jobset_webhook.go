@@ -28,7 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	util "sigs.k8s.io/jobset/pkg/util/collections"
+	"sigs.k8s.io/jobset/pkg/util/collections"
+	"sigs.k8s.io/jobset/pkg/util/names"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -106,9 +107,15 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 		if int64(parallelism)*int64(rjob.Replicas) > math.MaxInt32 {
 			allErrs = append(allErrs, fmt.Errorf("the product of replicas and parallelism must not exceed %d for replicatedJob '%s'", math.MaxInt32, rjob.Name))
 		}
+		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
+		// Use the largest job index as it will have the longest name.
+		testJobName := names.GenJobName(js.Name, rjob.Name, int(rjob.Replicas-1))
+		for _, errMessage := range validation.IsDNS1035Label(testJobName) {
+			allErrs = append(allErrs, fmt.Errorf(errMessage))
+		}
 	}
 	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
-		if !util.Contains(validReplicatedJobs, rjobName) {
+		if !collections.Contains(validReplicatedJobs, rjobName) {
 			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
 		}
 	}

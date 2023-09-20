@@ -401,6 +401,9 @@ func TestJobSetDefaulting(t *testing.T) {
 }
 
 func TestValidateCreate(t *testing.T) {
+	validObjectMeta := metav1.ObjectMeta{
+		Name: "js",
+	}
 	testCases := []struct {
 		name string
 		js   *JobSet
@@ -409,6 +412,7 @@ func TestValidateCreate(t *testing.T) {
 		{
 			name: "number of pods exceeds the limit",
 			js: &JobSet{
+				ObjectMeta: validObjectMeta,
 				Spec: JobSetSpec{
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -441,9 +445,11 @@ func TestValidateCreate(t *testing.T) {
 		{
 			name: "number of pods within the limit",
 			js: &JobSet{
+				ObjectMeta: validObjectMeta,
 				Spec: JobSetSpec{
 					ReplicatedJobs: []ReplicatedJob{
 						{
+							Name:     "test-jobset-replicated-job-0",
 							Replicas: 1,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{},
@@ -458,6 +464,7 @@ func TestValidateCreate(t *testing.T) {
 		{
 			name: "success policy has non matching replicated job",
 			js: &JobSet{
+				ObjectMeta: validObjectMeta,
 				Spec: JobSetSpec{
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -480,6 +487,7 @@ func TestValidateCreate(t *testing.T) {
 		{
 			name: "network has invalid dns name",
 			js: &JobSet{
+				ObjectMeta: validObjectMeta,
 				Spec: JobSetSpec{
 					Network: &Network{
 						EnableDNSHostnames: ptr.To(true),
@@ -489,6 +497,50 @@ func TestValidateCreate(t *testing.T) {
 						{
 							Name:     "test-jobset-replicated-job-0",
 							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("must be no more than 63 characters"),
+			),
+		},
+		{
+			name: "jobset name with invalid character",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "username.llama65b",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("a DNS-1035 label must consist of lower case alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character (e.g. 'my-name',  or 'abc-123', regex used for validation is '[a-z]([-a-z0-9]*[a-z0-9])?')"),
+			),
+		},
+		{
+			name: "jobset name will result in job name being too long",
+			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: strings.Repeat("a", 62),
+				},
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 101,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{},
 							},
