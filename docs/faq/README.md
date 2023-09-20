@@ -4,7 +4,7 @@
 
 Example error message:
 
-**Cause**: Usually this means the JobSet controller manager Deployment pods hey are unschedulable for some reason.
+**Cause**: Usually this means the JobSet controller manager Deployment pods are unschedulable for some reason.
 
 **Solution**: Check if jobset-controller-manager deployment pods are running (`kubectl get pods -n jobset-system`).
 If they are in a `Pending` state, describe the pod to see why (`kubectl describe pod <pod> -n jobset-system`), you
