@@ -25,8 +25,10 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 echo "GOPATH=$GOPATH"
 
+chmod +x "${CODEGEN_PKG}/generate-internal-groups.sh"
+
 bash "${CODEGEN_PKG}/generate-groups.sh" \
-  "all" \
+  "applyconfiguration,client,informer,lister" \
   sigs.k8s.io/jobset/client-go \
   sigs.k8s.io/jobset/api \
   jobset:v1alpha2 \
