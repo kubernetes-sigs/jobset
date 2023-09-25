@@ -1,6 +1,6 @@
 # Troubleshooting Common Issues
 
-### "Webhook not available" error when attempting to create a JobSet
+## 1. "Webhook not available" error when attempting to create a JobSet
 
 Example error: `failed calling webhook "mjobset.kb.io": failed to call webhook: Post "https://jobset-webhook-service.jobset-system.svc:443/mutate-jobset-x-k8s-io-v1alpha1-jobset?timeout=10s": no endpoints available for service "jobset-webhook-service"`
 
@@ -11,7 +11,7 @@ If they are in a `Pending` state, describe the pod to see why (`kubectl describe
 should see a message in the pod Events indicating why they are unschedulable. The solution will depend on why the pods
 are unschedulable. For example, if they unschedulable due to insufficient CPU/memory, the solution is to scale up your CPU node pools or turn on autoscaling.
 
-### JobSet is created but child jobs and/or pods are not being created 
+## 2. JobSet is created but child jobs and/or pods are not being created 
 
 Check the jobset controller logs to see why the jobs are not being created:
 
@@ -25,7 +25,7 @@ Inspect the logs to look for one of the following issues:
 **Cause**: In older versions of JobSet (older than v0.2.1) if the indexes could not be built for some reason, the JobSet controller would log the error and launch anyway. This resulted in confusing behavior later when trying to create JobSets, where the controller would encounter this "index not found" error and not be able to create any jobs. This bug was fixed
 in v0.2.1 so the JobSet controller now fails fast and exits with an error if indexes cannot be built.
 
-**Solution**: Upgrade to at least JobSet v0.2.1 (ideally, you should use the latest JobSet release).
+**Solution**: Uninstall JobSet and re-install using the latest release (or at minimum, JobSet v0.2.1). See [installation guide](/docs/setup/install.md) for the commands to do this.
 
 2. Validation error creating Jobs and/or Services, indicating the Job/Service name is invalid.
 
@@ -37,8 +37,14 @@ in v0.2.1 so the JobSet controller now fails fast and exits with an error if ind
 * The subdomain name (manually specified in `js.Spec.Network.Subdomain` or defaulted to the JobSet name if unspecified) is both [RFC 1123](https://datatracker.ietf.org/doc/html/rfc1123) compliant and [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) compliant.
 
 
-### Using JobSet + Kueue, preempted workloads never resume
+## 3. Using JobSet + Kueue, preempted workloads never resume
 
-**Cause**: This could be due to a known bug in an older version of JobSet, or a known bug in an older version of Kueue. ug in older releases. 
+Look at the JobSet controller logs and you'll probably see an error like this:
 
-**Solution**: Upgrade to at least JobSet v0.2.3 and Kueue v0.4.1.
+```
+ ERROR   resuming jobset {"controller": "jobset", "controllerGroup": "jobset.x-k8s.io", "controllerKind": "JobSet", "JobSet": {"name":"js","namespace":"default"}, "namespace": "default", "name": "js", "reconcileID": "e1ab5e21-586c-496e-96b7-8629cd702f3b", "jobset": {"name":"js","namespace":"default"}, "error": "jobs.batch \"js-slice-job-1\" is forbidden: User \"system:serviceaccount:jobset-system:jobset-controller-manager\" cannot update resource \"jobs/status\" in API group \"batch\" in the namespace \"default\""}
+ ```
+
+**Cause**: This could be due to a known bug in an older version of JobSet, or a known bug in an older version of Kueue. JobSet and Kueue integration requires JobSet v0.2.3+ and Kueue v0.4.1+.
+
+**Solution**: If you're using JobSet version less than v0.2.3, uninstall and re-install using a versoin >= v0.2.3 (see the JobSet [installation guide](/docs/setup/install.md) for the commands to do this). If you're using a Kueue version less than v0.4.1, uninstall and re-install using a v0.4.1 (see the Kueue [installation guide](https://kueue.sigs.k8s.io/docs/installation/) for the commands to do this).
