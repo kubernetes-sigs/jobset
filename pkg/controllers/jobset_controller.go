@@ -37,7 +37,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/util/collections"
-	"sigs.k8s.io/jobset/pkg/util/names"
+	shared "sigs.k8s.io/jobset/pkg/util/shared"
 )
 
 const (
@@ -176,7 +176,7 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func SetupIndexes(ctx context.Context, indexer client.FieldIndexer) error {
+func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error {
 	return indexer.IndexField(ctx, &batchv1.Job{}, jobOwnerKey, func(obj client.Object) []string {
 		o := obj.(*batchv1.Job)
 		owner := metav1.GetControllerOf(o)
@@ -232,6 +232,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	}
 	return &ownedJobs, nil
 }
+
 func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) error {
 	status := r.calculateReplicatedJobStatuses(ctx, js, jobs)
 	// Check if status ReplicatedJobsStatus has changed
@@ -572,7 +573,7 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
 	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
-		jobName := names.GenJobName(js.Name, rjob.Name, jobIdx)
+		jobName := shared.GenJobName(js.Name, rjob.Name, jobIdx)
 		if create := shouldCreateJob(jobName, ownedJobs); !create {
 			continue
 		}
@@ -590,7 +591,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      collections.CloneMap(rjob.Template.Labels),
 			Annotations: collections.CloneMap(rjob.Template.Annotations),
-			Name:        names.GenJobName(js.Name, rjob.Name, jobIdx),
+			Name:        shared.GenJobName(js.Name, rjob.Name, jobIdx),
 			Namespace:   js.Namespace,
 		},
 		Spec: *rjob.Template.Spec.DeepCopy(),
@@ -606,17 +607,17 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	}
 
 	// If this job should be exclusive per topology, configure the scheduling constraints accordingly.
-	if topologyDomain, ok := js.Annotations[jobset.ExclusiveKey]; ok {
+	if _, ok := js.Annotations[jobset.ExclusiveKey]; ok {
 		// If user has set the nodeSelectorStrategy annotation flag, add the job name label as a
 		// nodeSelector, and add a toleration for the no schedule taint.
 		// The node label and node taint must be added separately by a user/script.
 		if _, exists := js.Annotations[jobset.NodeSelectorStrategyKey]; exists {
-			addNodeSelector(job)
+			addNamespacedJobNodeSelector(job)
 			addTaintToleration(job)
-		} else {
-			// Otherwise, default to using exclusive pod affinities/anti-affinities strategy.
-			setExclusiveAffinities(job, topologyDomain)
 		}
+		// Otherwise, we fall back to the default strategy of the pod webhook assigning exclusive affinities
+		// to the leader pod, preventing follower pod creation until leader pod is scheduled, then
+		// assigning the follower pods to the same node as the leader pods.
 	}
 
 	// if Suspend is set, then we assume all jobs will be suspended also.
@@ -624,60 +625,6 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
 
 	return job, nil
-}
-
-// Appends pod affinity/anti-affinity terms to the job pod template spec,
-// ensuring that exclusively one job runs per topology domain and that all pods
-// from each job land on the same topology domain.
-func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
-	if job.Spec.Template.Spec.Affinity == nil {
-		job.Spec.Template.Spec.Affinity = &corev1.Affinity{}
-	}
-	if job.Spec.Template.Spec.Affinity.PodAffinity == nil {
-		job.Spec.Template.Spec.Affinity.PodAffinity = &corev1.PodAffinity{}
-	}
-	if job.Spec.Template.Spec.Affinity.PodAntiAffinity == nil {
-		job.Spec.Template.Spec.Affinity.PodAntiAffinity = &corev1.PodAntiAffinity{}
-	}
-
-	// Pod affinity ensures the pods of this job land on the same topology domain.
-	job.Spec.Template.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(job.Spec.Template.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
-		corev1.PodAffinityTerm{
-			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-				{
-					Key:      jobset.JobKey,
-					Operator: metav1.LabelSelectorOpIn,
-					Values:   []string{job.Labels[jobset.JobKey]},
-				},
-			}},
-			TopologyKey:       topologyKey,
-			NamespaceSelector: &metav1.LabelSelector{},
-		})
-
-	// Pod anti-affinity ensures exclusively this job lands on the topology, preventing multiple jobs per topology domain.
-	job.Spec.Template.Spec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(job.Spec.Template.Spec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
-		corev1.PodAffinityTerm{
-			LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-				{
-					Key:      jobset.JobKey,
-					Operator: metav1.LabelSelectorOpExists,
-				},
-				{
-					Key:      jobset.JobKey,
-					Operator: metav1.LabelSelectorOpNotIn,
-					Values:   []string{job.Labels[jobset.JobKey]},
-				},
-			}},
-			TopologyKey:       topologyKey,
-			NamespaceSelector: &metav1.LabelSelector{},
-		})
-}
-
-func addNodeSelector(job *batchv1.Job) {
-	if job.Spec.Template.Spec.NodeSelector == nil {
-		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
-	}
-	job.Spec.Template.Spec.NodeSelector[jobset.NamespacedJobKey] = namespacedJobName(job.Namespace, job.Name)
 }
 
 func addTaintToleration(job *batchv1.Job) {
@@ -704,7 +651,7 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 }
 
 func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
-	jobName := names.GenJobName(js.Name, rjob.Name, jobIdx)
+	jobName := shared.GenJobName(js.Name, rjob.Name, jobIdx)
 	labels := collections.CloneMap(obj.GetLabels())
 	labels[jobset.JobSetNameKey] = js.Name
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
@@ -716,8 +663,16 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations := collections.CloneMap(obj.GetAnnotations())
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
+	annotations[RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
+	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
+
+	// Only set exclusive key label/annotation on jobs/pods if the parent JobSet
+	// is using exclusive placement.
+	if _, exists := js.Annotations[jobset.ExclusiveKey]; exists {
+		annotations[jobset.ExclusiveKey] = js.Annotations[jobset.ExclusiveKey]
+	}
 
 	obj.SetLabels(labels)
 	obj.SetAnnotations(annotations)
@@ -740,15 +695,29 @@ func GenSubdomain(js *jobset.JobSet) string {
 	return js.Name
 }
 
-// jobHashKey returns the SHA1 hash of the namespaced job name (i.e. <namespace>/<jobName>).
-func jobHashKey(ns, jobName string) string {
-	return sha1Hash(fmt.Sprintf("%s/%s", ns, jobName))
+func addNamespacedJobNodeSelector(job *batchv1.Job) {
+	if job.Spec.Template.Spec.NodeSelector == nil {
+		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
+	}
+	job.Spec.Template.Spec.NodeSelector[jobset.NamespacedJobKey] = namespacedJobName(job.Namespace, job.Name)
 }
 
 // Human readable namespaced job name. We must use '_' to separate namespace and job instead of '/'
 // since the '/' character is not allowed in label values.
 func namespacedJobName(ns, jobName string) string {
 	return fmt.Sprintf("%s_%s", ns, jobName)
+}
+
+// jobHashKey returns the SHA1 hash of the namespaced job name (i.e. <namespace>/<jobName>).
+func jobHashKey(ns string, jobName string) string {
+	return sha1Hash(fmt.Sprintf("%s/%s", ns, jobName))
+}
+
+// sha1Hash accepts an input string and returns the 40 character SHA1 hash digest of the input string.
+func sha1Hash(s string) string {
+	h := sha1.New()
+	h.Write([]byte(s))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func jobSetFinished(js *jobset.JobSet) bool {
@@ -795,11 +764,4 @@ func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 		}
 	}
 	return total
-}
-
-// sha1Hash accepts an input string and returns the 40 character SHA1 hash digest of the input string.
-func sha1Hash(s string) string {
-	h := sha1.New()
-	h.Write([]byte(s))
-	return hex.EncodeToString(h.Sum(nil))
 }

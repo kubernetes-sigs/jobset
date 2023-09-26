@@ -40,6 +40,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/webhooks"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -107,10 +108,19 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = controllers.SetupIndexes(ctx, mgr.GetFieldIndexer())
+	// Set up JobSet webhook and indexes.
+	err = controllers.SetupJobSetIndexes(ctx, mgr.GetFieldIndexer())
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&jobset.JobSet{}).SetupWebhookWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Set up pod webhook and indexes.
+	podWebhook := webhooks.NewPodWebhook(mgr)
+	err = controllers.SetupPodReconcilerIndexes(ctx, mgr.GetFieldIndexer())
+	Expect(err).NotTo(HaveOccurred())
+
+	err = podWebhook.SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:webhook
