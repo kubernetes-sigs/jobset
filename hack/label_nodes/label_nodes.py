@@ -1,4 +1,28 @@
 #!/usr/bin/python3
+'''
+This script can be used to add certain labels and taints
+to a given list of GKE node pool, in order to dramatically
+speed up scheduling of pods for very large JobSets which are
+using an exclusive placement strategy of one job per node pool.
+
+usage: label_nodes.py [-h] jobset nodepools
+
+positional arguments:
+  jobset      jobset yaml config
+  nodepools   comma separated list of nodepool names
+
+
+The way it works is by generating the list of namespaced job names
+that will be created by the JobSet, and creating a 1:1 mapping of
+job to node pool. For every given node pool, it looks up the job
+mapped to that node pool, and applies a namespaced job name node label
+to every node in that node pool, allowing the job nodeSelectors injected
+by the JobSet controller to select those nodes to schedule the job pods on.
+It also adds a NoSchedule taint to the nodes (tolerated by the job pods), 
+preventing any external workloads from running on the nodes. Together,
+these allow for exclusive placement of 1 job per GKE node pool.
+'''
+
 import sys
 import yaml
 import argparse
