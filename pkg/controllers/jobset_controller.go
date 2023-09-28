@@ -674,6 +674,7 @@ func addTaintToleration(job *batchv1.Job) {
 		corev1.Toleration{
 			Key:      jobset.NoScheduleTaintKey,
 			Operator: corev1.TolerationOpExists,
+			Effect:   corev1.TaintEffectNoSchedule,
 		},
 	)
 }

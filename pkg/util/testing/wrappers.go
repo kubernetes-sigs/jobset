@@ -278,6 +278,18 @@ func (j *JobWrapper) Ready(ready int32) *JobWrapper {
 	return j
 }
 
+// Tolerations set the tolerations.
+func (j *JobWrapper) Tolerations(t []corev1.Toleration) *JobWrapper {
+	j.Spec.Template.Spec.Tolerations = t
+	return j
+}
+
+// NodeSelector sets the node selector.
+func (j *JobWrapper) NodeSelector(nodeSelector map[string]string) *JobWrapper {
+	j.Spec.Template.Spec.NodeSelector = nodeSelector
+	return j
+}
+
 // Obj returns the wrapped Job.
 func (j *JobWrapper) Obj() *batchv1.Job {
 	return &j.Job
