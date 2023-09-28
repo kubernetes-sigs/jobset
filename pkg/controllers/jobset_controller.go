@@ -594,10 +594,18 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 		job.Spec.Template.Spec.Subdomain = js.Spec.Network.Subdomain
 	}
 
-	// If this job should be exclusive per topology, set the pod affinities/anti-affinities accordingly.
+	// If this job should be exclusive per topology, configure the scheduling constraints accordingly.
 	if topologyDomain, ok := js.Annotations[jobset.ExclusiveKey]; ok {
-		setExclusiveAffinities(job, topologyDomain)
+		// If use has set the nodeSelectorStrategy annotation flag, add the jobset name label as a
+		// nodeSelector. The node label of the jobset name must be added separately by a user/script.
+		if _, exists := js.Annotations[jobset.NodeSelectorStrategyKey]; exists {
+			setNodeSelector(js, job)
+		} else {
+			// Otherwise, default to using exclusive pod affinities/anti-affinities strategy.
+			setExclusiveAffinities(job, topologyDomain)
+		}
 	}
+
 	// if Suspend is set, then we assume all jobs will be suspended also.
 	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
@@ -650,6 +658,13 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 			TopologyKey:       topologyKey,
 			NamespaceSelector: &metav1.LabelSelector{},
 		})
+}
+
+func setNodeSelector(js *jobset.JobSet, job *batchv1.Job) {
+	if job.Spec.Template.Spec.NodeSelector == nil {
+		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
+	}
+	job.Spec.Template.Spec.NodeSelector[jobset.JobSetNameKey] = js.Name
 }
 
 func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
