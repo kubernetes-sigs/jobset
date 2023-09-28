@@ -596,10 +596,10 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 
 	// If this job should be exclusive per topology, configure the scheduling constraints accordingly.
 	if topologyDomain, ok := js.Annotations[jobset.ExclusiveKey]; ok {
-		// If use has set the nodeSelectorStrategy annotation flag, add the jobset name label as a
+		// If user has set the nodeSelectorStrategy annotation flag, add the job name label as a
 		// nodeSelector. The node label of the jobset name must be added separately by a user/script.
 		if _, exists := js.Annotations[jobset.NodeSelectorStrategyKey]; exists {
-			setNodeSelector(js, job)
+			setNodeSelector(job)
 		} else {
 			// Otherwise, default to using exclusive pod affinities/anti-affinities strategy.
 			setExclusiveAffinities(job, topologyDomain)
@@ -660,11 +660,11 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 		})
 }
 
-func setNodeSelector(js *jobset.JobSet, job *batchv1.Job) {
+func setNodeSelector(job *batchv1.Job) {
 	if job.Spec.Template.Spec.NodeSelector == nil {
 		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
 	}
-	job.Spec.Template.Spec.NodeSelector[jobset.JobSetNameKey] = js.Name
+	job.Spec.Template.Spec.NodeSelector[jobset.NamespacedJobKey] = namespacedJobName(job.Namespace, job.Name)
 }
 
 func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
@@ -718,8 +718,14 @@ func GenSubdomain(js *jobset.JobSet) string {
 }
 
 // jobHashKey returns the SHA1 hash of the namespaced job name (i.e. <namespace>/<jobName>).
-func jobHashKey(ns string, jobName string) string {
+func jobHashKey(ns, jobName string) string {
 	return sha1Hash(fmt.Sprintf("%s/%s", ns, jobName))
+}
+
+// Human readable namespaced job name. We must use '_' to separate namespace and job instead of '/'
+// since the '/' character is not allowed in label values.
+func namespacedJobName(ns, jobName string) string {
+	return fmt.Sprintf("%s_%s", ns, jobName)
 }
 
 func jobSetFinished(js *jobset.JobSet) bool {

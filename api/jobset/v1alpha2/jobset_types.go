@@ -32,6 +32,7 @@ const (
 	// ensure exclusive job placement per topology, instead of injecting pod affinity/anti-affinites for this.
 	// The user must add the JobSet name node label to the desired topologies separately.
 	NodeSelectorStrategyKey string = "alpha.jobset.sigs.k8s.io/node-selector"
+	NamespacedJobKey        string = "alpha.jobset.sigs.k8s.io/namespaced-job"
 )
 
 type JobSetConditionType string
