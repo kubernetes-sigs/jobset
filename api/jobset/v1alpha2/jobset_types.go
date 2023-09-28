@@ -33,6 +33,7 @@ const (
 	// The user must add the JobSet name node label to the desired topologies separately.
 	NodeSelectorStrategyKey string = "alpha.jobset.sigs.k8s.io/node-selector"
 	NamespacedJobKey        string = "alpha.jobset.sigs.k8s.io/namespaced-job"
+	NoScheduleTaintKey      string = "alpha.jobset.sigs.k8s.io/no-schedule"
 )
 
 type JobSetConditionType string

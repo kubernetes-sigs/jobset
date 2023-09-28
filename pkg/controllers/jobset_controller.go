@@ -597,9 +597,11 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	// If this job should be exclusive per topology, configure the scheduling constraints accordingly.
 	if topologyDomain, ok := js.Annotations[jobset.ExclusiveKey]; ok {
 		// If user has set the nodeSelectorStrategy annotation flag, add the job name label as a
-		// nodeSelector. The node label of the jobset name must be added separately by a user/script.
+		// nodeSelector, and add a toleration for the no schedule taint.
+		// The node label and node taint must be added separately by a user/script.
 		if _, exists := js.Annotations[jobset.NodeSelectorStrategyKey]; exists {
-			setNodeSelector(job)
+			addNodeSelector(job)
+			addTaintToleration(job)
 		} else {
 			// Otherwise, default to using exclusive pod affinities/anti-affinities strategy.
 			setExclusiveAffinities(job, topologyDomain)
@@ -660,11 +662,20 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 		})
 }
 
-func setNodeSelector(job *batchv1.Job) {
+func addNodeSelector(job *batchv1.Job) {
 	if job.Spec.Template.Spec.NodeSelector == nil {
 		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
 	}
 	job.Spec.Template.Spec.NodeSelector[jobset.NamespacedJobKey] = namespacedJobName(job.Namespace, job.Name)
+}
+
+func addTaintToleration(job *batchv1.Job) {
+	job.Spec.Template.Spec.Tolerations = append(job.Spec.Template.Spec.Tolerations,
+		corev1.Toleration{
+			Key:      jobset.NoScheduleTaintKey,
+			Operator: corev1.TolerationOpExists,
+		},
+	)
 }
 
 func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {

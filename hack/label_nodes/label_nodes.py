@@ -7,6 +7,7 @@ import kubernetes.config
 
 NAMESPACED_JOB_KEY = "alpha.jobset.sigs.k8s.io/namespaced-job"
 NODE_POOL_KEY = "cloud.google.com/gke-nodepool"
+NO_SCHEDULE_TAINT_KEY = "alpha.jobset.sigs.k8s.io/no-schedule"
 
 def main(node_pools: str, jobset_yaml: str) -> None:
     namespaced_jobs = generate_namespaced_jobs(jobset_yaml)
@@ -41,12 +42,22 @@ def main(node_pools: str, jobset_yaml: str) -> None:
             "metadata": {
                 "labels": {
                     NAMESPACED_JOB_KEY: job_mapping[node_pool],
-                }
-            }
+                },
+            },
+            "spec": {
+                "taints": [
+                    {
+                        "key": NO_SCHEDULE_TAINT_KEY,
+                        "value": "true",
+                        "effect": "NoSchedule"
+                    }
+                ],
+            },
         }
 
         client.patch_node(node.metadata.name, body)
         print(f"Successfully added label {NAMESPACED_JOB_KEY}={job_mapping[node_pool]} to node {node.metadata.name}")
+        print(f"Successfully added taint key={NO_SCHEDULE_TAINT_KEY}, value=true, effect=NoSchedule to node {node.metadata.name}")
 
 
 def parse_node_pools(node_pools: str) -> set:
