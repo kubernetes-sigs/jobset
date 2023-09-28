@@ -594,10 +594,20 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 		job.Spec.Template.Spec.Subdomain = js.Spec.Network.Subdomain
 	}
 
-	// If this job should be exclusive per topology, set the pod affinities/anti-affinities accordingly.
+	// If this job should be exclusive per topology, configure the scheduling constraints accordingly.
 	if topologyDomain, ok := js.Annotations[jobset.ExclusiveKey]; ok {
-		setExclusiveAffinities(job, topologyDomain)
+		// If user has set the nodeSelectorStrategy annotation flag, add the job name label as a
+		// nodeSelector, and add a toleration for the no schedule taint.
+		// The node label and node taint must be added separately by a user/script.
+		if _, exists := js.Annotations[jobset.NodeSelectorStrategyKey]; exists {
+			addNodeSelector(job)
+			addTaintToleration(job)
+		} else {
+			// Otherwise, default to using exclusive pod affinities/anti-affinities strategy.
+			setExclusiveAffinities(job, topologyDomain)
+		}
 	}
+
 	// if Suspend is set, then we assume all jobs will be suspended also.
 	jobsetSuspended := js.Spec.Suspend != nil && *js.Spec.Suspend
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
@@ -652,6 +662,23 @@ func setExclusiveAffinities(job *batchv1.Job, topologyKey string) {
 		})
 }
 
+func addNodeSelector(job *batchv1.Job) {
+	if job.Spec.Template.Spec.NodeSelector == nil {
+		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
+	}
+	job.Spec.Template.Spec.NodeSelector[jobset.NamespacedJobKey] = namespacedJobName(job.Namespace, job.Name)
+}
+
+func addTaintToleration(job *batchv1.Job) {
+	job.Spec.Template.Spec.Tolerations = append(job.Spec.Template.Spec.Tolerations,
+		corev1.Toleration{
+			Key:      jobset.NoScheduleTaintKey,
+			Operator: corev1.TolerationOpExists,
+			Effect:   corev1.TaintEffectNoSchedule,
+		},
+	)
+}
+
 func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 	// Check if this job exists already.
 	// TODO: maybe we can use a job map here so we can do O(1) lookups
@@ -703,8 +730,14 @@ func GenSubdomain(js *jobset.JobSet) string {
 }
 
 // jobHashKey returns the SHA1 hash of the namespaced job name (i.e. <namespace>/<jobName>).
-func jobHashKey(ns string, jobName string) string {
+func jobHashKey(ns, jobName string) string {
 	return sha1Hash(fmt.Sprintf("%s/%s", ns, jobName))
+}
+
+// Human readable namespaced job name. We must use '_' to separate namespace and job instead of '/'
+// since the '/' character is not allowed in label values.
+func namespacedJobName(ns, jobName string) string {
+	return fmt.Sprintf("%s_%s", ns, jobName)
 }
 
 func jobSetFinished(js *jobset.JobSet) bool {

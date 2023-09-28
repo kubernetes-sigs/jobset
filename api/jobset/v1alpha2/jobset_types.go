@@ -27,6 +27,13 @@ const (
 	JobKey                string = "jobset.sigs.k8s.io/job-key"
 	JobNameKey            string = "job-name" // TODO(#26): Migrate to the fully qualified label name.
 	ExclusiveKey          string = "alpha.jobset.sigs.k8s.io/exclusive-topology"
+	// NodeSelectorStrategyKey is an annotation that acts as a flag, the value does not matter.
+	// If set, the JobSet controller will automatically inject nodeSelectors for the JobSetNameKey label to
+	// ensure exclusive job placement per topology, instead of injecting pod affinity/anti-affinites for this.
+	// The user must add the JobSet name node label to the desired topologies separately.
+	NodeSelectorStrategyKey string = "alpha.jobset.sigs.k8s.io/node-selector"
+	NamespacedJobKey        string = "alpha.jobset.sigs.k8s.io/namespaced-job"
+	NoScheduleTaintKey      string = "alpha.jobset.sigs.k8s.io/no-schedule"
 )
 
 type JobSetConditionType string

@@ -600,6 +600,44 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Subdomain(jobSetName).Obj(),
 			},
 		},
+		{
+			name: "node selector exclusive placement strategy enabled",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(map[string]string{
+					jobset.ExclusiveKey:            "cloud.google.com/gke-nodepool",
+					jobset.NodeSelectorStrategyKey: "true",
+				}).
+				EnableDNSHostnames(true).
+				NetworkSubdomain(jobSetName).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Subdomain(jobSetName).
+					Replicas(1).
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).
+					Suspend(false).
+					Subdomain(jobSetName).
+					NodeSelector(map[string]string{
+						jobset.NamespacedJobKey: namespacedJobName(ns, "test-jobset-replicated-job-0"),
+					}).
+					Tolerations([]corev1.Toleration{
+						{
+							Key:      jobset.NoScheduleTaintKey,
+							Operator: corev1.TolerationOpExists,
+							Effect:   corev1.TaintEffectNoSchedule,
+						},
+					}).Obj(),
+			},
+		},
 	}
 
 	for _, tc := range tests {
