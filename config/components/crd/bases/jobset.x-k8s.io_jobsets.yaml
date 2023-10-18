@@ -48,7 +48,7 @@ spec:
             properties:
               failurePolicy:
                 description: FailurePolicy, if set, configures when to declare the
-                  JobSet as failed. The JobSet is always declared failed if all jobs
+                  JobSet as failed. The JobSet is always declared failed if any job
                   in the set finished with status failed.
                 properties:
                   maxRestarts:

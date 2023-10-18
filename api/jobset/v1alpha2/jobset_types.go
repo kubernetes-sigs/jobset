@@ -69,7 +69,7 @@ type JobSetSpec struct {
 
 	// FailurePolicy, if set, configures when to declare the JobSet as
 	// failed.
-	// The JobSet is always declared failed if all jobs in the set
+	// The JobSet is always declared failed if any job in the set
 	// finished with status failed.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"`
