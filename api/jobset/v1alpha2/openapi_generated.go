@@ -196,7 +196,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 					},
 					"failurePolicy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailurePolicy, if set, configures when to declare the JobSet as failed. The JobSet is always declared failed if all jobs in the set finished with status failed.",
+							Description: "FailurePolicy, if set, configures when to declare the JobSet as failed. The JobSet is always declared failed if any job in the set finished with status failed.",
 							Ref:         ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy"),
 						},
 					},
