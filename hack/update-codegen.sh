@@ -18,31 +18,31 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-cd "$(dirname "${0}")"
+cd "$(dirname "${0}")/.."
 GO_CMD=${1:-go}
-CODEGEN_PKG=${2:-../bin}
+CODEGEN_PKG=${2:-bin}
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 echo "GOPATH=$GOPATH"
 
-chmod +x "${CODEGEN_PKG}/generate-internal-groups.sh"
+source "${CODEGEN_PKG}/kube_codegen.sh"
 
-bash "${CODEGEN_PKG}/generate-groups.sh" \
-  "applyconfiguration,client,informer,lister" \
-  sigs.k8s.io/jobset/client-go \
-  sigs.k8s.io/jobset/api \
-  jobset:v1alpha2 \
-  --go-header-file ./boilerplate.go.txt
+# TODO: remove the workaround when the issue is solved in the code-generator
+# (https://github.com/kubernetes/code-generator/issues/165).
+# Here, we create the soft link named "sigs.k8s.io" to the parent directory of
+# Jobset to ensure the layout required by the kube_codegen.sh script.
+ln -s .. sigs.k8s.io
+trap "rm sigs.k8s.io" EXIT
 
-# if client-go files were generated outside of repo root, attempt to move them to the repo root.
-CLIENT_GO=$(find $GOPATH -regextype sed -regex ".*jobset.*client-go")
-if [ -z "$CLIENT_GO" ]; then
-  echo "WARNING: generated client-go files were not found."
-elif [ "$CLIENT_GO" != "$REPO_ROOT/client-go" ]; then
-  echo "moving generated files from $CLIENT_GO to $REPO_ROOT/client-go"
-  rm -rf $REPO_ROOT/client-go
-  mv -f $CLIENT_GO $REPO_ROOT
-  
-fi
+kube::codegen::gen_helpers \
+    --input-pkg-root sigs.k8s.io/jobset/api \
+    --output-base "${REPO_ROOT}" \
+    --boilerplate "${REPO_ROOT}/hack/boilerplate.go.txt"
 
-
+kube::codegen::gen_client \
+    --with-watch \
+    --with-applyconfig \
+    --input-pkg-root sigs.k8s.io/jobset/api \
+    --output-base "$REPO_ROOT" \
+    --output-pkg-root sigs.k8s.io/jobset/client-go \
+    --boilerplate "${REPO_ROOT}/hack/boilerplate.go.txt"
