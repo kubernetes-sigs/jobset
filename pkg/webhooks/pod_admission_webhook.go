@@ -20,18 +20,6 @@ import (
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (p *podWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	return p.validate(ctx, obj)
-}
-
-func (p *podWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	return nil, nil
-}
-
-func (p *podWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	return nil, nil
-}
-
-func (p *podWebhook) validate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return nil, fmt.Errorf("expected a Pod but got a %T", obj)
@@ -68,6 +56,14 @@ func (p *podWebhook) validate(ctx context.Context, obj runtime.Object) (admissio
 			return nil, fmt.Errorf("leader pod not yet scheduled, not creating follower pod %q", pod.Name)
 		}
 	}
+	return nil, nil
+}
+
+func (p *podWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+	return nil, nil
+}
+
+func (p *podWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
 
