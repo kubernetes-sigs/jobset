@@ -37,7 +37,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/util/collections"
-	shared "sigs.k8s.io/jobset/pkg/util/shared"
+	shared "sigs.k8s.io/jobset/pkg/util/placement"
 )
 
 const (

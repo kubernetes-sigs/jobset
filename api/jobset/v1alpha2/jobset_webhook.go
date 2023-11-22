@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"sigs.k8s.io/jobset/pkg/util/collections"
-	shared "sigs.k8s.io/jobset/pkg/util/shared"
+	shared "sigs.k8s.io/jobset/pkg/util/placement"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"

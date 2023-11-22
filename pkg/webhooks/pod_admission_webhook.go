@@ -13,7 +13,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
-	"sigs.k8s.io/jobset/pkg/util/shared"
+	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
 //+kubebuilder:webhook:path=/validate--v1-pod,mutating=false,failurePolicy=fail,sideEffects=None,groups="",resources=pods,verbs=create,versions=v1,name=vpod.kb.io,sideEffects=None,admissionReviewVersions=v1
@@ -45,7 +45,7 @@ func (p *podWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (ad
 	}
 
 	// Do not validate anything else for leader pods, proceed with creation immediately.
-	if shared.IsLeaderPod(pod) {
+	if placement.IsLeaderPod(pod) {
 		return nil, nil
 	}
 	// If a follower pod node selector has not been set, reject the creation.
@@ -124,5 +124,5 @@ func genLeaderPodName(pod *corev1.Pod) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("pod missing label: %s", jobset.JobIndexKey)
 	}
-	return shared.GenLeaderPodName(jobSet, replicatedJob, jobIndex), nil
+	return placement.GenLeaderPodName(jobSet, replicatedJob, jobIndex), nil
 }
