@@ -97,7 +97,7 @@ var _ = BeforeSuite(func() {
 	// Set up pod reconciler and indexes.
 	podReconciler := controllers.NewPodReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetEventRecorderFor("pod"))
 
-	err = controllers.SetupPodReconcilerIndexes(ctx, k8sManager.GetFieldIndexer())
+	err = controllers.SetupPodIndexes(ctx, k8sManager.GetFieldIndexer())
 	Expect(err).ToNot(HaveOccurred())
 
 	err = podReconciler.SetupWithManager(k8sManager)

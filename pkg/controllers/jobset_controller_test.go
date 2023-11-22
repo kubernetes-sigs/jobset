@@ -401,7 +401,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "node selector exclusive placement strategy enabled",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SetAnnotations(map[string]string{
-					jobset.ExclusiveKey:            "cloud.google.com/gke-nodepool",
+					jobset.ExclusiveKey:            "topology",
 					jobset.NodeSelectorStrategyKey: "true",
 				}).
 				EnableDNSHostnames(true).
@@ -421,7 +421,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					ns:                ns,
 					replicas:          1,
 					jobIdx:            0,
-					topology:          "cloud.google.com/gke-nodepool"}).
+					topology:          "topology"}).
 					Suspend(false).
 					Subdomain(jobSetName).
 					NodeSelector(map[string]string{

@@ -18,17 +18,23 @@ import (
 
 //+kubebuilder:webhook:path=/validate--v1-pod,mutating=false,failurePolicy=fail,sideEffects=None,groups="",resources=pods,verbs=create,versions=v1,name=vpod.kb.io,sideEffects=None,admissionReviewVersions=v1
 
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
+// ValidateCreate validates that follower pods (job completion index != 0) part of a JobSet using exclusive
+// placement are only admitted after the leader pod (job completion index == 0) has been scheduled.
 func (p *podWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return nil, fmt.Errorf("expected a Pod but got a %T", obj)
 	}
 
+	// If this pod is not part of a JobSet, we don't need to validate anything.
+	// We can check the existence of the JobSetName annotation to determine this.
+	if _, isJobSetPod := pod.Annotations[jobset.JobSetNameKey]; !isJobSetPod {
+		return nil, nil
+	}
+
 	// If pod is part of a JobSet that is using the node selector exclusive placement strategy,
 	// we don't need to validate anything.
-	_, usingNodeSelectorStrategy := pod.Annotations[jobset.NodeSelectorStrategyKey]
-	if usingNodeSelectorStrategy {
+	if _, usingNodeSelectorStrategy := pod.Annotations[jobset.NodeSelectorStrategyKey]; usingNodeSelectorStrategy {
 		return nil, nil
 	}
 
@@ -39,22 +45,23 @@ func (p *podWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (ad
 	}
 
 	// Do not validate anything else for leader pods, proceed with creation immediately.
-	if !shared.IsLeaderPod(pod) {
-		// If a follower pod node selector has not been set, reject the creation.
-		if pod.Spec.NodeSelector == nil {
-			return nil, fmt.Errorf("follower pod node selector not set")
-		}
-		if _, exists := pod.Spec.NodeSelector[topologyKey]; !exists {
-			return nil, fmt.Errorf("follower pod node selector not set")
-		}
-		// For follower pods, validate leader pod exists and is scheduled.
-		leaderScheduled, err := p.leaderPodScheduled(ctx, pod)
-		if err != nil {
-			return nil, err
-		}
-		if !leaderScheduled {
-			return nil, fmt.Errorf("leader pod not yet scheduled, not creating follower pod %q", pod.Name)
-		}
+	if shared.IsLeaderPod(pod) {
+		return nil, nil
+	}
+	// If a follower pod node selector has not been set, reject the creation.
+	if pod.Spec.NodeSelector == nil {
+		return nil, fmt.Errorf("follower pod node selector not set")
+	}
+	if _, exists := pod.Spec.NodeSelector[topologyKey]; !exists {
+		return nil, fmt.Errorf("follower pod node selector not set")
+	}
+	// For follower pods, validate leader pod exists and is scheduled.
+	leaderScheduled, err := p.leaderPodScheduled(ctx, pod)
+	if err != nil {
+		return nil, err
+	}
+	if !leaderScheduled {
+		return nil, fmt.Errorf("leader pod not yet scheduled, not creating follower pod %q", pod.Name)
 	}
 	return nil, nil
 }

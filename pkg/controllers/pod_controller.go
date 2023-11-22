@@ -62,7 +62,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func SetupPodReconcilerIndexes(ctx context.Context, indexer client.FieldIndexer) error {
+func SetupPodIndexes(ctx context.Context, indexer client.FieldIndexer) error {
 	// Build index where key is the hash of the namespaced job name of the job that owns this pod,
 	// and value is the pod itself.
 	if err := indexer.IndexField(ctx, &corev1.Pod{}, podJobKey, func(obj client.Object) []string {

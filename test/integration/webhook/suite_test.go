@@ -117,7 +117,7 @@ var _ = BeforeSuite(func() {
 
 	// Set up pod webhook and indexes.
 	podWebhook := webhooks.NewPodWebhook(mgr)
-	err = controllers.SetupPodReconcilerIndexes(ctx, mgr.GetFieldIndexer())
+	err = controllers.SetupPodIndexes(ctx, mgr.GetFieldIndexer())
 	Expect(err).NotTo(HaveOccurred())
 
 	err = podWebhook.SetupWebhookWithManager(mgr)

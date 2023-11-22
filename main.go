@@ -70,6 +70,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	kubeConfig := ctrl.GetConfigOrDie()
+	// TODO(#338): set QPS and Burst via config flags
 	kubeConfig.QPS = 500
 	kubeConfig.Burst = 500
 
@@ -113,7 +114,7 @@ func main() {
 		setupLog.Error(err, "unable to setup jobset reconciler indexes")
 		os.Exit(1)
 	}
-	if err := controllers.SetupPodReconcilerIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
+	if err := controllers.SetupPodIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
 		setupLog.Error(err, "unable to setup pod reconciler indexes")
 		os.Exit(1)
 	}
@@ -155,14 +156,14 @@ func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
 
 	// Set up JobSet validating/defaulting webhook.
 	if err := (&jobset.JobSet{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create validation/defaulting webhook", "webhook", "JobSet")
+		setupLog.Error(err, "unable to create webhook", "webhook", "JobSet")
 		os.Exit(1)
 	}
 
 	// Set up pod mutating and admission webhook.
 	podWebhook := webhooks.NewPodWebhook(mgr)
 	if err := podWebhook.SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create mutating webhook", "webhook", "Pod")
+		setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

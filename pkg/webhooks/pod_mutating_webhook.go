@@ -56,6 +56,11 @@ func (p *podWebhook) InjectDecoder(d *admission.Decoder) error {
 	return nil
 }
 
+// Default will mutate pods being created in the following ways:
+//  1. For leader pods (job completion index 0), pod affinities/anti-affinities for
+//     exclusive placement per topology are injected.
+//  2. For follower pods (job completion index != 0), nodeSelectors for the same topology
+//     as their leader pod are injected.
 func (p *podWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
