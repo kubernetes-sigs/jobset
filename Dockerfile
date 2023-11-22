@@ -16,6 +16,7 @@ COPY main.go main.go
 COPY api/ api/
 COPY pkg/controllers/ pkg/controllers/
 COPY pkg/util/ pkg/util/
+COPY pkg/webhooks pkg/webhooks
 
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command

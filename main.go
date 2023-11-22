@@ -36,6 +36,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/util/cert"
+	"sigs.k8s.io/jobset/pkg/webhooks"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -68,7 +69,12 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	kubeConfig := ctrl.GetConfigOrDie()
+	// TODO(#338): set QPS and Burst via config flags
+	kubeConfig.QPS = 500
+	kubeConfig.Burst = 500
+
+	mgr, err := ctrl.NewManager(kubeConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: server.Options{
 			BindAddress: metricsAddr,
@@ -104,8 +110,12 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-	if err := controllers.SetupIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
-		setupLog.Error(err, "unable to setup indexes")
+	if err := controllers.SetupJobSetIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
+		setupLog.Error(err, "unable to setup jobset reconciler indexes")
+		os.Exit(1)
+	}
+	if err := controllers.SetupPodIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
+		setupLog.Error(err, "unable to setup pod reconciler indexes")
 		os.Exit(1)
 	}
 
@@ -130,13 +140,30 @@ func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
 	<-certsReady
 	setupLog.Info("certs ready")
 
+	// Set up JobSet controller.
 	jobSetController := controllers.NewJobSetReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("jobset"))
 	if err := jobSetController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "JobSet")
 		os.Exit(1)
 	}
+
+	// Set up pod reconciler.
+	podController := controllers.NewPodReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("pod"))
+	if err := podController.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Pod")
+		os.Exit(1)
+	}
+
+	// Set up JobSet validating/defaulting webhook.
 	if err := (&jobset.JobSet{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "JobSet")
+		os.Exit(1)
+	}
+
+	// Set up pod mutating and admission webhook.
+	podWebhook := webhooks.NewPodWebhook(mgr)
+	if err := podWebhook.SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

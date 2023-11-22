@@ -84,12 +84,23 @@ var _ = BeforeSuite(func() {
 		Scheme: scheme.Scheme,
 	})
 	Expect(err).ToNot(HaveOccurred())
-	jobSetController := controllers.NewJobSetReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetEventRecorderFor("jobset"))
 
-	err = controllers.SetupIndexes(ctx, k8sManager.GetFieldIndexer())
+	// Set up JobSet reconciler and indexes.
+	jobSetReconciler := controllers.NewJobSetReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetEventRecorderFor("jobset"))
+
+	err = controllers.SetupJobSetIndexes(ctx, k8sManager.GetFieldIndexer())
 	Expect(err).ToNot(HaveOccurred())
 
-	err = jobSetController.SetupWithManager(k8sManager)
+	err = jobSetReconciler.SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	// Set up pod reconciler and indexes.
+	podReconciler := controllers.NewPodReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetEventRecorderFor("pod"))
+
+	err = controllers.SetupPodIndexes(ctx, k8sManager.GetFieldIndexer())
+	Expect(err).ToNot(HaveOccurred())
+
+	err = podReconciler.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {

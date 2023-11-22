@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"sigs.k8s.io/jobset/pkg/util/collections"
-	"sigs.k8s.io/jobset/pkg/util/names"
+	shared "sigs.k8s.io/jobset/pkg/util/shared"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -109,7 +109,7 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 		}
 		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
 		// Use the largest job index as it will have the longest name.
-		testJobName := names.GenJobName(js.Name, rjob.Name, int(rjob.Replicas-1))
+		testJobName := shared.GenJobName(js.Name, rjob.Name, int(rjob.Replicas-1))
 		for _, errMessage := range validation.IsDNS1035Label(testJobName) {
 			allErrs = append(allErrs, fmt.Errorf(errMessage))
 		}

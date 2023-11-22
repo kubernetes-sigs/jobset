@@ -111,174 +111,6 @@ func TestIsJobFinished(t *testing.T) {
 	}
 }
 
-func TestSetExclusiveAffinities(t *testing.T) {
-	var (
-		topologyKey = "test-topology-key"
-		jobName     = "test-job"
-		ns          = "default"
-	)
-	tests := []struct {
-		name         string
-		job          *batchv1.Job
-		wantAffinity corev1.Affinity
-	}{
-		{
-			name: "no existing affinities",
-			job: testutils.MakeJob(jobName, ns).
-				JobLabels(map[string]string{
-					jobset.JobKey: jobHashKey(ns, jobName),
-				}).Obj(),
-			wantAffinity: corev1.Affinity{
-				PodAffinity: &corev1.PodAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      jobset.JobKey,
-									Operator: metav1.LabelSelectorOpIn,
-									Values:   []string{jobHashKey(ns, jobName)},
-								},
-							}},
-							TopologyKey:       topologyKey,
-							NamespaceSelector: &metav1.LabelSelector{},
-						},
-					},
-				},
-				PodAntiAffinity: &corev1.PodAntiAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      jobset.JobKey,
-									Operator: metav1.LabelSelectorOpExists,
-								},
-								{
-									Key:      jobset.JobKey,
-									Operator: metav1.LabelSelectorOpNotIn,
-									Values:   []string{jobHashKey(ns, jobName)},
-								},
-							}},
-							TopologyKey:       topologyKey,
-							NamespaceSelector: &metav1.LabelSelector{},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "existing affinities should be appended to, not replaced",
-			job: testutils.MakeJob(jobName, ns).
-				JobLabels(map[string]string{
-					jobset.JobKey: jobHashKey(ns, jobName),
-				}).Affinity(&corev1.Affinity{
-				PodAffinity: &corev1.PodAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      "label-foo",
-									Operator: metav1.LabelSelectorOpIn,
-									Values:   []string{"value-foo"},
-								},
-							}},
-							TopologyKey:       "topology.kubernetes.io/zone",
-							NamespaceSelector: &metav1.LabelSelector{},
-						},
-					},
-				},
-				PodAntiAffinity: &corev1.PodAntiAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      "label-bar",
-									Operator: metav1.LabelSelectorOpNotIn,
-									Values:   []string{"value-bar"},
-								},
-							}},
-							TopologyKey:       "topology.kubernetes.io/zone",
-							NamespaceSelector: &metav1.LabelSelector{},
-						},
-					},
-				},
-			}).Obj(),
-			wantAffinity: corev1.Affinity{
-				PodAffinity: &corev1.PodAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      "label-foo",
-									Operator: metav1.LabelSelectorOpIn,
-									Values:   []string{"value-foo"},
-								},
-							}},
-							TopologyKey:       "topology.kubernetes.io/zone",
-							NamespaceSelector: &metav1.LabelSelector{},
-						},
-						{
-							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      jobset.JobKey,
-									Operator: metav1.LabelSelectorOpIn,
-									Values:   []string{jobHashKey(ns, jobName)},
-								},
-							}},
-							TopologyKey:       topologyKey,
-							NamespaceSelector: &metav1.LabelSelector{},
-						},
-					},
-				},
-				PodAntiAffinity: &corev1.PodAntiAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      "label-bar",
-									Operator: metav1.LabelSelectorOpNotIn,
-									Values:   []string{"value-bar"},
-								},
-							}},
-							TopologyKey:       "topology.kubernetes.io/zone",
-							NamespaceSelector: &metav1.LabelSelector{},
-						},
-						{
-							LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      jobset.JobKey,
-									Operator: metav1.LabelSelectorOpExists,
-								},
-								{
-									Key:      jobset.JobKey,
-									Operator: metav1.LabelSelectorOpNotIn,
-									Values:   []string{jobHashKey(ns, jobName)},
-								},
-							}},
-							TopologyKey:       topologyKey,
-							NamespaceSelector: &metav1.LabelSelector{},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			setExclusiveAffinities(tc.job, topologyKey)
-			// Check pod affinities.
-			if diff := cmp.Diff(tc.wantAffinity.PodAffinity, tc.job.Spec.Template.Spec.Affinity.PodAffinity); diff != "" {
-				t.Errorf("unexpected diff in pod affinity (-want/+got): %s", diff)
-			}
-			// Check pod anti-affinities.
-			if diff := cmp.Diff(tc.wantAffinity.PodAntiAffinity, tc.job.Spec.Template.Spec.Affinity.PodAntiAffinity); diff != "" {
-				t.Errorf("unexpected diff in pod anti-affinity (-want/+got): %s", diff)
-			}
-
-		})
-	}
-}
-
 func TestConstructJobsFromTemplate(t *testing.T) {
 	var (
 		jobSetName        = "test-jobset"
@@ -486,44 +318,9 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
-					jobIdx:            0}).
-					Suspend(false).
-					Affinity(&corev1.Affinity{
-						PodAffinity: &corev1.PodAffinity{
-							RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-								{
-									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-										{
-											Key:      jobset.JobKey,
-											Operator: metav1.LabelSelectorOpIn,
-											Values:   []string{jobHashKey(ns, "test-jobset-replicated-job-0")},
-										},
-									}},
-									TopologyKey:       topologyDomain,
-									NamespaceSelector: &metav1.LabelSelector{},
-								},
-							},
-						},
-						PodAntiAffinity: &corev1.PodAntiAffinity{
-							RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-								{
-									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
-										{
-											Key:      jobset.JobKey,
-											Operator: metav1.LabelSelectorOpExists,
-										},
-										{
-											Key:      jobset.JobKey,
-											Operator: metav1.LabelSelectorOpNotIn,
-											Values:   []string{jobHashKey(ns, "test-jobset-replicated-job-0")},
-										},
-									}},
-									TopologyKey:       topologyDomain,
-									NamespaceSelector: &metav1.LabelSelector{},
-								},
-							},
-						},
-					}).Obj(),
+					jobIdx:            0,
+					topology:          topologyDomain}).
+					Suspend(false).Obj(),
 			},
 		},
 		{
@@ -604,7 +401,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			name: "node selector exclusive placement strategy enabled",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SetAnnotations(map[string]string{
-					jobset.ExclusiveKey:            "cloud.google.com/gke-nodepool",
+					jobset.ExclusiveKey:            "topology",
 					jobset.NodeSelectorStrategyKey: "true",
 				}).
 				EnableDNSHostnames(true).
@@ -623,7 +420,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
-					jobIdx:            0}).
+					jobIdx:            0,
+					topology:          "topology"}).
 					Suspend(false).
 					Subdomain(jobSetName).
 					NodeSelector(map[string]string{
@@ -1060,37 +858,34 @@ type makeJobArgs struct {
 	replicas          int
 	jobIdx            int
 	restarts          int
+	topology          string
 }
 
 func makeJob(args *makeJobArgs) *testutils.JobWrapper {
+	labels := map[string]string{
+		jobset.JobSetNameKey:         args.jobSetName,
+		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
+		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
+		RestartsKey:                  strconv.Itoa(args.restarts),
+		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
+	}
+	annotations := map[string]string{
+		jobset.JobSetNameKey:         args.jobSetName,
+		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
+		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
+		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
+		RestartsKey:                  strconv.Itoa(args.restarts),
+		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
+	}
+	// Only set exclusive key if we are using exclusive placement per topology.
+	if args.topology != "" {
+		annotations[jobset.ExclusiveKey] = args.topology
+	}
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
-		JobLabels(map[string]string{
-			jobset.JobSetNameKey:         args.jobSetName,
-			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
-			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
-			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-			RestartsKey:                  strconv.Itoa(args.restarts),
-			jobset.JobKey:                jobHashKey(args.ns, args.jobName),
-		}).
-		JobAnnotations(map[string]string{
-			jobset.JobSetNameKey:         args.jobSetName,
-			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
-			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
-			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		}).
-		PodLabels(map[string]string{
-			jobset.JobSetNameKey:         args.jobSetName,
-			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
-			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
-			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-			RestartsKey:                  strconv.Itoa(args.restarts),
-			jobset.JobKey:                jobHashKey(args.ns, args.jobName),
-		}).
-		PodAnnotations(map[string]string{
-			jobset.JobSetNameKey:         args.jobSetName,
-			jobset.ReplicatedJobNameKey:  args.replicatedJobName,
-			jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
-			jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		})
+		JobLabels(labels).
+		JobAnnotations(annotations).
+		PodLabels(labels).
+		PodAnnotations(annotations)
 	return jobWrapper
 }
