@@ -37,7 +37,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/util/collections"
-	shared "sigs.k8s.io/jobset/pkg/util/placement"
+	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
 const (
@@ -573,7 +573,7 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
 	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
-		jobName := shared.GenJobName(js.Name, rjob.Name, jobIdx)
+		jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 		if create := shouldCreateJob(jobName, ownedJobs); !create {
 			continue
 		}
@@ -591,7 +591,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      collections.CloneMap(rjob.Template.Labels),
 			Annotations: collections.CloneMap(rjob.Template.Annotations),
-			Name:        shared.GenJobName(js.Name, rjob.Name, jobIdx),
+			Name:        placement.GenJobName(js.Name, rjob.Name, jobIdx),
 			Namespace:   js.Namespace,
 		},
 		Spec: *rjob.Template.Spec.DeepCopy(),
@@ -651,7 +651,7 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 }
 
 func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
-	jobName := shared.GenJobName(js.Name, rjob.Name, jobIdx)
+	jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 	labels := collections.CloneMap(obj.GetLabels())
 	labels[jobset.JobSetNameKey] = js.Name
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
