@@ -110,10 +110,18 @@ func SetupPodIndexes(ctx context.Context, indexer client.FieldIndexer) error {
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
+// Reconcile attempts to enforce that the pods that belong to the same job are
+// scheduled on the same topology domain exclusively (if the parent JobSet is using
+// exclusive placement).
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// Get Pod from apiserver.
+	// In the following, we aim to enforce that the pods that belong to the same job are
+	// scheduled on the same topology domain exclusively. We accomplish this by checking
+	// all pods for a given job, and validating that:
+	// 1) The leader pod exists and is scheduled.
+	// 2) The follower pods's nodeSelectors are all configured to select the same topology
+	//    as the leader pod is currently placed on.
+	// If either of these conditions are false, we delete all the pods in this job to
+	// allow the scheduled process to restart from a clean slate.
 	var pod corev1.Pod
 	if err := r.Get(ctx, req.NamespacedName, &pod); err != nil {
 		// we'll ignore not-found errors, since there is nothing we can do here.
