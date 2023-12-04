@@ -19,9 +19,11 @@ repo_root="$(dirname "${BASH_SOURCE}")/../.."
 
 cd "${repo_root}/sdk/python"
 
+# Allow one to use podman or docker for local testing.
+CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
 ## For CI we found that docker wasn't started.
 ## Should be a no-op if docker is up
 
 ## If non ubuntu machine, install docker in your path
-docker buildx build -f Dockerfile -t python-unit .
-docker run python-unit pytest test
+${CONTAINER_ENGINE} buildx build -f Dockerfile -t python-unit .
+${CONTAINER_ENGINE} run python-unit pytest test
