@@ -120,7 +120,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	// 2) For a given leader pod, check all follower pods's nodeSelectors are all
 	//    configured to select the same topology as the leader pod is currently placed on.
 	// 3) If the above condition is false, we delete all the follower pods in this job to
-	// 	  allow them to be rescheduled correctly.
+	//    allow them to be rescheduled correctly.
 	var leaderPod corev1.Pod
 	if err := r.Get(ctx, req.NamespacedName, &leaderPod); err != nil {
 		// we'll ignore not-found errors, since there is nothing we can do here.
@@ -230,17 +230,20 @@ func (r *PodReconciler) deleteFollowerPods(ctx context.Context, pods []corev1.Po
 
 		// Add condition to pod status so that a podFailurePolicy can be used to ignore
 		// deletions by this controller done to handle race conditions.
-		updatePodCondition(&pod, corev1.PodCondition{
+		condition := corev1.PodCondition{
 			Type:    corev1.DisruptionTarget,
 			Status:  v1.ConditionTrue,
 			Reason:  "ExclusivePlacementViolation",
 			Message: "Pod violated JobSet exclusive placement policy",
-		})
-
-		if err := r.Status().Update(ctx, &pod); err != nil {
-			lock.Lock()
-			defer lock.Unlock()
-			finalErrs = append(finalErrs, err)
+		}
+		// If pod status already has this condition, we don't need to send the update RPC again.
+		if updatePodCondition(&pod, condition) {
+			if err := r.Status().Update(ctx, &pod); err != nil {
+				lock.Lock()
+				defer lock.Unlock()
+				finalErrs = append(finalErrs, err)
+				return
+			}
 		}
 
 		// Delete the pod.
@@ -281,6 +284,7 @@ func removePodNameSuffix(podName string) (string, error) {
 
 // Update the pod status with the given condition.
 func updatePodCondition(pod *corev1.Pod, condition corev1.PodCondition) bool {
+	condition.LastTransitionTime = metav1.Now()
 	for i, val := range pod.Status.Conditions {
 		if condition.Type == val.Type && condition.Status != val.Status {
 			pod.Status.Conditions[i] = condition
