@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -45,9 +46,6 @@ const (
 	// the namespaced job name of the job that owns this pod, and value is
 	// the pod itself.
 	podJobKey string = "podJobKey"
-
-	// parallelDeletions defines the maximum number of pod deletions that can be done concurrently.
-	parallelDeletions int = 50
 )
 
 // PodReconciler reconciles a Pod owned by a JobSet using exclusive placement.
@@ -67,8 +65,9 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&corev1.Pod{}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			pod, ok := object.(*corev1.Pod)
-			// Only reconcile pods that are part of JobSets using exclusive placement.
-			return ok && usingExclusivePlacement(pod)
+			// Only reconcile leader pods which have been scheduled which are part of
+			// JobSets using exclusive placement.
+			return ok && placement.IsLeaderPod(pod) && isScheduled(pod) && usingExclusivePlacement(pod)
 		})).
 		Complete(r)
 }
@@ -114,41 +113,23 @@ func SetupPodIndexes(ctx context.Context, indexer client.FieldIndexer) error {
 // scheduled on the same topology domain exclusively (if the parent JobSet is using
 // exclusive placement).
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// In the following, we aim to enforce that the pods that belong to the same job are
-	// scheduled on the same topology domain exclusively. We accomplish this by checking
-	// all pods for a given job, and validating that:
-	// 1) The leader pod exists and is scheduled.
-	// 2) The follower pods's nodeSelectors are all configured to select the same topology
-	//    as the leader pod is currently placed on.
-	// If either of these conditions are false, we delete all the pods in this job to
-	// allow the scheduled process to restart from a clean slate.
-	var pod corev1.Pod
-	if err := r.Get(ctx, req.NamespacedName, &pod); err != nil {
+	// In the following, we aim to enforce that for JobSets using exclusive placement,
+	// pods that belong to the same job are scheduled on the same topology domain exclusively.
+	// We do this by performing the following steps:
+	// 1) Reconcile leader pods which are scheduled and using exclusive placement.
+	// 2) For a given leader pod, check all follower pods's nodeSelectors are all
+	//    configured to select the same topology as the leader pod is currently placed on.
+	// 3) If the above condition is false, we delete all the follower pods in this job to
+	// 	  allow them to be rescheduled correctly.
+	var leaderPod corev1.Pod
+	if err := r.Get(ctx, req.NamespacedName, &leaderPod); err != nil {
 		// we'll ignore not-found errors, since there is nothing we can do here.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	log := ctrl.LoggerFrom(ctx).WithValues("pod", klog.KObj(&pod))
+	log := ctrl.LoggerFrom(ctx).WithValues("pod", klog.KObj(&leaderPod))
 	ctx = ctrl.LoggerInto(ctx, log)
 	log.V(2).Info("Reconciling Pod")
-
-	// Check if this is the leader pod. If it is the leader pod and it hasn't been
-	// scheduled, do nothing and return early.
-	leader := placement.IsLeaderPod(&pod)
-	if leader {
-		log.Info(fmt.Sprintf("%q is a leader pod", pod.Name))
-		if pod.Spec.NodeName == "" {
-			log.Info("leader pod not scheduled")
-			return ctrl.Result{}, nil
-		}
-	}
-
-	// We need a reference to the scheduled leader pod of this job, to find the topology domain
-	// it is scheduled in.
-	leaderPod, err := r.leaderPodForFollower(ctx, &pod)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
 
 	// Get all the pods owned by the same job as this pod.
 	jobKey, exists := leaderPod.Labels[jobset.JobKey]
@@ -162,13 +143,13 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	// Validate all follower pods in this job are assigned to the same topology as the leader pod.
-	// If not, then delete all the job's pods so they can be recreated and rescheduled correctly.
-	valid, err := r.validatePodPlacements(ctx, leaderPod, podList)
+	// If not, then delete all the job's follower pods so they can be recreated and rescheduled correctly.
+	valid, err := r.validatePodPlacements(ctx, &leaderPod, podList)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	if !valid {
-		return ctrl.Result{}, r.deletePods(ctx, podList.Items)
+		return ctrl.Result{}, r.deleteFollowerPods(ctx, podList.Items)
 	}
 	return ctrl.Result{}, nil
 }
@@ -176,59 +157,12 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 // listPodsForJobKey returns a list of pods owned by a specific job, using the
 // jobKey (SHA1 hash of the namespaced job name) label selector.
 func (r *PodReconciler) listPodsForJob(ctx context.Context, ns, jobKey string) (*corev1.PodList, error) {
-	log := ctrl.LoggerFrom(ctx)
-
 	var podList corev1.PodList
 	if err := r.List(ctx, &podList, client.InNamespace(ns), &client.MatchingFields{podJobKey: jobKey}); err != nil {
-		log.Error(err, "listing pods")
 		return nil, err
 	}
 
 	return &podList, nil
-}
-
-// getPodByName returns the Pod object for a given pod name.
-func (r *PodReconciler) getPodByName(ctx context.Context, ns, podName string) (*corev1.Pod, error) {
-	log := ctrl.LoggerFrom(ctx)
-
-	var podList corev1.PodList
-	if err := r.List(ctx, &podList, client.InNamespace(ns), &client.MatchingFields{PodNameKey: podName}); err != nil {
-		log.Error(err, "listing pods")
-		return nil, err
-	}
-
-	// Validate only 1 pod with this name exists.
-	if len(podList.Items) != 1 {
-		return nil, fmt.Errorf("expected 1 pod with name %q, got %d", podName, len(podList.Items))
-	}
-
-	return &podList.Items[0], nil
-}
-
-// leaderPodForFollower returns the Pod object for the leader pod (job completion index 0) for
-// a given follower pod.
-func (r *PodReconciler) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, error) {
-	log := ctrl.LoggerFrom(ctx)
-
-	var leaderPod *corev1.Pod
-	if placement.IsLeaderPod(pod) {
-		log.Info(fmt.Sprintf("%q is a leader pod", pod.Name))
-		leaderPod = pod
-	} else {
-		log.Info(fmt.Sprintf("%q is a follower pod", pod.Name))
-		leaderPodName, err := leaderPodNameForFollower(pod)
-		if err != nil {
-			log.Error(err, "generating leader pod name")
-			return nil, err
-		}
-		// Use pod name index to quickly fetch the leader pod object.
-		leaderPod, err = r.getPodByName(ctx, pod.Namespace, leaderPodName)
-		if err != nil {
-			log.Error(err, "getting leader pod by name")
-			return nil, err
-		}
-	}
-	return leaderPod, nil
 }
 
 // validatePodPlacements returns true if the topology value specified in follower pods' nodeSelectors
@@ -282,13 +216,34 @@ func (r *PodReconciler) topologyFromPod(ctx context.Context, pod *corev1.Pod, to
 	return topology, nil
 }
 
-// deletePods deletes the given pods, parallelizing up to `parallelDeletions` requests.
-func (r *PodReconciler) deletePods(ctx context.Context, pods []corev1.Pod) error {
+// deleteFollowerPods deletes follower pods (non-index 0), parallelizing up to `maxParallelism` requests.
+func (r *PodReconciler) deleteFollowerPods(ctx context.Context, pods []corev1.Pod) error {
 	lock := &sync.Mutex{}
 	var finalErrs []error
 
-	workqueue.ParallelizeUntil(ctx, parallelDeletions, len(pods), func(i int) {
+	workqueue.ParallelizeUntil(ctx, maxParallelism, len(pods), func(i int) {
 		pod := pods[i]
+		// Do not delete leader pod.
+		if placement.IsLeaderPod(&pod) {
+			return
+		}
+
+		// Add condition to pod status so that a podFailurePolicy can be used to ignore
+		// deletions by this controller done to handle race conditions.
+		updatePodCondition(&pod, corev1.PodCondition{
+			Type:    corev1.DisruptionTarget,
+			Status:  v1.ConditionTrue,
+			Reason:  "ExclusivePlacementViolation",
+			Message: "Pod violated JobSet exclusive placement policy",
+		})
+
+		if err := r.Status().Update(ctx, &pod); err != nil {
+			lock.Lock()
+			defer lock.Unlock()
+			finalErrs = append(finalErrs, err)
+		}
+
+		// Delete the pod.
 		backgroundPolicy := metav1.DeletePropagationBackground
 		if err := r.Delete(ctx, &pod, &client.DeleteOptions{PropagationPolicy: &backgroundPolicy}); client.IgnoreNotFound(err) != nil {
 			lock.Lock()
@@ -307,6 +262,11 @@ func usingExclusivePlacement(pod *corev1.Pod) bool {
 	return exists
 }
 
+// isScheduled returns true if the pod has been scheduled, otherwise it returns false.
+func isScheduled(pod *corev1.Pod) bool {
+	return pod.Spec.NodeName != ""
+}
+
 // removePodNameSuffix removes the random suffix appended to pod names.
 func removePodNameSuffix(podName string) (string, error) {
 	parts := strings.Split(podName, "-")
@@ -319,21 +279,22 @@ func removePodNameSuffix(podName string) (string, error) {
 	return strings.Join(parts[:len(parts)-1], "-"), nil
 }
 
-// leaderPodNameForFollower accepts the name of a pod that is part of a jobset as input, and
-// returns the name of the pod with completion index 0 in the same child job.
-func leaderPodNameForFollower(pod *corev1.Pod) (string, error) {
-	// Pod name format: <jobset>-<replicatedJob>-<jobIndex>-<podIndex>-<randomSuffix>
-	jobSet, ok := pod.Labels[jobset.JobSetNameKey]
-	if !ok {
-		return "", fmt.Errorf("pod missing label: %s", jobset.JobSetNameKey)
+// Update the pod status with the given condition.
+func updatePodCondition(pod *corev1.Pod, condition corev1.PodCondition) bool {
+	for i, val := range pod.Status.Conditions {
+		if condition.Type == val.Type && condition.Status != val.Status {
+			pod.Status.Conditions[i] = condition
+			// Condition found but different status so we should update
+			return true
+		} else if condition.Type == val.Type && condition.Status == val.Status {
+			// Duplicate condition so no update
+			return false
+		}
 	}
-	replicatedJob, ok := pod.Labels[jobset.ReplicatedJobNameKey]
-	if !ok {
-		return "", fmt.Errorf("pod missing label: %s", jobset.ReplicatedJobNameKey)
+	// condition doesn't exist, update only if the status is true
+	if condition.Status == corev1.ConditionTrue {
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+		return true
 	}
-	jobIndex, ok := pod.Labels[jobset.JobIndexKey]
-	if !ok {
-		return "", fmt.Errorf("pod missing label: %s", jobset.JobIndexKey)
-	}
-	return placement.GenLeaderPodName(jobSet, replicatedJob, jobIndex), nil
+	return false
 }
