@@ -100,7 +100,7 @@ func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) 
 
 	// Validate there is only 1 leader pod for this job.
 	if len(podList.Items) != 1 {
-		return nil, fmt.Errorf("too many leader pods for this job (expected 1, got %d", len(podList.Items))
+		return nil, fmt.Errorf("incorrect number of leader pods for this job (expected 1, got %d)", len(podList.Items))
 	}
 
 	// Check if the leader pod is scheduled.

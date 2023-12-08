@@ -67,7 +67,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			pod, ok := object.(*corev1.Pod)
 			// Only reconcile leader pods which have been scheduled which are part of
 			// JobSets using exclusive placement.
-			return ok && placement.IsLeaderPod(pod) && isScheduled(pod) && usingExclusivePlacement(pod)
+			return ok && placement.IsLeaderPod(pod) && podScheduled(pod) && usingExclusivePlacement(pod)
 		})).
 		Complete(r)
 }
@@ -170,7 +170,7 @@ func (r *PodReconciler) listPodsForJob(ctx context.Context, ns, jobKey string) (
 func (r *PodReconciler) validatePodPlacements(ctx context.Context, leaderPod *corev1.Pod, podList *corev1.PodList) (bool, error) {
 	// We know exclusive key is set since we have an event filter for this.
 	topologyKey := leaderPod.Annotations[jobset.ExclusiveKey]
-	leaderTopology, err := r.topologyFromPod(ctx, leaderPod, topologyKey)
+	leaderTopology, err := r.leaderPodTopology(ctx, leaderPod, topologyKey)
 	if err != nil {
 		return false, err
 	}
@@ -180,7 +180,7 @@ func (r *PodReconciler) validatePodPlacements(ctx context.Context, leaderPod *co
 		if placement.IsLeaderPod(&pod) {
 			continue
 		}
-		followerTopology, err := r.topologyFromPod(ctx, &pod, topologyKey)
+		followerTopology, err := followerPodTopology(&pod, topologyKey)
 		if err != nil {
 			return false, err
 		}
@@ -189,31 +189,6 @@ func (r *PodReconciler) validatePodPlacements(ctx context.Context, leaderPod *co
 		}
 	}
 	return true, nil
-}
-
-// topologyFromPod returns the topology value (e.g., node pool name, zone, etc.)
-// for a given pod and topology key.
-func (r *PodReconciler) topologyFromPod(ctx context.Context, pod *corev1.Pod, topologyKey string) (string, error) {
-	log := ctrl.LoggerFrom(ctx)
-
-	nodeName := pod.Spec.NodeName
-	ns := pod.Namespace
-
-	// Get node the leader pod is running on.
-	var node corev1.Node
-	if err := r.Get(ctx, types.NamespacedName{Name: nodeName, Namespace: ns}, &node); err != nil {
-		// We'll ignore not-found errors, since there is nothing we can do here.
-		// A node may not exist temporarily due to a maintenance event or other scenarios.
-		log.Error(err, fmt.Sprintf("getting node %s", nodeName))
-		return "", client.IgnoreNotFound(err)
-	}
-
-	// Get topology (e.g. node pool name) from node labels.
-	topology, exists := node.Labels[topologyKey]
-	if !exists {
-		return "", fmt.Errorf("node does not have topology label: %s", topology)
-	}
-	return topology, nil
 }
 
 // deleteFollowerPods deletes follower pods (non-index 0), parallelizing up to `maxParallelism` requests.
@@ -236,6 +211,7 @@ func (r *PodReconciler) deleteFollowerPods(ctx context.Context, pods []corev1.Po
 			Reason:  "ExclusivePlacementViolation",
 			Message: "Pod violated JobSet exclusive placement policy",
 		}
+
 		// If pod status already has this condition, we don't need to send the update RPC again.
 		if updatePodCondition(&pod, condition) {
 			if err := r.Status().Update(ctx, &pod); err != nil {
@@ -258,6 +234,46 @@ func (r *PodReconciler) deleteFollowerPods(ctx context.Context, pods []corev1.Po
 	return errors.Join(finalErrs...)
 }
 
+// leaderPodTopology returns the topology value (e.g., node pool name, zone, etc.)
+// for a given leader pod and topology key, by checking the node labels on the node
+// the leader is currently scheduled on.
+func (r *PodReconciler) leaderPodTopology(ctx context.Context, pod *corev1.Pod, topologyKey string) (string, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	nodeName := pod.Spec.NodeName
+	ns := pod.Namespace
+
+	// Get node the leader pod is running on.
+	var node corev1.Node
+	if err := r.Get(ctx, types.NamespacedName{Name: nodeName, Namespace: ns}, &node); err != nil {
+		// We'll ignore not-found errors, since there is nothing we can do here.
+		// A node may not exist temporarily due to a maintenance event or other scenarios.
+		log.Error(err, fmt.Sprintf("getting node %s", nodeName))
+		return "", client.IgnoreNotFound(err)
+	}
+
+	// Get topology (e.g. node pool name) from node labels.
+	topology, exists := node.Labels[topologyKey]
+	if !exists {
+		return "", fmt.Errorf("node does not have topology label: %s", topology)
+	}
+	return topology, nil
+}
+
+// followerPodTopology returns the topology value (e.g., node pool name, zone, etc.)
+// for a given follower pod and topology key, by checking the target topology
+// defined in the pod's nodeSelector.
+func followerPodTopology(pod *corev1.Pod, topologyKey string) (string, error) {
+	if pod.Spec.NodeSelector == nil {
+		return "", fmt.Errorf("pod %s nodeSelector is nil", pod.Name)
+	}
+	topology, exists := pod.Spec.NodeSelector[topologyKey]
+	if !exists {
+		return "", fmt.Errorf("pod %s nodeSelector is missing key: %s", pod.Name, topologyKey)
+	}
+	return topology, nil
+}
+
 // usingExclusivePlacement returns true if the pod is part of a JobSet using
 // exclusive placement, otherwise it returns false.
 func usingExclusivePlacement(pod *corev1.Pod) bool {
@@ -265,8 +281,8 @@ func usingExclusivePlacement(pod *corev1.Pod) bool {
 	return exists
 }
 
-// isScheduled returns true if the pod has been scheduled, otherwise it returns false.
-func isScheduled(pod *corev1.Pod) bool {
+// podScheduled returns true if the pod has been scheduled, otherwise it returns false.
+func podScheduled(pod *corev1.Pod) bool {
 	return pod.Spec.NodeName != ""
 }
 
@@ -295,7 +311,7 @@ func updatePodCondition(pod *corev1.Pod, condition corev1.PodCondition) bool {
 			return false
 		}
 	}
-	// condition doesn't exist, update only if the status is true
+	// Condition doesn't exist, update only if the status is true.
 	if condition.Status == corev1.ConditionTrue {
 		pod.Status.Conditions = append(pod.Status.Conditions, condition)
 		return true
