@@ -67,7 +67,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			pod, ok := object.(*corev1.Pod)
 			// Only reconcile leader pods which have been scheduled which are part of
 			// JobSets using exclusive placement.
-			return ok && placement.IsLeaderPod(pod) && podScheduled(pod) && usingExclusivePlacement(pod)
+			return ok && placement.IsLeaderPod(pod) && podScheduled(pod) && usingExclusivePlacement(pod) && !podDeleted(pod)
 		})).
 		Complete(r)
 }
@@ -284,6 +284,11 @@ func usingExclusivePlacement(pod *corev1.Pod) bool {
 // podScheduled returns true if the pod has been scheduled, otherwise it returns false.
 func podScheduled(pod *corev1.Pod) bool {
 	return pod.Spec.NodeName != ""
+}
+
+// podDeleted returns true if hte pod has been marked for deletion, otherwise it returns false.
+func podDeleted(pod *corev1.Pod) bool {
+	return pod.DeletionTimestamp != nil
 }
 
 // removePodNameSuffix removes the random suffix appended to pod names.
