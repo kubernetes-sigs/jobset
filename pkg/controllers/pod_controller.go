@@ -66,8 +66,8 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			// Only reconcile leader pods which have been scheduled which are part of
 			// JobSets using exclusive placement.
-			_, ok := object.(*corev1.Pod)
-			return ok // && placement.IsLeaderPod(pod) && podScheduled(pod) && usingExclusivePlacement(pod) && !podDeleted(pod)
+			pod, ok := object.(*corev1.Pod)
+			return ok && placement.IsLeaderPod(pod) && podScheduled(pod) && usingExclusivePlacement(pod) && !podDeleted(pod)
 		})).
 		Complete(r)
 }
@@ -131,11 +131,6 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	ctx = ctrl.LoggerInto(ctx, log)
 	log.V(2).Info("Reconciling Pod")
 
-	shouldReconcile := placement.IsLeaderPod(&leaderPod) && podScheduled(&leaderPod) && usingExclusivePlacement(&leaderPod) && !podDeleted(&leaderPod)
-	if !shouldReconcile {
-		log.V(2).Info(fmt.Sprintf("Skipping reconcile on pod: %s", leaderPod.Name))
-		return ctrl.Result{}, nil
-	}
 	// Get all the pods owned by the same job as this pod.
 	jobKey, exists := leaderPod.Labels[jobset.JobKey]
 	if !exists {
