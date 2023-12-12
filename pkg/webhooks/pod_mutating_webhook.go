@@ -83,11 +83,11 @@ func (p *podWebhook) Default(ctx context.Context, obj runtime.Object) error {
 func (p *podWebhook) patchPod(ctx context.Context, pod *corev1.Pod) error {
 	log := ctrl.LoggerFrom(ctx)
 	if pod.Annotations[batchv1.JobCompletionIndexAnnotation] == "0" {
-		log.Info(fmt.Sprintf("pod webhook: setting exclusive affinities for pod: %s", pod.Name))
+		log.V(3).Info(fmt.Sprintf("pod webhook: setting exclusive affinities for pod: %s", pod.Name))
 		setExclusiveAffinities(pod)
 		return nil
 	} else {
-		log.Info(fmt.Sprintf("pod webhook: adding node selector for follower pod: %s", pod.Name))
+		log.V(3).Info(fmt.Sprintf("pod webhook: adding node selector for follower pod: %s", pod.Name))
 		return p.setNodeSelector(ctx, pod)
 	}
 }

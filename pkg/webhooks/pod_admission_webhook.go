@@ -85,7 +85,6 @@ func (p *podWebhook) leaderPodScheduled(ctx context.Context, pod *corev1.Pod) (b
 func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, error) {
 	// Generate the expected leader pod name for this follower pod.
 	log := ctrl.LoggerFrom(ctx)
-	log.Info(fmt.Sprintf("generating leader pod name for follower pod: %s", pod.Name))
 	leaderPodName, err := genLeaderPodName(pod)
 	if err != nil {
 		log.Error(err, "getting leader pod name for follower pod")
