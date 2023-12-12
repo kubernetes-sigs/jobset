@@ -130,7 +130,6 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	log := ctrl.LoggerFrom(ctx).WithValues("pod", klog.KObj(&leaderPod))
 	ctx = ctrl.LoggerInto(ctx, log)
 	log.V(2).Info("Reconciling Pod")
-	log.V(2).Info("TEST2")
 
 	// Get all the pods owned by the same job as this pod.
 	jobKey, exists := leaderPod.Labels[jobset.JobKey]
