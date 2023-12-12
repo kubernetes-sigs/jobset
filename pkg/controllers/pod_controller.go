@@ -67,8 +67,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// Only reconcile leader pods which have been scheduled which are part of
 			// JobSets using exclusive placement.
 			pod, ok := object.(*corev1.Pod)
-			return ok && usingExclusivePlacement(pod)
-			// return ok && placement.IsLeaderPod(pod) && podScheduled(pod) && usingExclusivePlacement(pod) && !podDeleted(pod)
+			return ok && placement.IsLeaderPod(pod) && podScheduled(pod) && usingExclusivePlacement(pod) && !podDeleted(pod)
 		})).
 		Complete(r)
 }
