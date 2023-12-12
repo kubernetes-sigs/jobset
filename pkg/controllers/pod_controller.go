@@ -110,8 +110,8 @@ func SetupPodIndexes(ctx context.Context, indexer client.FieldIndexer) error {
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 
 // Reconcile attempts to enforce that the pods that belong to the same job are
-// scheduled on the same topology domain exclusively (if the parent JobSet is using
-// exclusive placement).
+// scheduled on the same topology domain exclusively if the parent JobSet is using
+// exclusive placement.
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// In the following, we aim to enforce that for JobSets using exclusive placement,
 	// pods that belong to the same job are scheduled on the same topology domain exclusively.
@@ -212,7 +212,7 @@ func (r *PodReconciler) deleteFollowerPods(ctx context.Context, pods []corev1.Po
 			Message: "Pod violated JobSet exclusive placement policy",
 		}
 
-		// If pod status already has this condition, we don't need to send the update RPC again.
+		// If pod status already has this condition, we don't need to send the update again.
 		if updatePodCondition(&pod, condition) {
 			if err := r.Status().Update(ctx, &pod); err != nil {
 				lock.Lock()
