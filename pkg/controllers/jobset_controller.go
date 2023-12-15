@@ -254,6 +254,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			"succeeded": 0,
 			"failed":    0,
 			"active":    0,
+			"suspended": 0,
 		}
 	}
 
@@ -275,6 +276,9 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 		if job.Status.Active > 0 {
 			replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["active"]++
 		}
+		if job.Spec.Suspend != nil && *job.Spec.Suspend {
+			replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["suspended"]++
+		}
 	}
 
 	// Calculate succeededJobs
@@ -295,6 +299,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			Succeeded: status["succeeded"],
 			Failed:    status["failed"],
 			Active:    status["active"],
+			Suspended: status["suspended"],
 		})
 	}
 	return rjStatus

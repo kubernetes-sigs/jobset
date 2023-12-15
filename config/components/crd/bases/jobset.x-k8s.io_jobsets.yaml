@@ -9807,12 +9807,16 @@ spec:
                     succeeded:
                       format: int32
                       type: integer
+                    suspended:
+                      format: int32
+                      type: integer
                   required:
                   - active
                   - failed
                   - name
                   - ready
                   - succeeded
+                  - suspended
                   type: object
                 type: array
                 x-kubernetes-list-map-keys:
