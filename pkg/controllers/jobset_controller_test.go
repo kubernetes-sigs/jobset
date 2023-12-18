@@ -18,9 +18,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/google/go-cmp/cmp/cmpopts"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -603,6 +602,33 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 							Effect:   corev1.TaintEffectNoSchedule,
 						},
 					}).Obj(),
+			},
+		},
+		{
+			name: "startup-policy",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				StartupPolicy(&jobset.StartupPolicy{
+					StartupPolicyOrder: jobset.InOrder,
+				}).
+				EnableDNSHostnames(true).
+				NetworkSubdomain(jobSetName).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Subdomain(jobSetName).
+					Replicas(1).
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).
+					Suspend(false).
+					Subdomain(jobSetName).Obj(),
 			},
 		},
 	}

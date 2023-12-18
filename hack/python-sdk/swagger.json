@@ -95,6 +95,10 @@
           ],
           "x-kubernetes-list-type": "map"
         },
+        "startupPolicy": {
+          "description": "StartupPolicy, if set, configures in what order jobs must be started",
+          "$ref": "#/definitions/jobset.v1alpha2.StartupPolicy"
+        },
         "successPolicy": {
           "description": "SuccessPolicy configures when to declare the JobSet as succeeded. The JobSet is always declared succeeded if all jobs in the set finished with status complete.",
           "$ref": "#/definitions/jobset.v1alpha2.SuccessPolicy"
@@ -216,6 +220,19 @@
           "type": "integer",
           "format": "int32",
           "default": 0
+        }
+      }
+    },
+    "jobset.v1alpha2.StartupPolicy": {
+      "type": "object",
+      "required": [
+        "startupPolicyOrder"
+      ],
+      "properties": {
+        "startupPolicyOrder": {
+          "description": "StartupPolicyOrder determines the startup order of the ReplicatedJobs. AnyOrder means to start replicated jobs in any order. InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only when all the jobs of the previous one are ready.",
+          "type": "string",
+          "default": ""
         }
       }
     },

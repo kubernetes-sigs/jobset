@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -77,7 +78,7 @@ func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record re
 //+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get;patch;update
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -102,7 +103,8 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Calculate JobsReady and update statuses for each ReplicatedJob
-	if err := r.calculateAndUpdateReplicatedJobsStatuses(ctx, &js, ownedJobs); err != nil {
+	status := r.calculateReplicatedJobStatuses(ctx, &js, ownedJobs)
+	if err := r.updateReplicatedJobsStatuses(ctx, &js, ownedJobs, status); err != nil {
 		log.Error(err, "updating replicated jobs statuses")
 		return ctrl.Result{}, err
 	}
@@ -145,7 +147,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// If job has not failed or succeeded, continue creating any
 	// jobs that are ready to be started.
-	if err := r.createJobs(ctx, &js, ownedJobs); err != nil {
+	if err := r.createJobs(ctx, &js, ownedJobs, status); err != nil {
 		log.Error(err, "creating jobs")
 		return ctrl.Result{}, err
 	}
@@ -158,7 +160,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 	} else {
-		if err := r.resumeJobSetIfNecessary(ctx, &js, ownedJobs); err != nil {
+		if err := r.resumeJobSetIfNecessary(ctx, &js, ownedJobs, status); err != nil {
 			log.Error(err, "resuming jobset")
 			return ctrl.Result{}, err
 		}
@@ -233,8 +235,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	return &ownedJobs, nil
 }
 
-func (r *JobSetReconciler) calculateAndUpdateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) error {
-	status := r.calculateReplicatedJobStatuses(ctx, js, jobs)
+func (r *JobSetReconciler) updateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs, status []jobset.ReplicatedJobStatus) error {
 	// Check if status ReplicatedJobsStatus has changed
 	if apiequality.Semantic.DeepEqual(js.Status.ReplicatedJobsStatus, status) {
 		return nil
@@ -323,35 +324,74 @@ func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet,
 	})
 }
 
-func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatus []jobset.ReplicatedJobStatus) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	nodeAffinities := map[string]map[string]string{}
+	replicatedJobToActiveJobs := map[string][]*batchv1.Job{}
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
 		nodeAffinities[replicatedJob.Name] = replicatedJob.Template.Spec.Template.Spec.NodeSelector
 	}
 
+	for _, job := range ownedJobs.active {
+		replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
+		replicatedJobToActiveJobs[replicatedJobName] = append(replicatedJobToActiveJobs[replicatedJobName], job)
+	}
+
+	getReplicatedJobStatus := func(replicatedJobStatus []jobset.ReplicatedJobStatus, replicatedJobName string) jobset.ReplicatedJobStatus {
+		for _, rjobStatus := range replicatedJobStatus {
+			if replicatedJobName == rjobStatus.Name {
+				return rjobStatus
+			}
+		}
+		return jobset.ReplicatedJobStatus{}
+	}
+
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
-	for _, job := range ownedJobs.active {
-		if ptr.Deref(job.Spec.Suspend, false) {
-			if job.Status.StartTime != nil {
-				job.Status.StartTime = nil
-				if err := r.Status().Update(ctx, job); err != nil {
+	for idx, replicatedJob := range js.Spec.ReplicatedJobs {
+		jobStatus := getReplicatedJobStatus(replicatedJobStatus, replicatedJob.Name)
+		// Startup Policy for suspended will resume replicated jobs in order
+		// And then it will only resume the next set of jobs
+		// if the previous jobs are ready.
+		if inOrderStartupPolicy(js.Spec.StartupPolicy) {
+			isPreviousReplicatedJobReady := true
+			if idx > 0 {
+				prevJobStatus := getReplicatedJobStatus(replicatedJobStatus, js.Spec.ReplicatedJobs[idx-1].Name)
+				isPreviousReplicatedJobReady = replicatedJobsAtLeastReady(js.Spec.ReplicatedJobs[idx-1].Replicas, prevJobStatus)
+			}
+			if !isPreviousReplicatedJobReady && !replicatedJobsAtLeastReady(replicatedJob.Replicas, jobStatus) {
+				return r.ensureCondition(ctx, js, corev1.EventTypeNormal, generateStartupPolicyCondition(false, replicatedJob.Name))
+			}
+		}
+		replicatedJob := replicatedJobToActiveJobs[replicatedJob.Name]
+		for _, job := range replicatedJob {
+			// Startup Policy dictates in what order this Jobs should be resumed.
+			if ptr.Deref(job.Spec.Suspend, false) {
+				if job.Status.StartTime != nil {
+					job.Status.StartTime = nil
+					if err := r.Status().Update(ctx, job); err != nil {
+						return err
+					}
+				}
+				if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
+					// When resuming a job, its nodeSelectors should match that of the replicatedJob template
+					// that it was created from, which may have been updated while it was suspended.
+					job.Spec.Template.Spec.NodeSelector = nodeAffinities[job.Labels[jobset.ReplicatedJobNameKey]]
+				} else {
+					log.Error(nil, "job missing ReplicatedJobName label")
+				}
+				job.Spec.Suspend = ptr.To(false)
+				if err := r.Update(ctx, job); err != nil {
 					return err
 				}
 			}
-			if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
-				// When resuming a job, its nodeSelectors should match that of the replicatedJob template
-				// that it was created from, which may have been updated while it was suspended.
-				job.Spec.Template.Spec.NodeSelector = nodeAffinities[job.Labels[jobset.ReplicatedJobNameKey]]
-			} else {
-				log.Error(nil, "job missing ReplicatedJobName label")
-			}
-			job.Spec.Suspend = ptr.To(false)
-			if err := r.Update(ctx, job); err != nil {
-				return err
-			}
+		}
+	}
+	if inOrderStartupPolicy(js.Spec.StartupPolicy) {
+		startupPolicyErr := r.ensureCondition(ctx, js, corev1.EventTypeNormal, generateStartupPolicyCondition(true, ""))
+		if startupPolicyErr != nil {
+			return startupPolicyErr
 		}
 	}
 	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
@@ -363,7 +403,7 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 	})
 }
 
-func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatus []jobset.ReplicatedJobStatus) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	// If pod DNS hostnames are enabled, create a headless service for the JobSet
@@ -372,14 +412,38 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			return err
 		}
 	}
-
+	getReplicatedJobStatus := func(replicatedJobStatus []jobset.ReplicatedJobStatus, replicatedJobName string) jobset.ReplicatedJobStatus {
+		for _, val := range replicatedJobStatus {
+			if val.Name == replicatedJobName {
+				return val
+			}
+		}
+		return jobset.ReplicatedJobStatus{}
+	}
 	var lock sync.Mutex
 	var finalErrs []error
-
-	for _, rjob := range js.Spec.ReplicatedJobs {
+	for idx, rjob := range js.Spec.ReplicatedJobs {
 		jobs, err := constructJobsFromTemplate(js, &rjob, ownedJobs)
 		if err != nil {
 			return err
+		}
+		jobStatus := getReplicatedJobStatus(replicatedJobStatus, rjob.Name)
+		if !ptr.Deref(js.Spec.Suspend, false) {
+			if inOrderStartupPolicy(js.Spec.StartupPolicy) {
+				isPreviousReplicatedJobReady := true
+				if idx > 0 {
+					prevJobStatus := getReplicatedJobStatus(replicatedJobStatus, js.Spec.ReplicatedJobs[idx-1].Name)
+					isPreviousReplicatedJobReady = replicatedJobsAtLeastReady(js.Spec.ReplicatedJobs[idx-1].Replicas, prevJobStatus)
+				} else {
+					startupConditionErr := r.ensureCondition(ctx, js, corev1.EventTypeNormal, generateStartupPolicyCondition(false, rjob.Name))
+					if startupConditionErr != nil {
+						return startupConditionErr
+					}
+				}
+				if !isPreviousReplicatedJobReady && !replicatedJobsAtLeastReady(rjob.Replicas, jobStatus) {
+					return r.ensureCondition(ctx, js, corev1.EventTypeNormal, generateStartupPolicyCondition(false, rjob.Name))
+				}
+			}
 		}
 		workqueue.ParallelizeUntil(ctx, maxParallelism, len(jobs), func(i int) {
 			job := jobs[i]
@@ -403,7 +467,14 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			log.V(2).Info("successfully created job", "job", klog.KObj(job))
 		})
 	}
-	return errors.Join(finalErrs...)
+	allErrs := errors.Join(finalErrs...)
+	if allErrs != nil {
+		return allErrs
+	}
+	if inOrderStartupPolicy(js.Spec.StartupPolicy) {
+		return r.ensureCondition(ctx, js, corev1.EventTypeNormal, generateStartupPolicyCondition(true, ""))
+	}
+	return allErrs
 }
 
 // TODO: look into adopting service and updating the selector

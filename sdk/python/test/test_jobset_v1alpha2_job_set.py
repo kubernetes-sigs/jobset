@@ -53,6 +53,8 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             replicas = 56, 
                             template = V1JobTemplateSpec(), )
                         ], 
+                    startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
+                        startup_policy_order = '0', ), 
                     success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
                         operator = '0', 
                         target_replicated_jobs = [

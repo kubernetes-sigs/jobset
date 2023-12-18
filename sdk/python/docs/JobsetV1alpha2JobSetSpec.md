@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **failure_policy** | [**JobsetV1alpha2FailurePolicy**](JobsetV1alpha2FailurePolicy.md) |  | [optional] 
 **network** | [**JobsetV1alpha2Network**](JobsetV1alpha2Network.md) |  | [optional] 
 **replicated_jobs** | [**list[JobsetV1alpha2ReplicatedJob]**](JobsetV1alpha2ReplicatedJob.md) | ReplicatedJobs is the group of jobs that will form the set. | [optional] 
+**startup_policy** | [**JobsetV1alpha2StartupPolicy**](JobsetV1alpha2StartupPolicy.md) |  | [optional] 
 **success_policy** | [**JobsetV1alpha2SuccessPolicy**](JobsetV1alpha2SuccessPolicy.md) |  | [optional] 
 **suspend** | **bool** | Suspend suspends all running child Jobs when set to true. | [optional] 
 

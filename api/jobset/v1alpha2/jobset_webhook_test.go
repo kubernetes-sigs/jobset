@@ -30,6 +30,7 @@ var TestPodTemplate = corev1.PodTemplateSpec{
 
 func TestJobSetDefaulting(t *testing.T) {
 	defaultSuccessPolicy := &SuccessPolicy{Operator: OperatorAll}
+	defaultStartupPolicy := &StartupPolicy{StartupPolicyOrder: AnyOrder}
 	testCases := []struct {
 		name string
 		js   *JobSet
@@ -40,6 +41,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -55,6 +57,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -90,6 +93,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -109,6 +113,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -124,6 +129,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -143,6 +149,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(false)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -159,6 +166,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(false)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -178,6 +186,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -196,6 +205,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -219,6 +229,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -239,6 +250,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &JobSet{
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -261,7 +273,8 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "success policy unset",
 			js: &JobSet{
 				Spec: JobSetSpec{
-					Network: &Network{EnableDNSHostnames: ptr.To(true)},
+					StartupPolicy: defaultStartupPolicy,
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -280,6 +293,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &JobSet{
 				Spec: JobSetSpec{
+					StartupPolicy: defaultStartupPolicy,
 					SuccessPolicy: defaultSuccessPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
@@ -306,7 +320,8 @@ func TestJobSetDefaulting(t *testing.T) {
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
 					},
-					Network: &Network{EnableDNSHostnames: ptr.To(true)},
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
+					StartupPolicy: defaultStartupPolicy,
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -327,6 +342,60 @@ func TestJobSetDefaulting(t *testing.T) {
 				Spec: JobSetSpec{
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
+					},
+					StartupPolicy: defaultStartupPolicy,
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											RestartPolicy: corev1.RestartPolicyAlways,
+										},
+									},
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "startup policy order InOrder set",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					SuccessPolicy: &SuccessPolicy{
+						Operator: OperatorAny,
+					},
+					Network: &Network{EnableDNSHostnames: ptr.To(true)},
+					StartupPolicy: &StartupPolicy{
+						StartupPolicyOrder: InOrder,
+					},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											RestartPolicy: corev1.RestartPolicyAlways,
+										},
+									},
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &JobSet{
+				Spec: JobSetSpec{
+					SuccessPolicy: &SuccessPolicy{
+						Operator: OperatorAny,
+					},
+					StartupPolicy: &StartupPolicy{
+						StartupPolicyOrder: InOrder,
 					},
 					Network: &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{

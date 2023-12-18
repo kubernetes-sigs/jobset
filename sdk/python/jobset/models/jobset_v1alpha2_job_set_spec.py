@@ -36,6 +36,7 @@ class JobsetV1alpha2JobSetSpec(object):
         'failure_policy': 'JobsetV1alpha2FailurePolicy',
         'network': 'JobsetV1alpha2Network',
         'replicated_jobs': 'list[JobsetV1alpha2ReplicatedJob]',
+        'startup_policy': 'JobsetV1alpha2StartupPolicy',
         'success_policy': 'JobsetV1alpha2SuccessPolicy',
         'suspend': 'bool'
     }
@@ -44,11 +45,12 @@ class JobsetV1alpha2JobSetSpec(object):
         'failure_policy': 'failurePolicy',
         'network': 'network',
         'replicated_jobs': 'replicatedJobs',
+        'startup_policy': 'startupPolicy',
         'success_policy': 'successPolicy',
         'suspend': 'suspend'
     }
 
-    def __init__(self, failure_policy=None, network=None, replicated_jobs=None, success_policy=None, suspend=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, failure_policy=None, network=None, replicated_jobs=None, startup_policy=None, success_policy=None, suspend=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2JobSetSpec - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
@@ -57,6 +59,7 @@ class JobsetV1alpha2JobSetSpec(object):
         self._failure_policy = None
         self._network = None
         self._replicated_jobs = None
+        self._startup_policy = None
         self._success_policy = None
         self._suspend = None
         self.discriminator = None
@@ -67,6 +70,8 @@ class JobsetV1alpha2JobSetSpec(object):
             self.network = network
         if replicated_jobs is not None:
             self.replicated_jobs = replicated_jobs
+        if startup_policy is not None:
+            self.startup_policy = startup_policy
         if success_policy is not None:
             self.success_policy = success_policy
         if suspend is not None:
@@ -136,6 +141,27 @@ class JobsetV1alpha2JobSetSpec(object):
         """
 
         self._replicated_jobs = replicated_jobs
+
+    @property
+    def startup_policy(self):
+        """Gets the startup_policy of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+
+
+        :return: The startup_policy of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :rtype: JobsetV1alpha2StartupPolicy
+        """
+        return self._startup_policy
+
+    @startup_policy.setter
+    def startup_policy(self, startup_policy):
+        """Sets the startup_policy of this JobsetV1alpha2JobSetSpec.
+
+
+        :param startup_policy: The startup_policy of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :type: JobsetV1alpha2StartupPolicy
+        """
+
+        self._startup_policy = startup_policy
 
     @property
     def success_policy(self):

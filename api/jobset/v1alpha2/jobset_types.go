@@ -51,6 +51,8 @@ const (
 	JobSetFailed JobSetConditionType = "Failed"
 	// JobSetSuspended means the job is suspended
 	JobSetSuspended JobSetConditionType = "Suspended"
+	// JobSetStartupPolicyCompleted means the StartupPolicy was complete
+	JobSetStartupPolicyCompleted JobSetConditionType = "StartupPolicyCompleted"
 )
 
 // JobSetSpec defines the desired state of JobSet
@@ -78,6 +80,10 @@ type JobSetSpec struct {
 	// finished with status failed.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"`
+
+	// StartupPolicy, if set, configures in what order jobs must be started
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
 
 	// Suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"`
@@ -189,6 +195,25 @@ type SuccessPolicy struct {
 	// +optional
 	// +listType=atomic
 	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
+}
+
+type StartupPolicyOptions string
+
+const (
+	// This is the default setting
+	// AnyOrder means that we will start jobs without any specific order.
+	AnyOrder StartupPolicyOptions = "AnyOrder"
+	// InOrder starts the jobs in order that they are listed.
+	InOrder StartupPolicyOptions = "InOrder"
+)
+
+type StartupPolicy struct {
+	// StartupPolicyOrder determines the startup order of the ReplicatedJobs.
+	// AnyOrder means to start replicated jobs in any order.
+	// InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
+	// when all the jobs of the previous one are ready.
+	// +kubebuilder:validation:Enum=AnyOrder;InOrder
+	StartupPolicyOrder StartupPolicyOptions `json:"startupPolicyOrder"`
 }
 
 func init() {

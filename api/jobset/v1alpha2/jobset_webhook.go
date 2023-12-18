@@ -51,6 +51,9 @@ func (js *JobSet) Default() {
 	if js.Spec.SuccessPolicy == nil {
 		js.Spec.SuccessPolicy = &SuccessPolicy{Operator: OperatorAll}
 	}
+	if js.Spec.StartupPolicy == nil {
+		js.Spec.StartupPolicy = &StartupPolicy{StartupPolicyOrder: AnyOrder}
+	}
 	for i := range js.Spec.ReplicatedJobs {
 		// Default job completion mode to indexed.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
