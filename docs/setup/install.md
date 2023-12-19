@@ -5,6 +5,8 @@
 Make sure the following conditions are met:
 
 - A Kubernetes cluster with version 1.21 or newer is running. Learn how to [install the Kubernetes tools](https://kubernetes.io/docs/tasks/tools/).
+- Your cluster has at least 1 node with 2+ CPUs and 512+ MB of memory available for the JobSet controller manager Deployment pods to run on. **NOTE**: On some cloud providers,
+the default node machine type will not have sufficient resources and you will need to specify a larger machine type.
 - The `SuspendJob` [feature gate][feature_gate] is enabled. In Kubernetes 1.22 or newer, the feature gate is enabled by default and reached stable in Kubernetes 1.24.
 - The kubectl command-line tool has communication with your cluster.
 
