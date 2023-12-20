@@ -8,7 +8,7 @@ function cleanup {
         if [ ! -d "$ARTIFACTS" ]; then
             mkdir -p "$ARTIFACTS"
         fi
-        kubectl logs -n kube-system deployment/jobset-controller-manager > $ARTIFACTS/jobset-controller-manager.log || true
+        kubectl logs -n jobset-system deployment/jobset-controller-manager > $ARTIFACTS/jobset-controller-manager.log || true
         kubectl describe pods -n jobset-system > $ARTIFACTS/jobset-system-pods.log || true
         $KIND export logs $ARTIFACTS || true
         $KIND delete cluster --name $KIND_CLUSTER_NAME || { echo "You need to run make kind-image-build before this script"; exit -1; }
