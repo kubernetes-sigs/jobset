@@ -4,3 +4,17 @@ resources:
 
 configurations:
 - kustomizeconfig.yaml
+
+patches:
+- path: patches/mutating-patch.yaml
+  target:
+    group: admissionregistration.k8s.io
+    version: v1
+    kind: MutatingWebhookConfiguration
+    name: mutating-webhook-configuration
+- path: patches/validating-patch.yaml
+  target:
+    group: admissionregistration.k8s.io
+    version: v1
+    kind: ValidatingWebhookConfiguration
+    name: validating-webhook-configuration
