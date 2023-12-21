@@ -6,13 +6,13 @@ configurations:
 - kustomizeconfig.yaml
 
 patches:
-- path: mutating-patch.yaml
+- path: patches/mutating-patch.yaml
   target:
     group: admissionregistration.k8s.io
     version: v1
     kind: MutatingWebhookConfiguration
     name: mutating-webhook-configuration
-- path: validating-patch.yaml
+- path: patches/validating-patch.yaml
   target:
     group: admissionregistration.k8s.io
     version: v1
