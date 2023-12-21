@@ -214,7 +214,8 @@ spec:
 
 ### Risks and Mitigations
 
-To avoid the JobSet become a half-baked workflow manager, we will not allow for starting particular replicated jobs.
+To avoid the JobSet become a half-baked workflow manager, the API will not allow describing DAGs. 
+The goal is to focus on supporting startup sequence that HPC and ML training jobs typically require.
 
 ## Design Details
 
@@ -276,7 +277,7 @@ We will add a condition for StartupPolicy to achieve this.
 
 ```golang
 metav1.Condition{
-   Type:    "JobSetStartupPolicyComplete",
+   Type:    "JobSetStartupPolicyCompleted",
    Status:  metav1.ConditionStatus(corev1.ConditionFalse),
    Reason:  "StartupPolicyInOrder",
    Message: "replicated job %s is starting",
