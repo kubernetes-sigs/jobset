@@ -54,6 +54,12 @@ func MakeJobSet(name, ns string) *JobSetWrapper {
 	}
 }
 
+// TTLSecondsAfterFinished sets the value of jobSet.spec.ttlSecondsAfterFinished
+func (j *JobSetWrapper) TTLSecondsAfterFinished(seconds int32) *JobSetWrapper {
+	j.Spec.TTLSecondsAfterFinished = &seconds
+	return j
+}
+
 // SuccessPolicy sets the value of jobSet.spec.successPolicy
 func (j *JobSetWrapper) SuccessPolicy(policy *jobset.SuccessPolicy) *JobSetWrapper {
 	j.Spec.SuccessPolicy = policy

@@ -17,8 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
+	"time"
+
+	"sigs.k8s.io/jobset/pkg/util/cert"
+
+	"sigs.k8s.io/jobset/client-go/clientset/versioned"
+	"sigs.k8s.io/jobset/client-go/informers/externalversions"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -35,7 +42,6 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
-	"sigs.k8s.io/jobset/pkg/util/cert"
 	"sigs.k8s.io/jobset/pkg/webhooks"
 	//+kubebuilder:scaffold:imports
 )
@@ -125,7 +131,7 @@ func main() {
 	// Cert won't be ready until manager starts, so start a goroutine here which
 	// will block until the cert is ready before setting up the controllers.
 	// Controllers who register after manager starts will start directly.
-	go setupControllers(mgr, certsReady)
+	go setupControllers(ctx, mgr, certsReady)
 
 	setupHealthzAndReadyzCheck(mgr)
 
@@ -136,7 +142,7 @@ func main() {
 	}
 }
 
-func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
+func setupControllers(ctx context.Context, mgr ctrl.Manager, certsReady chan struct{}) {
 	// The controllers won't work until the webhooks are operating,
 	// and the webhook won't work until the certs are all in places.
 	setupLog.Info("waiting for the cert generation to complete")
@@ -156,6 +162,22 @@ func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
 		setupLog.Error(err, "unable to create controller", "controller", "Pod")
 		os.Exit(1)
 	}
+
+	clientset := versioned.NewForConfigOrDie(mgr.GetConfig())
+	sharedInformers := externalversions.NewSharedInformerFactory(clientset, 30*time.Minute)
+	jobSetInformer := sharedInformers.Jobset().V1alpha2().JobSets()
+	ttlAfterFinishedController := controllers.NewTTLAfterFinishedReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		jobSetInformer,
+		ctrl.Log.WithValues("controller", "TTLAfterFinished"),
+	)
+	if err := ttlAfterFinishedController.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TTLAfterFinished")
+		os.Exit(1)
+	}
+
+	go ttlAfterFinishedController.Run(ctx, 1)
 
 	// Set up JobSet validating/defaulting webhook.
 	if err := (&jobset.JobSet{}).SetupWebhookWithManager(mgr); err != nil {

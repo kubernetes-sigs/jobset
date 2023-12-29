@@ -21,6 +21,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"sigs.k8s.io/jobset/client-go/clientset/versioned"
+	"sigs.k8s.io/jobset/client-go/informers/externalversions"
+
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -102,6 +105,21 @@ var _ = BeforeSuite(func() {
 
 	err = podReconciler.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
+
+	clientset := versioned.NewForConfigOrDie(k8sManager.GetConfig())
+	sharedInformers := externalversions.NewSharedInformerFactory(clientset, 0)
+	jobSetInformer := sharedInformers.Jobset().V1alpha2().JobSets()
+	ttlAfterFinishedController := controllers.NewTTLAfterFinishedReconciler(
+		k8sManager.GetClient(),
+		k8sManager.GetScheme(),
+		jobSetInformer,
+		ctrl.Log.WithValues("controller", "TTLAfterFinished"),
+	)
+	Expect(ttlAfterFinishedController.SetupWithManager(k8sManager)).To(Succeed())
+
+	sharedInformers.Start(ctx.Done())
+	go ttlAfterFinishedController.Run(ctx, 1)
+	sharedInformers.WaitForCacheSync(ctx.Done())
 
 	go func() {
 		defer GinkgoRecover()
