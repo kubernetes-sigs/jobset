@@ -67,7 +67,7 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref common.ReferenceCallbac
 						},
 					},
 				},
-				Required: []string{"rules", "maxRestarts"},
+				Required: []string{"maxRestarts"},
 			},
 		},
 		Dependencies: []string{

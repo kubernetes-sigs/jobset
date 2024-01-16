@@ -125,6 +125,17 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 	}
 
 	// Validate failure policy.
+	if js.Spec.FailurePolicy != nil {
+		seenReasons := make(map[string]bool)
+		for _, rule := range js.Spec.FailurePolicy.Rules {
+			for _, reason := range rule.OnJobFailureReasons {
+				if _, exists := seenReasons[reason]; exists {
+					allErrs = append(allErrs, fmt.Errorf("reason %s can only be associated with one failure policy rule", reason))
+				}
+				seenReasons[reason] = true
+			}
+		}
+	}
 	return nil, errors.Join(allErrs...)
 }
 

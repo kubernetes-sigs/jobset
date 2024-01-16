@@ -52,13 +52,12 @@ spec:
                   in the set finished with status failed.
                 properties:
                   maxRestarts:
+                    description: MaxRestarts defines the maximum number of times the
+                      JobSet can be restarted before failing.
                     format: int32
                     type: integer
                   rules:
-                    description: 'Evaluated in order on each failure. Only the first
-                      matched rule will be exeucted, the rest are ignored. If no rule
-                      matched, then the default behavior is executed: restart all
-                      child jobs and count the failure against maxRestarts.'
+                    description: List of failure policy rules for this JobSet.
                     items:
                       description: FailurePolicyRule defines a FailurePolicyAction
                         to be executed if a child job fails due to a reason listed
@@ -70,7 +69,8 @@ spec:
                         onJobFailureReasons:
                           description: The requirement on the job failure reasons.
                             The requirement is satisfied if at least one reason matches
-                            the list.
+                            the list. Each unique failure reason can only be associated
+                            with one FailurePolicyRule.
                           items:
                             type: string
                           type: array

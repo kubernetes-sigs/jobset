@@ -335,5 +335,46 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: true,
 		}),
+		ginkgo.Entry("FailurePolicy should be immutable", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					EnableDNSHostnames(true).
+					FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 3}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.FailurePolicy = &jobset.FailurePolicy{MaxRestarts: 21}
+			},
+			updateShouldFail: true,
+		}),
+		ginkgo.Entry("each failure reason must be associated with only one failure rule", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-failure-reason-duplicated", ns.Name).
+					EnableDNSHostnames(true).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 3,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								OnJobFailureReasons: []string{"reason1", "reason2"},
+								Action:              jobset.FailJobSet,
+							},
+							{
+								OnJobFailureReasons: []string{"reason2"},
+								Action:              jobset.Ignore,
+							},
+						},
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
 	) // end of DescribeTable
 }) // end of Describe

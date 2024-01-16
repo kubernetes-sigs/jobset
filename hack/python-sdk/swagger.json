@@ -10,7 +10,6 @@
     "jobset.v1alpha2.FailurePolicy": {
       "type": "object",
       "required": [
-        "rules",
         "maxRestarts"
       ],
       "properties": {

@@ -53,7 +53,8 @@ class JobsetV1alpha2FailurePolicy(object):
         self.discriminator = None
 
         self.max_restarts = max_restarts
-        self.rules = rules
+        if rules is not None:
+            self.rules = rules
 
     @property
     def max_restarts(self):
@@ -98,8 +99,6 @@ class JobsetV1alpha2FailurePolicy(object):
         :param rules: The rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
         :type: list[JobsetV1alpha2FailurePolicyRule]
         """
-        if self.local_vars_configuration.client_side_validation and rules is None:  # noqa: E501
-            raise ValueError("Invalid value for `rules`, must not be `None`")  # noqa: E501
 
         self._rules = rules
 
