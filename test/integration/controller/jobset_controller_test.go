@@ -670,7 +670,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("failure policy rule: ignore (jobset succeeds after recreate)", &testCase{
+		ginkgo.Entry("failure policy rule: Ignore (jobset recreated despite max restarts=0)", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).FailurePolicy(
 					&jobset.FailurePolicy{
@@ -684,23 +684,107 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					})
 			},
 			updates: []*update{
-				// Fail a job to trigger failure policy.
+				// Fail a job with a matching reason to trigger failure policy.
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJobWithReason(&jobList.Items[0], JobConditionReasonPodFailurePolicy)
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
-						ginkgo.By("checking all jobs are recreated")
-						checkForEvent(js, corev1.EventTypeNormal, "RestartingJobSet")
+						ginkgo.By("checking failure policy was triggered")
+						checkForEvent(js, corev1.EventTypeNormal, controllers.IgnoreEventType)
 					},
 				},
-				// Ensure remaining active jobs are deleted.
+				// Ensure jobs are recreated.
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking jobs were recreated after deletion")
 						var jobList batchv1.JobList
 						gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
 						gomega.Expect(len(jobList.Items)).To(gomega.Equal(testutil.NumExpectedJobs(js)))
 					},
+				},
+			},
+		}),
+		ginkgo.Entry("failure policy rule: FailJobSet", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).FailurePolicy(
+					&jobset.FailurePolicy{
+						MaxRestarts: 0,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{JobConditionReasonPodFailurePolicy},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				// Fail a job with a matching reason to trigger failure policy rule, and ensure jobset is failed.
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithReason(&jobList.Items[0], JobConditionReasonPodFailurePolicy)
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+			},
+		}),
+		ginkgo.Entry("failure policy rule: FailJob", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).FailurePolicy(
+					&jobset.FailurePolicy{
+						MaxRestarts: 0,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.FailJob,
+								OnJobFailureReasons: []string{JobConditionReasonPodFailurePolicy},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				// Fail a job with a matching reason to trigger failure policy rule, and ensure JobSet stays active.
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithReason(&jobList.Items[0], JobConditionReasonPodFailurePolicy)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking failure policy was triggered")
+						checkForEvent(js, corev1.EventTypeNormal, controllers.FailJobEventType)
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+			},
+		}),
+		ginkgo.Entry("failure policy rule: RestartJob", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).FailurePolicy(
+					&jobset.FailurePolicy{
+						MaxRestarts: 0,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJob,
+								OnJobFailureReasons: []string{JobConditionReasonPodFailurePolicy},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				// Fail a job with a matching reason to trigger failure policy rule.
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithReason(&jobList.Items[0], JobConditionReasonPodFailurePolicy)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking failure policy was triggered")
+						// Ensure correct failure policy rule was triggered and all jobs are active.
+						checkForEvent(js, corev1.EventTypeNormal, controllers.RestartJobEventType)
+
+						ginkgo.By("checking job was recreated after deletion by checking all jobs are eventually active again")
+						var jobList batchv1.JobList
+						gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
+						gomega.Expect(testutil.NumActiveJobs(ctx, k8sClient, js)).To(gomega.Equal(testutil.NumExpectedJobs(js)))
+					},
+					checkJobSetCondition: testutil.JobSetActive,
 				},
 			},
 		}),
@@ -931,25 +1015,12 @@ func checkNoActiveJobs(js *jobset.JobSet, numFinishedJobs int) {
 			return false, err
 		}
 		for _, job := range jobList.Items {
-			if jobActive(&job) {
+			if testutil.JobActive(&job) {
 				return false, nil
 			}
 		}
 		return len(jobList.Items) == numFinishedJobs, nil
 	}, timeout, interval).Should(gomega.Equal(true))
-}
-
-func jobActive(job *batchv1.Job) bool {
-	if len(job.Status.Conditions) == 0 {
-		return true
-	}
-	active := true
-	for _, c := range job.Status.Conditions {
-		if (c.Type == batchv1.JobComplete || c.Type == batchv1.JobFailed) && c.Status == corev1.ConditionTrue {
-			active = false
-		}
-	}
-	return active
 }
 
 func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.ReplicatedJobStatus) {

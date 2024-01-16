@@ -51,6 +51,33 @@ func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (i
 	return len(jobList.Items), nil
 }
 
+func NumActiveJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (int, error) {
+	var jobList batchv1.JobList
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+		return -1, err
+	}
+	active := 0
+	for _, job := range jobList.Items {
+		if JobActive(&job) {
+			active += 1
+		}
+	}
+	return active, nil
+}
+
+func JobActive(job *batchv1.Job) bool {
+	if len(job.Status.Conditions) == 0 {
+		return true
+	}
+	active := true
+	for _, c := range job.Status.Conditions {
+		if (c.Type == batchv1.JobComplete || c.Type == batchv1.JobFailed) && c.Status == corev1.ConditionTrue {
+			active = false
+		}
+	}
+	return active
+}
+
 func JobSetCompleted(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
 	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", jobset.JobSetCompleted))
 	conditions := []metav1.Condition{

@@ -43,6 +43,11 @@ import (
 const (
 	RestartsKey    string = "jobset.sigs.k8s.io/restart-attempt"
 	maxParallelism int    = 50
+
+	FailJobEventType    = "FailJob"
+	IgnoreEventType     = "IgnoringFailedJob"
+	FailJobSetEventType = "FailJobSet"
+	RestartJobEventType = "RestartJob"
 )
 
 var (
@@ -486,19 +491,19 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 			switch rule.Action {
 			case jobset.FailJob:
 				// Take no action, thus ensuring this job remains in a failed state.
-				r.Record.Eventf(js, corev1.EventTypeNormal, "JobFailed", fmt.Sprintf("job failure reason matched failure policy rule with action: %q", jobset.FailJob))
+				r.Record.Eventf(js, corev1.EventTypeNormal, FailJobEventType, fmt.Sprintf("job failure reason matched failure policy rule with action: %q", jobset.FailJob))
 				continue
 			case jobset.FailJobSet:
 				return r.failJobSet(ctx, js)
 			case jobset.Ignore:
 				// To recreate JobSet and not count failure against maxRestarts, we simply
 				// delete all the failed jobs and allow the reconciliation process to recreate them.
-				r.Record.Eventf(js, corev1.EventTypeNormal, "RestartingJobSet", fmt.Sprintf("job failure reason matched failure policy rule with action: %q", jobset.Ignore))
+				r.Record.Eventf(js, corev1.EventTypeNormal, IgnoreEventType, fmt.Sprintf("job failure reason matched failure policy rule with action: %q", jobset.Ignore))
 				return r.deleteJobs(ctx, ownedJobs.failed)
 			case jobset.RestartJob:
 				// To restart onlythe target failed job, we simply delete it and allow the
 				// next reconciliation loop to recreate it.
-				r.Record.Eventf(js, corev1.EventTypeNormal, "RestartingJob", fmt.Sprintf("job failure reason matched failure policy rule with action: %q", jobset.RestartJob))
+				r.Record.Eventf(js, corev1.EventTypeNormal, RestartJobEventType, fmt.Sprintf("job failure reason matched failure policy rule with action: %q", jobset.RestartJob))
 				return r.deleteJobs(ctx, []*batchv1.Job{job})
 			}
 		}
