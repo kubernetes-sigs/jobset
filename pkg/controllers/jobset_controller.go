@@ -44,6 +44,7 @@ const (
 	RestartsKey    string = "jobset.sigs.k8s.io/restart-attempt"
 	maxParallelism int    = 50
 
+	// Event types broadcasted when a failure policy action is being excecuted.
 	FailJobEventType    = "FailJob"
 	IgnoreEventType     = "IgnoringFailedJob"
 	FailJobSetEventType = "FailJobSet"
@@ -482,12 +483,12 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 	}
 
 	// Map each unique job failure reason to the rule which should be executed for it.
-	ruleForFailureReasonMap := constructFailureReasonMap(js)
+	failureReasonToRuleMap := constructFailureReasonToRuleMap(js)
 
 	// For each failed job, we check if a failure policy rule exists for the failure reason.
 	// If so, we perform the action specified in that rule and return.
 	for _, job := range ownedJobs.failed {
-		if rule := matchingFailurePolicyRule(job, ruleForFailureReasonMap); rule != nil {
+		if rule := matchingFailurePolicyRule(job, failureReasonToRuleMap); rule != nil {
 			switch rule.Action {
 			case jobset.FailJob:
 				// Take no action, thus ensuring this job remains in a failed state.
@@ -511,17 +512,20 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 		// behavior of recreating the entire JobSet, and counting the failure against maxRestarts.
 		return r.restartPolicyRecreateAll(ctx, js, ownedJobs)
 	}
+
+	// We can only reach this point if every failed job matched a rule with an "Ignore" action,
+	// in which case we simply do nothing.
 	return nil
 }
 
 // matchingFailurePolicyRule returns a failure policy rule for the failure reason of the given job,
 // if one exists. Otherwise, it returns nil.
-func matchingFailurePolicyRule(job *batchv1.Job, reasonToRuleMap map[string]*jobset.FailurePolicyRule) *jobset.FailurePolicyRule {
+func matchingFailurePolicyRule(job *batchv1.Job, failureReasonToRuleMap map[string]*jobset.FailurePolicyRule) *jobset.FailurePolicyRule {
 	// Find the job failure condition.
 	for _, cond := range job.Status.Conditions {
 		if cond.Type == batchv1.JobFailed && cond.Status == corev1.ConditionTrue {
 			// If a rule exists for this failure reason, return it.
-			if rule, exists := reasonToRuleMap[cond.Reason]; exists {
+			if rule, exists := failureReasonToRuleMap[cond.Reason]; exists {
 				return rule
 			}
 		}
@@ -533,8 +537,7 @@ func matchingFailurePolicyRule(job *batchv1.Job, reasonToRuleMap map[string]*job
 func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// If this failure should not be ignored, and JobSet has reached max number of restarts,
-	// mark the JobSet as failed and return.
+	// If JobSet has reached max number of restarts, mark the JobSet as failed and return.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
 		return r.ensureCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
@@ -544,12 +547,9 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 		})
 	}
 
-	// Increment JobSet restarts, unless a matching failure policy rule is configured to ignore
-	// this failure.
-	// If incremented, this will trigger reconciliation and result in deletions of old jobs
-	// not part of the current jobSet run.
+	// Increment JobSet restarts. This status update will trigger reconciliation and
+	// result in deletions of old jobs not part of the current jobSet run.
 	js.Status.Restarts += 1
-
 	if err := r.updateStatus(ctx, js, corev1.EventTypeWarning, "Restarting", fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts)); err != nil {
 		return err
 	}
@@ -822,10 +822,8 @@ func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 	return total
 }
 
-// We validate each unique job failure reason is only associated with one
-// failure policy rule, so that a given job failure reason cannot have 2+
-// possible actions associated with it.
-func constructFailureReasonMap(js *jobset.JobSet) map[string]*jobset.FailurePolicyRule {
+// constructFailureReasonToRuleMap
+func constructFailureReasonToRuleMap(js *jobset.JobSet) map[string]*jobset.FailurePolicyRule {
 	m := make(map[string]*jobset.FailurePolicyRule)
 	for _, rule := range js.Spec.FailurePolicy.Rules {
 		for _, reason := range rule.OnJobFailureReasons {

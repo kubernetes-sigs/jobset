@@ -51,7 +51,6 @@ func (js *JobSet) Default() {
 	if js.Spec.SuccessPolicy == nil {
 		js.Spec.SuccessPolicy = &SuccessPolicy{Operator: OperatorAll}
 	}
-
 	for i := range js.Spec.ReplicatedJobs {
 		// Default job completion mode to indexed.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
@@ -124,7 +123,8 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 		}
 	}
 
-	// Validate failure policy.
+	// Validate failure policy. Each unique job failure reason can only be
+	// associated with one failure policy rule.
 	if js.Spec.FailurePolicy != nil {
 		seenReasons := make(map[string]bool)
 		for _, rule := range js.Spec.FailurePolicy.Rules {
