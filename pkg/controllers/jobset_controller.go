@@ -467,26 +467,69 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 }
 
 func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	// If no failure policy is defined, the default failure policy is to mark the JobSet
 	// as failed if any of its jobs have failed.
 	if js.Spec.FailurePolicy == nil {
+		log.Info("no failure policy, failing JobSet")
 		return r.failJobSet(ctx, js)
 	}
-	// To reach this point a job must have failed.
-	return r.executeRestartPolicy(ctx, js, ownedJobs)
-}
 
-func (r *JobSetReconciler) executeRestartPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	if js.Spec.FailurePolicy.MaxRestarts == 0 {
-		return r.failJobSet(ctx, js)
+	// Map each unique job failure reason to the rule which should be executed for it.
+	ruleForFailureReasonMap := constructFailureReasonMap(js)
+
+	// For each failed job, we check if a failure policy rule exists for the failure reason.
+	// If so, we perform the action specified in that rule and return.
+	for _, job := range ownedJobs.failed {
+		if rule := matchingFailurePolicyRule(job, ruleForFailureReasonMap); rule != nil {
+			switch rule.Action {
+			case jobset.FailJob:
+				// Take no action, thus ensuring this job remains in a failed state.
+				r.Record.Eventf(js, corev1.EventTypeNormal, "JobFailed", fmt.Sprintf("job failure reason matched failure policy rule with action: %q", jobset.FailJob))
+				continue
+			case jobset.FailJobSet:
+				return r.failJobSet(ctx, js)
+			case jobset.Ignore:
+				// To recreate JobSet and not count failure against maxRestarts, we simply
+				// delete all the failed jobs and allow the reconciliation process to recreate them.
+				r.Record.Eventf(js, corev1.EventTypeNormal, "RestartingJobSet", fmt.Sprintf("job failure reason matched failure policy rule with action: %q", jobset.Ignore))
+				return r.deleteJobs(ctx, ownedJobs.failed)
+			case jobset.RestartJob:
+				// To restart onlythe target failed job, we simply delete it and allow the
+				// next reconciliation loop to recreate it.
+				r.Record.Eventf(js, corev1.EventTypeNormal, "RestartingJob", fmt.Sprintf("job failure reason matched failure policy rule with action: %q", jobset.RestartJob))
+				return r.deleteJobs(ctx, []*batchv1.Job{job})
+			}
+		}
+		// Otherwise, if there are no matching rules for this failed job, fall back to default
+		// behavior of recreating the entire JobSet, and counting the failure against maxRestarts.
+		return r.restartPolicyRecreateAll(ctx, js, ownedJobs)
 	}
-	return r.restartPolicyRecreateAll(ctx, js, ownedJobs)
+	return nil
 }
 
+// matchingFailurePolicyRule returns a failure policy rule for the failure reason of the given job,
+// if one exists. Otherwise, it returns nil.
+func matchingFailurePolicyRule(job *batchv1.Job, reasonToRuleMap map[string]*jobset.FailurePolicyRule) *jobset.FailurePolicyRule {
+	// Find the job failure condition.
+	for _, cond := range job.Status.Conditions {
+		if cond.Type == batchv1.JobFailed && cond.Status == corev1.ConditionTrue {
+			// If a rule exists for this failure reason, return it.
+			if rule, exists := reasonToRuleMap[cond.Reason]; exists {
+				return rule
+			}
+		}
+	}
+	return nil
+}
+
+// restartPolicyRecreateAll will increment the
 func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// If JobSet has reached max number of restarts, mark it as failed and return.
+	// If this failure should not be ignored, and JobSet has reached max number of restarts,
+	// mark the JobSet as failed and return.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
 		return r.ensureCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
@@ -496,9 +539,12 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 		})
 	}
 
-	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
-	// of old jobs not part of the current jobSet run.
+	// Increment JobSet restarts, unless a matching failure policy rule is configured to ignore
+	// this failure.
+	// If incremented, this will trigger reconciliation and result in deletions of old jobs
+	// not part of the current jobSet run.
 	js.Status.Restarts += 1
+
 	if err := r.updateStatus(ctx, js, corev1.EventTypeWarning, "Restarting", fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts)); err != nil {
 		return err
 	}
@@ -769,4 +815,17 @@ func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 		}
 	}
 	return total
+}
+
+// We validate each unique job failure reason is only associated with one
+// failure policy rule, so that a given job failure reason cannot have 2+
+// possible actions associated with it.
+func constructFailureReasonMap(js *jobset.JobSet) map[string]*jobset.FailurePolicyRule {
+	m := make(map[string]*jobset.FailurePolicyRule)
+	for _, rule := range js.Spec.FailurePolicy.Rules {
+		for _, reason := range rule.OnJobFailureReasons {
+			m[reason] = &rule
+		}
+	}
+	return m
 }

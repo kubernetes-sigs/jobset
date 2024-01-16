@@ -52,11 +52,35 @@ spec:
                   in the set finished with status failed.
                 properties:
                   maxRestarts:
-                    description: MaxRestarts defines the limit on the number of JobSet
-                      restarts. A restart is achieved by recreating all active child
-                      jobs.
                     format: int32
                     type: integer
+                  rules:
+                    description: 'Evaluated in order on each failure. Only the first
+                      matched rule will be exeucted, the rest are ignored. If no rule
+                      matched, then the default behavior is executed: restart all
+                      child jobs and count the failure against maxRestarts.'
+                    items:
+                      description: FailurePolicyRule defines a FailurePolicyAction
+                        to be executed if a child job fails due to a reason listed
+                        in OnJobFailureReasons.
+                      properties:
+                        action:
+                          description: The action to take if the rule is matched.
+                          type: string
+                        onJobFailureReasons:
+                          description: The requirement on the job failure reasons.
+                            The requirement is satisfied if at least one reason matches
+                            the list.
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - action
+                      - onJobFailureReasons
+                      type: object
+                    type: array
+                required:
+                - maxRestarts
                 type: object
                 x-kubernetes-validations:
                 - message: Value is immutable

@@ -167,10 +167,41 @@ const (
 	OperatorAny Operator = "Any"
 )
 
+// FailurePolicyAction defines
+type FailurePolicyAction string
+
+const (
+	// Fail JobSet regardless of maxRestart.
+	FailJobSet FailurePolicyAction = "FailJobSet"
+
+	// Don't count the failure against maxRestarts.
+	Ignore FailurePolicyAction = "Ignore"
+
+	// The failed child job is permanently failed and should not be
+	// restarted, active child jobs will continue to run to completion.
+	FailJob FailurePolicyAction = "FailJob"
+
+	// Restart the failed child job only.
+	RestartJob FailurePolicyAction = "RestartJob"
+)
+
+// FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
+// fails due to a reason listed in OnJobFailureReasons.
+type FailurePolicyRule struct {
+	// The action to take if the rule is matched.
+	Action FailurePolicyAction `json:"action"`
+	// The requirement on the job failure reasons. The requirement
+	// is satisfied if at least one reason matches the list.
+	OnJobFailureReasons []string `json:"onJobFailureReasons"`
+}
+
 type FailurePolicy struct {
-	// MaxRestarts defines the limit on the number of JobSet restarts.
-	// A restart is achieved by recreating all active child jobs.
-	MaxRestarts int32 `json:"maxRestarts,omitempty"`
+	// Evaluated in order on each failure. Only the first matched
+	// rule will be exeucted, the rest are ignored. If no rule
+	// matched, then the default behavior is executed: restart all
+	// child jobs and count the failure against maxRestarts.
+	Rules       []FailurePolicyRule `json:"rules,omitempty"`
+	MaxRestarts int32               `json:"maxRestarts"`
 }
 
 type SuccessPolicy struct {

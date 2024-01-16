@@ -27,6 +27,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 	// Group=jobset.x-k8s.io, Version=v1alpha2
 	case v1alpha2.SchemeGroupVersion.WithKind("FailurePolicy"):
 		return &jobsetv1alpha2.FailurePolicyApplyConfiguration{}
+	case v1alpha2.SchemeGroupVersion.WithKind("FailurePolicyRule"):
+		return &jobsetv1alpha2.FailurePolicyRuleApplyConfiguration{}
 	case v1alpha2.SchemeGroupVersion.WithKind("JobSet"):
 		return &jobsetv1alpha2.JobSetApplyConfiguration{}
 	case v1alpha2.SchemeGroupVersion.WithKind("JobSetSpec"):

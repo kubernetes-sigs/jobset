@@ -41,6 +41,10 @@ import (
 const (
 	timeout  = 5 * time.Second
 	interval = time.Millisecond * 250
+	// The JobConditionReasonPodFailurePolicy constant is defined here
+	// since the constant is not exported as part of Job API and thus
+	// cannot be referenced directly, so we have to redefine it here for now.
+	JobConditionReasonPodFailurePolicy = "PodFailurePolicy"
 )
 
 var _ = ginkgo.Describe("JobSet validation", func() {
@@ -666,6 +670,40 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("failure policy rule: ignore (jobset succeeds after recreate)", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).FailurePolicy(
+					&jobset.FailurePolicy{
+						MaxRestarts: 0,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.Ignore,
+								OnJobFailureReasons: []string{JobConditionReasonPodFailurePolicy},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				// Fail a job to trigger failure policy.
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithReason(&jobList.Items[0], JobConditionReasonPodFailurePolicy)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are recreated")
+						checkForEvent(js, corev1.EventTypeNormal, "RestartingJobSet")
+					},
+				},
+				// Ensure remaining active jobs are deleted.
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						var jobList batchv1.JobList
+						gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
+						gomega.Expect(len(jobList.Items)).To(gomega.Equal(testutil.NumExpectedJobs(js)))
+					},
+				},
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe
 
@@ -769,6 +807,16 @@ func failJob(job *batchv1.Job) {
 		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
 			Type:   batchv1.JobFailed,
 			Status: corev1.ConditionTrue,
+		}),
+	})
+}
+
+func failJobWithReason(job *batchv1.Job, reason string) {
+	updateJobStatus(job, batchv1.JobStatus{
+		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
+			Type:   batchv1.JobFailed,
+			Status: corev1.ConditionTrue,
+			Reason: reason,
 		}),
 	})
 }
@@ -918,6 +966,22 @@ func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.Repl
 		sort.Slice(newJs.Status.ReplicatedJobsStatus, compareNames)
 		return newJs.Status.ReplicatedJobsStatus, nil
 	}, timeout, interval).Should(gomega.BeComparableTo(expectedStatus))
+}
+
+func checkForEvent(js *jobset.JobSet, eventType string, reason string) {
+	ginkgo.By(fmt.Sprintf("checking for eventType: %s, reason: %s", eventType, reason))
+	gomega.Eventually(func() (bool, error) {
+		var eventList corev1.EventList
+		if err := k8sClient.List(ctx, &eventList, client.InNamespace(js.Namespace)); err != nil {
+			return false, err
+		}
+		for _, event := range eventList.Items {
+			if event.Type == eventType && event.Reason == reason {
+				return true, nil
+			}
+		}
+		return false, nil
+	}, timeout, interval).Should(gomega.Equal(true))
 }
 
 // 2 replicated jobs:

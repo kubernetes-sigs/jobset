@@ -51,6 +51,7 @@ func (js *JobSet) Default() {
 	if js.Spec.SuccessPolicy == nil {
 		js.Spec.SuccessPolicy = &SuccessPolicy{Operator: OperatorAll}
 	}
+
 	for i := range js.Spec.ReplicatedJobs {
 		// Default job completion mode to indexed.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
@@ -99,6 +100,7 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 		}
 	}
 
+	// Validate replicated job configurations.
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		var parallelism int32 = 1
 		if rjob.Template.Spec.Parallelism != nil {
@@ -114,11 +116,15 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 			allErrs = append(allErrs, fmt.Errorf(errMessage))
 		}
 	}
+
+	// Validate success policy.
 	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
 		if !collections.Contains(validReplicatedJobs, rjobName) {
 			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
 		}
 	}
+
+	// Validate failure policy.
 	return nil, errors.Join(allErrs...)
 }
 

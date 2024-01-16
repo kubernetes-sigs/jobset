@@ -9,11 +9,46 @@
   "definitions": {
     "jobset.v1alpha2.FailurePolicy": {
       "type": "object",
+      "required": [
+        "rules",
+        "maxRestarts"
+      ],
       "properties": {
         "maxRestarts": {
-          "description": "MaxRestarts defines the limit on the number of JobSet restarts. A restart is achieved by recreating all active child jobs.",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "default": 0
+        },
+        "rules": {
+          "description": "Evaluated in order on each failure. Only the first matched rule will be exeucted, the rest are ignored. If no rule matched, then the default behavior is executed: restart all child jobs and count the failure against maxRestarts.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/jobset.v1alpha2.FailurePolicyRule"
+          }
+        }
+      }
+    },
+    "jobset.v1alpha2.FailurePolicyRule": {
+      "description": "FailurePolicyRule defines a FailurePolicyAction to be executed if a child job fails due to a reason listed in OnJobFailureReasons.",
+      "type": "object",
+      "required": [
+        "action",
+        "onJobFailureReasons"
+      ],
+      "properties": {
+        "action": {
+          "description": "The action to take if the rule is matched.",
+          "type": "string",
+          "default": ""
+        },
+        "onJobFailureReasons": {
+          "description": "The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          }
         }
       }
     },

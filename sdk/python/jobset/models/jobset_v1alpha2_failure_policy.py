@@ -33,30 +33,32 @@ class JobsetV1alpha2FailurePolicy(object):
                             and the value is json key in definition.
     """
     openapi_types = {
-        'max_restarts': 'int'
+        'max_restarts': 'int',
+        'rules': 'list[JobsetV1alpha2FailurePolicyRule]'
     }
 
     attribute_map = {
-        'max_restarts': 'maxRestarts'
+        'max_restarts': 'maxRestarts',
+        'rules': 'rules'
     }
 
-    def __init__(self, max_restarts=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, max_restarts=0, rules=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2FailurePolicy - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._max_restarts = None
+        self._rules = None
         self.discriminator = None
 
-        if max_restarts is not None:
-            self.max_restarts = max_restarts
+        self.max_restarts = max_restarts
+        self.rules = rules
 
     @property
     def max_restarts(self):
         """Gets the max_restarts of this JobsetV1alpha2FailurePolicy.  # noqa: E501
 
-        MaxRestarts defines the limit on the number of JobSet restarts. A restart is achieved by recreating all active child jobs.  # noqa: E501
 
         :return: The max_restarts of this JobsetV1alpha2FailurePolicy.  # noqa: E501
         :rtype: int
@@ -67,13 +69,39 @@ class JobsetV1alpha2FailurePolicy(object):
     def max_restarts(self, max_restarts):
         """Sets the max_restarts of this JobsetV1alpha2FailurePolicy.
 
-        MaxRestarts defines the limit on the number of JobSet restarts. A restart is achieved by recreating all active child jobs.  # noqa: E501
 
         :param max_restarts: The max_restarts of this JobsetV1alpha2FailurePolicy.  # noqa: E501
         :type: int
         """
+        if self.local_vars_configuration.client_side_validation and max_restarts is None:  # noqa: E501
+            raise ValueError("Invalid value for `max_restarts`, must not be `None`")  # noqa: E501
 
         self._max_restarts = max_restarts
+
+    @property
+    def rules(self):
+        """Gets the rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
+
+        Evaluated in order on each failure. Only the first matched rule will be exeucted, the rest are ignored. If no rule matched, then the default behavior is executed: restart all child jobs and count the failure against maxRestarts.  # noqa: E501
+
+        :return: The rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
+        :rtype: list[JobsetV1alpha2FailurePolicyRule]
+        """
+        return self._rules
+
+    @rules.setter
+    def rules(self, rules):
+        """Sets the rules of this JobsetV1alpha2FailurePolicy.
+
+        Evaluated in order on each failure. Only the first matched rule will be exeucted, the rest are ignored. If no rule matched, then the default behavior is executed: restart all child jobs and count the failure against maxRestarts.  # noqa: E501
+
+        :param rules: The rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
+        :type: list[JobsetV1alpha2FailurePolicyRule]
+        """
+        if self.local_vars_configuration.client_side_validation and rules is None:  # noqa: E501
+            raise ValueError("Invalid value for `rules`, must not be `None`")  # noqa: E501
+
+        self._rules = rules
 
     def to_dict(self):
         """Returns the model properties as a dict"""
