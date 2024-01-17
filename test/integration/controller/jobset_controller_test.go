@@ -788,6 +788,73 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("failure policy rule with matching failure reason but not matching target replicated jobs", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).FailurePolicy(
+					&jobset.FailurePolicy{
+						MaxRestarts: 3,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:               jobset.FailJobSet,
+								OnJobFailureReasons:  []string{JobConditionReasonPodFailurePolicy},
+								TargetReplicatedJobs: []string{"replicated-job-b"},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						// Find a job from replicated-job-a to fail.
+						for _, job := range jobList.Items {
+							if job.Annotations[jobset.ReplicatedJobNameKey] == "replicated-job-a" {
+								failJobWithReason(&jobList.Items[0], JobConditionReasonPodFailurePolicy)
+								break
+							}
+						}
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						// Ensure the failure policy rule was not triggered.
+						ginkgo.By("checking failure policy was not triggered")
+						checkEventNotEmitted(js, corev1.EventTypeNormal, controllers.RestartJobEventType)
+
+						// Ensure we fall back to default behavior of recreating all jobs.
+						gomega.Eventually(checkJobsRecreated, timeout, interval).WithArguments(js, 1).Should(gomega.Equal(true))
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+			},
+		}),
+		ginkgo.Entry("failure policy rule with matching failure reason, and matches target replicated jobs", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).FailurePolicy(
+					&jobset.FailurePolicy{
+						MaxRestarts: 3,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:               jobset.FailJobSet,
+								OnJobFailureReasons:  []string{JobConditionReasonPodFailurePolicy},
+								TargetReplicatedJobs: []string{"replicated-job-b"},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				// Fail a job with a matching reason to trigger failure policy rule.
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						// Find a job from replicated-job-b to fail.
+						for _, job := range jobList.Items {
+							if job.Annotations[jobset.ReplicatedJobNameKey] == "replicated-job-b" {
+								failJobWithReason(&job, JobConditionReasonPodFailurePolicy)
+								break
+							}
+						}
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe
 
@@ -1052,6 +1119,22 @@ func checkForEvent(js *jobset.JobSet, eventType string, reason string) {
 			}
 		}
 		return false, nil
+	}, timeout, interval).Should(gomega.Equal(true))
+}
+
+func checkEventNotEmitted(js *jobset.JobSet, eventType string, reason string) {
+	ginkgo.By(fmt.Sprintf("checking event was not emitted - eventType: %s, reason: %s", eventType, reason))
+	gomega.Eventually(func() (bool, error) {
+		var eventList corev1.EventList
+		if err := k8sClient.List(ctx, &eventList, client.InNamespace(js.Namespace)); err != nil {
+			return false, err
+		}
+		for _, event := range eventList.Items {
+			if event.Type == eventType && event.Reason == reason {
+				return false, nil
+			}
+		}
+		return true, nil
 	}, timeout, interval).Should(gomega.Equal(true))
 }
 

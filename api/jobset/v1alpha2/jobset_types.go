@@ -195,6 +195,11 @@ type FailurePolicyRule struct {
 	// is satisfied if at least one reason matches the list.
 	// Each unique failure reason can only be associated with one FailurePolicyRule.
 	OnJobFailureReasons []string `json:"onJobFailureReasons"`
+	// TargetReplicatedJobs are the names of the replicated jobs the operator will apply to.
+	// A null or empty list will apply to all replicatedJobs.
+	// +optional
+	// +listType=atomic
+	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
 }
 
 type FailurePolicy struct {

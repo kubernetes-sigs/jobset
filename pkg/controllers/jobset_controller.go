@@ -522,11 +522,15 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 // if one exists. Otherwise, it returns nil.
 func matchingFailurePolicyRule(job *batchv1.Job, failureReasonToRuleMap map[string]*jobset.FailurePolicyRule) *jobset.FailurePolicyRule {
 	// Find the job failure condition.
+	replicatedJob := job.Annotations[jobset.ReplicatedJobNameKey]
 	for _, cond := range job.Status.Conditions {
 		if cond.Type == batchv1.JobFailed && cond.Status == corev1.ConditionTrue {
-			// If a rule exists for this failure reason, return it.
+			// If a rule exists for this failure reason and target replicated job, return it.
 			if rule, exists := failureReasonToRuleMap[cond.Reason]; exists {
-				return rule
+				matchesReplicatedJob := len(rule.TargetReplicatedJobs) == 0 || collections.Contains(rule.TargetReplicatedJobs, replicatedJob)
+				if matchesReplicatedJob {
+					return rule
+				}
 			}
 		}
 	}
