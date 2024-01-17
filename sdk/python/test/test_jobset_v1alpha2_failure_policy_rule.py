@@ -41,6 +41,9 @@ class TestJobsetV1alpha2FailurePolicyRule(unittest.TestCase):
                 action = '0', 
                 on_job_failure_reasons = [
                     '0'
+                    ], 
+                target_replicated_jobs = [
+                    '0'
                     ]
             )
         else :

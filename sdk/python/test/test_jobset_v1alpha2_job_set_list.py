@@ -52,6 +52,9 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                         action = '0', 
                                         on_job_failure_reasons = [
                                             '0'
+                                            ], 
+                                        target_replicated_jobs = [
+                                            '0'
                                             ], )
                                     ], ), 
                             network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
@@ -64,10 +67,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     template = V1JobTemplateSpec(), )
                                 ], 
                             success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
-                                operator = '0', 
-                                target_replicated_jobs = [
-                                    '0'
-                                    ], ), 
+                                operator = '0', ), 
                             suspend = True, ), 
                         status = jobset.models.jobset_v1alpha2_job_set_status.JobsetV1alpha2JobSetStatus(
                             conditions = [
@@ -102,6 +102,9 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                         action = '0', 
                                         on_job_failure_reasons = [
                                             '0'
+                                            ], 
+                                        target_replicated_jobs = [
+                                            '0'
                                             ], )
                                     ], ), 
                             network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
@@ -114,10 +117,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     template = V1JobTemplateSpec(), )
                                 ], 
                             success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
-                                operator = '0', 
-                                target_replicated_jobs = [
-                                    '0'
-                                    ], ), 
+                                operator = '0', ), 
                             suspend = True, ), 
                         status = jobset.models.jobset_v1alpha2_job_set_status.JobsetV1alpha2JobSetStatus(
                             conditions = [

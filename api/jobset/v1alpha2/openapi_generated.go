@@ -47,7 +47,7 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref common.ReferenceCallbac
 				Properties: map[string]spec.Schema{
 					"rules": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Evaluated in order on each failure. Only the first matched rule will be exeucted, the rest are ignored. If no rule matched, then the default behavior is executed: restart all child jobs and count the failure against maxRestarts.",
+							Description: "List of failure policy rules for this JobSet.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -61,9 +61,10 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref common.ReferenceCallbac
 					},
 					"maxRestarts": {
 						SchemaProps: spec.SchemaProps{
-							Default: 0,
-							Type:    []string{"integer"},
-							Format:  "int32",
+							Description: "MaxRestarts defines the maximum number of times the JobSet can be restarted before failing.",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
 						},
 					},
 				},
@@ -92,7 +93,27 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref common.ReferenceCal
 					},
 					"onJobFailureReasons": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list.",
+							Description: "The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list. Each unique failure reason can only be associated with one FailurePolicyRule.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"targetReplicatedJobs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "TargetReplicatedJobs are the names of the replicated jobs the operator will apply to. A null or empty list will apply to all replicatedJobs.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{

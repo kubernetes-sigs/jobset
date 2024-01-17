@@ -21,8 +21,9 @@ import (
 // FailurePolicyRuleApplyConfiguration represents an declarative configuration of the FailurePolicyRule type for use
 // with apply.
 type FailurePolicyRuleApplyConfiguration struct {
-	Action              *v1alpha2.FailurePolicyAction `json:"action,omitempty"`
-	OnJobFailureReasons []string                      `json:"onJobFailureReasons,omitempty"`
+	Action               *v1alpha2.FailurePolicyAction `json:"action,omitempty"`
+	OnJobFailureReasons  []string                      `json:"onJobFailureReasons,omitempty"`
+	TargetReplicatedJobs []string                      `json:"targetReplicatedJobs,omitempty"`
 }
 
 // FailurePolicyRuleApplyConfiguration constructs an declarative configuration of the FailurePolicyRule type for use with
@@ -45,6 +46,16 @@ func (b *FailurePolicyRuleApplyConfiguration) WithAction(value v1alpha2.FailureP
 func (b *FailurePolicyRuleApplyConfiguration) WithOnJobFailureReasons(values ...string) *FailurePolicyRuleApplyConfiguration {
 	for i := range values {
 		b.OnJobFailureReasons = append(b.OnJobFailureReasons, values[i])
+	}
+	return b
+}
+
+// WithTargetReplicatedJobs adds the given value to the TargetReplicatedJobs field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the TargetReplicatedJobs field.
+func (b *FailurePolicyRuleApplyConfiguration) WithTargetReplicatedJobs(values ...string) *FailurePolicyRuleApplyConfiguration {
+	for i := range values {
+		b.TargetReplicatedJobs = append(b.TargetReplicatedJobs, values[i])
 	}
 	return b
 }

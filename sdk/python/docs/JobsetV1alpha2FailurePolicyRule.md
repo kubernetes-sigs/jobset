@@ -5,7 +5,8 @@ FailurePolicyRule defines a FailurePolicyAction to be executed if a child job fa
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **action** | **str** | The action to take if the rule is matched. | [default to '']
-**on_job_failure_reasons** | **list[str]** | The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list. | 
+**on_job_failure_reasons** | **list[str]** | The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list. Each unique failure reason can only be associated with one FailurePolicyRule. | 
+**target_replicated_jobs** | **list[str]** | TargetReplicatedJobs are the names of the replicated jobs the operator will apply to. A null or empty list will apply to all replicatedJobs. | [optional] 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

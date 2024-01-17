@@ -45,6 +45,9 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
                             action = '0', 
                             on_job_failure_reasons = [
                                 '0'
+                                ], 
+                            target_replicated_jobs = [
+                                '0'
                                 ], )
                         ], ), 
                 network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(

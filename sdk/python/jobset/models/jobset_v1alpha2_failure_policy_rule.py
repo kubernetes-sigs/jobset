@@ -34,15 +34,17 @@ class JobsetV1alpha2FailurePolicyRule(object):
     """
     openapi_types = {
         'action': 'str',
-        'on_job_failure_reasons': 'list[str]'
+        'on_job_failure_reasons': 'list[str]',
+        'target_replicated_jobs': 'list[str]'
     }
 
     attribute_map = {
         'action': 'action',
-        'on_job_failure_reasons': 'onJobFailureReasons'
+        'on_job_failure_reasons': 'onJobFailureReasons',
+        'target_replicated_jobs': 'targetReplicatedJobs'
     }
 
-    def __init__(self, action='', on_job_failure_reasons=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, action='', on_job_failure_reasons=None, target_replicated_jobs=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2FailurePolicyRule - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
@@ -50,10 +52,13 @@ class JobsetV1alpha2FailurePolicyRule(object):
 
         self._action = None
         self._on_job_failure_reasons = None
+        self._target_replicated_jobs = None
         self.discriminator = None
 
         self.action = action
         self.on_job_failure_reasons = on_job_failure_reasons
+        if target_replicated_jobs is not None:
+            self.target_replicated_jobs = target_replicated_jobs
 
     @property
     def action(self):
@@ -84,7 +89,7 @@ class JobsetV1alpha2FailurePolicyRule(object):
     def on_job_failure_reasons(self):
         """Gets the on_job_failure_reasons of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
 
-        The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list.  # noqa: E501
+        The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list. Each unique failure reason can only be associated with one FailurePolicyRule.  # noqa: E501
 
         :return: The on_job_failure_reasons of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
         :rtype: list[str]
@@ -95,7 +100,7 @@ class JobsetV1alpha2FailurePolicyRule(object):
     def on_job_failure_reasons(self, on_job_failure_reasons):
         """Sets the on_job_failure_reasons of this JobsetV1alpha2FailurePolicyRule.
 
-        The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list.  # noqa: E501
+        The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list. Each unique failure reason can only be associated with one FailurePolicyRule.  # noqa: E501
 
         :param on_job_failure_reasons: The on_job_failure_reasons of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
         :type: list[str]
@@ -104,6 +109,29 @@ class JobsetV1alpha2FailurePolicyRule(object):
             raise ValueError("Invalid value for `on_job_failure_reasons`, must not be `None`")  # noqa: E501
 
         self._on_job_failure_reasons = on_job_failure_reasons
+
+    @property
+    def target_replicated_jobs(self):
+        """Gets the target_replicated_jobs of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
+
+        TargetReplicatedJobs are the names of the replicated jobs the operator will apply to. A null or empty list will apply to all replicatedJobs.  # noqa: E501
+
+        :return: The target_replicated_jobs of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
+        :rtype: list[str]
+        """
+        return self._target_replicated_jobs
+
+    @target_replicated_jobs.setter
+    def target_replicated_jobs(self, target_replicated_jobs):
+        """Sets the target_replicated_jobs of this JobsetV1alpha2FailurePolicyRule.
+
+        TargetReplicatedJobs are the names of the replicated jobs the operator will apply to. A null or empty list will apply to all replicatedJobs.  # noqa: E501
+
+        :param target_replicated_jobs: The target_replicated_jobs of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
+        :type: list[str]
+        """
+
+        self._target_replicated_jobs = target_replicated_jobs
 
     def to_dict(self):
         """Returns the model properties as a dict"""

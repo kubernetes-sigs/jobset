@@ -60,6 +60,7 @@ class JobsetV1alpha2FailurePolicy(object):
     def max_restarts(self):
         """Gets the max_restarts of this JobsetV1alpha2FailurePolicy.  # noqa: E501
 
+        MaxRestarts defines the maximum number of times the JobSet can be restarted before failing.  # noqa: E501
 
         :return: The max_restarts of this JobsetV1alpha2FailurePolicy.  # noqa: E501
         :rtype: int
@@ -70,6 +71,7 @@ class JobsetV1alpha2FailurePolicy(object):
     def max_restarts(self, max_restarts):
         """Sets the max_restarts of this JobsetV1alpha2FailurePolicy.
 
+        MaxRestarts defines the maximum number of times the JobSet can be restarted before failing.  # noqa: E501
 
         :param max_restarts: The max_restarts of this JobsetV1alpha2FailurePolicy.  # noqa: E501
         :type: int
@@ -83,7 +85,7 @@ class JobsetV1alpha2FailurePolicy(object):
     def rules(self):
         """Gets the rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
 
-        Evaluated in order on each failure. Only the first matched rule will be exeucted, the rest are ignored. If no rule matched, then the default behavior is executed: restart all child jobs and count the failure against maxRestarts.  # noqa: E501
+        List of failure policy rules for this JobSet.  # noqa: E501
 
         :return: The rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
         :rtype: list[JobsetV1alpha2FailurePolicyRule]
@@ -94,7 +96,7 @@ class JobsetV1alpha2FailurePolicy(object):
     def rules(self, rules):
         """Sets the rules of this JobsetV1alpha2FailurePolicy.
 
-        Evaluated in order on each failure. Only the first matched rule will be exeucted, the rest are ignored. If no rule matched, then the default behavior is executed: restart all child jobs and count the failure against maxRestarts.  # noqa: E501
+        List of failure policy rules for this JobSet.  # noqa: E501
 
         :param rules: The rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
         :type: list[JobsetV1alpha2FailurePolicyRule]
