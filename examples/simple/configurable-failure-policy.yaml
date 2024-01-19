@@ -1,0 +1,44 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: configurable-failure-policy
+spec:
+  failurePolicy:
+    rules:
+    # This rule will fail the job set immediately if a job failure not triggered by a pod failure happens.
+    # The pod failure policy defined below ignores SIGTERM exit codes (host maintenance), so in effect
+    # this failure policy will allow the JobSet to restart upon host maintenance, but fail immediately
+    # for non-retriable errors (we've broadly included all non-SIGTERM exit codes as non-retriable for
+    # this example).
+    - action: FailJobSet
+      onJobFailureReasons: 
+      - PodFailurePolicy
+    maxRestarts: 10
+  replicatedJobs:
+  - name: my-job
+    replicas: 1 # set to number of node pools
+    template:
+      spec:
+        parallelism: 1 # number of nodes per pool
+        completions: 1 # number of nodes per pool
+        backoffLimit: 0
+        # fail job immediately if job was not killed by SIGTERM (graceful node shutdown for maintenance events)
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onExitCodes:
+              containerName: main
+              operator: NotIn
+              values: [143] # SIGTERM = exit code 143
+            onPodConditions: [] # Note this field must be specified as an empty list, even if unused
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              image: bash:latest
+              image: docker.io/library/bash:5
+              command: ["bash"]
+              args:
+              - -c
+              - echo "Hello world! I'm going to exit with SIGTERM (exit code) to simulate host maintenace." && sleep 5 && exit 143
