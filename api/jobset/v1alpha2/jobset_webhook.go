@@ -124,8 +124,10 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 	}
 
 	// Validate failure policy. Each unique job failure reason can only be
-	// associated with one failure policy rule.
+	// associated with one failure policy rule per replicated job.
 	if js.Spec.FailurePolicy != nil {
+		// TODO: update logic to allow the same reason to have different
+		// actions for different replicated jobs.
 		seenReasons := make(map[string]bool)
 		for _, rule := range js.Spec.FailurePolicy.Rules {
 			for _, reason := range rule.OnJobFailureReasons {
