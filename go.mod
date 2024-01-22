@@ -4,8 +4,8 @@ go 1.20
 
 require (
 	github.com/google/go-cmp v0.6.0
-	github.com/onsi/ginkgo/v2 v2.14.0
-	github.com/onsi/gomega v1.30.0
+	github.com/onsi/ginkgo/v2 v2.15.0
+	github.com/onsi/gomega v1.31.1
 	github.com/open-policy-agent/cert-controller v0.10.1
 	github.com/stretchr/testify v1.8.4
 	k8s.io/api v0.28.5
