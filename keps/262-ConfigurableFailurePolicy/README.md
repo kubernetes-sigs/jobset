@@ -54,17 +54,16 @@ JobSet restarts in the case of a non-retriable failure (e.g., an application cod
 retriable failures (e.g., a host maintenace event).
 
 This is especially important for large scale distributed training workloads on expensive hardware accelerators. Recreating the 
-entire JobSet may take ~1 minute or so (per latest scale tests on several node pools of ~3k nodes each), and if `maxRestarts`
+entire JobSet may take ~1 minute or so (per latest scale tests on ~15k nodes), and if `maxRestarts`
 is set to a very high number to allow for disruptions (which occur often at a large scale like this), the workload could
-waste roughly `maxRestarts` number of minutes repeatedly recreating despite the fact that it is doomed to fail due to a non-retriable
-error like an application code bug. This is very expensive and wasteful on expensive, large scale clusters.
+waste at least `maxRestarts` number of minutes repeatedly recreating despite the fact that it is doomed to fail due to a non-retriable error like an application code bug. This is very expensive and wasteful on expensive, large scale clusters.
 
 We need to define a more configurable Failure Policy API which will allow users to define their own restart and failure semantics, 
 based on the type of child job failure occurring.
 
 ### Goals
 
-- Enhance the Failure Policy API with options allowing the user to control the restart and failure semantics of the JobSet.
+- Enhance the Failure Policy API with options allowing the user to control the restart and failure policies of the JobSet.
 
 ### Non-Goals
 
@@ -75,11 +74,11 @@ cases.
 
 ### User Stories (Optional)
 
-#### Story 1
+#### Story 1 (FailurePolicyAction: FailJobSet)
 
 As a user, in order to use my computing resources as efficiently as possible, I want to 
 configure my JobSet to restart in the event of a child job failure due to a retriable error
-like host maintance, but to fail the JobSet immediately without any unnecessary restart 
+like host maintenance, but to fail the JobSet immediately without any unnecessary restart 
 attempts in the event of an non-retriable application code error. 
 
 **Example Failure Policy Configuration for this use case**:
@@ -88,7 +87,7 @@ attempts in the event of an non-retriable application code error.
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
-  name: configurable-failure-policy-1
+  name: fail-jobset-example
 spec:
   # Failure Policy configured to fail the JobSet immediately if a job failure reason for any child job was NOT due to a SIGTERM (e.g. host maintenance).
   # Otherwise, restart up to 10 times.
@@ -127,12 +126,62 @@ spec:
               - echo "Hello world! I'm going to exit with exit code 1 to simulate a software bug." && sleep 20 && exit 1
 ```
 
-### Story 2
+#### Story 1 (FailurePolicyAction: Ignore)
 
-As a user, I have a JobSet with 2 replicated jobs: one which runs distributed training processes across a pool of GPU/TPU
-nodes, and one which runs auxilliary software on a CPU pool. If a child job in the auxilliary software ReplicatedJob 
-crashes, I just want to restart that particular job. If a child job of the GPU/TPU training ReplicatedJob crashes, I want
-to restart the entire JobSet and resume training from the latest checkpoint.
+As a user, in order to use my computing resources more efficiently, I want to 
+configure my JobSet to restart unlimited times for child job failures due to host maintenance,
+but restart a limited number of times for any other kind of error.
+
+**Example Failure Policy Configuration for this use case**:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: ignore-example
+spec:
+  # Failure Policy configured to ignore the failure (i.e., restart the JobSet without incrementing restart attempts)
+  # if the failure was due to a host maintenance event (i.e., a SIGTERM sent as part of graceful node shutdown).
+  failurePolicy:
+    rules:
+    - action: Ignore
+      onJobFailureReasons: 
+      - PodFailurePolicy
+    maxRestarts: 10
+  replicatedJobs:
+  - name: workers 
+    replicas: 1
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        # podFailurePolicy which fails job immediately if job was killed by SIGTERM (i.e., graceful node shutdown for maintenance events)
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onExitCodes:
+              containerName: main
+              operator: In
+              values: [143] # SIGTERM = exit code 143
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              image: bash:latest
+              image: docker.io/library/bash:5
+              command: ["bash"]
+              args:
+              - -c
+              - echo "Hello world! I'm going to exit with exit code 143 (SIGTERM) to simulate host maintenance." && sleep 20 && exit 143
+```
+
+### Story 3: (FailurePolicyAction: RestartReplicatedJob)
+
+As a user, I have a JobSet with 2 replicated jobs: one which runs distributed training processes across a pool of GPU
+nodes, and one which runs the driver/coordinator on a CPU pool. If a child job of the GPU worker ReplicatedJob crashes, I just want to restart the GPU workers and not the driver, then resume training from the latest checkpoint. However, if
+the driver crashes, I want to restart the entire JobSet, then resume training from the latest checkpoint.
 
 **Example Failure Policy configuration for this use case**:
 
@@ -140,20 +189,35 @@ to restart the entire JobSet and resume training from the latest checkpoint.
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
-  name: configurable-failure-policy-2
+  name: restart-replicated-job-example
   annotations:
     alpha.jobset.sigs.k8s.io/exclusive-topology: {{topologyDomain}} # 1:1 job replica to topology domain assignment
 spec:
-  # Failure Policy configured to restart any failed child job in the cpu-worker ReplicatedJob, but fall back to the
-  # default behavior of restarting the entire JobSet if any child job in the tpu-worker ReplicatedJob fails.
+  # Failure Policy to restart the child jobs of the target ReplicatedJob (gpu-workers) if any fail, but fall
+  # back to the default behavior of restarting the entire JobSet if the driver fails.
   failurePolicy:
     rules:
-    - action: RestartJob
-      targetReplicatedJobs: cpu-worker
+    - action: RestartReplicatedJob
+      targetReplicatedJobs:
+      - gpu-workers
     maxRestarts: 10
   replicatedJobs:
-  - name: gpu-worker 
-    replicas: 4 # set to number of node pools
+  - name: driver
+    replicas: 1 # number of node pools
+    template:
+      spec:
+        parallelism: 1 # number of nodes per pool
+        completions: 1 # number of nodes per pool
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              image: python:3.10
+              command: ["..."]
+  - name: gpu-workers
+    replicas: 4 # number of node pools
     template:
       spec:
         parallelism: 2 # number of nodes per pool
@@ -168,21 +232,6 @@ spec:
             resources:
               limits:
                 nvidia.com/gpu: 1
-  - name: gpu-worker 
-    replicas: 1 # set to number of node pools
-    template:
-      spec:
-        parallelism: 1 # number of nodes per pool
-        completions: 1 # number of nodes per pool
-        backoffLimit: 0
-        template:
-          spec:
-            restartPolicy: Never
-            containers:
-            - name: main
-              image: python:3.10
-              command: ["..."]
-              
 ```
 
 
@@ -226,17 +275,20 @@ const (
   // Don't count the failure against maxRestarts.
   Ignore FailurePolicyAction = "Ignore"
 
+  // Restart all the child jobs of the ReplicatedJob the failed job is a part of.
+  RestartReplicatedJob FailurePolicyAction = "RestartReplicatedJob"
+  
   // The failed child job is permanently failed and should not be
   // restarted, active child jobs will continue to run to completion.
   FailJob FailurePolicyAction = "FailJob"
 
   // Restart the failed child job only, not the whole JobSet.
   RestartJob FailurePolicyAction = "RestartJob"
+
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
 // fails due to a reason listed in OnJobFailureReasons.
-// Only only rule can match a unique (Job failure reason, ReplicatedJob) pair.
 type FailurePolicyRule struct {
   // The action to take if the rule is matched.
   // +kubebuilder:validation:Enum:=FailJobSet;Ignore;FailJob;RestartJob
@@ -260,10 +312,8 @@ type FailurePolicy struct {
   // A restart is achieved by recreating all active child jobs.
   MaxRestarts int32 `json:"maxRestarts,omitempty"`
   // List of failure policy rules for this JobSet.
-  // Only one rule can match a unique (Job failure reason, ReplicatedJob)
-  // pair. If such a rule exists, it is executed. Otherwise, the default
-  // failure policy of attempting to restart the JobSet is applied.
-  // +optional
+  // For a given Job failure, the rules will be evaluated in order,
+  // and only the first matching rule will be executed.
   Rules []FailurePolicyRule `json:"rules,omitempty"`
 }
 
@@ -271,10 +321,8 @@ type FailurePolicy struct {
 
 ### Constraints
 
-- Each unique (Job failure reason, target Replicated Job) pair can only be associated with one FailurePolicyRule.
-This gives the user the flexibility to specify different failure and restart semantics for jobs failing for the same
-reason, depending on what Replicated Job they are part of. However, within a Replicated Job, there cannot be more than
-one way of handling a particular Job failure reason.
+- For a given Job failure, the rules will be evaluated in order, and only the first matching rule will be executed. This
+follows an established pattern used by PodFailurePolicy in the Job controller.
 
 - OnJobFailureReasons must be a valid Job failure reason as defined [here](https://github.com/kubernetes/kubernetes/blob/2d4100335e4c4ccc28f96fac78153f378212da4c/staging/src/k8s.io/api/batch/v1/types.go#L537-L554)
 in the batchv1 Job API. At the time of writing this KEP, these include:
@@ -289,19 +337,24 @@ in the batchv1 Job API. At the time of writing this KEP, these include:
 The core part of the implementation will be defining what specific mechanisms the JobSet controller uses to implement
 the behavior defined for each FailurePolicyAction type:
 
-1) `RestartJob`: To restart a single child job without restarting the entire JobSet, the controller will delete that 
-particular child job and allow the normal reconciliation process to recreate it.
+1) `FailJobSet`: To fail the JobSet immediately without restarting, the controller updates the JobSet status to failed.
 
-2) `FailJob`: To leave a particular child job in a failed state without restarting it or restarting the JobSet, the
-controller will simply do nothing, taking no action on this job.
-
-3) `FailJobSet`: To fail the JobSet immediately without restarting, the controller updates the JobSet status to failed.
-
-4) `Ignore`: To "ignore" the failure (i.e., restart the JobSet without counting it against `MaxRestarts`), the controller
+2) `Ignore`: To "ignore" the failure (i.e., restart the JobSet without counting it against `MaxRestarts`), the controller
 will delete all child jobs and allow the normal reconciliation process to recreate them. This is in contrast to how
 we restart the JobSet **without** ignoring the failure, which is done by incrementing the counter on the JobSet annotation
 `jobset.sigs.k8s.io/restart-attempt`, which on subsequent reconiliations will trigger job deletion and recreation for any
 child job with a `jobset.sigs.k8s.io/restart-attempt` counter value less than that of the JobSet.
+
+3) `RestartReplicatedJob`: To restart the child jobs of a specific replicated job, the controller will delete the child
+jobs of the target replicated job, **without incrementing the restart attempt annotation**. The jobs will then be 
+recreated via the normal reconciliation process.
+
+4) `RestartJob`: To restart a single child job without restarting the entire JobSet, the controller will delete that 
+particular child job, **without incrementing the restart attempt annotation**, and allow the normal reconciliation
+process to recreate it.
+
+5) `FailJob`: To leave a particular child job in a failed state without restarting it or restarting the JobSet, the
+controller will simply do nothing, taking no action on this job.
 
 
 ### Test Plan
@@ -372,7 +425,6 @@ milestones with these graduation criteria:
 - KEP published January 19th, 2024
 
 ## Drawbacks
-
 
 
 ## Alternatives
