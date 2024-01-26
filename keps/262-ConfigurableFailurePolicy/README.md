@@ -74,7 +74,7 @@ cases.
 
 ### User Stories (Optional)
 
-#### Story 1 (FailurePolicyAction: FailJobSet)
+#### Story 1: FailJobSet
 
 As a user, in order to use my computing resources as efficiently as possible, I want to 
 configure my JobSet to restart in the event of a child job failure due to a retriable error
@@ -126,7 +126,7 @@ spec:
               - echo "Hello world! I'm going to exit with exit code 1 to simulate a software bug." && sleep 20 && exit 1
 ```
 
-#### Story 1 (FailurePolicyAction: Ignore)
+#### Story 2: Ignore
 
 As a user, in order to use my computing resources more efficiently, I want to 
 configure my JobSet to restart unlimited times for child job failures due to host maintenance,
@@ -177,7 +177,7 @@ spec:
               - echo "Hello world! I'm going to exit with exit code 143 (SIGTERM) to simulate host maintenance." && sleep 20 && exit 143
 ```
 
-### Story 3: (FailurePolicyAction: RestartReplicatedJob)
+### Story 3: RestartReplicatedJob
 
 As a user, I have a JobSet with 2 replicated jobs: one which runs distributed training processes across a pool of GPU
 nodes, and one which runs the driver/coordinator on a CPU pool. If a child job of the GPU worker ReplicatedJob crashes, I just want to restart the GPU workers and not the driver, then resume training from the latest checkpoint. However, if
@@ -203,11 +203,11 @@ spec:
     maxRestarts: 10
   replicatedJobs:
   - name: driver
-    replicas: 1 # number of node pools
+    replicas: 1
     template:
       spec:
-        parallelism: 1 # number of nodes per pool
-        completions: 1 # number of nodes per pool
+        parallelism: 1
+        completions: 1
         backoffLimit: 0
         template:
           spec:
@@ -220,8 +220,8 @@ spec:
     replicas: 4 # number of node pools
     template:
       spec:
-        parallelism: 2 # number of nodes per pool
-        completions: 2 # number of nodes per pool
+        parallelism: 2
+        completions: 2
         backoffLimit: 0
         template:
           spec:
@@ -234,6 +234,70 @@ spec:
                 nvidia.com/gpu: 1
 ```
 
+### Story 4: FailJob and RestartJob
+
+Dependency: https://github.com/kubernetes/kubernetes/issues/122972
+
+As a user, I want to run a HPC simulation in which each child job runs a simulation with different random initial
+parameters. When a simulation ends, the application will exit with one of two exit codes:
+
+- Exit code 2, which indicates the simulation produced an invalid result due to bad starting parameters, and should
+not be retried.
+- Exit code 3, which indicates the simulation produced an invalid result but the intial parameters were reasonable,
+so the simulation should be restarted.
+
+When a Job fails due to a pod failing with exit code 2, I want the Job to stay in a failed state.
+When a Job fails due to a pod failing with exit code 3, I want to restart the Job.
+
+**Example Failure Policy configuration for this use case**:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: restart-replicated-job-example
+  annotations:
+    alpha.jobset.sigs.k8s.io/exclusive-topology: {{topologyDomain}} # 1:1 job replica to topology domain assignment
+spec:
+  failurePolicy:
+    rules:
+    # If Job fails due to a pod failing with exit code 2, leave it in a failed state.
+    - action: FailJob
+      targetReplicatedJobs:
+      - simulations
+      onJobFailureReasons:
+      - PodFailurePolicy-ExitCode2
+    # If Job fails due to a pod failing with exit code 3, restart that Job.
+    - action: RestartJob
+      targetReplicatedJobs:
+      - simulations
+      onJobFailureReasons:
+      - PodFailurePolicy-ExitCode3
+    maxRestarts: 10
+  replicatedJobs:
+  - name: simulations
+    replicas: 10
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        # If a pod fails with exit code 2 or 3, fail the Job, attaching the exit code to the reason.
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onExitCodes:
+              containerName: main
+              operator: In
+              values: [2,3]
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              image: python:3.10
+              command: ["..."]
+```
 
 ### Notes/Constraints/Caveats (Optional)
 
