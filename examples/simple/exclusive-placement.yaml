@@ -2,8 +2,6 @@ apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
   name: exclusive-placement
-  annotations:
-    alpha.jobset.sigs.k8s.io/exclusive-topology: cloud.google.com/gke-nodepool # 1:1 job replica to node pool assignment
 spec:
   failurePolicy:
     maxRestarts: 3
@@ -11,6 +9,8 @@ spec:
   - name: workers
     replicas: 3 # set to number of node pools
     template:
+      annotations:
+        alpha.jobset.sigs.k8s.io/exclusive-topology: cloud.google.com/gke-nodepool # 1:1 job replica to node pool assignment
       spec:
         parallelism: 3
         completions: 3
