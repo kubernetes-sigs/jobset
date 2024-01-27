@@ -26,7 +26,12 @@ const (
 	JobIndexKey           string = "jobset.sigs.k8s.io/job-index"
 	JobKey                string = "jobset.sigs.k8s.io/job-key"
 	JobNameKey            string = "job-name" // TODO(#26): Migrate to the fully qualified label name.
-	ExclusiveKey          string = "alpha.jobset.sigs.k8s.io/exclusive-topology"
+	// ExclusiveKey is an annotation that can be set on the JobSet or on a ReplicatedJob template.
+	// If set at the JobSet level, all child jobs from all ReplicatedJobs will be scheduled using exclusive
+	// job placement per topology group (defined as the label value).
+	// If set at the ReplicatedJob level, all child jobs from the target ReplicatedJobs will be scheduled
+	// using exclusive job placement per topology group.
+	ExclusiveKey string = "alpha.jobset.sigs.k8s.io/exclusive-topology"
 	// NodeSelectorStrategyKey is an annotation that acts as a flag, the value does not matter.
 	// If set, the JobSet controller will automatically inject nodeSelectors for the JobSetNameKey label to
 	// ensure exclusive job placement per topology, instead of injecting pod affinity/anti-affinites for this.

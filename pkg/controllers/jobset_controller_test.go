@@ -302,12 +302,18 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "exclusive affinities",
+			name: "exclusive placement for a ReplicatedJob",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+				// Replicated Job A has exclusive placement annotation.
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
 					Job(testutils.MakeJobTemplate(jobName, ns).
 						SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain}).
 						Obj()).
+					Replicas(1).
+					Obj()).
+				// Replicated Job B has no exclusive placement annotation.
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).
 				Obj(),
@@ -315,13 +321,173 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			want: []*batchv1.Job{
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
-					replicatedJobName: replicatedJobName,
-					jobName:           "test-jobset-replicated-job-0",
+					replicatedJobName: replicatedJobName + "-A",
+					jobName:           "test-jobset-replicated-job-A-0",
 					ns:                ns,
 					replicas:          1,
 					jobIdx:            0,
 					topology:          topologyDomain}).
 					Suspend(false).Obj(),
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName + "-B",
+					jobName:           "test-jobset-replicated-job-B-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).
+					Suspend(false).Obj(),
+			},
+		},
+		{
+			name: "exclusive placement using nodeSelectorStrategy for a ReplicatedJob",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				// Replicated Job A has exclusive placement annotation.
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
+					Job(testutils.MakeJobTemplate(jobName, ns).
+						SetAnnotations(map[string]string{
+							jobset.ExclusiveKey:            topologyDomain,
+							jobset.NodeSelectorStrategyKey: "true"}).
+						Obj()).
+					Replicas(1).
+					Obj()).
+				// Replicated Job B has no exclusive placement annotation.
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:           jobSetName,
+					replicatedJobName:    replicatedJobName + "-A",
+					jobName:              "test-jobset-replicated-job-A-0",
+					ns:                   ns,
+					replicas:             1,
+					jobIdx:               0,
+					topology:             topologyDomain,
+					nodeSelectorStrategy: true}).
+					Suspend(false).
+					NodeSelector(map[string]string{
+						jobset.NamespacedJobKey: namespacedJobName(ns, "test-jobset-replicated-job-A-0"),
+					}).
+					Tolerations([]corev1.Toleration{
+						{
+							Key:      jobset.NoScheduleTaintKey,
+							Operator: corev1.TolerationOpExists,
+							Effect:   corev1.TaintEffectNoSchedule,
+						},
+					}).
+					Obj(),
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName + "-B",
+					jobName:           "test-jobset-replicated-job-B-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).
+					Suspend(false).Obj(),
+			},
+		},
+		{
+			name: "exclusive placement for entire JobSet",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain}).
+				// Replicated Job A has.
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).
+				// Replicated Job B.
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName + "-A",
+					jobName:           "test-jobset-replicated-job-A-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0,
+					topology:          topologyDomain}).
+					Suspend(false).Obj(),
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName + "-B",
+					jobName:           "test-jobset-replicated-job-B-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0,
+					topology:          topologyDomain}).
+					Suspend(false).Obj(),
+			},
+		},
+		{
+			name: "exclusive placement using nodeSelectorStrategy for entire JobSet",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(map[string]string{
+					jobset.ExclusiveKey:            topologyDomain,
+					jobset.NodeSelectorStrategyKey: "true",
+				}).
+				// Replicated Job A has.
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).
+				// Replicated Job B.
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:           jobSetName,
+					replicatedJobName:    replicatedJobName + "-A",
+					jobName:              "test-jobset-replicated-job-A-0",
+					ns:                   ns,
+					replicas:             1,
+					jobIdx:               0,
+					topology:             topologyDomain,
+					nodeSelectorStrategy: true}).
+					Suspend(false).
+					NodeSelector(map[string]string{
+						jobset.NamespacedJobKey: namespacedJobName(ns, "test-jobset-replicated-job-A-0"),
+					}).
+					Tolerations([]corev1.Toleration{
+						{
+							Key:      jobset.NoScheduleTaintKey,
+							Operator: corev1.TolerationOpExists,
+							Effect:   corev1.TaintEffectNoSchedule,
+						},
+					}).
+					Obj(),
+				makeJob(&makeJobArgs{
+					jobSetName:           jobSetName,
+					replicatedJobName:    replicatedJobName + "-B",
+					jobName:              "test-jobset-replicated-job-B-0",
+					ns:                   ns,
+					replicas:             1,
+					jobIdx:               0,
+					topology:             topologyDomain,
+					nodeSelectorStrategy: true}).
+					Suspend(false).
+					NodeSelector(map[string]string{
+						jobset.NamespacedJobKey: namespacedJobName(ns, "test-jobset-replicated-job-B-0"),
+					}).
+					Tolerations([]corev1.Toleration{
+						{
+							Key:      jobset.NoScheduleTaintKey,
+							Operator: corev1.TolerationOpExists,
+							Effect:   corev1.TaintEffectNoSchedule,
+						},
+					}).
+					Obj(),
 			},
 		},
 		{
