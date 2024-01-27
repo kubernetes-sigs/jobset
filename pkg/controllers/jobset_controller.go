@@ -612,11 +612,11 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	}
 
 	// If this job should be exclusive per topology, configure the scheduling constraints accordingly.
-	if _, ok := js.Annotations[jobset.ExclusiveKey]; ok {
+	if _, ok := rjob.Template.Annotations[jobset.ExclusiveKey]; ok {
 		// If user has set the nodeSelectorStrategy annotation flag, add the job name label as a
 		// nodeSelector, and add a toleration for the no schedule taint.
 		// The node label and node taint must be added separately by a user/script.
-		if _, exists := js.Annotations[jobset.NodeSelectorStrategyKey]; exists {
+		if _, exists := rjob.Template.Annotations[jobset.NodeSelectorStrategyKey]; exists {
 			addNamespacedJobNodeSelector(job)
 			addTaintToleration(job)
 		}
@@ -675,8 +675,12 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 
 	// Only set exclusive key label/annotation on jobs/pods if the parent JobSet
 	// is using exclusive placement.
-	if _, exists := js.Annotations[jobset.ExclusiveKey]; exists {
-		annotations[jobset.ExclusiveKey] = js.Annotations[jobset.ExclusiveKey]
+	if topologyDomain, exists := rjob.Template.Annotations[jobset.ExclusiveKey]; exists {
+		annotations[jobset.ExclusiveKey] = topologyDomain
+		// Add nodeSelectorStrategy annotation if it is being used.
+		if value, ok := rjob.Template.Annotations[jobset.NodeSelectorStrategyKey]; ok {
+			annotations[jobset.NodeSelectorStrategyKey] = value
+		}
 	}
 
 	obj.SetLabels(labels)
