@@ -611,18 +611,14 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 		job.Spec.Template.Spec.Subdomain = js.Spec.Network.Subdomain
 	}
 
-	// If this job should be exclusive per topology, configure the scheduling constraints accordingly.
-	if _, ok := js.Annotations[jobset.ExclusiveKey]; ok {
-		// If user has set the nodeSelectorStrategy annotation flag, add the job name label as a
-		// nodeSelector, and add a toleration for the no schedule taint.
-		// The node label and node taint must be added separately by a user/script.
-		if _, exists := js.Annotations[jobset.NodeSelectorStrategyKey]; exists {
-			addNamespacedJobNodeSelector(job)
-			addTaintToleration(job)
-		}
-		// Otherwise, we fall back to the default strategy of the pod webhook assigning exclusive affinities
-		// to the leader pod, preventing follower pod creation until leader pod is scheduled, then
-		// assigning the follower pods to the same node as the leader pods.
+	// If this job is using the nodeSelectorStrategy implementation of exclusive placement,
+	// add the job name label as a nodeSelector, and add a toleration for the no schedule taint.
+	// The node label and node taint must be added to the nodes separately by a user/script.
+	_, exclusivePlacement := job.Annotations[jobset.ExclusiveKey]
+	_, nodeSelectorStrategy := job.Annotations[jobset.NodeSelectorStrategyKey]
+	if exclusivePlacement && nodeSelectorStrategy {
+		addNamespacedJobNodeSelector(job)
+		addTaintToleration(job)
 	}
 
 	// if Suspend is set, then we assume all jobs will be suspended also.
@@ -673,10 +669,21 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 
-	// Only set exclusive key label/annotation on jobs/pods if the parent JobSet
-	// is using exclusive placement.
-	if _, exists := js.Annotations[jobset.ExclusiveKey]; exists {
-		annotations[jobset.ExclusiveKey] = js.Annotations[jobset.ExclusiveKey]
+	// Check for JobSet level exclusive placement.
+	if topologyDomain, exists := js.Annotations[jobset.ExclusiveKey]; exists {
+		annotations[jobset.ExclusiveKey] = topologyDomain
+		// Check if we are using nodeSelectorStrategy implementation of exclusive placement at the JobSet level.
+		if value, ok := js.Annotations[jobset.NodeSelectorStrategyKey]; ok {
+			annotations[jobset.NodeSelectorStrategyKey] = value
+		}
+	}
+	// Check for ReplicatedJob level exclusive placement.
+	if topologyDomain, exists := rjob.Template.Annotations[jobset.ExclusiveKey]; exists {
+		annotations[jobset.ExclusiveKey] = topologyDomain
+		// Check if we are using nodeSelectorStrategy implementation of exclusive placement at the ReplicatedJob level.
+		if value, ok := rjob.Template.Annotations[jobset.NodeSelectorStrategyKey]; ok {
+			annotations[jobset.NodeSelectorStrategyKey] = value
+		}
 	}
 
 	obj.SetLabels(labels)

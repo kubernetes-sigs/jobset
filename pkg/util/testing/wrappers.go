@@ -173,6 +173,12 @@ func (j *JobTemplateWrapper) PodSpec(podSpec corev1.PodSpec) *JobTemplateWrapper
 	return j
 }
 
+// SetAnnotations sets the annotations on the Job template.
+func (j *JobTemplateWrapper) SetAnnotations(annotations map[string]string) *JobTemplateWrapper {
+	j.Annotations = annotations
+	return j
+}
+
 // Obj returns the inner batchv1.JobTemplateSpec
 func (j *JobTemplateWrapper) Obj() batchv1.JobTemplateSpec {
 	return j.JobTemplateSpec
