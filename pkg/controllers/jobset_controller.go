@@ -543,7 +543,7 @@ func (r *JobSetReconciler) ensureCondition(ctx context.Context, js *jobset.JobSe
 		return err
 	}
 
-	r.Record.Eventf(js, eventType, condition.Type, condition.Reason)
+	r.Record.Eventf(js, eventType, condition.Reason, condition.Message)
 	return nil
 }
 
