@@ -470,7 +470,8 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	if allErrs != nil {
 		return allErrs
 	}
-	if inOrderStartupPolicy(js.Spec.StartupPolicy) {
+	// Skip emitting a condition for StartupPolicy if JobSet is suspended
+	if !ptr.Deref(js.Spec.Suspend, false) && inOrderStartupPolicy(js.Spec.StartupPolicy) {
 		return r.ensureCondition(ctx, js, corev1.EventTypeNormal, generateStartupPolicyCondition(true, ""))
 	}
 	return allErrs
