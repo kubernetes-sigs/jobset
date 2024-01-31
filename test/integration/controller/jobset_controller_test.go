@@ -1132,6 +1132,12 @@ func ReadyJob(job *batchv1.Job) {
 	})
 }
 
+func activeJob(job *batchv1.Job) {
+	updateJobStatus(job, batchv1.JobStatus{
+		Active: ptr.Deref[int32](job.Spec.Parallelism, 0),
+	})
+}
+
 func updateJobStatus(job *batchv1.Job, status batchv1.JobStatus) {
 	gomega.Eventually(func() error {
 		var jobGet batchv1.Job
