@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -388,18 +390,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		}
 		workqueue.ParallelizeUntil(ctx, maxParallelism, len(jobs), func(i int) {
 			job := jobs[i]
-
-			// Set jobset controller as owner of the job for garbage collection and reconcilation.
-			if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
-				lock.Lock()
-				defer lock.Unlock()
-				finalErrs = append(finalErrs, err)
-				return
-			}
-
-			// Create the job.
-			// TODO(#18): Deal with the case where the job exists but is not owned by the jobset.
-			if err := r.Create(ctx, job); err != nil {
+			if err := r.createJobWithBackOff(ctx, js, job); err != nil {
 				lock.Lock()
 				defer lock.Unlock()
 				finalErrs = append(finalErrs, err)
@@ -409,6 +400,28 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		})
 	}
 	return errors.Join(finalErrs...)
+}
+
+func (r *JobSetReconciler) createJobWithBackOff(ctx context.Context, js *jobset.JobSet, job *batchv1.Job) error {
+	// 1, 2, 4, 8, 16, 32 seconds.
+	backoff := wait.Backoff{
+		Steps:    6,
+		Duration: 1 * time.Second,
+		Factor:   2.0,
+		Jitter:   0.2,
+	}
+	// Set jobset controller as owner of the job for garbage collection and reconcilation.
+	if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
+		return err
+	}
+
+	// Create the job with an exponential back off policy if it already exists.
+	return wait.ExponentialBackoff(backoff, func() (bool, error) {
+		if err := r.Create(ctx, job); err != nil {
+			return false, err
+		}
+		return true, nil
+	})
 }
 
 // TODO: look into adopting service and updating the selector
