@@ -446,7 +446,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	var finalErrs []error
 	allJobsCreatedForStartupPolicy := false
 	statusOfFirstJob := findReplicatedStatus(replicatedJobStatus, js.Spec.ReplicatedJobs[0].Name)
-	if !isJobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) && !replicatedJobsAtLeastReady(js.Spec.ReplicatedJobs[0].Replicas, statusOfFirstJob) {
+	if !isJobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) && !replicatedJobsStarted(js.Spec.ReplicatedJobs[0].Replicas, statusOfFirstJob) {
 		err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
 		if err != nil {
 			return fmt.Errorf("unable to update condition for startup policy: %v", err)
@@ -457,21 +457,22 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		if err != nil {
 			return err
 		}
-		if !isJobSetSuspended(js) {
-			if inOrderStartupPolicy(js.Spec.StartupPolicy) {
-				isPreviousReplicatedJobReady := true
-				if idx > 0 {
-					prevJobStatus := getReplicatedJobStatus(replicatedJobStatus, js.Spec.ReplicatedJobs[idx-1].Name)
-					isPreviousReplicatedJobReady = replicatedJobsAtLeastReady(js.Spec.ReplicatedJobs[idx-1].Replicas, prevJobStatus)
-				} else {
-					startupConditionErr := r.ensureCondition(ctx, js, corev1.EventTypeNormal, generateStartupPolicyCondition(false, rjob.Name))
-					if startupConditionErr != nil {
-						return startupConditionErr
-					}
-				}
-				if !isPreviousReplicatedJobReady && !replicatedJobsAtLeastReady(rjob.Replicas, jobStatus) {
-					return r.ensureCondition(ctx, js, corev1.EventTypeNormal, generateStartupPolicyCondition(false, rjob.Name))
-				}
+		if !isJobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) {
+			// Check if previous replicated jobs are ready
+			// if they are not, we are bailing out of this loop
+			// We want to wait for the previous jobs to be ready before creating the next set.
+			isPrevRepJobStarted := true
+			if idx > 0 {
+				prevJobStatus := findReplicatedStatus(replicatedJobStatus, js.Spec.ReplicatedJobs[idx-1].Name)
+				isPrevRepJobStarted = replicatedJobsStarted(js.Spec.ReplicatedJobs[idx-1].Replicas, prevJobStatus)
+			}
+			jobStatus := findReplicatedStatus(replicatedJobStatus, replicatedJob.Name)
+			currentJobReady := replicatedJobsStarted(js.Spec.ReplicatedJobs[idx].Replicas, jobStatus)
+			if !isPrevRepJobStarted && !currentJobReady {
+				return nil
+			}
+			if idx == len(js.Spec.ReplicatedJobs)-1 {
+				allJobsCreatedForStartupPolicy = true
 			}
 		}
 		workqueue.ParallelizeUntil(ctx, maxParallelism, len(jobs), func(i int) {

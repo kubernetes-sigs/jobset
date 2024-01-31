@@ -21,10 +21,10 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
-// replicatedJobsAtLeastReady tells if the replicated jobSet is ready
+// replicatedJobsStarted tells if the replicated jobSet is ready
 // or it has finished
 // If replicas is equal then we assume that replicatedJob is considered ready
-func replicatedJobsAtLeastReady(replicas int32, rjJobStatus jobset.ReplicatedJobStatus) bool {
+func replicatedJobsStarted(replicas int32, rjJobStatus jobset.ReplicatedJobStatus) bool {
 	return replicas == rjJobStatus.Failed+rjJobStatus.Ready+rjJobStatus.Succeeded
 }
 

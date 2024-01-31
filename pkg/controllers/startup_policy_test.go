@@ -54,7 +54,7 @@ func TestInOrderStartupPolicy(t *testing.T) {
 	}
 }
 
-func TestReplicatedJobAtLeastReady(t *testing.T) {
+func TestReplicatedJobStarted(t *testing.T) {
 	tests := []struct {
 		name                string
 		replicas            int32
@@ -110,7 +110,7 @@ func TestReplicatedJobAtLeastReady(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := replicatedJobsAtLeastReady(tc.replicas, tc.replicatedJobStatus)
+			actual := replicatedJobsStarted(tc.replicas, tc.replicatedJobStatus)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}
