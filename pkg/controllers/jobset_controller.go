@@ -649,15 +649,15 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 			return false
 		}
 	}
-	if !forceFalseUpdate {
-		// condition doesn't exist, update only if the status is true
-		if condition.Status == metav1.ConditionTrue {
-			js.Status.Conditions = append(js.Status.Conditions, condition)
-			return true
-		}
-	} else {
+	if forceFalseUpdate {
 		// Some conditions need an update even if false
 		// StartupPolicy is one example.
+		js.Status.Conditions = append(js.Status.Conditions, condition)
+		return true
+	}
+
+	// condition doesn't exist, update only if the status is true
+	if condition.Status == metav1.ConditionTrue {
 		js.Status.Conditions = append(js.Status.Conditions, condition)
 		return true
 	}
