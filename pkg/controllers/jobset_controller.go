@@ -350,13 +350,6 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
-	statusOfFirstJob := findReplicatedStatus(replicatedJobStatus, js.Spec.ReplicatedJobs[0].Name)
-	if inOrderStartupPolicy(js.Spec.StartupPolicy) && !replicatedJobsStarted(js.Spec.ReplicatedJobs[0].Replicas, statusOfFirstJob) {
-		err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
-		if err != nil {
-			return fmt.Errorf("unable to update condition for startup policy: %v", err)
-		}
-	}
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
 		jobStatus := findReplicatedStatus(replicatedJobStatus, replicatedJob.Name)
 		if inOrderStartupPolicy(js.Spec.StartupPolicy) && replicatedJobsStarted(replicatedJob.Replicas, jobStatus) {
@@ -369,14 +362,11 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 			}
 		}
 		if inOrderStartupPolicy(js.Spec.StartupPolicy) {
-			return nil
+			return r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
 		}
 	}
 	if inOrderStartupPolicy(js.Spec.StartupPolicy) {
-		startupPolicyErr := r.ensureCondition(ctx, js, corev1.EventTypeNormal, generateStartupPolicyCondition(true, ""))
-		if startupPolicyErr != nil {
-			return startupPolicyErr
-		}
+		return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, generateStartupPolicyCondition(true))
 	}
 	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
 		Type:               string(jobset.JobSetSuspended),
@@ -389,26 +379,24 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 
 func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, nodeAffinities map[string]map[string]string) error {
 	log := ctrl.LoggerFrom(ctx)
-	if jobSuspended(job) {
-		if job.Status.StartTime != nil {
-			job.Status.StartTime = nil
-			if err := r.Status().Update(ctx, job); err != nil {
-				return err
-			}
-		}
-		if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
-			// When resuming a job, its nodeSelectors should match that of the replicatedJob template
-			// that it was created from, which may have been updated while it was suspended.
-			job.Spec.Template.Spec.NodeSelector = nodeAffinities[job.Labels[jobset.ReplicatedJobNameKey]]
-		} else {
-			log.Error(nil, "job missing ReplicatedJobName label")
-		}
-		job.Spec.Suspend = ptr.To(false)
-		if err := r.Update(ctx, job); err != nil {
+	if !jobSuspended(job) {
+		return nil
+	}
+	if job.Status.StartTime != nil {
+		job.Status.StartTime = nil
+		if err := r.Status().Update(ctx, job); err != nil {
 			return err
 		}
 	}
-	return nil
+	if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
+		// When resuming a job, its nodeSelectors should match that of the replicatedJob template
+		// that it was created from, which may have been updated while it was suspended.
+		job.Spec.Template.Spec.NodeSelector = nodeAffinities[job.Labels[jobset.ReplicatedJobNameKey]]
+	} else {
+		log.Error(nil, "job missing ReplicatedJobName label")
+	}
+	job.Spec.Suspend = ptr.To(false)
+	return r.Update(ctx, job)
 }
 
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatus []jobset.ReplicatedJobStatus) error {
@@ -430,13 +418,6 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	}
 	var lock sync.Mutex
 	var finalErrs []error
-	statusOfFirstJob := findReplicatedStatus(replicatedJobStatus, js.Spec.ReplicatedJobs[0].Name)
-	if !jobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) && !replicatedJobsStarted(js.Spec.ReplicatedJobs[0].Replicas, statusOfFirstJob) {
-		err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
-		if err != nil {
-			return fmt.Errorf("unable to update condition for startup policy: %v", err)
-		}
-	}
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
 		jobs, err := constructJobsFromTemplate(js, &replicatedJob, ownedJobs)
 		if err != nil {
@@ -472,7 +453,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			log.V(2).Info("successfully created job", "job", klog.KObj(job))
 		})
 		if !jobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) {
-			return nil
+			return r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
 		}
 	}
 	allErrs := errors.Join(finalErrs...)

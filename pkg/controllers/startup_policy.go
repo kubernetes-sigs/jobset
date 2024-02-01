@@ -32,17 +32,11 @@ func inOrderStartupPolicy(sp *jobset.StartupPolicy) bool {
 	return sp != nil && sp.StartupPolicyOrder == jobset.InOrder
 }
 
-func generateStartupPolicyCondition(policyComplete bool, replicatedJobName string) metav1.Condition {
-	var condition metav1.ConditionStatus
+func generateStartupPolicyCondition(policyComplete bool) metav1.Condition {
+	condition := metav1.ConditionFalse
+	message := "startup policy in order starting"
 	if policyComplete {
 		condition = metav1.ConditionTrue
-	} else {
-		condition = metav1.ConditionFalse
-	}
-	var message string
-	if replicatedJobName != "" {
-		message = fmt.Sprintf("replicated job %s is starting", replicatedJobName)
-	} else {
 		message = "all replicated jobs have started"
 	}
 	return metav1.Condition{
