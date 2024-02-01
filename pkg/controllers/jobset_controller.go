@@ -525,12 +525,17 @@ func (r *JobSetReconciler) deleteJobs(ctx context.Context, jobsForDeletion []*ba
 	var finalErrs []error
 	workqueue.ParallelizeUntil(ctx, maxParallelism, len(jobsForDeletion), func(i int) {
 		targetJob := jobsForDeletion[i]
+		// Skip deleting jobs with deletion timestamp already set.
+		if targetJob.DeletionTimestamp != nil {
+			return
+		}
 		// Delete job. This deletion event will trigger another reconciliation,
 		// where the jobs are recreated.
-		backgroundPolicy := metav1.DeletePropagationBackground
-		if err := r.Delete(ctx, targetJob, &client.DeleteOptions{PropagationPolicy: &backgroundPolicy}); client.IgnoreNotFound(err) != nil {
+		foregroundPolicy := metav1.DeletePropagationForeground
+		if err := r.Delete(ctx, targetJob, &client.DeleteOptions{PropagationPolicy: &foregroundPolicy}); client.IgnoreNotFound(err) != nil {
 			lock.Lock()
 			defer lock.Unlock()
+			log.Error(err, fmt.Sprintf("failed to delete job: %q", targetJob.Name))
 			finalErrs = append(finalErrs, err)
 			return
 		}
