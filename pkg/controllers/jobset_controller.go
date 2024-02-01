@@ -339,20 +339,12 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 		replicatedJobToActiveJobs[replicatedJobName] = append(replicatedJobToActiveJobs[replicatedJobName], job)
 	}
 
-	getReplicatedJobStatus := func(replicatedJobStatus []jobset.ReplicatedJobStatus, replicatedJobName string) jobset.ReplicatedJobStatus {
-		for _, rjobStatus := range replicatedJobStatus {
-			if replicatedJobName == rjobStatus.Name {
-				return rjobStatus
-			}
-		}
-		return jobset.ReplicatedJobStatus{}
-	}
-
+	startupPolicy := js.Spec.StartupPolicy
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
 		jobStatus := findReplicatedStatus(replicatedJobStatus, replicatedJob.Name)
-		if inOrderStartupPolicy(js.Spec.StartupPolicy) && replicatedJobsStarted(replicatedJob.Replicas, jobStatus) {
+		if inOrderStartupPolicy(startupPolicy) && replicatedJobsStarted(replicatedJob.Replicas, jobStatus) {
 			continue
 		}
 		jobsFromRp := replicatedJobToActiveJobs[replicatedJob.Name]
@@ -361,11 +353,11 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 				return err
 			}
 		}
-		if inOrderStartupPolicy(js.Spec.StartupPolicy) {
+		if inOrderStartupPolicy(startupPolicy) {
 			return r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
 		}
 	}
-	if inOrderStartupPolicy(js.Spec.StartupPolicy) {
+	if inOrderStartupPolicy(startupPolicy) {
 		return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, generateStartupPolicyCondition(true))
 	}
 	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
@@ -408,14 +400,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			return err
 		}
 	}
-	getReplicatedJobStatus := func(replicatedJobStatus []jobset.ReplicatedJobStatus, replicatedJobName string) jobset.ReplicatedJobStatus {
-		for _, val := range replicatedJobStatus {
-			if val.Name == replicatedJobName {
-				return val
-			}
-		}
-		return jobset.ReplicatedJobStatus{}
-	}
+	startupPolicy := js.Spec.StartupPolicy
 	var lock sync.Mutex
 	var finalErrs []error
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
@@ -428,7 +413,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		rjJobStarted := replicatedJobsStarted(replicatedJob.Replicas, status)
 		// For startup policy, if the job is started we can skip this loop
 		// Jobs have been created
-		if !jobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) && rjJobStarted {
+		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) && rjJobStarted {
 			continue
 		}
 		workqueue.ParallelizeUntil(ctx, maxParallelism, len(jobs), func(i int) {
@@ -452,7 +437,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			}
 			log.V(2).Info("successfully created job", "job", klog.KObj(job))
 		})
-		if !jobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) {
+		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
 			return r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
 		}
 	}
@@ -461,7 +446,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		return allErrs
 	}
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
-	if !jobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) {
+	if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
 		return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, generateStartupPolicyCondition(true))
 	}
 	return allErrs
