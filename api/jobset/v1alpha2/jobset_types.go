@@ -201,9 +201,11 @@ type StartupPolicyOptions string
 
 const (
 	// This is the default setting
-	// AnyOrder means that we will start jobs without any specific order.
+	// AnyOrder means that we will start the replicated jobs
+	// without any specific order.
 	AnyOrder StartupPolicyOptions = "AnyOrder"
-	// InOrder starts the jobs in order that they are listed.
+	// InOrder starts the replicated jobs in order
+	// that they are listed.
 	InOrder StartupPolicyOptions = "InOrder"
 )
 
