@@ -38,3 +38,12 @@ func Contains[T comparable](slice []T, element T) bool {
 	}
 	return false
 }
+
+func IndexOf[T comparable](slice []T, item T) int {
+	for i, v := range slice {
+		if v == item {
+			return i
+		}
+	}
+	return -1
+}

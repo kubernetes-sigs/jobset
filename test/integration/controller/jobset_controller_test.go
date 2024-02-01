@@ -18,7 +18,6 @@ package controllertest
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -33,6 +32,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	testutil "sigs.k8s.io/jobset/test/util"
 )
@@ -167,9 +167,16 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					up.jobSetUpdateFn(&jobSet)
 				} else if up.jobUpdateFn != nil {
 					// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
+					// Ensure we have all expected jobs in our jobList before continuing.
 					var jobList batchv1.JobList
-					gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
-					gomega.Expect(len(jobList.Items)).To(gomega.Equal(testutil.NumExpectedJobs(js)))
+					gomega.Eventually(func() (bool, error) {
+						if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+							return false, err
+						}
+						return len(jobList.Items) == testutil.NumExpectedJobs(js), nil
+					}, timeout, interval).Should(gomega.BeTrue())
+
+					// Perform update on jobs.
 					up.jobUpdateFn(&jobList)
 				}
 
@@ -383,9 +390,13 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
 					},
-					checkJobSetState: func(js *jobset.JobSet) {
-						ginkgo.By("checking all jobs are recreated")
-						gomega.Eventually(checkJobsRecreated, timeout, interval).WithArguments(js, 1).Should(gomega.Equal(true))
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
 					},
 				},
 				{
@@ -409,9 +420,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						completeJob(&jobList.Items[0])
 						failJob(&jobList.Items[1])
 					},
-					checkJobSetState: func(js *jobset.JobSet) {
-						ginkgo.By("checking all jobs are recreated")
-						gomega.Eventually(checkJobsRecreated, timeout, interval).WithArguments(js, 1).Should(gomega.Equal(true))
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
 					},
 				},
 				{
@@ -571,6 +585,15 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetCondition: testutil.JobSetCompleted,
 				},
+				// Remove foreground deletion finalizers.
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// Completed jobs are not marked for deletion if the JobSet is completed,
+						// so we expect the number of foreground deletion finalizers to equal
+						// total jobs - 1.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js)-1)
+					},
+				},
 				// Ensure remaining active jobs are deleted.
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
@@ -588,6 +611,14 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						failJob(&jobList.Items[0])
 					},
 					checkJobSetCondition: testutil.JobSetFailed,
+				},
+				// Remove foreground deletion finalizers.
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js)-1)
+					},
 				},
 				// Ensure remaining active jobs are deleted.
 				{
@@ -670,7 +701,7 @@ func completeAllJobs(jobList *batchv1.JobList) {
 }
 
 func completeJob(job *batchv1.Job) {
-	updateJobStatusConditions(job, batchv1.JobStatus{
+	updateJobStatus(job, batchv1.JobStatus{
 		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
 			Type:   batchv1.JobComplete,
 			Status: corev1.ConditionTrue,
@@ -678,7 +709,36 @@ func completeJob(job *batchv1.Job) {
 	})
 }
 
-func updateJobStatusConditions(job *batchv1.Job, status batchv1.JobStatus) {
+// removeForegroundDeletionFinalizers will continually fetch the child jobs for a
+// given JobSet until it has deleted all of the expected foreground deletion
+// finalizers from the jobs.
+func removeForegroundDeletionFinalizers(js *jobset.JobSet, expectedFinalizers int) {
+	gomega.Eventually(func() (bool, error) {
+		// Get fresh job list.
+		var jobList batchv1.JobList
+		gomega.Eventually(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
+
+		for _, job := range jobList.Items {
+			idx := collections.IndexOf(job.Finalizers, metav1.FinalizerDeleteDependents)
+			if idx != -1 {
+				job.Finalizers = append(job.Finalizers[:idx], job.Finalizers[idx+1:]...)
+				if err := k8sClient.Update(ctx, &job); err != nil {
+					return false, err
+				}
+				expectedFinalizers -= 1
+			}
+		}
+		return expectedFinalizers == 0, nil
+	}, timeout, interval).Should(gomega.Equal(true))
+}
+
+func ReadyJob(job *batchv1.Job) {
+	updateJobStatus(job, batchv1.JobStatus{
+		Ready: job.Spec.Parallelism,
+	})
+}
+
+func updateJobStatus(job *batchv1.Job, status batchv1.JobStatus) {
 	gomega.Eventually(func() error {
 		var jobGet batchv1.Job
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &jobGet); err != nil {
@@ -690,7 +750,7 @@ func updateJobStatusConditions(job *batchv1.Job, status batchv1.JobStatus) {
 }
 
 func failJob(job *batchv1.Job) {
-	updateJobStatusConditions(job, batchv1.JobStatus{
+	updateJobStatus(job, batchv1.JobStatus{
 		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
 			Type:   batchv1.JobFailed,
 			Status: corev1.ConditionTrue,
@@ -769,24 +829,6 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 	return wantJobsUpdated == jobsUpdated, nil
 }
 
-func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
-	var jobList batchv1.JobList
-	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
-		return false, err
-	}
-	// Check we have the right number of jobs.
-	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
-		return false, nil
-	}
-	// Check all the jobs restart counter has been incremented.
-	for _, job := range jobList.Items {
-		if job.Labels[controllers.RestartsKey] != strconv.Itoa(expectedRestarts) {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
 // Check one headless service per job was created successfully.
 func checkExpectedServices(js *jobset.JobSet) {
 	gomega.Eventually(func() (int, error) {
@@ -817,6 +859,11 @@ func checkNoActiveJobs(js *jobset.JobSet, numFinishedJobs int) {
 }
 
 func jobActive(job *batchv1.Job) bool {
+	// Jobs marked for deletion using foreground cascading deletion will have deletion timestamp set,
+	// but will still exist until dependent objects with ownerReference.blockOwnerDeletion=true set are deleted.
+	if job.DeletionTimestamp != nil {
+		return false
+	}
 	if len(job.Status.Conditions) == 0 {
 		return true
 	}
@@ -824,6 +871,7 @@ func jobActive(job *batchv1.Job) bool {
 	for _, c := range job.Status.Conditions {
 		if (c.Type == batchv1.JobComplete || c.Type == batchv1.JobFailed) && c.Status == corev1.ConditionTrue {
 			active = false
+			break
 		}
 	}
 	return active
