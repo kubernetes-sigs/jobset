@@ -890,6 +890,35 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 							},
 						})
 					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyJob(&jobList.Items[1])
+						readyJob(&jobList.Items[2])
+						readyJob(&jobList.Items[3])
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{Name: "replicated-job-b",
+								Ready:     3,
+								Succeeded: 0,
+								Failed:    0,
+								Active:    0,
+								Suspended: 0,
+							},
+							{
+								Name:      "replicated-job-a",
+								Ready:     1,
+								Succeeded: 0,
+								Failed:    0,
+								Active:    0,
+								Suspended: 0,
+							},
+						})
+					},
 					checkJobSetCondition: testutil.JobSetStartupPolicyComplete,
 				},
 			},
@@ -924,6 +953,108 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						})
 					},
 					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
+				},
+				{
+					// Second update
+					// Set Replicated-Job-A to ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyJob(&jobList.Items[0])
+					},
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{Name: "replicated-job-b",
+								Ready:     0,
+								Succeeded: 0,
+								Failed:    0,
+								Active:    0,
+								Suspended: 0,
+							},
+							{
+								Name:      "replicated-job-a",
+								Ready:     1,
+								Succeeded: 0,
+								Failed:    0,
+								Active:    0,
+								Suspended: 0,
+							},
+						})
+					},
+				},
+				{
+					// Set replicated-job-b to all active but not ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						activeJob(&jobList.Items[1])
+						activeJob(&jobList.Items[2])
+						activeJob(&jobList.Items[3])
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{Name: "replicated-job-b",
+								Ready:     0,
+								Succeeded: 0,
+								Failed:    0,
+								Active:    3,
+								Suspended: 0,
+							},
+							{
+								Name:      "replicated-job-a",
+								Ready:     1,
+								Succeeded: 0,
+								Failed:    0,
+								Active:    0,
+								Suspended: 0,
+							},
+						})
+					},
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 4
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
+				},
+				{
+					// Set replicated-job-b to all ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyJob(&jobList.Items[1])
+						readyJob(&jobList.Items[2])
+						readyJob(&jobList.Items[3])
+					},
+				},
+				{
+					// Final state
+					// all jobs are ready
+					// startup policy condition is set to true
+					// and number of jobs equals total
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{Name: "replicated-job-b",
+								Ready:     3,
+								Succeeded: 0,
+								Failed:    0,
+								Active:    0,
+								Suspended: 0,
+							},
+							{
+								Name:      "replicated-job-a",
+								Ready:     1,
+								Succeeded: 0,
+								Failed:    0,
+								Active:    0,
+								Suspended: 0,
+							},
+						})
+					},
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 4
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyComplete,
 				},
 			},
 		}),
