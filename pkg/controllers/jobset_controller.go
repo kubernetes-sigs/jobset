@@ -152,7 +152,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Handle suspending a jobset or resuming a suspended jobset.
-	jobsetSuspended := isJobSetSuspended(&js)
+	jobsetSuspended := jobSetSuspended(&js)
 	if jobsetSuspended {
 		if err := r.suspendJobSet(ctx, &js, ownedJobs); err != nil {
 			log.Error(err, "suspending jobset")
@@ -276,7 +276,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 		if job.Status.Active > 0 {
 			replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["active"]++
 		}
-		if isJobSuspended(job) {
+		if jobSuspended(job) {
 			replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["suspended"]++
 		}
 	}
@@ -307,7 +307,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 
 func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
 	for _, job := range ownedJobs.active {
-		if !isJobSuspended(job) {
+		if !jobSuspended(job) {
 			job.Spec.Suspend = ptr.To(true)
 			if err := r.Update(ctx, job); err != nil {
 				return err
@@ -389,7 +389,7 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 
 func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, nodeAffinities map[string]map[string]string) error {
 	log := ctrl.LoggerFrom(ctx)
-	if isJobSuspended(job) {
+	if jobSuspended(job) {
 		if job.Status.StartTime != nil {
 			job.Status.StartTime = nil
 			if err := r.Status().Update(ctx, job); err != nil {
@@ -431,7 +431,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	var lock sync.Mutex
 	var finalErrs []error
 	statusOfFirstJob := findReplicatedStatus(replicatedJobStatus, js.Spec.ReplicatedJobs[0].Name)
-	if !isJobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) && !replicatedJobsStarted(js.Spec.ReplicatedJobs[0].Replicas, statusOfFirstJob) {
+	if !jobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) && !replicatedJobsStarted(js.Spec.ReplicatedJobs[0].Replicas, statusOfFirstJob) {
 		err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
 		if err != nil {
 			return fmt.Errorf("unable to update condition for startup policy: %v", err)
@@ -447,7 +447,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		rjJobStarted := replicatedJobsStarted(replicatedJob.Replicas, status)
 		// For startup policy, if the job is started we can skip this loop
 		// Jobs have been created
-		if !isJobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) && rjJobStarted {
+		if !jobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) && rjJobStarted {
 			continue
 		}
 		workqueue.ParallelizeUntil(ctx, maxParallelism, len(jobs), func(i int) {
@@ -471,7 +471,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			}
 			log.V(2).Info("successfully created job", "job", klog.KObj(job))
 		})
-		if !isJobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) {
+		if !jobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) {
 			return nil
 		}
 	}
@@ -480,7 +480,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		return allErrs
 	}
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
-	if !isJobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) {
+	if !jobSetSuspended(js) && inOrderStartupPolicy(js.Spec.StartupPolicy) {
 		return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, generateStartupPolicyCondition(true))
 	}
 	return allErrs
@@ -710,7 +710,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	}
 
 	// if Suspend is set, then we assume all jobs will be suspended also.
-	jobsetSuspended := isJobSetSuspended(js)
+	jobsetSuspended := jobSetSuspended(js)
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
 
 	return job, nil
@@ -869,11 +869,11 @@ func numJobsExpectedToSucceed(js *jobset.JobSet) int {
 	return total
 }
 
-func isJobSetSuspended(js *jobset.JobSet) bool {
+func jobSetSuspended(js *jobset.JobSet) bool {
 	return ptr.Deref(js.Spec.Suspend, false)
 }
 
-func isJobSuspended(job *batchv1.Job) bool {
+func jobSuspended(job *batchv1.Job) bool {
 	return ptr.Deref(job.Spec.Suspend, false)
 }
 
