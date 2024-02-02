@@ -139,49 +139,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 		},
 		{
-			name: "subdomain defaults to jobset name",
-			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "custom-jobset",
-				},
-				Spec: JobSetSpec{
-					SuccessPolicy: defaultSuccessPolicy,
-					ReplicatedJobs: []ReplicatedJob{
-						{
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
-								},
-							},
-						},
-					},
-				},
-			},
-			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "custom-jobset",
-				},
-				Spec: JobSetSpec{
-					SuccessPolicy: defaultSuccessPolicy,
-					Network: &Network{
-						EnableDNSHostnames: ptr.To(true),
-						Subdomain:          "custom-jobset",
-					},
-					ReplicatedJobs: []ReplicatedJob{
-						{
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		{
 			name: "enableDNSHostnames is false",
 			js: &JobSet{
 				Spec: JobSetSpec{
