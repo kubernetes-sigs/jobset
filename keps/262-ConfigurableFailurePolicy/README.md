@@ -283,14 +283,21 @@ spec:
         parallelism: 1
         completions: 1
         backoffLimit: 0
-        # If a pod fails with exit code 2 or 3, fail the Job, attaching the exit code to the reason.
+        # If a pod fails with exit code 2 or 3, fail the Job, using the user-defined reason.
         podFailurePolicy:
           rules:
           - action: FailJob
             onExitCodes:
               containerName: main
               operator: In
-              values: [2,3]
+              values: [2]
+            reason: "ExitCode2"
+          - action: FailJob
+            onExitCodes:
+              containerName: main
+              operator: In
+              values: [3]
+            reason: "ExitCode3"
         template:
           spec:
             restartPolicy: Never
