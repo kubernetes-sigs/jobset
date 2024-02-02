@@ -628,7 +628,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("jobset using generateName with enableDNSHostnames should have network subdomain set to the jobset name", &testCase{
+		ginkgo.Entry("jobset using generateName with enableDNSHostnames should have headless service name set to the jobset name", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).SetGenerateName("name-prefix").EnableDNSHostnames(true)
 			},
