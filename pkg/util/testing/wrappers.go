@@ -72,6 +72,14 @@ func (j *JobSetWrapper) SetAnnotations(annotations map[string]string) *JobSetWra
 	return j
 }
 
+// GenerateName sets the JobSet name.
+func (j *JobSetWrapper) SetGenerateName(namePrefix string) *JobSetWrapper {
+	// Name and GenerateName are mutually exclusive, so we must unset the Name field.
+	j.Name = ""
+	j.GenerateName = namePrefix
+	return j
+}
+
 // Obj returns the inner JobSet.
 func (j *JobSetWrapper) Obj() *jobset.JobSet {
 	return &j.JobSet
