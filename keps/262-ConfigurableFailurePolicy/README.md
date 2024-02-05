@@ -267,13 +267,13 @@ spec:
       targetReplicatedJobs:
       - simulations
       onJobFailureReasons:
-      - PodFailurePolicy-ExitCode2
+      - PodFailurePolicyExitCode2
     # If Job fails due to a pod failing with exit code 3, restart that Job.
     - action: RestartJob
       targetReplicatedJobs:
       - simulations
       onJobFailureReasons:
-      - PodFailurePolicy-ExitCode3
+      - PodFailurePolicyExitCode3
     maxRestarts: 10
   replicatedJobs:
   - name: simulations
