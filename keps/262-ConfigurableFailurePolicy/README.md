@@ -178,135 +178,6 @@ spec:
               - echo "Hello world! I'm going to exit with exit code 143 (SIGTERM) to simulate host maintenance." && sleep 20 && exit 143
 ```
 
-### Story 3: RestartReplicatedJob
-
-As a user, I have a JobSet with 2 replicated jobs: one which runs distributed training processes across a pool of GPU
-nodes, and one which runs the driver/coordinator on a CPU pool. If a child job of the GPU worker ReplicatedJob crashes, I just want to restart the GPU workers and not the driver, then resume training from the latest checkpoint. However, if
-the driver crashes, I want to restart the entire JobSet, then resume training from the latest checkpoint.
-
-**Example Failure Policy configuration for this use case**:
-
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: restart-replicated-job-example
-  annotations:
-    alpha.jobset.sigs.k8s.io/exclusive-topology: {{topologyDomain}} # 1:1 job replica to topology domain assignment
-spec:
-  # Failure Policy to restart the child jobs of the target ReplicatedJob (gpu-workers) if any fail, but fall
-  # back to the default behavior of restarting the entire JobSet if the driver fails.
-  failurePolicy:
-    rules:
-    - action: RestartReplicatedJob
-      targetReplicatedJobs:
-      - gpu-workers
-    maxRestarts: 10
-  replicatedJobs:
-  - name: driver
-    replicas: 1
-    template:
-      spec:
-        parallelism: 1
-        completions: 1
-        backoffLimit: 0
-        template:
-          spec:
-            restartPolicy: Never
-            containers:
-            - name: main
-              image: python:3.10
-              command: ["..."]
-  - name: gpu-workers
-    replicas: 4 # number of node pools
-    template:
-      spec:
-        parallelism: 2
-        completions: 2
-        backoffLimit: 0
-        template:
-          spec:
-            containers:
-            - name: main
-              image: pytorch:latest
-              command: ["..."]
-            resources:
-              limits:
-                nvidia.com/gpu: 1
-```
-
-### Story 4: FailJob and RestartJob
-
-Dependency: https://github.com/kubernetes/kubernetes/issues/122972
-
-As a user, I want to run a HPC simulation in which each child job runs a simulation with different random initial
-parameters. When a simulation ends, the application will exit with one of two exit codes:
-
-- Exit code 2, which indicates the simulation produced an invalid result due to bad starting parameters, and should
-not be retried.
-- Exit code 3, which indicates the simulation produced an invalid result but the intial parameters were reasonable,
-so the simulation should be restarted.
-
-When a Job fails due to a pod failing with exit code 2, I want the Job to stay in a failed state.
-When a Job fails due to a pod failing with exit code 3, I want to restart the Job.
-
-**Example Failure Policy configuration for this use case**:
-
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: restart-replicated-job-example
-  annotations:
-    alpha.jobset.sigs.k8s.io/exclusive-topology: {{topologyDomain}} # 1:1 job replica to topology domain assignment
-spec:
-  failurePolicy:
-    rules:
-    # If Job fails due to a pod failing with exit code 2, leave it in a failed state.
-    - action: FailJob
-      targetReplicatedJobs:
-      - simulations
-      onJobFailureReasons:
-      - PodFailurePolicyExitCode2
-    # If Job fails due to a pod failing with exit code 3, restart that Job.
-    - action: RestartJob
-      targetReplicatedJobs:
-      - simulations
-      onJobFailureReasons:
-      - PodFailurePolicyExitCode3
-    maxRestarts: 10
-  replicatedJobs:
-  - name: simulations
-    replicas: 10
-    template:
-      spec:
-        parallelism: 1
-        completions: 1
-        backoffLimit: 0
-        # If a pod fails with exit code 2 or 3, fail the Job, using the user-defined reason.
-        podFailurePolicy:
-          rules:
-          - action: FailJob
-            onExitCodes:
-              containerName: main
-              operator: In
-              values: [2]
-            reason: "ExitCode2"
-          - action: FailJob
-            onExitCodes:
-              containerName: main
-              operator: In
-              values: [3]
-            reason: "ExitCode3"
-        template:
-          spec:
-            restartPolicy: Never
-            containers:
-            - name: main
-              image: python:3.10
-              command: ["..."]
-```
-
 ### Notes/Constraints/Caveats (Optional)
 
 <!--
@@ -346,17 +217,6 @@ const (
 
   // Don't count the failure against maxRestarts.
   Ignore FailurePolicyAction = "Ignore"
-
-  // Restart all the child jobs of the ReplicatedJob the failed job is a part of.
-  RestartReplicatedJob FailurePolicyAction = "RestartReplicatedJob"
-  
-  // The failed child job is permanently failed and should not be
-  // restarted, active child jobs will continue to run to completion.
-  FailJob FailurePolicyAction = "FailJob"
-
-  // Restart the failed child job only, not the whole JobSet.
-  RestartJob FailurePolicyAction = "RestartJob"
-
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
@@ -367,12 +227,13 @@ type FailurePolicyRule struct {
   Action FailurePolicyAction `json:"action"`
   // The requirement on the job failure reasons. The requirement
   // is satisfied if at least one reason matches the list.
-  // Each unique failure reason can only be associated with one FailurePolicyRule.
+  // The rules are evaluated in order, and the first matching
+  // rule is executed.
   // An empty list applies the rule to any job failure reason.
   // +kubebuilder:validation:UniqueItems:true
   OnJobFailureReasons []string `json:"onJobFailureReasons"`
-  // TargetReplicatedJobs are the names of the replicated jobs the operator will apply to.
-  // A null or empty list will apply to all replicatedJobs.
+  // TargetReplicatedJobs are the names of the replicated jobs the operator applies to.
+  // An empty list will apply to all replicatedJobs.
   // +optional
   // +listType=atomic
   // +kubebuilder:validation:UniqueItems
@@ -411,23 +272,11 @@ the behavior defined for each FailurePolicyAction type:
 
 1) `FailJobSet`: To fail the JobSet immediately without restarting, the controller updates the JobSet status to failed.
 
-2) `Ignore`: To "ignore" the failure (i.e., restart the JobSet without counting it against `MaxRestarts`), the controller
+2) `RestartJobSetAndIgnore`: To "ignore" the failure (i.e., restart the JobSet without counting it against `MaxRestarts`), the controller
 will delete all child jobs and allow the normal reconciliation process to recreate them. This is in contrast to how
 we restart the JobSet **without** ignoring the failure, which is done by incrementing the counter on the JobSet annotation
 `jobset.sigs.k8s.io/restart-attempt`, which on subsequent reconiliations will trigger job deletion and recreation for any
 child job with a `jobset.sigs.k8s.io/restart-attempt` counter value less than that of the JobSet.
-
-3) `RestartReplicatedJob`: To restart the child jobs of a specific replicated job, the controller will delete the child
-jobs of the target replicated job, **without incrementing the restart attempt annotation**. The jobs will then be 
-recreated via the normal reconciliation process.
-
-4) `RestartJob`: To restart a single child job without restarting the entire JobSet, the controller will delete that 
-particular child job, **without incrementing the restart attempt annotation**, and allow the normal reconciliation
-process to recreate it.
-
-5) `FailJob`: To leave a particular child job in a failed state without restarting it or restarting the JobSet, the
-controller will simply do nothing, taking no action on this job.
-
 
 ### Test Plan
 
@@ -514,3 +363,154 @@ what kind of errors are considered retriable and non-retriable, by defining podF
 caused by SIGTERM (host maintenance), and failing the job immediately for failures caused by any other exit code.
 This would require less configuration from the user, providing some smarter restart/failure semantics out of the
 box, but lacks the flexibility we want to offer users.
+
+## Future Work
+
+There are some additional use cases which would require extending the Failure Policy API with more Action types,
+as described below. However, there is still some unresolved ambiguity and in how we will track restarts of 
+individual jobs, since we do not want to restart indefinitely, there needs to be some limit. In addition,
+some of them have dependencies on upstream features that have been [proposed](https://github.com/kubernetes/kubernetes/issues/122972) but are still under review, and won't
+be available to use for some time.
+
+Additional actions we want to support in the future include:
+
+1) `RestartReplicatedJob`: To restart the child jobs of a specific replicated job, the controller will delete the child
+jobs of the target replicated job, **without incrementing the restart attempt annotation**. The jobs will then be 
+recreated via the normal reconciliation process.
+
+2) `RestartJob`: To restart a single child job without restarting the entire JobSet, the controller will delete that 
+particular child job, **without incrementing the restart attempt annotation**, and allow the normal reconciliation
+process to recreate it.
+
+3) `FailJob`: To leave a particular child job in a failed state without restarting it or restarting the JobSet, the
+controller will simply do nothing, taking no action on this job.
+
+
+### Story 1: RestartReplicatedJob
+
+As a user, I have a JobSet with 2 replicated jobs: one which runs distributed training processes across a pool of GPU
+nodes, and one which runs the driver/coordinator on a CPU pool. If a child job of the GPU worker ReplicatedJob crashes, I just want to restart the GPU workers and not the driver, then resume training from the latest checkpoint. However, if
+the driver crashes, I want to restart the entire JobSet, then resume training from the latest checkpoint.
+
+**Example Failure Policy configuration for this use case**:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: restart-replicated-job-example
+  annotations:
+    alpha.jobset.sigs.k8s.io/exclusive-topology: {{topologyDomain}} # 1:1 job replica to topology domain assignment
+spec:
+  # Failure Policy to restart the child jobs of the target ReplicatedJob (gpu-workers) if any fail, but fall
+  # back to the default behavior of restarting the entire JobSet if the driver fails.
+  failurePolicy:
+    rules:
+    - action: RestartReplicatedJob
+      targetReplicatedJobs:
+      - gpu-workers
+    maxRestarts: 10
+  replicatedJobs:
+  - name: driver
+    replicas: 1
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              image: python:3.10
+              command: ["..."]
+  - name: gpu-workers
+    replicas: 4 # number of node pools
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: main
+              image: pytorch:latest
+              command: ["..."]
+            resources:
+              limits:
+                nvidia.com/gpu: 1
+```
+
+### Story 2: FailJob and RestartJob
+
+Dependency: https://github.com/kubernetes/kubernetes/issues/122972
+
+As a user, I want to run a HPC simulation in which each child job runs a simulation with different random initial
+parameters. When a simulation ends, the application will exit with one of two exit codes:
+
+- Exit code 2, which indicates the simulation produced an invalid result due to bad starting parameters, and should
+not be retried.
+- Exit code 3, which indicates the simulation produced an invalid result but the intial parameters were reasonable,
+so the simulation should be restarted.
+
+When a Job fails due to a pod failing with exit code 2, I want the Job to stay in a failed state.
+When a Job fails due to a pod failing with exit code 3, I want to restart the Job.
+
+**Example Failure Policy configuration for this use case**:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: restart-replicated-job-example
+  annotations:
+    alpha.jobset.sigs.k8s.io/exclusive-topology: {{topologyDomain}} # 1:1 job replica to topology domain assignment
+spec:
+  failurePolicy:
+    rules:
+    # If Job fails due to a pod failing with exit code 2, leave it in a failed state.
+    - action: FailJob
+      targetReplicatedJobs:
+      - simulations
+      onJobFailureReasons:
+      - ExitCode2
+    # If Job fails due to a pod failing with exit code 3, restart that Job.
+    - action: RestartJob
+      targetReplicatedJobs:
+      - simulations
+      onJobFailureReasons:
+      - ExitCode3
+    maxRestarts: 10
+  replicatedJobs:
+  - name: simulations
+    replicas: 10
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        # If a pod fails with exit code 2 or 3, fail the Job, using the user-defined reason.
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onExitCodes:
+              containerName: main
+              operator: In
+              values: [2]
+            setConditionReason: "ExitCode2"
+          - action: FailJob
+            onExitCodes:
+              containerName: main
+              operator: In
+              values: [3]
+            setConditionReason: "ExitCode3"
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              image: python:3.10
+              command: ["..."]
+```
