@@ -665,6 +665,7 @@ func TestUpdateConditions(t *testing.T) {
 		js             *jobset.JobSet
 		conditions     []metav1.Condition
 		newCondition   metav1.Condition
+		forceUpdate    bool
 		expectedUpdate bool
 	}{
 		{
@@ -688,6 +689,18 @@ func TestUpdateConditions(t *testing.T) {
 			newCondition:   metav1.Condition{Status: metav1.ConditionFalse, Type: string(jobset.JobSetSuspended), Reason: "JobsResumed"},
 			conditions:     []metav1.Condition{},
 			expectedUpdate: false,
+		},
+		{
+			name: "force update if false",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			newCondition:   metav1.Condition{Status: metav1.ConditionFalse, Type: string(jobset.JobSetStartupPolicyCompleted), Reason: "StartupPolicy"},
+			conditions:     []metav1.Condition{},
+			expectedUpdate: true,
+			forceUpdate:    true,
 		},
 		{
 			name: "update if condition is true",
@@ -739,7 +752,7 @@ func TestUpdateConditions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			jsWithConditions := tc.js
 			jsWithConditions.Status.Conditions = tc.conditions
-			gotUpdate := updateCondition(jsWithConditions, tc.newCondition)
+			gotUpdate := updateCondition(jsWithConditions, tc.newCondition, tc.forceUpdate)
 			if gotUpdate != tc.expectedUpdate {
 				t.Errorf("updateCondition return mismatch")
 			}

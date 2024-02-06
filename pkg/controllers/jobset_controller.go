@@ -314,7 +314,7 @@ func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet,
 			}
 		}
 	}
-	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
+	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, metav1.Condition{
 		Type:               string(jobset.JobSetSuspended),
 		Status:             metav1.ConditionStatus(corev1.ConditionTrue),
 		LastTransitionTime: metav1.Now(),
@@ -324,7 +324,6 @@ func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet,
 }
 
 func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatus []jobset.ReplicatedJobStatus) error {
-	log := ctrl.LoggerFrom(ctx)
 
 	nodeAffinities := map[string]map[string]string{}
 	// as an optimization we are only going to store the jobs that need
@@ -360,7 +359,7 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 	if inOrderStartupPolicy(startupPolicy) {
 		return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, generateStartupPolicyCondition(true))
 	}
-	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
+	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, metav1.Condition{
 		Type:               string(jobset.JobSetSuspended),
 		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
 		LastTransitionTime: metav1.Now(),
@@ -495,7 +494,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 // Returns a boolean value indicating if the jobset was completed or not.
 func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) (bool, error) {
 	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
-		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, metav1.Condition{
+		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "AllJobsCompleted",
@@ -530,7 +529,7 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 
 	// If JobSet has reached max number of restarts, mark it as failed and return.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
-		return r.ensureCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
+		return r.ensureCondition(ctx, js, corev1.EventTypeWarning, false, metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 			Reason:  "ReachedMaxRestarts",
@@ -582,8 +581,8 @@ func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, 
 	return nil
 }
 
-func (r *JobSetReconciler) ensureCondition(ctx context.Context, js *jobset.JobSet, eventType string, condition metav1.Condition) error {
-	if !updateCondition(js, condition) {
+func (r *JobSetReconciler) ensureCondition(ctx context.Context, js *jobset.JobSet, eventType string, forceFalseUpdate bool, condition metav1.Condition) error {
+	if !updateCondition(js, condition, forceFalseUpdate) {
 		return nil
 	}
 	if err := r.Status().Update(ctx, js); err != nil {
@@ -595,7 +594,7 @@ func (r *JobSetReconciler) ensureCondition(ctx context.Context, js *jobset.JobSe
 }
 
 func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) error {
-	return r.ensureCondition(ctx, js, corev1.EventTypeWarning, metav1.Condition{
+	return r.ensureCondition(ctx, js, corev1.EventTypeWarning, false, metav1.Condition{
 		Type:    string(jobset.JobSetFailed),
 		Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 		Reason:  "FailedJobs",
@@ -603,14 +602,14 @@ func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) er
 	})
 }
 
-func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
+func updateCondition(js *jobset.JobSet, condition metav1.Condition, forceFalseUpdate bool) bool {
 	condition.LastTransitionTime = metav1.Now()
 	for i, val := range js.Status.Conditions {
 		if condition.Type == val.Type && condition.Status != val.Status {
 			js.Status.Conditions[i] = condition
 			// Condition found but different status so we should update
 			return true
-		} else if condition.Type == val.Type && condition.Status == val.Status {
+		} else if condition.Type == val.Type && condition.Status == val.Status && condition.Reason == val.Reason && condition.Message == val.Message {
 			// Duplicate condition so no update
 			return false
 		}
@@ -629,6 +628,7 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition) bool {
 	}
 	return false
 }
+
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
 	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {

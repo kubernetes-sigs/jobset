@@ -133,7 +133,7 @@ func TestGenerateStartupPolicyCondition(t *testing.T) {
 				Type:    string(jobset.JobSetStartupPolicyCompleted),
 				Status:  metav1.ConditionFalse,
 				Reason:  "StartupPolicyInOrder",
-				Message: "replicated job a is starting",
+				Message: "startup policy in order starting",
 			},
 		},
 		{
@@ -150,7 +150,7 @@ func TestGenerateStartupPolicyCondition(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := generateStartupPolicyCondition(tc.policyComplete, tc.jobName)
+			actual := generateStartupPolicyCondition(tc.policyComplete)
 			if diff := cmp.Diff(tc.expectedCondition, actual); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}

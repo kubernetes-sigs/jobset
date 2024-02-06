@@ -14,8 +14,6 @@ limitations under the License.
 package controllers
 
 import (
-	"fmt"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
