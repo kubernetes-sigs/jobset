@@ -24,8 +24,6 @@ tags, and then generate with `hack/update-toc.sh`.
   - [User Stories (Optional)](#user-stories-optional)
     - [Story 1: FailJobSet](#story-1-failjobset)
     - [Story 2: Ignore](#story-2-ignore)
-  - [Story 3: RestartReplicatedJob](#story-3-restartreplicatedjob)
-  - [Story 4: FailJob and RestartJob](#story-4-failjob-and-restartjob)
   - [Notes/Constraints/Caveats (Optional)](#notesconstraintscaveats-optional)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Design Details](#design-details)
@@ -40,6 +38,9 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Implementation History](#implementation-history)
 - [Drawbacks](#drawbacks)
 - [Alternatives](#alternatives)
+- [Future Work](#future-work)
+  - [Story 1: RestartReplicatedJob](#story-1-restartreplicatedjob)
+  - [Story 2: FailJob and RestartJob](#story-2-failjob-and-restartjob)
 <!-- /toc -->
 
 
