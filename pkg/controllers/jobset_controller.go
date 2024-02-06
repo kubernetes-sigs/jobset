@@ -94,6 +94,14 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	ctx = ctrl.LoggerInto(ctx, log)
 	log.V(2).Info("Reconciling JobSet")
 
+	// If enableDNSHostnames is set, and subdomain is unset, default the subdomain to be the JobSet name.
+	// This must be done in the controller rather than in the request-time defaulting, since if a JobSet
+	// uses generateName rather than setting the name explicitly, the JobSet name will still be an empty
+	// string at that time.
+	if dnsHostnamesEnabled(&js) && js.Spec.Network.Subdomain == "" {
+		js.Spec.Network.Subdomain = js.Name
+	}
+
 	// Get Jobs owned by JobSet.
 	ownedJobs, err := r.getChildJobs(ctx, &js)
 	if err != nil {
@@ -406,23 +414,14 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *jobset.JobSet) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// If enableDNSHostnames is set, and subdomain is unset, default the subdomain to be the JobSet name.
-	// This must be done in the controller rather than in the request-time defaulting, since if a JobSet
-	// uses generateName rather than setting the name explicitly, the JobSet name will still be an empty
-	// string at that time.
-	subdomain := js.Spec.Network.Subdomain
-	if subdomain == "" {
-		subdomain = js.Name
-	}
-
 	// Check if service already exists. The service name should match the subdomain specified in
 	// Spec.Network.Subdomain, with default of <jobSetName> set by the webhook.
 	// If the service doesn't exist in the same namespace, create it.
 	var headlessSvc corev1.Service
-	if err := r.Get(ctx, types.NamespacedName{Name: subdomain, Namespace: js.Namespace}, &headlessSvc); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: js.Spec.Network.Subdomain, Namespace: js.Namespace}, &headlessSvc); err != nil {
 		headlessSvc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      subdomain,
+				Name:      js.Spec.Network.Subdomain,
 				Namespace: js.Namespace,
 			},
 			Spec: corev1.ServiceSpec{
