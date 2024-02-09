@@ -715,11 +715,34 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("startupPolicy; suspend should keep jobs suspended", &testCase{
+		ginkgo.Entry("startupPolicy with InOrder; suspend should keep jobs suspended", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(true).
 					StartupPolicy(&jobset.StartupPolicy{
 						StartupPolicyOrder: jobset.InOrder,
+					})
+			},
+			updates: []*update{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{Name: "replicated-job-b",
+								Suspended: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Suspended: 1,
+							},
+						})
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("startupPolicy with AnyOrder; suspend should keep jobs suspended", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Suspend(true).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.AnyOrder,
 					})
 			},
 			updates: []*update{
@@ -945,10 +968,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 							},
 						})
 					},
-					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 4
-						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
-					},
 					checkJobSetCondition: testutil.JobSetStartupPolicyComplete,
 				},
 			},
@@ -1001,10 +1020,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						readyReplicatedJob(jobList, "replicated-job-b")
 					},
-					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 4
-						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
-					},
 				},
 				{
 					// Final state
@@ -1031,10 +1046,21 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 				},
 				{
-					// Update on recreate.
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					// recreate and redo startup policy
 					// Set Replicated-Job-A to ready
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						readyReplicatedJob(jobList, "replicated-job-a")
+					},
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -1045,10 +1071,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 							},
 						})
 					},
-					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 1
-						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
-					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
 				},
 				{
 					// Set replicated-job-b to ready
@@ -1075,28 +1098,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						ginkgo.By("checking all jobs are recreated")
 						gomega.Eventually(checkJobsRecreated, timeout, interval).WithArguments(js, 1).Should(gomega.Equal(true))
 					},
-				},
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
-								Ready:     3,
-								Succeeded: 0,
-								Failed:    0,
-								Active:    0,
-								Suspended: 0,
-							},
-							{
-								Name:      "replicated-job-a",
-								Ready:     1,
-								Succeeded: 0,
-								Failed:    0,
-								Active:    0,
-								Suspended: 0,
-							},
-						})
-					},
-					checkJobSetCondition: testutil.JobSetStartupPolicyComplete,
 				},
 			},
 		}),
@@ -1198,14 +1199,7 @@ func readyReplicatedJob(jobList *batchv1.JobList, replicatedJobName string) {
 }
 
 func readyJob(job *batchv1.Job) {
-	gomega.Eventually(func() error {
-		var jobGet batchv1.Job
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &jobGet); err != nil {
-			return err
-		}
-		jobGet.Status.Ready = jobGet.Spec.Parallelism
-		return k8sClient.Status().Update(ctx, &jobGet)
-	}, timeout, interval).Should(gomega.Succeed())
+	updateJobStatus(job, batchv1.JobStatus{Ready: job.Spec.Parallelism})
 }
 
 // removeForegroundDeletionFinalizers will continually fetch the child jobs for a
@@ -1242,14 +1236,7 @@ func activeReplicatedJob(jobList *batchv1.JobList, replicatedJobName string) {
 }
 
 func activeJob(job *batchv1.Job) {
-	gomega.Eventually(func() error {
-		var jobGet batchv1.Job
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &jobGet); err != nil {
-			return err
-		}
-		jobGet.Status.Active = ptr.Deref(jobGet.Spec.Parallelism, 0)
-		return k8sClient.Status().Update(ctx, &jobGet)
-	}, timeout, interval).Should(gomega.Succeed())
+	updateJobStatus(job, batchv1.JobStatus{Active: *job.Spec.Parallelism})
 }
 
 func updateJobStatus(job *batchv1.Job, status batchv1.JobStatus) {
