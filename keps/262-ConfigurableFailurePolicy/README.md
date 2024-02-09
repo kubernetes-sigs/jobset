@@ -23,7 +23,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Proposal](#proposal)
   - [User Stories (Optional)](#user-stories-optional)
     - [Story 1: FailJobSet](#story-1-failjobset)
-    - [Story 2: Ignore](#story-2-ignore)
+    - [Story 2: RestartJobSetAndIgnoreMaxRestarts](#story-2-restartjobsetandignoremaxrestarts)
   - [Notes/Constraints/Caveats (Optional)](#notesconstraintscaveats-optional)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Design Details](#design-details)
@@ -128,7 +128,48 @@ spec:
               - echo "Hello world! I'm going to exit with exit code 1 to simulate a software bug." && sleep 20 && exit 1
 ```
 
-#### Story 2: Ignore
+#### Story 2: RestartJobSet
+
+As a user, I am running a distributed ML training workload using a JobSet. When any worker fails, I want all of the workers
+to restart together. The JobSet should only restart some finite number of times before failing, so that if there is a bug
+the JobSet does not restart indefinitely, hogging compute resources unnecessarily.
+
+**Example Failure Policy Configuration for this use case**:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: restart-jobset-example
+spec:
+  # Failure Policy configured to restart the JobSet upon any failure, up to 10 times.
+  # Otherwise, restart up to 10 times. This rule applies to any failure type for all
+  # replicated jobs.
+  failurePolicy:
+    rules:
+    - action: RestartJobSet 
+    maxRestarts: 10
+  replicatedJobs:
+  - name: buggy-job 
+    replicas: 1
+    template:
+      spec:
+        parallelism: 4
+        completions: 4
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              image: bash:latest
+              image: python:3.8
+              command: 
+              - |
+                python3 train.py
+```
+
+#### Story 3: RestartJobSetAndIgnoreMaxRestarts
 
 As a user, in order to use my computing resources more efficiently, I want to 
 configure my JobSet to restart unlimited times for child job failures due to host maintenance,
@@ -140,13 +181,13 @@ but restart a limited number of times for any other kind of error.
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
-  name: ignore-example
+  name: ignore-max-restarts-example
 spec:
   # Failure Policy configured to ignore the failure (i.e., restart the JobSet without incrementing restart attempts)
   # if the failure was due to a host maintenance event (i.e., a SIGTERM sent as part of graceful node shutdown).
   failurePolicy:
     rules:
-    - action: Ignore
+    - action: RestartJobSetAndIgnoreMaxRestarts
       onJobFailureReasons: 
       - PodFailurePolicy
     maxRestarts: 10
@@ -178,6 +219,63 @@ spec:
               - -c
               - echo "Hello world! I'm going to exit with exit code 143 (SIGTERM) to simulate host maintenance." && sleep 20 && exit 143
 ```
+
+#### Story 4: Different failure policies for different replicated jobs
+
+As a user, I am running a JobSet which contains 2 replicated jobs:
+- `workers`: which runs a large scale distributed ML training job
+- `parameter-server`: which runs a parameter server for the training job
+
+When a worker in the `workers` replicated job fails, I want the entire JobSet to restart
+and resume training from the latest checkpoint. The workers are running across 15k nodes,
+so the probability of any 1 node in the cluster experiencing some kind of failure is relatively
+high; mean time to failure (MTTF) is only a few hours - every few hours we can expect a node to fail
+and the JobSet will need to restart once the node is recreated and healthy again. Since the JobSet
+will be restarting numerous times along the road to completing this very long training job, the workers
+should be able to restart an unlimited number of times.
+
+When the parameter service in the `parameter-server` replicated job fails, I want the JobSet
+to restart but only up to 3 times, as the job 
+
+**Example Failure Policy Configuration for this use case**:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: different-policies-for-different-replicated-jobs
+spec:
+  # Failure Policy configured to restart the JobSet upon any failure, up to 10 times.
+  # Otherwise, restart up to 10 times. This rule applies to any failure type for all
+  # replicated jobs.
+  failurePolicy:
+    rules:
+    - action: RestartJobSetAndIgnoreMaxRestarts
+      targetReplicatedJobs:
+      - workers
+    - action: RestartJobSet
+      targetReplicatedJobs:
+      - parameter-server
+  replicatedJobs:
+  - name: workers
+    replicas: 5
+    template:
+      spec:
+        parallelism: 3000
+        completions: 3000
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              image: bash:latest
+              image: python:3.8
+              command: 
+              - |
+                python3 train.py
+```
+
 
 ### Notes/Constraints/Caveats (Optional)
 
@@ -213,18 +311,23 @@ Consider including folks who also work outside the SIG or subproject.
 type FailurePolicyAction string
 
 const (
-  // Fail JobSet immediately, regardless of maxRestarts.
+  // Fail the JobSet immediately, regardless of maxRestarts.
   FailJobSet FailurePolicyAction = "FailJobSet"
 
+  // Restart the JobSet if the "restart-attempts" annotation is less than
+  // the maximum number of restarts defined in .spec.failurePolicy.maxRestarts.
+  // Otherwise, fail the JobSet.
+  RestartJobSet FailurePolicyAction = "RestartJobSet"
+
   // Don't count the failure against maxRestarts.
-  Ignore FailurePolicyAction = "Ignore"
+  RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobSetAndIgnoreMaxRestarts"
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
 // fails due to a reason listed in OnJobFailureReasons.
 type FailurePolicyRule struct {
   // The action to take if the rule is matched.
-  // +kubebuilder:validation:Enum:=FailJobSet;Ignore;FailJob;RestartJob
+  // +kubebuilder:validation:Enum:=FailJobSet;RestartJobSetAndIgnoreMaxRestarts;FailJob;RestartJob
   Action FailurePolicyAction `json:"action"`
   // The requirement on the job failure reasons. The requirement
   // is satisfied if at least one reason matches the list.
@@ -273,7 +376,7 @@ the behavior defined for each FailurePolicyAction type:
 
 1) `FailJobSet`: To fail the JobSet immediately without restarting, the controller updates the JobSet status to failed.
 
-2) `RestartJobSetAndIgnore`: To "ignore" the failure (i.e., restart the JobSet without counting it against `MaxRestarts`), the controller
+2) `RestartJobSetAndIgnoreMaxRestarts`: To restart the JobSet without counting it against `MaxRestarts`, the controller
 will delete all child jobs and allow the normal reconciliation process to recreate them. This is in contrast to how
 we restart the JobSet **without** ignoring the failure, which is done by incrementing the counter on the JobSet annotation
 `jobset.sigs.k8s.io/restart-attempt`, which on subsequent reconiliations will trigger job deletion and recreation for any

@@ -3,7 +3,7 @@ kep-number: 262
 authors:
   - "@danielvegamyhre"
 status: provisional
-creation-date: 2023-08-01
+creation-date: 2023-02-05
 reviewers:
   - "@kannon92"
   - "@vsoch"
@@ -12,18 +12,16 @@ approvers:
   - "@ahg"
 
 see-also:
-  - "NA"
+  - "https://github.com/kubernetes/enhancements/pull/3374"
+  - "https://github.com/kubernetes/enhancements/pull/4479"
 replaces:
   - "NA"
-
-# The target maturity stage in the current dev cycle for this KEP.
-stage: alpha
 
 # The most recent milestone for which work toward delivery of this KEP has been
 # done. This can be the current (upcoming) milestone, if it is being actively
 # worked on.
-latest-milestone: "v0.4.0"
+latest-milestone: "v0.5.0"
 
 # The milestone at which this feature was, or is targeted to be, at each stage.
 milestone:
-  alpha: "v0.4.0"
+  alpha: "v0.5.0"
