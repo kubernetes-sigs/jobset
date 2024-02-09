@@ -353,8 +353,8 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 		if inOrderStartupPolicy(startupPolicy) && replicatedJobsStarted(replicatedJob.Replicas, replicatedJobStatus) {
 			continue
 		}
-		jobsFromRp := replicatedJobToActiveJobs[replicatedJob.Name]
-		for _, job := range jobsFromRp {
+		jobsFromRJob := replicatedJobToActiveJobs[replicatedJob.Name]
+		for _, job := range jobsFromRJob {
 			if err := r.resumeJob(ctx, job, nodeAffinities); err != nil {
 				return err
 			}
