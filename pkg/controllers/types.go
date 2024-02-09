@@ -13,24 +13,9 @@ limitations under the License.
 
 package controllers
 
-import (
-	"context"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
-)
-
-type startupPolicyCondition string
+type startupPolicyCondition int
 
 const (
-	startupPolicyCompleted  startupPolicyCondition = "startupPolicyCompleted"
-	startupPolicyInProgress startupPolicyCondition = "startupPolicyInProgress"
+	startupPolicyCompleted startupPolicyCondition = iota
+	startupPolicyInProgress
 )
-
-type ensureConditionOpts struct {
-	ctx              context.Context
-	jobset           *jobset.JobSet
-	eventType        string
-	forceFalseUpdate bool
-	condition        metav1.Condition
-}
