@@ -576,19 +576,12 @@ metadata:
 spec:
   failurePolicy:
     rules:
-    # If Job fails due to a pod failing with exit code 2, leave it in a failed state.
-    - action: FailJob
-      targetReplicatedJobs:
-      - simulations
-      onJobFailureReasons:
-      - ExitCode2
     # If Job fails due to a pod failing with exit code 3, restart that Job.
     - action: RestartJob
-      targetReplicatedJobs:
-      - simulations
       onJobFailureReasons:
       - ExitCode3
-    maxRestarts: 10
+    # Catch all rule to leave a failed job in the failed state, if it hasn't matched previous rules.
+    - action: FailJob
   replicatedJobs:
   - name: simulations
     replicas: 10
@@ -597,15 +590,9 @@ spec:
         parallelism: 1
         completions: 1
         backoffLimit: 0
-        # If a pod fails with exit code 2 or 3, fail the Job, using the user-defined reason.
+        # If a pod fails with exit code 3, fail the Job, using the user-defined reason.
         podFailurePolicy:
           rules:
-          - action: FailJob
-            onExitCodes:
-              containerName: main
-              operator: In
-              values: [2]
-            setConditionReason: "ExitCode2"
           - action: FailJob
             onExitCodes:
               containerName: main
