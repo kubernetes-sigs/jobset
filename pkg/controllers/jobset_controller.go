@@ -314,19 +314,26 @@ func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet,
 			}
 		}
 	}
-	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, metav1.Condition{
-		Type:               string(jobset.JobSetSuspended),
-		Status:             metav1.ConditionStatus(corev1.ConditionTrue),
-		LastTransitionTime: metav1.Now(),
-		Reason:             "SuspendedJobs",
-		Message:            "jobset is suspended",
-	})
+	conditionOpts := ensureConditionOpts{
+		ctx:              ctx,
+		jobset:           js,
+		eventType:        corev1.EventTypeNormal,
+		forceFalseUpdate: false,
+		condition: metav1.Condition{
+			Type:               string(jobset.JobSetSuspended),
+			Status:             metav1.ConditionStatus(corev1.ConditionTrue),
+			LastTransitionTime: metav1.Now(),
+			Reason:             "SuspendedJobs",
+			Message:            "jobset is suspended",
+		},
+	}
+	return r.ensureCondition(conditionOpts)
 }
 
-func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatus []jobset.ReplicatedJobStatus) error {
+func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatuses []jobset.ReplicatedJobStatus) error {
 
 	nodeAffinities := map[string]map[string]string{}
-	// as an optimization we are only going to store the jobs that need
+	// As an optimization we are only going to store the jobs that need
 	// to be resumed.
 	replicatedJobToActiveJobs := map[string][]*batchv1.Job{}
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
@@ -342,8 +349,8 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
-		jobStatus := findReplicatedStatus(replicatedJobStatus, replicatedJob.Name)
-		if inOrderStartupPolicy(startupPolicy) && replicatedJobsStarted(replicatedJob.Replicas, jobStatus) {
+		replicatedJobStatus := findReplicatedStatus(replicatedJobStatuses, replicatedJob.Name)
+		if inOrderStartupPolicy(startupPolicy) && replicatedJobsStarted(replicatedJob.Replicas, replicatedJobStatus) {
 			continue
 		}
 		jobsFromRp := replicatedJobToActiveJobs[replicatedJob.Name]
@@ -353,19 +360,40 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 			}
 		}
 		if inOrderStartupPolicy(startupPolicy) {
-			return r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
+			condOpts := ensureConditionOpts{
+				ctx:              ctx,
+				jobset:           js,
+				eventType:        corev1.EventTypeNormal,
+				forceFalseUpdate: true,
+				condition:        generateStartupPolicyCondition(startupPolicyInProgress),
+			}
+			return r.ensureCondition(condOpts)
 		}
 	}
 	if inOrderStartupPolicy(startupPolicy) {
-		return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, generateStartupPolicyCondition(true))
+		condOpts := ensureConditionOpts{
+			ctx:              ctx,
+			jobset:           js,
+			eventType:        corev1.EventTypeNormal,
+			forceFalseUpdate: false,
+			condition:        generateStartupPolicyCondition(startupPolicyCompleted),
+		}
+		return r.ensureCondition(condOpts)
 	}
-	return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, metav1.Condition{
-		Type:               string(jobset.JobSetSuspended),
-		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
-		LastTransitionTime: metav1.Now(),
-		Reason:             "ResumeJobs",
-		Message:            "jobset is resumed",
-	})
+	condOpts := ensureConditionOpts{
+		ctx:              ctx,
+		jobset:           js,
+		eventType:        corev1.EventTypeNormal,
+		forceFalseUpdate: false,
+		condition: metav1.Condition{
+			Type:               string(jobset.JobSetSuspended),
+			Status:             metav1.ConditionStatus(corev1.ConditionFalse),
+			LastTransitionTime: metav1.Now(),
+			Reason:             "ResumeJobs",
+			Message:            "jobset is resumed",
+		},
+	}
+	return r.ensureCondition(condOpts)
 }
 
 func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, nodeAffinities map[string]map[string]string) error {
@@ -373,6 +401,8 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, node
 	if !jobSuspended(job) {
 		return nil
 	}
+	// Kubernetes validates that a job template is immutable
+	// so if the job has started i.e., startTime != nil), we must set it to nil first.
 	if job.Status.StartTime != nil {
 		job.Status.StartTime = nil
 		if err := r.Status().Update(ctx, job); err != nil {
@@ -436,8 +466,18 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			}
 			log.V(2).Info("successfully created job", "job", klog.KObj(job))
 		})
+		// If we are using StartupPolicy, then we return to wait for jobs to be ready.
+		// This updates the StartupPolicy condition and notifies that we are waiting
+		// for this replicated job to finish.
 		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-			return r.ensureCondition(ctx, js, corev1.EventTypeNormal, true, generateStartupPolicyCondition(false))
+			conditionOps := ensureConditionOpts{
+				ctx:              ctx,
+				jobset:           js,
+				eventType:        corev1.EventTypeNormal,
+				forceFalseUpdate: true,
+				condition:        generateStartupPolicyCondition(startupPolicyInProgress),
+			}
+			return r.ensureCondition(conditionOps)
 		}
 	}
 	allErrs := errors.Join(finalErrs...)
@@ -446,7 +486,14 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	}
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
 	if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-		return r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, generateStartupPolicyCondition(true))
+		conditionOps := ensureConditionOpts{
+			ctx:              ctx,
+			jobset:           js,
+			eventType:        corev1.EventTypeNormal,
+			forceFalseUpdate: false,
+			condition:        generateStartupPolicyCondition(startupPolicyCompleted),
+		}
+		return r.ensureCondition(conditionOps)
 	}
 	return allErrs
 }
@@ -494,12 +541,19 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 // Returns a boolean value indicating if the jobset was completed or not.
 func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) (bool, error) {
 	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
-		if err := r.ensureCondition(ctx, js, corev1.EventTypeNormal, false, metav1.Condition{
-			Type:    string(jobset.JobSetCompleted),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  "AllJobsCompleted",
-			Message: "jobset completed successfully",
-		}); err != nil {
+		conditionOpts := ensureConditionOpts{
+			ctx:              ctx,
+			jobset:           js,
+			eventType:        corev1.EventTypeNormal,
+			forceFalseUpdate: false,
+			condition: metav1.Condition{
+				Type:    string(jobset.JobSetCompleted),
+				Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+				Reason:  "AllJobsCompleted",
+				Message: "jobset completed successfully",
+			},
+		}
+		if err := r.ensureCondition(conditionOpts); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -529,12 +583,19 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 
 	// If JobSet has reached max number of restarts, mark it as failed and return.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
-		return r.ensureCondition(ctx, js, corev1.EventTypeWarning, false, metav1.Condition{
-			Type:    string(jobset.JobSetFailed),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  "ReachedMaxRestarts",
-			Message: "jobset failed due to reaching max number of restarts",
-		})
+		conditionOpts := ensureConditionOpts{
+			ctx:              ctx,
+			jobset:           js,
+			eventType:        corev1.EventTypeWarning,
+			forceFalseUpdate: false,
+			condition: metav1.Condition{
+				Type:    string(jobset.JobSetFailed),
+				Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+				Reason:  "ReachedMaxRestarts",
+				Message: "jobset failed due to reaching max number of restarts",
+			},
+		}
+		return r.ensureCondition(conditionOpts)
 	}
 
 	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
@@ -581,25 +642,32 @@ func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, 
 	return nil
 }
 
-func (r *JobSetReconciler) ensureCondition(ctx context.Context, js *jobset.JobSet, eventType string, forceFalseUpdate bool, condition metav1.Condition) error {
-	if !updateCondition(js, condition, forceFalseUpdate) {
+func (r *JobSetReconciler) ensureCondition(opts ensureConditionOpts) error {
+	if !updateCondition(opts.jobset, opts.condition, opts.forceFalseUpdate) {
 		return nil
 	}
-	if err := r.Status().Update(ctx, js); err != nil {
+	if err := r.Status().Update(opts.ctx, opts.jobset); err != nil {
 		return err
 	}
 
-	r.Record.Eventf(js, eventType, condition.Reason, condition.Message)
+	r.Record.Eventf(opts.jobset, opts.eventType, opts.condition.Reason, opts.condition.Message)
 	return nil
 }
 
 func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) error {
-	return r.ensureCondition(ctx, js, corev1.EventTypeWarning, false, metav1.Condition{
-		Type:    string(jobset.JobSetFailed),
-		Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-		Reason:  "FailedJobs",
-		Message: "jobset failed due to one or more job failures",
-	})
+	ensureConditionOpts := ensureConditionOpts{
+		ctx:    ctx,
+		jobset: js,
+		condition: metav1.Condition{
+			Type:    string(jobset.JobSetFailed),
+			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Reason:  "FailedJobs",
+			Message: "jobset failed due to one or more job failures",
+		},
+		eventType:        corev1.EventTypeWarning,
+		forceFalseUpdate: false,
+	}
+	return r.ensureCondition(ensureConditionOpts)
 }
 
 func updateCondition(js *jobset.JobSet, condition metav1.Condition, forceFalseUpdate bool) bool {
@@ -616,7 +684,10 @@ func updateCondition(js *jobset.JobSet, condition metav1.Condition, forceFalseUp
 	}
 	if forceFalseUpdate {
 		// Some conditions need an update even if false
-		// StartupPolicy is one example.
+		// StartupPolicy is one example
+		// If startup policy is not specified, then
+		// we assume that there was no startup policy ever applied
+		// We use the false condition to signify progress of StartupPolicy.
 		js.Status.Conditions = append(js.Status.Conditions, condition)
 		return true
 	}

@@ -30,10 +30,13 @@ func inOrderStartupPolicy(sp *jobset.StartupPolicy) bool {
 	return sp != nil && sp.StartupPolicyOrder == jobset.InOrder
 }
 
-func generateStartupPolicyCondition(policyComplete bool) metav1.Condition {
+// generateStartupPolicyCondition generates the StartupPolicyCondition
+// based on policy
+// We use startupPolicyCompleted or startupPolicyInProgress
+func generateStartupPolicyCondition(policy startupPolicyCondition) metav1.Condition {
 	condition := metav1.ConditionFalse
 	message := "startup policy in order starting"
-	if policyComplete {
+	if policy == startupPolicyCompleted {
 		condition = metav1.ConditionTrue
 		message = "all replicated jobs have started"
 	}
