@@ -16,12 +16,3 @@ see-also:
   - "https://github.com/kubernetes/enhancements/pull/4479"
 replaces:
   - "NA"
-
-# The most recent milestone for which work toward delivery of this KEP has been
-# done. This can be the current (upcoming) milestone, if it is being actively
-# worked on.
-latest-milestone: "v0.5.0"
-
-# The milestone at which this feature was, or is targeted to be, at each stage.
-milestone:
-  alpha: "v0.5.0"
