@@ -316,8 +316,7 @@ const (
   // Fail the JobSet immediately, regardless of maxRestarts.
   FailJobSet FailurePolicyAction = "FailJobSet"
 
-  // Restart the JobSet if the "restart-attempts" annotation is less than
-  // the maximum number of restarts defined in .spec.failurePolicy.maxRestarts.
+  // Restart the JobSet if the number of restart attempts is less than MaxRestarts.
   // Otherwise, fail the JobSet.
   RestartJobSet FailurePolicyAction = "RestartJobSet"
 
