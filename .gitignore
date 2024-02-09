@@ -171,3 +171,5 @@ target/
 #Ipython Notebook
 .ipynb_checkpoints
 
+# Local Netlify folder
+.netlify
