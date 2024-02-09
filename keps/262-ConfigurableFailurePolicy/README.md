@@ -353,6 +353,7 @@ type FailurePolicy struct {
   // List of failure policy rules for this JobSet.
   // For a given Job failure, the rules will be evaluated in order,
   // and only the first matching rule will be executed.
+  // If no matching rule is found, the RestartJobSet action is applied.
   Rules []FailurePolicyRule `json:"rules,omitempty"`
 }
 
@@ -379,10 +380,9 @@ the behavior defined for each FailurePolicyAction type:
 1) `FailJobSet`: To fail the JobSet immediately without restarting, the controller updates the JobSet status to failed.
 
 2) `RestartJobSetAndIgnoreMaxRestarts`: To restart the JobSet without counting it against `MaxRestarts`, the controller
-will delete all child jobs and allow the normal reconciliation process to recreate them. This is in contrast to how
-we restart the JobSet **without** ignoring the failure, which is done by incrementing the counter on the JobSet annotation
-`jobset.sigs.k8s.io/restart-attempt`, which on subsequent reconiliations will trigger job deletion and recreation for any
-child job with a `jobset.sigs.k8s.io/restart-attempt` counter value less than that of the JobSet.
+will add an annotation `jobset.sigs.k8s.io/restart` to mark Jobs which need to be restarted. On the subsequent reconciles,
+the JobSet controller will delete any jobs with this annotation, allowing them to be recreated in as part of the normal
+reconciliation process, without ever incrementing `jobset.sigs.k8s.io/restart-attempt` annotation.
 
 ### Test Plan
 
