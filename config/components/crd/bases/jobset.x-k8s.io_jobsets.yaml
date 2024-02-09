@@ -22,6 +22,10 @@ spec:
     - jsonPath: .status.conditions[?(@.type=="Completed")].status
       name: Completed
       type: string
+    - description: JobSet suspended
+      jsonPath: .spec.suspend
+      name: Suspended
+      type: string
     - description: Time this JobSet was created
       jsonPath: .metadata.creationTimestamp
       name: Age
