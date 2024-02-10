@@ -1,0 +1,18 @@
+title: Configurable Failure Policy
+kep-number: 262
+authors:
+  - "@danielvegamyhre"
+status: provisional
+creation-date: 2023-02-05
+reviewers:
+  - "@kannon92"
+  - "@vsoch"
+  - "@mimowo"
+approvers:
+  - "@ahg"
+
+see-also:
+  - "https://github.com/kubernetes/enhancements/pull/3374"
+  - "https://github.com/kubernetes/enhancements/pull/4479"
+replaces:
+  - "NA"
