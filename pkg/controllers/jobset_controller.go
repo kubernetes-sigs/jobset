@@ -415,10 +415,11 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 	// Spec.Network.Subdomain, with default of <jobSetName> set by the webhook.
 	// If the service doesn't exist in the same namespace, create it.
 	var headlessSvc corev1.Service
-	if err := r.Get(ctx, types.NamespacedName{Name: js.Spec.Network.Subdomain, Namespace: js.Namespace}, &headlessSvc); err != nil {
+	subdomain := GetSubdomain(js)
+	if err := r.Get(ctx, types.NamespacedName{Name: subdomain, Namespace: js.Namespace}, &headlessSvc); err != nil {
 		headlessSvc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      js.Spec.Network.Subdomain,
+				Name:      subdomain,
 				Namespace: js.Namespace,
 			},
 			Spec: corev1.ServiceSpec{
@@ -603,7 +604,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	// If enableDNSHostnames is set, update job spec to set subdomain as
 	// job name (a headless service with same name as job will be created later).
 	if dnsHostnamesEnabled(js) {
-		job.Spec.Template.Spec.Subdomain = js.Spec.Network.Subdomain
+		job.Spec.Template.Spec.Subdomain = GetSubdomain(js)
 	}
 
 	// If this job should be exclusive per topology, configure the scheduling constraints accordingly.
@@ -687,8 +688,11 @@ func JobFinished(job *batchv1.Job) (bool, batchv1.JobConditionType) {
 	return false, ""
 }
 
-func GenSubdomain(js *jobset.JobSet) string {
-	// If we have selected an explicit network name, use it
+func GetSubdomain(js *jobset.JobSet) string {
+	// If enableDNSHostnames is set, and subdomain is unset, default the subdomain to be the JobSet name.
+	// This must be done in the controller rather than in the request-time defaulting, since if a JobSet
+	// uses generateName rather than setting the name explicitly, the JobSet name will still be an empty
+	// string at that time.
 	if js.Spec.Network.Subdomain != "" {
 		return js.Spec.Network.Subdomain
 	}
