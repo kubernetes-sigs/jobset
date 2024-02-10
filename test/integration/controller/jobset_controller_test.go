@@ -520,7 +520,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// Fetch headless service created for replicated job and delete it.
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						var svc corev1.Service
-						gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: controllers.GenSubdomain(js), Namespace: js.Namespace}, &svc)).To(gomega.Succeed())
+						gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: controllers.GetSubdomain(js), Namespace: js.Namespace}, &svc)).To(gomega.Succeed())
 						gomega.Expect(k8sClient.Delete(ctx, &svc)).To(gomega.Succeed())
 					},
 					// Service should be recreated during reconciliation.
