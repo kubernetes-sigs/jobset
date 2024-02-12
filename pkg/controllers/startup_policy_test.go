@@ -93,7 +93,6 @@ func TestReplicatedJobStarted(t *testing.T) {
 			},
 			expected: true,
 		},
-
 		{
 			name:     "replicas 4; replicatedJobStatus all active",
 			replicas: 4,

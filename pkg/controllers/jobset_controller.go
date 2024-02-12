@@ -458,7 +458,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			}
 			log.V(2).Info("successfully created job", "job", klog.KObj(job))
 		})
-		// If we are using StartupPolicy, then we return to wait for jobs to be ready.
+		// If we are using inOrder StartupPolicy, then we return to wait for jobs to be ready.
 		// This updates the StartupPolicy condition and notifies that we are waiting
 		// for this replicated job to finish.
 		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
