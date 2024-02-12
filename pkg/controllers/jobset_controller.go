@@ -314,7 +314,7 @@ func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet,
 			}
 		}
 	}
-	conditionOpts := ensureConditionOpts{
+	return r.ensureCondition(ctx, ensureConditionOpts{
 		jobset:           js,
 		eventType:        corev1.EventTypeNormal,
 		forceFalseUpdate: false,
@@ -325,8 +325,7 @@ func (r *JobSetReconciler) suspendJobSet(ctx context.Context, js *jobset.JobSet,
 			Reason:             "SuspendedJobs",
 			Message:            "jobset is suspended",
 		},
-	}
-	return r.ensureCondition(ctx, conditionOpts)
+	})
 }
 
 func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatuses []jobset.ReplicatedJobStatus) error {
