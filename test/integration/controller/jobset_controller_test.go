@@ -1167,7 +1167,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 		ginkgo.It("Should not create any jobs for it, when unsuspended", func() {
 			var jobList batchv1.JobList
-			ginkgo.By("Unsuspending the jobset", func() {
+			ginkgo.By("Unsuspending the JobSet", func() {
 				updatedJs := &jobset.JobSet{}
 
 				gomega.Eventually(func(g gomega.Gomega) {
@@ -1184,7 +1184,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			}, timeout, interval).Should(gomega.Succeed())
 		})
 
-		ginkgo.It("updates to its status are preserved", func() {
+		ginkgo.It("Updates to its status are preserved", func() {
 			updatedJs := &jobset.JobSet{}
 			wantStatus := jobset.JobSetStatus{
 				Conditions: []metav1.Condition{
@@ -1208,7 +1208,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			}
 
-			ginkgo.By("Updateing the jobset status", func() {
+			ginkgo.By("Updating the JobSet status", func() {
 				gomega.Eventually(func(g gomega.Gomega) {
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(js), updatedJs)).To(gomega.Succeed())
 					updatedJs.Status = wantStatus

@@ -90,13 +90,14 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(&js))
+	ctx = ctrl.LoggerInto(ctx, log)
+
 	if manager, found := js.Labels[jobset.LabelManagedBy]; found && manager != jobset.JobSetManager {
-		// the JobSet is not managed by this controller
+		log.V(5).Info("Skipping JobSet managed by a different controller", "managed-by", manager)
 		return ctrl.Result{}, nil
 	}
 
-	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(&js))
-	ctx = ctrl.LoggerInto(ctx, log)
 	log.V(2).Info("Reconciling JobSet")
 
 	// Get Jobs owned by JobSet.

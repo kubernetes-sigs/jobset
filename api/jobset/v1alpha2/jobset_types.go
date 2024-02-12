@@ -41,7 +41,7 @@ const (
 	NoScheduleTaintKey      string = "alpha.jobset.sigs.k8s.io/no-schedule"
 
 	// LabelManagedBy is used to indicate the controller or entity that manages an JobSet
-	LabelManagedBy = "jobset.sigs.k8s.io/managed-by"
+	LabelManagedBy = "alpha.jobset.sigs.k8s.io/managed-by"
 
 	// JobSetManager is used as the value for LabelManagedBy to identify the jobset controller manager
 	// as the manager of a specific JobSet.
