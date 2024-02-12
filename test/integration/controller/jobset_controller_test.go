@@ -763,7 +763,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("startupPolicy; resume suspended JobSet with StartupPolicy AnyOrder", &testCase{
+		ginkgo.Entry("startupPolicy with AnyOrder; resume suspended JobSet", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(true).
 					StartupPolicy(&jobset.StartupPolicy{
@@ -812,7 +812,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("startupPolicy; resume suspended JobSet with StartupPolicy InOrder", &testCase{
+		ginkgo.Entry("startupPolicy with InOrder; resume suspended JobSet", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(true).
 					StartupPolicy(&jobset.StartupPolicy{
@@ -985,7 +985,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("startupPolicy; success policy restart; replicated-job-a ready than replicated-job-b should run", &testCase{
+		ginkgo.Entry("startupPolicy with InOrder; success policy restart; replicated-job-a ready than replicated-job-b should run", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1}).
