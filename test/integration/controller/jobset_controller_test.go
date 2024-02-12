@@ -726,7 +726,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:      "replicated-job-b",
 								Suspended: 3,
 							},
 							{
@@ -749,7 +750,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:      "replicated-job-b",
 								Suspended: 3,
 							},
 							{
@@ -772,7 +774,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:      "replicated-job-b",
 								Suspended: 3,
 							},
 							{
@@ -796,7 +799,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:      "replicated-job-b",
 								Suspended: 0,
 							},
 							{
@@ -819,7 +823,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:      "replicated-job-b",
 								Suspended: 3,
 							},
 							{
@@ -837,7 +842,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:      "replicated-job-b",
 								Suspended: 3,
 							},
 							{
@@ -855,7 +861,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b"},
+							{
+								Name: "replicated-job-b",
+							},
 							{
 								Name:  "replicated-job-a",
 								Ready: 1,
@@ -872,7 +880,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:      "replicated-job-b",
 								Ready:     3,
 								Suspended: 0,
 							},
@@ -887,7 +896,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("startupPolicy; replicated-job-a not ready then replicated-job-b should not run", &testCase{
+		ginkgo.Entry("startupPolicy InOrder; replicated-job-a not ready then replicated-job-b should not run", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					StartupPolicy(&jobset.StartupPolicy{
@@ -918,7 +927,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b"},
+							{
+								Name: "replicated-job-b",
+							},
 							{
 								Name:  "replicated-job-a",
 								Ready: 1,
@@ -935,7 +946,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:   "replicated-job-b",
 								Active: 3,
 							},
 							{
@@ -959,7 +971,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// and number of jobs equals total
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:  "replicated-job-b",
 								Ready: 3,
 							},
 							{
@@ -989,8 +1002,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b"},
-							{Name: "replicated-job-a"},
+							{
+								Name: "replicated-job-b",
+							},
+							{
+								Name: "replicated-job-a",
+							},
 						})
 					},
 					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
@@ -1003,7 +1020,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b"},
+							{
+								Name: "replicated-job-b",
+							},
 							{
 								Name:  "replicated-job-a",
 								Ready: 1,
@@ -1028,7 +1047,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// and number of jobs equals total
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:  "replicated-job-b",
 								Ready: 3,
 							},
 							{
@@ -1064,7 +1084,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b"},
+							{
+								Name: "replicated-job-b",
+							},
 							{
 								Name:  "replicated-job-a",
 								Ready: 1,
@@ -1082,7 +1104,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{Name: "replicated-job-b",
+							{
+								Name:  "replicated-job-b",
 								Ready: 3,
 							},
 							{
