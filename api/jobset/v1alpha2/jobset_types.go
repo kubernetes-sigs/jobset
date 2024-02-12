@@ -39,6 +39,13 @@ const (
 	NodeSelectorStrategyKey string = "alpha.jobset.sigs.k8s.io/node-selector"
 	NamespacedJobKey        string = "alpha.jobset.sigs.k8s.io/namespaced-job"
 	NoScheduleTaintKey      string = "alpha.jobset.sigs.k8s.io/no-schedule"
+
+	// LabelManagedBy is used to indicate the controller or entity that manages an JobSet
+	LabelManagedBy = "jobset.sigs.k8s.io/managed-by"
+
+	// JobSetManager is used as the value for LabelManagedBy to identify the jobset controller manager
+	// as the manager of a specific JobSet.
+	JobSetManager = "jobset"
 )
 
 type JobSetConditionType string

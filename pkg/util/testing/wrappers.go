@@ -78,6 +78,12 @@ func (j *JobSetWrapper) SetAnnotations(annotations map[string]string) *JobSetWra
 	return j
 }
 
+// SetLabels sets the value of the jobSet.metadata.labels.
+func (j *JobSetWrapper) SetLabels(labels map[string]string) *JobSetWrapper {
+	j.Labels = labels
+	return j
+}
+
 // GenerateName sets the JobSet name.
 func (j *JobSetWrapper) SetGenerateName(namePrefix string) *JobSetWrapper {
 	// Name and GenerateName are mutually exclusive, so we must unset the Name field.

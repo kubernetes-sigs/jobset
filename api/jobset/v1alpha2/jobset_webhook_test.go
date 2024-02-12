@@ -39,6 +39,9 @@ func TestJobSetDefaulting(t *testing.T) {
 		{
 			name: "job completion mode is unset",
 			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -55,6 +58,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -75,6 +81,9 @@ func TestJobSetDefaulting(t *testing.T) {
 		{
 			name: "job completion mode is set to non-indexed",
 			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
@@ -91,6 +100,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -111,6 +123,9 @@ func TestJobSetDefaulting(t *testing.T) {
 		{
 			name: "enableDNSHostnames is unset",
 			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -127,6 +142,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -147,6 +165,9 @@ func TestJobSetDefaulting(t *testing.T) {
 		{
 			name: "enableDNSHostnames is false",
 			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -164,6 +185,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -184,6 +208,9 @@ func TestJobSetDefaulting(t *testing.T) {
 		{
 			name: "pod restart policy unset",
 			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -203,6 +230,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -227,6 +257,9 @@ func TestJobSetDefaulting(t *testing.T) {
 		{
 			name: "pod restart policy set",
 			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -248,6 +281,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -272,6 +308,9 @@ func TestJobSetDefaulting(t *testing.T) {
 		{
 			name: "success policy unset",
 			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
@@ -292,6 +331,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					StartupPolicy: defaultStartupPolicy,
 					SuccessPolicy: defaultSuccessPolicy,
@@ -316,6 +358,9 @@ func TestJobSetDefaulting(t *testing.T) {
 		{
 			name: "success policy operator set, replicatedJobNames unset",
 			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
@@ -339,6 +384,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
@@ -407,6 +455,44 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "managed-by label is unset",
+			js: &JobSet{
+				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
+				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
 									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
 								},
 							},

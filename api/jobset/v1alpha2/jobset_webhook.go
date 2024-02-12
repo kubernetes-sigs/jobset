@@ -73,6 +73,13 @@ func (js *JobSet) Default() {
 			js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 		}
 	}
+
+	if _, found := js.Labels[LabelManagedBy]; !found {
+		if js.Labels == nil {
+			js.Labels = make(map[string]string, 1)
+		}
+		js.Labels[LabelManagedBy] = JobSetManager
+	}
 }
 
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha2-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=vjobset.kb.io,admissionReviewVersions=v1
@@ -136,14 +143,16 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (js *JobSet) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	mungedSpec := js.Spec.DeepCopy()
-	oldSpec := old.(*JobSet).Spec
-	if ptr.Deref(oldSpec.Suspend, false) {
+	oldJS := old.(*JobSet)
+	if ptr.Deref(oldJS.Spec.Suspend, false) {
 		for index := range js.Spec.ReplicatedJobs {
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
 		}
 	}
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
-	return nil, apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldSpec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs")).ToAggregate()
+	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
+	errs = append(errs, apivalidation.ValidateImmutableField(js.Labels[LabelManagedBy], oldJS.Labels[LabelManagedBy], field.NewPath("metadata").Child("labels").Key(LabelManagedBy))...)
+	return nil, errs.ToAggregate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type

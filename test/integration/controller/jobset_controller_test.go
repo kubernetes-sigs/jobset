@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
@@ -1125,6 +1126,103 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			},
 		}),
 	) // end of DescribeTable
+
+	ginkgo.When("A JobSet is managed by another controller", ginkgo.Ordered, func() {
+		var (
+			ctx context.Context
+			ns  *corev1.Namespace
+			js  *jobset.JobSet
+		)
+		ginkgo.BeforeAll(func() {
+			ctx = context.Background()
+			// Create test namespace for each entry.
+			ns = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			js = testJobSet(ns).SetGenerateName("name-prefix").SetLabels(map[string]string{
+				jobset.LabelManagedBy: "other-controller",
+			}).Obj()
+
+			ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js.Name, js.Namespace))
+			gomega.Eventually(func() error {
+				return k8sClient.Create(ctx, js)
+			}, timeout, interval).Should(gomega.Succeed())
+		})
+
+		ginkgo.AfterAll(func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("Should not create any jobs for it, while suspended", func() {
+			var jobList batchv1.JobList
+			gomega.Consistently(func(g gomega.Gomega) {
+				g.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).To(gomega.Succeed())
+				g.Expect(len(jobList.Items)).To(gomega.BeZero())
+			}, timeout, interval).Should(gomega.Succeed())
+		})
+
+		ginkgo.It("Should not create any jobs for it, when unsuspended", func() {
+			var jobList batchv1.JobList
+			ginkgo.By("Unsuspending the jobset", func() {
+				updatedJs := &jobset.JobSet{}
+
+				gomega.Eventually(func(g gomega.Gomega) {
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(js), updatedJs)).To(gomega.Succeed())
+					updatedJs.Spec.Suspend = ptr.To(false)
+					g.Expect(k8sClient.Update(ctx, updatedJs)).To(gomega.Succeed())
+
+				}).Should(gomega.Succeed())
+			})
+
+			gomega.Consistently(func(g gomega.Gomega) {
+				g.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).To(gomega.Succeed())
+				g.Expect(len(jobList.Items)).To(gomega.BeZero())
+			}, timeout, interval).Should(gomega.Succeed())
+		})
+
+		ginkgo.It("updates to its status are preserved", func() {
+			updatedJs := &jobset.JobSet{}
+			wantStatus := jobset.JobSetStatus{
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(jobset.JobSetFailed),
+						Status:             metav1.ConditionFalse,
+						Reason:             "ByTest",
+						LastTransitionTime: metav1.Now(),
+					},
+				},
+				Restarts: 1,
+				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+					{
+						Name:      "replicated-job-a",
+						Ready:     2,
+						Succeeded: 3,
+						Failed:    4,
+						Active:    5,
+						Suspended: 6,
+					},
+				},
+			}
+
+			ginkgo.By("Updateing the jobset status", func() {
+				gomega.Eventually(func(g gomega.Gomega) {
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(js), updatedJs)).To(gomega.Succeed())
+					updatedJs.Status = wantStatus
+					g.Expect(k8sClient.Status().Update(ctx, updatedJs)).To(gomega.Succeed())
+
+				}).Should(gomega.Succeed())
+			})
+
+			gomega.Consistently(func(g gomega.Gomega) {
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(js), updatedJs)).To(gomega.Succeed())
+				g.Expect(updatedJs.Status).To(gomega.BeComparableTo(wantStatus, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")))
+			}, timeout, interval).Should(gomega.Succeed())
+		})
+	})
 }) // end of Describe
 
 func makeAllJobsReady(jl *batchv1.JobList) {
