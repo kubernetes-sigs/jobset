@@ -121,12 +121,12 @@ func TestReplicatedJobStarted(t *testing.T) {
 func TestGenerateStartupPolicyCondition(t *testing.T) {
 	tests := []struct {
 		name              string
-		policyComplete    startupPolicyCondition
+		policyComplete    metav1.ConditionStatus
 		expectedCondition metav1.Condition
 	}{
 		{
 			name:           "in progress startup condition on a",
-			policyComplete: startupPolicyInProgress,
+			policyComplete: metav1.ConditionFalse,
 			expectedCondition: metav1.Condition{
 				Type:    string(jobset.JobSetStartupPolicyCompleted),
 				Status:  metav1.ConditionFalse,
@@ -136,7 +136,7 @@ func TestGenerateStartupPolicyCondition(t *testing.T) {
 		},
 		{
 			name:           "startup policy complete",
-			policyComplete: startupPolicyCompleted,
+			policyComplete: metav1.ConditionTrue,
 			expectedCondition: metav1.Condition{
 				Type:    string(jobset.JobSetStartupPolicyCompleted),
 				Status:  metav1.ConditionTrue,

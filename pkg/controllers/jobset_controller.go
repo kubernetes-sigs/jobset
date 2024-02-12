@@ -359,25 +359,23 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 			}
 		}
 		if inOrderStartupPolicy(startupPolicy) {
-			condOpts := ensureConditionOpts{
+			return r.ensureCondition(ctx, ensureConditionOpts{
 				jobset:           js,
 				eventType:        corev1.EventTypeNormal,
 				forceFalseUpdate: true,
-				condition:        generateStartupPolicyCondition(startupPolicyInProgress),
-			}
-			return r.ensureCondition(ctx, condOpts)
+				condition:        generateStartupPolicyCondition(metav1.ConditionFalse),
+			})
 		}
 	}
 	if inOrderStartupPolicy(startupPolicy) {
-		condOpts := ensureConditionOpts{
+		return r.ensureCondition(ctx, ensureConditionOpts{
 			jobset:           js,
 			eventType:        corev1.EventTypeNormal,
 			forceFalseUpdate: false,
-			condition:        generateStartupPolicyCondition(startupPolicyCompleted),
-		}
-		return r.ensureCondition(ctx, condOpts)
+			condition:        generateStartupPolicyCondition(metav1.ConditionTrue),
+		})
 	}
-	condOpts := ensureConditionOpts{
+	return r.ensureCondition(ctx, ensureConditionOpts{
 		jobset:           js,
 		eventType:        corev1.EventTypeNormal,
 		forceFalseUpdate: false,
@@ -388,8 +386,7 @@ func (r *JobSetReconciler) resumeJobSetIfNecessary(ctx context.Context, js *jobs
 			Reason:             "ResumeJobs",
 			Message:            "jobset is resumed",
 		},
-	}
-	return r.ensureCondition(ctx, condOpts)
+	})
 }
 
 func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, nodeAffinities map[string]map[string]string) error {
@@ -466,13 +463,12 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		// This updates the StartupPolicy condition and notifies that we are waiting
 		// for this replicated job to finish.
 		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-			conditionOps := ensureConditionOpts{
+			return r.ensureCondition(ctx, ensureConditionOpts{
 				jobset:           js,
 				eventType:        corev1.EventTypeNormal,
 				forceFalseUpdate: true,
-				condition:        generateStartupPolicyCondition(startupPolicyInProgress),
-			}
-			return r.ensureCondition(ctx, conditionOps)
+				condition:        generateStartupPolicyCondition(metav1.ConditionFalse),
+			})
 		}
 	}
 	allErrs := errors.Join(finalErrs...)
@@ -481,13 +477,12 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	}
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
 	if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-		conditionOps := ensureConditionOpts{
+		return r.ensureCondition(ctx, ensureConditionOpts{
 			jobset:           js,
 			eventType:        corev1.EventTypeNormal,
 			forceFalseUpdate: false,
-			condition:        generateStartupPolicyCondition(startupPolicyCompleted),
-		}
-		return r.ensureCondition(ctx, conditionOps)
+			condition:        generateStartupPolicyCondition(metav1.ConditionTrue),
+		})
 	}
 	return allErrs
 }
@@ -535,7 +530,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *
 // Returns a boolean value indicating if the jobset was completed or not.
 func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) (bool, error) {
 	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
-		conditionOpts := ensureConditionOpts{
+		if err := r.ensureCondition(ctx, ensureConditionOpts{
 			jobset:           js,
 			eventType:        corev1.EventTypeNormal,
 			forceFalseUpdate: false,
@@ -545,8 +540,7 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 				Reason:  "AllJobsCompleted",
 				Message: "jobset completed successfully",
 			},
-		}
-		if err := r.ensureCondition(ctx, conditionOpts); err != nil {
+		}); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -576,7 +570,7 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 
 	// If JobSet has reached max number of restarts, mark it as failed and return.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
-		conditionOpts := ensureConditionOpts{
+		return r.ensureCondition(ctx, ensureConditionOpts{
 			jobset:           js,
 			eventType:        corev1.EventTypeWarning,
 			forceFalseUpdate: false,
@@ -586,8 +580,7 @@ func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *job
 				Reason:  "ReachedMaxRestarts",
 				Message: "jobset failed due to reaching max number of restarts",
 			},
-		}
-		return r.ensureCondition(ctx, conditionOpts)
+		})
 	}
 
 	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
@@ -657,7 +650,7 @@ func (r *JobSetReconciler) ensureCondition(ctx context.Context, opts ensureCondi
 }
 
 func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) error {
-	ensureConditionOpts := ensureConditionOpts{
+	return r.ensureCondition(ctx, ensureConditionOpts{
 		jobset: js,
 		condition: metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
@@ -667,8 +660,7 @@ func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) er
 		},
 		eventType:        corev1.EventTypeWarning,
 		forceFalseUpdate: false,
-	}
-	return r.ensureCondition(ctx, ensureConditionOpts)
+	})
 }
 
 func updateCondition(js *jobset.JobSet, condition metav1.Condition, forceFalseUpdate bool) bool {
