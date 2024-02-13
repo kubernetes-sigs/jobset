@@ -48,7 +48,7 @@ const (
 
 	// Error message returned by JobSet validation if the generated pod names
 	// will be longer than 63 characters.
-	podNameTooLongErrorMsg = "JobSet name is too long, job names generated for this JobSet will exceed 63 characters"
+	podNameTooLongErrorMsg = "JobSet name is too long, pod names generated for this JobSet will exceed 63 characters"
 
 	// Error message returned by JobSet validation if the network subdomain
 	// will be longer than 63 characters.
