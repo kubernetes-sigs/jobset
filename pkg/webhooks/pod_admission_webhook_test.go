@@ -10,7 +10,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
-func TestGenLeaderPodName(t *testing.T) {
+func TestLeaderPodName(t *testing.T) {
 	cases := []struct {
 		desc    string
 		pod     *corev1.Pod

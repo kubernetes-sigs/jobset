@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -105,9 +106,20 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 		}
 		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
 		// Use the largest job index as it will have the longest name.
-		testJobName := placement.GenJobName(js.Name, rjob.Name, int(rjob.Replicas-1))
-		for _, errMessage := range validation.IsDNS1035Label(testJobName) {
+		longestJobName := placement.GenJobName(js.Name, rjob.Name, int(rjob.Replicas-1))
+		for _, errMessage := range validation.IsDNS1035Label(longestJobName) {
 			allErrs = append(allErrs, fmt.Errorf(errMessage))
+		}
+		// Check that the generated pod names for the replicated job is DNS 1035 compliant.
+		isIndexedJob := rjob.Template.Spec.CompletionMode != nil && *rjob.Template.Spec.CompletionMode == batchv1.IndexedCompletion
+		if isIndexedJob && rjob.Template.Spec.Completions != nil {
+			maxJobIndex := strconv.Itoa(int(rjob.Replicas - 1))
+			maxPodIndex := strconv.Itoa(int(*rjob.Template.Spec.Completions - 1))
+			// Add 5 char suffix to the deterministic part of the pod name to validate the full pod name is compliant.
+			longestPodName := placement.GenPodName(js.Name, rjob.Name, maxJobIndex, maxPodIndex) + "-abcde"
+			for _, errMessage := range validation.IsDNS1035Label(longestPodName) {
+				allErrs = append(allErrs, fmt.Errorf(errMessage))
+			}
 		}
 	}
 	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
