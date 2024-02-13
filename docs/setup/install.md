@@ -30,7 +30,7 @@ machine type for your nodes.**
 To install a released version of Jobset in your cluster, run the following command:
 
 ```shell
-VERSION=v0.3.1
+VERSION=v0.3.2
 kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
 ```
 
@@ -40,7 +40,7 @@ If you are using [prometheus-operator](https://github.com/prometheus-operator/pr
 to scrape metrics from jobset components, run the following command:
 
 ```shell
-VERSION=v0.3.1
+VERSION=v0.3.2
 kubectl apply -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/prometheus.yaml
 ```
 
@@ -53,7 +53,7 @@ can be scraped without performing this step.
 To uninstall a released version of JobSet from your cluster, run the following command:
 
 ```shell
-VERSION=v0.3.1
+VERSION=v0.3.2
 kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
 ```
 
@@ -65,14 +65,14 @@ kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$V
 <!-- <\!-- 1. Download the release's `manifests.yaml` file: -\-> -->
 
 <!-- <\!-- ```shell -\-> -->
-<!-- <\!-- VERSION=v0.3.1 -\-> -->
+<!-- <\!-- VERSION=v0.3.2 -\-> -->
 <!-- <\!-- wget https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml -\-> -->
 <!-- <\!-- ``` -\-> -->
 <!-- <\!-- 2. With an editor of your preference, open `manifests.yaml`. -\-> -->
 <!-- <\!-- 3. In the `jobset-manager-config` ConfigMap manifest, edit the -\-> -->
 <!-- <\!-- `controller_manager_config.yaml` data entry. The entry represents -\-> -->
 <!-- <\!-- the default JobSet Configuration -\-> -->
-<!-- <\!-- struct ([v1alpha2@v0.3.1](https://pkg.go.dev/sigs.k8s.io/jobset@v0.3.1/apis/config/v1alpha2#Configuration)). -\-> -->
+<!-- <\!-- struct ([v1alpha2@v0.3.2](https://pkg.go.dev/sigs.k8s.io/jobset@v0.3.2/apis/config/v1alpha2#Configuration)). -\-> -->
 <!-- <\!-- The contents of the ConfigMap are similar to the following: -\-> -->
 
 
