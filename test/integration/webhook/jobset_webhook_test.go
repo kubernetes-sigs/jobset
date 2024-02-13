@@ -335,5 +335,24 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: true,
 		}),
+		ginkgo.Entry("validate jobSet immutable for managed-by label", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					Suspend(true).
+					EnableDNSHostnames(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return js.Labels[jobset.LabelManagedBy] == jobset.JobSetManager
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Labels[jobset.LabelManagedBy] = "new-manager"
+			},
+			updateShouldFail: true,
+		}),
 	) // end of DescribeTable
 }) // end of Describe
