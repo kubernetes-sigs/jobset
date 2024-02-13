@@ -438,6 +438,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: JobSetManager},
+				},
 				Spec: JobSetSpec{
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
@@ -487,6 +490,7 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
@@ -528,6 +532,7 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
 					ReplicatedJobs: []ReplicatedJob{
 						{
