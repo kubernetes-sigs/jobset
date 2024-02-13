@@ -61,7 +61,7 @@ func (p *podWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (ad
 		return nil, err
 	}
 	if !leaderScheduled {
-		return nil, fmt.Errorf("leader pod not yet scheduled, not creating follower pod %q", pod.Name)
+		return nil, fmt.Errorf("leader pod not yet scheduled, not creating follower pod. this is an expected, transient error.")
 	}
 	return nil, nil
 }
@@ -75,11 +75,16 @@ func (p *podWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (ad
 }
 
 func (p *podWebhook) leaderPodScheduled(ctx context.Context, pod *corev1.Pod) (bool, error) {
+	log := ctrl.LoggerFrom(ctx)
 	leaderPod, err := p.leaderPodForFollower(ctx, pod)
 	if err != nil {
 		return false, err
 	}
-	return leaderPod.Spec.NodeName != "", nil
+	scheduled := leaderPod.Spec.NodeName != ""
+	if !scheduled {
+		log.V(3).Info("leader pod %s is not yet scheduled", leaderPod.Name)
+	}
+	return scheduled, nil
 }
 
 func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, error) {
@@ -99,7 +104,7 @@ func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) 
 
 	// Validate there is only 1 leader pod for this job.
 	if len(podList.Items) != 1 {
-		return nil, fmt.Errorf("incorrect number of leader pods for this job (expected 1, got %d)", len(podList.Items))
+		return nil, fmt.Errorf("expected 1 leader pod (%s), but got %d. this is an expected, transient error.", leaderPodName, len(podList.Items))
 	}
 
 	// Check if the leader pod is scheduled.

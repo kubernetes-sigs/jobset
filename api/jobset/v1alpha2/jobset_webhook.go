@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,6 +35,24 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+)
+
+const (
+	// This is the error message returned by IsDNS1035Label when the given input
+	// is longer than 63 characters.
+	dns1035MaxLengthExceededErrorMsg = "must be no more than 63 characters"
+
+	// Error message returned by JobSet validation if the generated child jobs
+	// will be longer than 63 characters.
+	jobNameTooLongErrorMsg = "JobSet name is too long, job names generated for this JobSet will exceed 63 characters"
+
+	// Error message returned by JobSet validation if the generated pod names
+	// will be longer than 63 characters.
+	podNameTooLongErrorMsg = "JobSet name is too long, pod names generated for this JobSet will exceed 63 characters"
+
+	// Error message returned by JobSet validation if the network subdomain
+	// will be longer than 63 characters.
+	subdomainTooLongErrMsg = ".spec.network.subdomain is too long, must be less than 63 characters"
 )
 
 func (js *JobSet) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -102,6 +121,9 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 
 		// Since subdomain name is also used as service name, it must adhere to RFC 1035 as well.
 		for _, errMessage := range validation.IsDNS1035Label(js.Spec.Network.Subdomain) {
+			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
+				errMessage = subdomainTooLongErrMsg
+			}
 			allErrs = append(allErrs, fmt.Errorf(errMessage))
 		}
 	}
@@ -118,6 +140,9 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 		// Use the largest job index as it will have the longest name.
 		longestJobName := placement.GenJobName(js.Name, rjob.Name, int(rjob.Replicas-1))
 		for _, errMessage := range validation.IsDNS1035Label(longestJobName) {
+			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
+				errMessage = jobNameTooLongErrorMsg
+			}
 			allErrs = append(allErrs, fmt.Errorf(errMessage))
 		}
 		// Check that the generated pod names for the replicated job is DNS 1035 compliant.
@@ -128,6 +153,9 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 			// Add 5 char suffix to the deterministic part of the pod name to validate the full pod name is compliant.
 			longestPodName := placement.GenPodName(js.Name, rjob.Name, maxJobIndex, maxPodIndex) + "-abcde"
 			for _, errMessage := range validation.IsDNS1035Label(longestPodName) {
+				if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
+					errMessage = podNameTooLongErrorMsg
+				}
 				allErrs = append(allErrs, fmt.Errorf(errMessage))
 			}
 		}
