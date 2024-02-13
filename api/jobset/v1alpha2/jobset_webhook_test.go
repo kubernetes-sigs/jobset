@@ -501,6 +501,47 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "when provided, managed-by label is preserved",
+			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: "other-controller"},
+				},
+				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: "other-controller"},
+				},
+				Spec: JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
