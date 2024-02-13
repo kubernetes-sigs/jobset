@@ -510,6 +510,33 @@ func TestValidateCreate(t *testing.T) {
 				fmt.Errorf("must be no more than 63 characters"),
 			),
 		},
+		{
+			name: "jobset name will result in a pod name being too long",
+			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: strings.Repeat("a", 56),
+				},
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("must be no more than 63 characters"),
+			),
+		},
 	}
 
 	for _, tc := range testCases {
