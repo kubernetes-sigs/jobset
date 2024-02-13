@@ -94,6 +94,14 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	ctx = ctrl.LoggerInto(ctx, log)
 	log.V(2).Info("Reconciling JobSet")
 
+	// If enableDNSHostnames is set, and subdomain is unset, default the subdomain to be the JobSet name.
+	// This must be done in the controller rather than in the request-time defaulting, since if a JobSet
+	// uses generateName rather than setting the name explicitly, the JobSet name will still be an empty
+	// string at that time.
+	if dnsHostnamesEnabled(&js) && js.Spec.Network.Subdomain == "" {
+		js.Spec.Network.Subdomain = js.Name
+	}
+
 	// Get Jobs owned by JobSet.
 	ownedJobs, err := r.getChildJobs(ctx, &js)
 	if err != nil {
@@ -363,11 +371,6 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 
 	// If pod DNS hostnames are enabled, create a headless service for the JobSet
 	if dnsHostnamesEnabled(js) {
-
-		// Don't try to create a headless service without a subdomain
-		if js.Spec.Network.Subdomain == "" {
-			return fmt.Errorf("a subdomain should be set if dns hostnames are enabled")
-		}
 		if err := r.createHeadlessSvcIfNotExist(ctx, js); err != nil {
 			return err
 		}

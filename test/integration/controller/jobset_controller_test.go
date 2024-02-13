@@ -628,6 +628,20 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("jobset using generateName with enableDNSHostnames should have headless service name set to the jobset name", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).SetGenerateName("name-prefix").EnableDNSHostnames(true)
+			},
+			updates: []*update{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(func() error {
+							return k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &corev1.Service{})
+						}, timeout, interval).Should(gomega.Succeed())
+					},
+				},
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe
 
@@ -885,7 +899,6 @@ func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	return testing.MakeJobSet(jobSetName, ns.Name).
 		SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
 		EnableDNSHostnames(true).
-		NetworkSubdomain(jobSetName).
 		ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
 			Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
 			Replicas(1).

@@ -63,10 +63,6 @@ func (js *JobSet) Default() {
 		if js.Spec.Network.EnableDNSHostnames == nil {
 			js.Spec.Network.EnableDNSHostnames = ptr.To(true)
 		}
-		// Subdomain defaults to the JobSet name
-		if js.Spec.Network.Subdomain == "" {
-			js.Spec.Network.Subdomain = js.Name
-		}
 
 		// Default pod restart policy to OnFailure.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
