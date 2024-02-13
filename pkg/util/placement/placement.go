@@ -15,10 +15,10 @@ func GenJobName(jsName, rjobName string, jobIndex int) string {
 	return fmt.Sprintf("%s-%s-%d", jsName, rjobName, jobIndex)
 }
 
-// GenLeaderPodName returns the name of the leader pod (pod with completion index 0)
-// for a given job in a jobset.
-func GenLeaderPodName(jobSet, replicatedJob, jobIndex string) string {
-	return fmt.Sprintf("%s-%s-%s-0", jobSet, replicatedJob, jobIndex)
+// GenPodName returns the pod name for the given JobSet name, ReplicatedJob name,
+// Job index, and Pod index.
+func GenPodName(jobSet, replicatedJob, jobIndex, podIndex string) string {
+	return fmt.Sprintf("%s-%s-%s-%s", jobSet, replicatedJob, jobIndex, podIndex)
 }
 
 // IsLeaderPod returns true if the given pod is a leader pod (job completion index of 0),
