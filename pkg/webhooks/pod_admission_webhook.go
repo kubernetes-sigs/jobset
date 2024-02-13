@@ -107,7 +107,7 @@ func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) 
 	return leaderPod, nil
 }
 
-// GenLeaderPodName accepts the name of a pod that is part of a jobset as input, and
+// genLeaderPodName accepts the name of a pod that is part of a jobset as input, and
 // returns the name of the pod with completion index 0 in the same child job.
 func genLeaderPodName(pod *corev1.Pod) (string, error) {
 	// Pod name format: <jobset>-<replicatedJob>-<jobIndex>-<podIndex>-<randomSuffix>
@@ -123,5 +123,6 @@ func genLeaderPodName(pod *corev1.Pod) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("pod missing label: %s", jobset.JobIndexKey)
 	}
-	return placement.GenLeaderPodName(jobSet, replicatedJob, jobIndex), nil
+	leaderPodName := placement.GenPodName(jobSet, replicatedJob, jobIndex, "0")
+	return leaderPodName, nil
 }
