@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -121,6 +122,9 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 			// Add 5 char suffix to the deterministic part of the pod name to validate the full pod name is compliant.
 			longestPodName := placement.GenPodName(js.Name, rjob.Name, maxJobIndex, maxPodIndex) + "-abcde"
 			for _, errMessage := range validation.IsDNS1035Label(longestPodName) {
+				if strings.Contains(errMessage, "must be no more than 63 characters") {
+					errMessage = "JobSet name must be shorter; pod names generated for this JobSet will exceed 63 characters."
+				}
 				allErrs = append(allErrs, fmt.Errorf(errMessage))
 			}
 		}
