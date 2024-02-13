@@ -75,11 +75,16 @@ func (p *podWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (ad
 }
 
 func (p *podWebhook) leaderPodScheduled(ctx context.Context, pod *corev1.Pod) (bool, error) {
+	log := ctrl.LoggerFrom(ctx)
 	leaderPod, err := p.leaderPodForFollower(ctx, pod)
 	if err != nil {
 		return false, err
 	}
-	return leaderPod.Spec.NodeName != "", nil
+	scheduled := leaderPod.Spec.NodeName != ""
+	if !scheduled {
+		log.V(3).Info("leader pod %s is not yet scheduled", leaderPod.Name)
+	}
+	return scheduled, nil
 }
 
 func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, error) {
