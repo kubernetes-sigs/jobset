@@ -463,7 +463,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("must be no more than 63 characters"),
+				fmt.Errorf(jobNameTooLongErrorMsg),
 			),
 		},
 		{
@@ -507,7 +507,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("must be no more than 63 characters"),
+				fmt.Errorf(subdomainTooLongErrMsg),
 			),
 		},
 		{
@@ -534,7 +534,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("JobSet name must be shorter; pod names generated for this JobSet will exceed 63 characters."),
+				fmt.Errorf(podNameTooLongErrorMsg),
 			),
 		},
 	}

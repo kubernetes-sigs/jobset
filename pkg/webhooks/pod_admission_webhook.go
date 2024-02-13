@@ -87,7 +87,7 @@ func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) 
 	log := ctrl.LoggerFrom(ctx)
 	leaderPodName, err := genLeaderPodName(pod)
 	if err != nil {
-		log.Error(err, "getting leader pod name for follower pod")
+		log.V(3).Info("leader pod (%s) for follower pod does not exist or has not been scheduled yet", leaderPodName)
 		return nil, err
 	}
 
