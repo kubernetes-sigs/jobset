@@ -8280,6 +8280,26 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              startupPolicy:
+                description: StartupPolicy, if set, configures in what order jobs
+                  must be started
+                properties:
+                  startupPolicyOrder:
+                    description: |-
+                      StartupPolicyOrder determines the startup order of the ReplicatedJobs.
+                      AnyOrder means to start replicated jobs in any order.
+                      InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
+                      when all the jobs of the previous one are ready.
+                    enum:
+                    - AnyOrder
+                    - InOrder
+                    type: string
+                required:
+                - startupPolicyOrder
+                type: object
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               successPolicy:
                 description: |-
                   SuccessPolicy configures when to declare the JobSet as

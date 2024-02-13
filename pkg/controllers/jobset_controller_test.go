@@ -18,9 +18,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/google/go-cmp/cmp/cmpopts"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -605,6 +604,33 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					}).Obj(),
 			},
 		},
+		{
+			name: "startup-policy",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				StartupPolicy(&jobset.StartupPolicy{
+					StartupPolicyOrder: jobset.InOrder,
+				}).
+				EnableDNSHostnames(true).
+				NetworkSubdomain(jobSetName).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Subdomain(jobSetName).
+					Replicas(1).
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).
+					Suspend(false).
+					Subdomain(jobSetName).Obj(),
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -639,6 +665,7 @@ func TestUpdateConditions(t *testing.T) {
 		js             *jobset.JobSet
 		conditions     []metav1.Condition
 		newCondition   metav1.Condition
+		forceUpdate    bool
 		expectedUpdate bool
 	}{
 		{
@@ -662,6 +689,18 @@ func TestUpdateConditions(t *testing.T) {
 			newCondition:   metav1.Condition{Status: metav1.ConditionFalse, Type: string(jobset.JobSetSuspended), Reason: "JobsResumed"},
 			conditions:     []metav1.Condition{},
 			expectedUpdate: false,
+		},
+		{
+			name: "force update if false",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			newCondition:   metav1.Condition{Status: metav1.ConditionFalse, Type: string(jobset.JobSetStartupPolicyCompleted), Reason: "StartupPolicy"},
+			conditions:     []metav1.Condition{},
+			expectedUpdate: true,
+			forceUpdate:    true,
 		},
 		{
 			name: "update if condition is true",
@@ -713,7 +752,7 @@ func TestUpdateConditions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			jsWithConditions := tc.js
 			jsWithConditions.Status.Conditions = tc.conditions
-			gotUpdate := updateCondition(jsWithConditions, tc.newCondition)
+			gotUpdate := updateCondition(jsWithConditions, tc.newCondition, tc.forceUpdate)
 			if gotUpdate != tc.expectedUpdate {
 				t.Errorf("updateCondition return mismatch")
 			}

@@ -66,6 +66,12 @@ func (j *JobSetWrapper) FailurePolicy(policy *jobset.FailurePolicy) *JobSetWrapp
 	return j
 }
 
+// StartuPolicy sets the value of jobSet.spec.startupPolicy
+func (j *JobSetWrapper) StartupPolicy(policy *jobset.StartupPolicy) *JobSetWrapper {
+	j.Spec.StartupPolicy = policy
+	return j
+}
+
 // SetAnnotations sets the value of the jobSet.metadata.annotations.
 func (j *JobSetWrapper) SetAnnotations(annotations map[string]string) *JobSetWrapper {
 	j.Annotations = annotations

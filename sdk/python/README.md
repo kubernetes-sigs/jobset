@@ -72,6 +72,7 @@ Class | Method | HTTP request | Description
  - [JobsetV1alpha2Network](docs/JobsetV1alpha2Network.md)
  - [JobsetV1alpha2ReplicatedJob](docs/JobsetV1alpha2ReplicatedJob.md)
  - [JobsetV1alpha2ReplicatedJobStatus](docs/JobsetV1alpha2ReplicatedJobStatus.md)
+ - [JobsetV1alpha2StartupPolicy](docs/JobsetV1alpha2StartupPolicy.md)
  - [JobsetV1alpha2SuccessPolicy](docs/JobsetV1alpha2SuccessPolicy.md)
 
 

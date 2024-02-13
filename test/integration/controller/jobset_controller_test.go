@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -39,7 +40,7 @@ import (
 )
 
 const (
-	timeout  = 5 * time.Second
+	timeout  = 10 * time.Second
 	interval = time.Millisecond * 250
 )
 
@@ -118,13 +119,15 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 	type update struct {
 		jobSetUpdateFn       func(*jobset.JobSet)
 		jobUpdateFn          func(*batchv1.JobList)
+		checkJobCreation     func(*jobset.JobSet)
 		checkJobSetState     func(*jobset.JobSet)
 		checkJobSetCondition func(context.Context, client.Client, *jobset.JobSet, time.Duration)
 	}
 
 	type testCase struct {
-		makeJobSet func(*corev1.Namespace) *testing.JobSetWrapper
-		updates    []*update
+		makeJobSet        func(*corev1.Namespace) *testing.JobSetWrapper
+		skipCreationCheck bool
+		updates           []*update
 	}
 
 	nodeSelectors := map[string]map[string]string{
@@ -156,8 +159,10 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				return k8sClient.Create(ctx, js)
 			}, timeout, interval).Should(gomega.Succeed())
 
-			ginkgo.By("checking all jobs were created successfully")
-			gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+			if !tc.skipCreationCheck {
+				ginkgo.By("checking all jobs were created successfully")
+				gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+			}
 
 			// Perform a series of updates to jobset resources and check resulting jobset state after each update.
 			for _, up := range tc.updates {
@@ -167,16 +172,15 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				if up.jobSetUpdateFn != nil {
 					up.jobSetUpdateFn(&jobSet)
 				} else if up.jobUpdateFn != nil {
+					if up.checkJobCreation == nil {
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+					} else {
+						up.checkJobCreation(&jobSet)
+					}
 					// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
 					// Ensure we have all expected jobs in our jobList before continuing.
 					var jobList batchv1.JobList
-					gomega.Eventually(func() (bool, error) {
-						if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
-							return false, err
-						}
-						return len(jobList.Items) == testutil.NumExpectedJobs(js), nil
-					}, timeout, interval).Should(gomega.BeTrue())
-
+					gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
 					// Perform update on jobs.
 					up.jobUpdateFn(&jobList)
 				}
@@ -222,7 +226,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						for i := 0; i < len(jobList.Items)-1; i++ {
 							completeJob(&jobList.Items[i])
 						}
-						ReadyJob(&jobList.Items[len(jobList.Items)-1])
+						readyJob(&jobList.Items[len(jobList.Items)-1])
 					},
 					checkJobSetCondition: testutil.JobSetActive,
 					checkJobSetState: func(js *jobset.JobSet) {
@@ -711,6 +715,415 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("startupPolicy with InOrder; suspend should keep jobs suspended", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Suspend(true).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.InOrder,
+					})
+			},
+			updates: []*update{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Suspended: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Suspended: 1,
+							},
+						})
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("startupPolicy with AnyOrder; suspend should keep jobs suspended", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Suspend(true).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.AnyOrder,
+					})
+			},
+			updates: []*update{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Suspended: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Suspended: 1,
+							},
+						})
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("startupPolicy with AnyOrder; resume suspended JobSet", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Suspend(true).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.AnyOrder,
+					})
+			},
+			updates: []*update{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Suspended: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Suspended: 1,
+							},
+						})
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, false)
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are not suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Suspended: 0,
+							},
+							{
+								Name:      "replicated-job-a",
+								Suspended: 0,
+							},
+						})
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("startupPolicy with InOrder; resume suspended JobSet", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Suspend(true).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.InOrder,
+					})
+			},
+			updates: []*update{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Suspended: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Suspended: 1,
+							},
+						})
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, false)
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Suspended: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Suspended: 0,
+							},
+						})
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "replicated-job-a")
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name: "replicated-job-b",
+							},
+							{
+								Name:  "replicated-job-a",
+								Ready: 1,
+							},
+						})
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "replicated-job-b")
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Ready:     3,
+								Suspended: 0,
+							},
+							{
+								Name:      "replicated-job-a",
+								Ready:     1,
+								Suspended: 0,
+							},
+						})
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyComplete,
+				},
+			},
+		}),
+		ginkgo.Entry("startupPolicy InOrder; replicated-job-a not ready then replicated-job-b should not run", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.InOrder,
+					})
+			},
+			skipCreationCheck: true,
+			updates: []*update{
+				{
+					// First update
+					// Replicated-Job-A should be created.
+					// Startup Policy Condition is set
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
+				},
+				{
+					// Second update
+					// Set Replicated-Job-A to ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "replicated-job-a")
+					},
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name: "replicated-job-b",
+							},
+							{
+								Name:  "replicated-job-a",
+								Ready: 1,
+							},
+						})
+					},
+				},
+				{
+					// Set replicated-job-b to all active but not ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						activeReplicatedJob(jobList, "replicated-job-b")
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:   "replicated-job-b",
+								Active: 3,
+							},
+							{
+								Name:  "replicated-job-a",
+								Ready: 1,
+							},
+						})
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
+				},
+				{
+					// Set replicated-job-b to all ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "replicated-job-b")
+					},
+				},
+				{
+					// Final state
+					// all jobs are ready
+					// startup policy condition is set to true
+					// and number of jobs equals total
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:  "replicated-job-b",
+								Ready: 3,
+							},
+							{
+								Name:  "replicated-job-a",
+								Ready: 1,
+							},
+						})
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyComplete,
+				},
+			},
+		}),
+		ginkgo.Entry("startupPolicy with InOrder; success policy restart; replicated-job-a ready than replicated-job-b should run", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1}).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.InOrder,
+					})
+			},
+			skipCreationCheck: true,
+			updates: []*update{
+				{
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name: "replicated-job-b",
+							},
+							{
+								Name: "replicated-job-a",
+							},
+						})
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
+				},
+				{
+					// Second update
+					// Set Replicated-Job-A to ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "replicated-job-a")
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name: "replicated-job-b",
+							},
+							{
+								Name:  "replicated-job-a",
+								Ready: 1,
+							},
+						})
+					},
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+				},
+				{
+					// Set replicated-job-b to all ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "replicated-job-b")
+					},
+				},
+				{
+					// Final state
+					// all jobs are ready
+					// startup policy condition is set to true
+					// and number of jobs equals total
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:  "replicated-job-b",
+								Ready: 3,
+							},
+							{
+								Name:  "replicated-job-a",
+								Ready: 1,
+							},
+						})
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyComplete,
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						completeJob(&jobList.Items[0])
+						failJob(&jobList.Items[1])
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					// recreate and redo startup policy
+					// Set Replicated-Job-A to ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "replicated-job-a")
+					},
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name: "replicated-job-b",
+							},
+							{
+								Name:  "replicated-job-a",
+								Ready: 1,
+							},
+						})
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyNotFinished,
+				},
+				{
+					// Set replicated-job-b to ready
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "replicated-job-b")
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:  "replicated-job-b",
+								Ready: 3,
+							},
+							{
+								Name:  "replicated-job-a",
+								Ready: 1,
+							},
+						})
+					},
+					checkJobSetCondition: testutil.JobSetStartupPolicyComplete,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are recreated")
+						gomega.Eventually(checkJobsRecreated, timeout, interval).WithArguments(js, 1).Should(gomega.Equal(true))
+					},
+				},
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe
 
@@ -730,6 +1143,7 @@ func checkJobSetReplicatedJobsStatus(js *jobset.JobSet) bool {
 			"ready":     0,
 			"succeeded": 0,
 			"failed":    0,
+			"suspended": 0,
 		}
 	}
 	for _, job := range jobList.Items {
@@ -755,6 +1169,9 @@ func checkJobSetReplicatedJobsStatus(js *jobset.JobSet) bool {
 				jobsStatuses[job.Labels[jobset.ReplicatedJobNameKey]]["ready"]++
 			}
 		}
+		if job.Spec.Suspend != nil && *job.Spec.Suspend {
+			jobsStatuses[job.Labels[jobset.ReplicatedJobNameKey]]["suspended"]++
+		}
 	}
 	replicatedJobsStatuses := map[string]map[string]int32{}
 	for _, replicatedJobStatus := range js.Status.ReplicatedJobsStatus {
@@ -762,6 +1179,7 @@ func checkJobSetReplicatedJobsStatus(js *jobset.JobSet) bool {
 			"ready":     replicatedJobStatus.Ready,
 			"succeeded": replicatedJobStatus.Succeeded,
 			"failed":    replicatedJobStatus.Failed,
+			"suspended": replicatedJobStatus.Suspended,
 		}
 	}
 	return apiequality.Semantic.DeepEqual(jobsStatuses, replicatedJobsStatuses)
@@ -789,7 +1207,22 @@ func completeJob(job *batchv1.Job) {
 			Type:   batchv1.JobComplete,
 			Status: corev1.ConditionTrue,
 		}),
+		Succeeded: ptr.Deref(job.Spec.Parallelism, 0),
 	})
+}
+
+// mark all jobs that match replicatedJobName as ready
+func readyReplicatedJob(jobList *batchv1.JobList, replicatedJobName string) {
+	for _, job := range jobList.Items {
+		replicatedJobNameFromLabel := job.Labels[jobset.ReplicatedJobNameKey]
+		if replicatedJobNameFromLabel == replicatedJobName {
+			readyJob(&job)
+		}
+	}
+}
+
+func readyJob(job *batchv1.Job) {
+	updateJobStatus(job, batchv1.JobStatus{Ready: job.Spec.Parallelism})
 }
 
 // removeForegroundDeletionFinalizers will continually fetch the child jobs for a
@@ -815,10 +1248,18 @@ func removeForegroundDeletionFinalizers(js *jobset.JobSet, expectedFinalizers in
 	}, timeout, interval).Should(gomega.Equal(true))
 }
 
-func ReadyJob(job *batchv1.Job) {
-	updateJobStatus(job, batchv1.JobStatus{
-		Ready: job.Spec.Parallelism,
-	})
+// mark all jobs that match replicatedJobName as active
+func activeReplicatedJob(jobList *batchv1.JobList, replicatedJobName string) {
+	for _, job := range jobList.Items {
+		replicatedJobNameFromLabel := job.Labels[jobset.ReplicatedJobNameKey]
+		if replicatedJobNameFromLabel == replicatedJobName {
+			activeJob(&job)
+		}
+	}
+}
+
+func activeJob(job *batchv1.Job) {
+	updateJobStatus(job, batchv1.JobStatus{Active: *job.Spec.Parallelism})
 }
 
 func updateJobStatus(job *batchv1.Job, status batchv1.JobStatus) {
@@ -864,7 +1305,6 @@ func updateJobSetNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[s
 		}
 		return k8sClient.Update(ctx, &jsGet)
 	}, timeout, interval).Should(gomega.Succeed())
-
 }
 
 func matchJobsSuspendState(js *jobset.JobSet, suspend bool) (bool, error) {
@@ -910,6 +1350,24 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 		}
 	}
 	return wantJobsUpdated == jobsUpdated, nil
+}
+
+func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
+	var jobList batchv1.JobList
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+		return false, err
+	}
+	// Check we have the right number of jobs.
+	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
+		return false, nil
+	}
+	// Check all the jobs restart counter has been incremented.
+	for _, job := range jobList.Items {
+		if job.Labels[controllers.RestartsKey] != strconv.Itoa(expectedRestarts) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // Check one headless service per job was created successfully.

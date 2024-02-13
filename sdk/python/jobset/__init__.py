@@ -35,5 +35,6 @@ from jobset.models.jobset_v1alpha2_job_set_status import JobsetV1alpha2JobSetSta
 from jobset.models.jobset_v1alpha2_network import JobsetV1alpha2Network
 from jobset.models.jobset_v1alpha2_replicated_job import JobsetV1alpha2ReplicatedJob
 from jobset.models.jobset_v1alpha2_replicated_job_status import JobsetV1alpha2ReplicatedJobStatus
+from jobset.models.jobset_v1alpha2_startup_policy import JobsetV1alpha2StartupPolicy
 from jobset.models.jobset_v1alpha2_success_policy import JobsetV1alpha2SuccessPolicy
 

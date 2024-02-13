@@ -21,6 +21,7 @@ type JobSetSpecApplyConfiguration struct {
 	Network        *NetworkApplyConfiguration        `json:"network,omitempty"`
 	SuccessPolicy  *SuccessPolicyApplyConfiguration  `json:"successPolicy,omitempty"`
 	FailurePolicy  *FailurePolicyApplyConfiguration  `json:"failurePolicy,omitempty"`
+	StartupPolicy  *StartupPolicyApplyConfiguration  `json:"startupPolicy,omitempty"`
 	Suspend        *bool                             `json:"suspend,omitempty"`
 }
 
@@ -64,6 +65,14 @@ func (b *JobSetSpecApplyConfiguration) WithSuccessPolicy(value *SuccessPolicyApp
 // If called multiple times, the FailurePolicy field is set to the value of the last call.
 func (b *JobSetSpecApplyConfiguration) WithFailurePolicy(value *FailurePolicyApplyConfiguration) *JobSetSpecApplyConfiguration {
 	b.FailurePolicy = value
+	return b
+}
+
+// WithStartupPolicy sets the StartupPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the StartupPolicy field is set to the value of the last call.
+func (b *JobSetSpecApplyConfiguration) WithStartupPolicy(value *StartupPolicyApplyConfiguration) *JobSetSpecApplyConfiguration {
+	b.StartupPolicy = value
 	return b
 }
 
