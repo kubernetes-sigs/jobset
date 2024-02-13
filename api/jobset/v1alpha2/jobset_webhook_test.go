@@ -463,7 +463,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("must be no more than 63 characters"),
+				fmt.Errorf(subdomainTooLongErrMsg),
 			),
 		},
 		{
@@ -507,7 +507,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("must be no more than 63 characters"),
+				fmt.Errorf(jobNameTooLongErrorMsg),
 			),
 		},
 		{
@@ -534,7 +534,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("must be no more than 63 characters"),
+				fmt.Errorf(podNameTooLongErrorMsg),
 			),
 		},
 	}
