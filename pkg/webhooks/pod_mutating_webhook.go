@@ -41,7 +41,7 @@ func NewPodWebhook(mgr ctrl.Manager) *podWebhook {
 	return &podWebhook{client: mgr.GetClient()}
 }
 
-// SetupMutatingWebhook configures the mutating webhook for pods.
+// SetupWebhookWithManager configures the mutating webhook for pods.
 func (p *podWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(&corev1.Pod{}).
@@ -50,7 +50,7 @@ func (p *podWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-// InjectDecoder, when defined, will result in the decoder automatically being set.
+// InjectDecoder injects the decoder into the podWebhook.
 func (p *podWebhook) InjectDecoder(d *admission.Decoder) error {
 	p.decoder = d
 	return nil
