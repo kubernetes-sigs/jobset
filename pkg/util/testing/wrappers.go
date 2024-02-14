@@ -66,7 +66,7 @@ func (j *JobSetWrapper) FailurePolicy(policy *jobset.FailurePolicy) *JobSetWrapp
 	return j
 }
 
-// StartuPolicy sets the value of jobSet.spec.startupPolicy
+// StartupPolicy sets the value of jobSet.spec.startupPolicy
 func (j *JobSetWrapper) StartupPolicy(policy *jobset.StartupPolicy) *JobSetWrapper {
 	j.Spec.StartupPolicy = policy
 	return j
@@ -84,7 +84,7 @@ func (j *JobSetWrapper) SetLabels(labels map[string]string) *JobSetWrapper {
 	return j
 }
 
-// GenerateName sets the JobSet name.
+// SetGenerateName sets the JobSet name.
 func (j *JobSetWrapper) SetGenerateName(namePrefix string) *JobSetWrapper {
 	// Name and GenerateName are mutually exclusive, so we must unset the Name field.
 	j.Name = ""
@@ -187,7 +187,7 @@ func (j *JobTemplateWrapper) CompletionMode(mode batchv1.CompletionMode) *JobTem
 	return j
 }
 
-// Containers sets the pod template spec containers.
+// PodSpec Containers sets the pod template spec containers.
 func (j *JobTemplateWrapper) PodSpec(podSpec corev1.PodSpec) *JobTemplateWrapper {
 	j.Spec.Template.Spec = podSpec
 	return j
@@ -209,7 +209,7 @@ type JobWrapper struct {
 	batchv1.Job
 }
 
-// MakeJobWrapper creates a wrapper for a Job.
+// MakeJob creates a wrapper for a Job.
 func MakeJob(jobName, ns string) *JobWrapper {
 	return &JobWrapper{
 		batchv1.Job{
