@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -82,7 +83,7 @@ func (p *podWebhook) leaderPodScheduled(ctx context.Context, pod *corev1.Pod) (b
 	}
 	scheduled := leaderPod.Spec.NodeName != ""
 	if !scheduled {
-		log.V(3).Info("leader pod %s is not yet scheduled", leaderPod.Name)
+		log.V(0).Info("leader pod %s is not yet scheduled", leaderPod.Name)
 	}
 	return scheduled, nil
 }
@@ -107,8 +108,18 @@ func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) 
 		return nil, fmt.Errorf("expected 1 leader pod (%s), but got %d. this is an expected, transient error", leaderPodName, len(podList.Items))
 	}
 
-	// Check if the leader pod is scheduled.
+	// Validate leader pod has same owner UID as the follower, to ensure they are part of the same Job.
+	// This is necessary to handle a race condition where the JobSet is restarted (deleting and recreating
+	// all jobs), and a leader pod may land on different node pools than they were originally scheduled on.
+	// Then when the follower pods are recreated, and we look up the leader pod using the index which maps
+	// [pod name without random suffix] -> corev1.Pod object, we may get a stale index entry and inject
+	// the the wrong nodeSelector, using the topology the leader pod was originally scheduled on before the
+	// restart.
 	leaderPod := &podList.Items[0]
+	if err := podsOwnedBySameJob(leaderPod, pod); err != nil {
+		return nil, err
+	}
+
 	return leaderPod, nil
 }
 
@@ -130,4 +141,21 @@ func genLeaderPodName(pod *corev1.Pod) (string, error) {
 	}
 	leaderPodName := placement.GenPodName(jobSet, replicatedJob, jobIndex, "0")
 	return leaderPodName, nil
+}
+
+// validatePodsOnSameRestartAttempt returns an error if the leader pod and
+// follower pod are not owned by the same Job UID. Otherwise, it returns nil.
+func podsOwnedBySameJob(leaderPod, followerPod *corev1.Pod) error {
+	followerOwnerRef := metav1.GetControllerOf(followerPod)
+	if followerOwnerRef == nil {
+		return fmt.Errorf("follower pod has no owner reference")
+	}
+	leaderOwnerRef := metav1.GetControllerOf(leaderPod)
+	if leaderOwnerRef == nil {
+		return fmt.Errorf("leader pod %s has no owner reference", leaderPod.Name)
+	}
+	if followerOwnerRef.UID != leaderOwnerRef.UID {
+		return fmt.Errorf("follower pod owner UID (%s) != leader pod owner UID (%s)", string(followerOwnerRef.UID), string(leaderOwnerRef.UID))
+	}
+	return nil
 }

@@ -165,6 +165,7 @@ func (p *podWebhook) setNodeSelector(ctx context.Context, pod *corev1.Pod) error
 	if pod.Spec.NodeSelector == nil {
 		pod.Spec.NodeSelector = make(map[string]string)
 	}
+	log.V(2).Info(fmt.Sprintf("setting nodeSelector %s: %s to follow leader pod %s", topologyKey, topologyValue, leaderPod.Name))
 	pod.Spec.NodeSelector[topologyKey] = topologyValue
 	return nil
 }
