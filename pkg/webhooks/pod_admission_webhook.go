@@ -83,7 +83,7 @@ func (p *podWebhook) leaderPodScheduled(ctx context.Context, pod *corev1.Pod) (b
 	}
 	scheduled := leaderPod.Spec.NodeName != ""
 	if !scheduled {
-		log.V(0).Info("leader pod %s is not yet scheduled", leaderPod.Name)
+		log.V(2).Info("leader pod %s is not yet scheduled", leaderPod.Name)
 	}
 	return scheduled, nil
 }
