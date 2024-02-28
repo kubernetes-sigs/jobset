@@ -146,9 +146,11 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	// If not, then delete all the job's follower pods so they can be recreated and rescheduled correctly.
 	valid, err := r.validatePodPlacements(ctx, &leaderPod, podList)
 	if err != nil {
+		log.Error(err, "validating pod placements")
 		return ctrl.Result{}, err
 	}
 	if !valid {
+		log.V(2).Info("deleting follower pods for leader pod: %s", leaderPod.Name)
 		return ctrl.Result{}, r.deleteFollowerPods(ctx, podList.Items)
 	}
 	return ctrl.Result{}, nil
