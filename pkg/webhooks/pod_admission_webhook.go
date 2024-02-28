@@ -143,7 +143,7 @@ func genLeaderPodName(pod *corev1.Pod) (string, error) {
 	return leaderPodName, nil
 }
 
-// validatePodsOnSameRestartAttempt returns an error if the leader pod and
+// podsOwnedBySameJob returns an error if the leader pod and
 // follower pod are not owned by the same Job UID. Otherwise, it returns nil.
 func podsOwnedBySameJob(leaderPod, followerPod *corev1.Pod) error {
 	followerOwnerRef := metav1.GetControllerOf(followerPod)
@@ -152,7 +152,7 @@ func podsOwnedBySameJob(leaderPod, followerPod *corev1.Pod) error {
 	}
 	leaderOwnerRef := metav1.GetControllerOf(leaderPod)
 	if leaderOwnerRef == nil {
-		return fmt.Errorf("leader pod %s has no owner reference", leaderPod.Name)
+		return fmt.Errorf("leader pod %q has no owner reference", leaderPod.Name)
 	}
 	if followerOwnerRef.UID != leaderOwnerRef.UID {
 		return fmt.Errorf("follower pod owner UID (%s) != leader pod owner UID (%s)", string(followerOwnerRef.UID), string(leaderOwnerRef.UID))
