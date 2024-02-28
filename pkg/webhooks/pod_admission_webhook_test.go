@@ -77,26 +77,26 @@ func TestPodsOwnedBySameJob(t *testing.T) {
 	}{
 		{
 			name:        "pods owned by the same job",
-			leaderPod:   createPodWithOwner("job-uid-1", "leader-pod"),
-			followerPod: createPodWithOwner("job-uid-1", "follower-pod"),
+			leaderPod:   createPodWithOwner("leader-pod", "job-uid-1"),
+			followerPod: createPodWithOwner("follower-pod", "job-uid-1"),
 			wantResult:  nil,
 		},
 		{
 			name:        "pods owned by different jobs",
-			leaderPod:   createPodWithOwner("job-uid-1", "leader-pod"),
-			followerPod: createPodWithOwner("job-uid-2", "follower-pod"),
+			leaderPod:   createPodWithOwner("leader-pod", "job-uid-1"),
+			followerPod: createPodWithOwner("follower-pod", "job-uid-2"),
 			wantResult:  fmt.Errorf("follower pod owner UID (%s) != leader pod owner UID (%s)", "job-uid-2", "job-uid-1"),
 		},
 		{
 			name:        "follower pod with no owner",
-			leaderPod:   createPodWithOwner("job-uid-1", "leader-pod"),
-			followerPod: createPodWithOwner("", "follower-pod"),
+			leaderPod:   createPodWithOwner("leader-pod", "job-uid-1"),
+			followerPod: createPodWithOwner("follower-pod", ""),
 			wantResult:  fmt.Errorf("follower pod has no owner reference"),
 		},
 		{
 			name:        "leader pod with no owner",
-			leaderPod:   createPodWithOwner("", "leader-pod"),
-			followerPod: createPodWithOwner("job-uid-2", "follower-pod"),
+			leaderPod:   createPodWithOwner("leader-pod", ""),
+			followerPod: createPodWithOwner("follower-pod", "job-uid-2"),
 			wantResult:  fmt.Errorf("leader pod \"leader-pod\" has no owner reference"),
 		},
 	}
@@ -121,15 +121,15 @@ func TestPodsOwnedBySameJob(t *testing.T) {
 	}
 }
 
-func createPodWithOwner(uid string, name string) *corev1.Pod {
+func createPodWithOwner(name string, ownerUID string) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
-	if uid != "" {
+	if ownerUID != "" {
 		pod.OwnerReferences = []metav1.OwnerReference{
-			{UID: types.UID(uid), Kind: "Job", Controller: ptr.To(true)},
+			{UID: types.UID(ownerUID), Kind: "Job", Controller: ptr.To(true)},
 		}
 	}
 	return pod
