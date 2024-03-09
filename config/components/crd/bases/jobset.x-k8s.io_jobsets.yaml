@@ -8415,20 +8415,32 @@ spec:
                     Readiness.
                   properties:
                     active:
+                      description: |-
+                        Active is the number of child Jobs with at least 1 pod in a running or pending state, which are not
+                        marked for deletion.
                       format: int32
                       type: integer
                     failed:
+                      description: Failed is the number of failed child Jobs.
                       format: int32
                       type: integer
                     name:
+                      description: Name of the ReplicatedJob.
                       type: string
                     ready:
+                      description: |-
+                        Ready is the number of child Jobs where number of ready pods + completed pods >= total expected pod count
+                        for the Job (i.e., minimum of job.spec.parallelism and job.spec.completions).
                       format: int32
                       type: integer
                     succeeded:
+                      description: Succeeded is the number of successfully completed
+                        child Jobs.
                       format: int32
                       type: integer
                     suspended:
+                      description: Suspended is the number of child Jobs which are
+                        in a suspended state.
                       format: int32
                       type: integer
                   required:
