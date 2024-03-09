@@ -118,8 +118,9 @@ type ReplicatedJobStatus struct {
 	// Name of the ReplicatedJob.
 	Name string `json:"name"`
 
-	// Ready is the number of child Jobs where number of ready pods + completed pods >= total expected pod count
-	// for the Job (i.e., minimum of job.spec.parallelism and job.spec.completions).
+	// Ready is the number of child Jobs where the number of ready pods and completed pods
+	// is greater than or equal to the total expected pod count for the Job (i.e., the minimum
+	// of job.spec.parallelism and job.spec.completions).
 	Ready int32 `json:"ready"`
 
 	// Succeeded is the number of successfully completed child Jobs.
@@ -128,8 +129,8 @@ type ReplicatedJobStatus struct {
 	// Failed is the number of failed child Jobs.
 	Failed int32 `json:"failed"`
 
-	// Active is the number of child Jobs with at least 1 pod in a running or pending state, which are not
-	// marked for deletion.
+	// Active is the number of child Jobs with at least 1 pod in a running or pending state
+	// which are not marked for deletion.
 	Active int32 `json:"active"`
 
 	// Suspended is the number of child Jobs which are in a suspended state.

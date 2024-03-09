@@ -193,30 +193,36 @@
       ],
       "properties": {
         "active": {
+          "description": "Active is the number of child Jobs with at least 1 pod in a running or pending state which are not marked for deletion.",
           "type": "integer",
           "format": "int32",
           "default": 0
         },
         "failed": {
+          "description": "Failed is the number of failed child Jobs.",
           "type": "integer",
           "format": "int32",
           "default": 0
         },
         "name": {
+          "description": "Name of the ReplicatedJob.",
           "type": "string",
           "default": ""
         },
         "ready": {
+          "description": "Ready is the number of child Jobs where the number of ready pods and completed pods is greater than or equal to the total expected pod count for the Job (i.e., the minimum of job.spec.parallelism and job.spec.completions).",
           "type": "integer",
           "format": "int32",
           "default": 0
         },
         "succeeded": {
+          "description": "Succeeded is the number of successfully completed child Jobs.",
           "type": "integer",
           "format": "int32",
           "default": 0
         },
         "suspended": {
+          "description": "Suspended is the number of child Jobs which are in a suspended state.",
           "type": "integer",
           "format": "int32",
           "default": 0
