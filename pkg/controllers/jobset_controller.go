@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"time"
+
+	"k8s.io/utils/clock"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,6 +51,7 @@ type JobSetReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Record record.EventRecorder
+	clock  clock.Clock
 }
 
 type childJobs struct {
@@ -62,7 +66,7 @@ type childJobs struct {
 }
 
 func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *JobSetReconciler {
-	return &JobSetReconciler{Client: client, Scheme: scheme, Record: record}
+	return &JobSetReconciler{Client: client, Scheme: scheme, Record: record, clock: clock.RealClock{}}
 }
 
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update;patch
@@ -110,8 +114,26 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	// If JobSet is already completed or failed, clean up active child jobs.
+	// If JobSet is already completed or failed, clean up active child jobs and requeue if TTLSecondsAfterFinished is set.
 	if jobSetFinished(&js) {
+		if js.Spec.TTLSecondsAfterFinished != nil {
+			expired, err := r.checkIfTTLExpired(ctx, &js)
+			if err != nil {
+				log.Error(err, "checking if TTL expired")
+				return ctrl.Result{}, err
+			}
+			// if expired is true, that means the TTL has expired, and we should delete the JobSet
+			// otherwise, we requeue it for the remaining TTL duration.
+			if expired {
+				log.V(5).Info("JobSet TTL expired")
+				if err := r.deleteJobSet(ctx, &js); err != nil {
+					log.Error(err, "deleting jobset")
+					return ctrl.Result{}, err
+				}
+			} else {
+				return ctrl.Result{RequeueAfter: requeueJobSetAfter(&js)}, nil
+			}
+		}
 		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
 			log.Error(err, "deleting jobs")
 			return ctrl.Result{}, err
@@ -945,4 +967,92 @@ func managedByExternalController(js jobset.JobSet) *string {
 		return controllerName
 	}
 	return nil
+}
+
+func (r *JobSetReconciler) deleteJobSet(ctx context.Context, js *jobset.JobSet) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	policy := metav1.DeletePropagationForeground
+	options := []client.DeleteOption{client.PropagationPolicy(policy)}
+	log.V(2).Info("Cleaning up JobSet", "jobset", klog.KObj(js))
+
+	return r.Delete(ctx, js, options...)
+}
+
+// checkIfTTLExpired checks whether a given JobSet's TTL has expired.
+func (r *JobSetReconciler) checkIfTTLExpired(ctx context.Context, jobSet *jobset.JobSet) (bool, error) {
+	// We don't care about the JobSets that are going to be deleted
+	if jobSet.DeletionTimestamp != nil {
+		return false, nil
+	}
+
+	now := r.clock.Now()
+	remaining, err := timeLeft(ctx, jobSet, &now)
+	if err != nil {
+		return false, err
+	}
+
+	// TTL has expired
+	ttlExpired := remaining != nil && *remaining <= 0
+	return ttlExpired, nil
+}
+
+// timeLeft returns the time left until the JobSet's TTL expires and the time when it will expire.
+func timeLeft(ctx context.Context, js *jobset.JobSet, now *time.Time) (*time.Duration, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	finishAt, expireAt, err := getJobSetFinishAndExpireTime(js)
+	if err != nil {
+		return nil, err
+	}
+	// The following 2 checks do sanity checking for nil pointers in case of changes to the above function.
+	// This logic should never be executed.
+	if now == nil || finishAt == nil || expireAt == nil {
+		log.V(2).Info("Warning: Calculated invalid expiration time. JobSet cleanup will be deferred.")
+		return nil, nil
+	}
+
+	if finishAt.After(*now) {
+		log.V(2).Info("Warning: Found JobSet finished in the future. This is likely due to time skew in the cluster. JobSet cleanup will be deferred.")
+	}
+	remaining := expireAt.Sub(*now)
+	log.V(2).Info("Found JobSet finished", "finishTime", finishAt.UTC(), "remainingTTL", remaining, "startTime", now.UTC(), "deadlineTTL", expireAt.UTC())
+	return &remaining, nil
+}
+
+func getJobSetFinishAndExpireTime(js *jobset.JobSet) (finishAt, expireAt *time.Time, err error) {
+	finishTime, err := jobSetFinishTime(js)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	finishAt = &finishTime.Time
+	expiration := finishAt.Add(time.Duration(*js.Spec.TTLSecondsAfterFinished) * time.Second)
+	expireAt = ptr.To(expiration)
+	return finishAt, expireAt, nil
+}
+
+// jobSetFinishTime takes an already finished JobSet and returns the time it finishes.
+func jobSetFinishTime(finishedJobSet *jobset.JobSet) (metav1.Time, error) {
+	for _, c := range finishedJobSet.Status.Conditions {
+		if (c.Type == string(jobset.JobSetCompleted) || c.Type == string(jobset.JobSetFailed)) && c.Status == metav1.ConditionTrue {
+			finishAt := c.LastTransitionTime
+			if finishAt.IsZero() {
+				return metav1.Time{}, fmt.Errorf("unable to find the time when the JobSet %s/%s finished", finishedJobSet.Namespace, finishedJobSet.Name)
+			}
+			return finishAt, nil
+		}
+	}
+
+	// This should never happen if the JobSets have finished
+	return metav1.Time{}, fmt.Errorf("unable to find the status of the finished JobSet %s/%s", finishedJobSet.Namespace, finishedJobSet.Name)
+}
+
+// requeueJobSetAfter returns the duration after which the JobSet should be requeued if TTLSecondsAfterFinished is set, otherwise returns 0.
+func requeueJobSetAfter(js *jobset.JobSet) time.Duration {
+	var requeueAfter time.Duration = 0
+	if js.Spec.TTLSecondsAfterFinished != nil {
+		requeueAfter = time.Duration(*js.Spec.TTLSecondsAfterFinished) * time.Second
+	}
+	return requeueAfter
 }

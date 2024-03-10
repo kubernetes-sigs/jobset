@@ -1225,6 +1225,82 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			}, timeout, interval).Should(gomega.Succeed())
 		})
 	})
+
+	ginkgo.When("A JobSet is created with TTLSecondsAfterFinished configured and reaches terminal state", func() {
+		ginkgo.It("JobSet controller should delete it after configured ttl duration passes", func() {
+			// Create test namespace for each entry.
+			ns1 := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			ns2 := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+
+			gomega.Expect(k8sClient.Create(ctx, ns1)).To(gomega.Succeed())
+			gomega.Expect(k8sClient.Create(ctx, ns2)).To(gomega.Succeed())
+
+			defer func() {
+				gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns1)).To(gomega.Succeed())
+				gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns2)).To(gomega.Succeed())
+			}()
+			// Create JobSet.
+			js1 := testJobSet(ns1).TTLSecondsAfterFinished(2).Obj()
+			js2 := testJobSet(ns2).TTLSecondsAfterFinished(2).Obj()
+
+			// Verify jobsets created successfully.
+			ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js1.Name, js1.Namespace))
+			gomega.Eventually(k8sClient.Create(ctx, js1), timeout, interval).Should(gomega.Succeed())
+			ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js2.Name, js2.Namespace))
+			gomega.Eventually(k8sClient.Create(ctx, js2), timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js1).Should(gomega.Equal(testutil.NumExpectedJobs(js1)))
+			gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js2).Should(gomega.Equal(testutil.NumExpectedJobs(js2)))
+
+			// Fetch updated job objects, so we always have the latest resource versions to perform mutations on.
+			var jobList batchv1.JobList
+			gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js1.Namespace))).Should(gomega.Succeed())
+			gomega.Expect(len(jobList.Items)).To(gomega.Equal(testutil.NumExpectedJobs(js1)))
+			completeAllJobs(&jobList)
+			gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js2.Namespace))).Should(gomega.Succeed())
+			gomega.Expect(len(jobList.Items)).To(gomega.Equal(testutil.NumExpectedJobs(js2)))
+			failJob(&jobList.Items[0])
+
+			// Verify jobset is marked as completed.
+			testutil.JobSetCompleted(ctx, k8sClient, js1, timeout)
+			testutil.JobSetFailed(ctx, k8sClient, js2, timeout)
+
+			// Verify active jobs have not been deleted if ttl has not passed.
+			checkJobsDeletionTimestamp(js2, false, testutil.NumExpectedJobs(js2))
+
+			// Verify jobset has not been deleted if ttl has not passed.
+			ginkgo.By("checking that jobset has not been deleted before configured seconds pass")
+			var fresh1, fresh2 jobset.JobSet
+			gomega.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(js1), &fresh1)).To(gomega.Succeed())
+			gomega.Expect(fresh1.DeletionTimestamp).To(gomega.BeNil())
+			gomega.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(js2), &fresh2)).To(gomega.Succeed())
+			gomega.Expect(fresh2.DeletionTimestamp).To(gomega.BeNil())
+
+			// Verify active jobs have been deleted after ttl has passed.
+			checkJobsDeletionTimestamp(js2, true, testutil.NumExpectedJobs(js2)-1)
+
+			// Verify jobset has been deleted after ttl has passed.
+			ginkgo.By("checking that ttl after finished controller deletes jobset after configured seconds pass")
+			gomega.Eventually(func() bool {
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js1), &fresh1); err != nil {
+					return false
+				}
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js2), &fresh2); err != nil {
+					return false
+				}
+				return !fresh1.DeletionTimestamp.IsZero() && !fresh2.DeletionTimestamp.IsZero()
+			}, timeout, interval).Should(gomega.BeTrue())
+		})
+	})
 }) // end of Describe
 
 func makeAllJobsReady(jl *batchv1.JobList) {
@@ -1496,6 +1572,26 @@ func checkNoActiveJobs(js *jobset.JobSet, numFinishedJobs int) {
 			}
 		}
 		return len(jobList.Items) == numFinishedJobs, nil
+	}, timeout, interval).Should(gomega.Equal(true))
+}
+
+// Check that the jobs' deletion timestamp is set or not set for the provided number of jobs.
+func checkJobsDeletionTimestamp(js *jobset.JobSet, set bool, numJobs int) {
+	ginkgo.By(fmt.Sprintf("checking that jobset jobs deletion timestamp status is %t", set))
+	gomega.Eventually(func() (bool, error) {
+		var jobList batchv1.JobList
+		if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+			return false, err
+		}
+		numJobs := numJobs
+		for _, job := range jobList.Items {
+			deletionTimestampExpected := set && job.DeletionTimestamp != nil
+			deletionTimestampNotExpected := !set && job.DeletionTimestamp == nil
+			if deletionTimestampExpected || deletionTimestampNotExpected {
+				numJobs--
+			}
+		}
+		return numJobs == 0, nil
 	}, timeout, interval).Should(gomega.Equal(true))
 }
 

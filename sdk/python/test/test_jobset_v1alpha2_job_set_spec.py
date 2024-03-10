@@ -57,7 +57,8 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
                     target_replicated_jobs = [
                         '0'
                         ], ), 
-                suspend = True
+                suspend = True, 
+                ttl_seconds_after_finished = 56
             )
         else :
             return JobsetV1alpha2JobSetSpec(

@@ -94,6 +94,17 @@ type JobSetSpec struct {
 
 	// ManagedBy is used to indicate the controller or entity that manages a JobSet
 	ManagedBy *string `json:"managedBy,omitempty"`
+
+	// TTLSecondsAfterFinished limits the lifetime of a JobSet that has finished
+	// execution (either Complete or Failed). If this field is set,
+	// TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be
+	// automatically deleted. When the JobSet is being deleted, its lifecycle
+	// guarantees (e.g. finalizers) will be honored. If this field is unset,
+	// the JobSet won't be automatically deleted. If this field is set to zero,
+	// the JobSet becomes eligible to be deleted immediately after it finishes.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet

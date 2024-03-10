@@ -127,6 +127,12 @@ func (j *JobSetWrapper) EnableDNSHostnames(val bool) *JobSetWrapper {
 	return j
 }
 
+// TTLSecondsAfterFinished sets the value of JobSet.Spec.TTLSecondsAfterFinished
+func (j *JobSetWrapper) TTLSecondsAfterFinished(seconds int32) *JobSetWrapper {
+	j.Spec.TTLSecondsAfterFinished = &seconds
+	return j
+}
+
 // ReplicatedJobWrapper wraps a ReplicatedJob.
 type ReplicatedJobWrapper struct {
 	jobset.ReplicatedJob

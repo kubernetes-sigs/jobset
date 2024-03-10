@@ -16,6 +16,7 @@ package controllers
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2/ktesting"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -1174,6 +1177,92 @@ func jobWithFailedCondition(name string, failureTime time.Time) *batchv1.Job {
 	}
 }
 
+func TestTimeLeft(t *testing.T) {
+	now := metav1.Now()
+
+	tests := []struct {
+		name             string
+		completionTime   metav1.Time
+		failedTime       metav1.Time
+		ttl              *int32
+		since            *time.Time
+		expectErr        bool
+		expectErrStr     string
+		expectedTimeLeft *time.Duration
+	}{
+		{
+			name:           "jobset completed now, nil since",
+			completionTime: now,
+			ttl:            ptr.To[int32](0),
+			since:          nil,
+		},
+		{
+			name:             "jobset completed now, 0s TTL",
+			completionTime:   now,
+			ttl:              ptr.To[int32](0),
+			since:            &now.Time,
+			expectedTimeLeft: ptr.To(0 * time.Second),
+		},
+		{
+			name:             "jobset completed now, 10s TTL",
+			completionTime:   now,
+			ttl:              ptr.To[int32](10),
+			since:            &now.Time,
+			expectedTimeLeft: ptr.To(10 * time.Second),
+		},
+		{
+			name:             "jobset completed 10s ago, 15s TTL",
+			completionTime:   metav1.NewTime(now.Add(-10 * time.Second)),
+			ttl:              ptr.To[int32](15),
+			since:            &now.Time,
+			expectedTimeLeft: ptr.To(5 * time.Second),
+		},
+		{
+			name:             "jobset failed now, 0s TTL",
+			failedTime:       now,
+			ttl:              ptr.To[int32](0),
+			since:            &now.Time,
+			expectedTimeLeft: ptr.To(0 * time.Second),
+		},
+		{
+			name:             "jobset failed now, 10s TTL",
+			failedTime:       now,
+			ttl:              ptr.To[int32](10),
+			since:            &now.Time,
+			expectedTimeLeft: ptr.To(10 * time.Second),
+		},
+		{
+			name:             "jobset failed 10s ago, 15s TTL",
+			failedTime:       metav1.NewTime(now.Add(-10 * time.Second)),
+			ttl:              ptr.To[int32](15),
+			since:            &now.Time,
+			expectedTimeLeft: ptr.To(5 * time.Second),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			jobSet := newJobSet(tc.completionTime, tc.failedTime, tc.ttl)
+			_, ctx := ktesting.NewTestContext(t)
+			gotTimeLeft, gotErr := timeLeft(ctx, jobSet, tc.since)
+			if tc.expectErr != (gotErr != nil) {
+				t.Errorf("%s: expected error is %t, got %t, error: %v", tc.name, tc.expectErr, gotErr != nil, gotErr)
+			}
+			if tc.expectErr && len(tc.expectErrStr) == 0 {
+				t.Errorf("%s: invalid test setup; error message must not be empty for error cases", tc.name)
+			}
+			if tc.expectErr && !strings.Contains(gotErr.Error(), tc.expectErrStr) {
+				t.Errorf("%s: expected error message contains %q, got %v", tc.name, tc.expectErrStr, gotErr)
+			}
+			if !tc.expectErr {
+				if gotTimeLeft != nil && *gotTimeLeft != *tc.expectedTimeLeft {
+					t.Errorf("%s: expected time left %v, got %v", tc.name, tc.expectedTimeLeft, gotTimeLeft)
+				}
+			}
+		})
+	}
+}
+
 type makeJobArgs struct {
 	jobSetName           string
 	replicatedJobName    string
@@ -1218,4 +1307,56 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		PodLabels(labels).
 		PodAnnotations(annotations)
 	return jobWrapper
+}
+
+func newJobSet(completionTime, failedTime metav1.Time, ttl *int32) *jobset.JobSet {
+	js := &jobset.JobSet{
+		TypeMeta: metav1.TypeMeta{Kind: "JobSet"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foobar",
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: jobset.JobSetSpec{
+			ReplicatedJobs: []jobset.ReplicatedJob{
+				{
+					Name: "foobar-job",
+					Template: batchv1.JobTemplateSpec{
+						Spec: batchv1.JobSpec{
+							Selector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"foo": "bar"},
+							},
+							Template: corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Labels: map[string]string{
+										"foo": "bar",
+									},
+								},
+								Spec: corev1.PodSpec{
+									Containers: []corev1.Container{
+										{Image: "foo/bar"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if !completionTime.IsZero() {
+		c := metav1.Condition{Type: string(jobset.JobSetCompleted), Status: metav1.ConditionTrue, LastTransitionTime: completionTime}
+		js.Status.Conditions = append(js.Status.Conditions, c)
+	}
+
+	if !failedTime.IsZero() {
+		c := metav1.Condition{Type: string(jobset.JobSetFailed), Status: metav1.ConditionTrue, LastTransitionTime: failedTime}
+		js.Status.Conditions = append(js.Status.Conditions, c)
+	}
+
+	if ttl != nil {
+		js.Spec.TTLSecondsAfterFinished = ttl
+	}
+
+	return js
 }
