@@ -75,6 +75,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def active(self):
         """Gets the active of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
 
+        Active is the number of child Jobs with at least 1 pod in a running or pending state which are not marked for deletion.  # noqa: E501
 
         :return: The active of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :rtype: int
@@ -85,6 +86,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def active(self, active):
         """Sets the active of this JobsetV1alpha2ReplicatedJobStatus.
 
+        Active is the number of child Jobs with at least 1 pod in a running or pending state which are not marked for deletion.  # noqa: E501
 
         :param active: The active of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :type: int
@@ -98,6 +100,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def failed(self):
         """Gets the failed of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
 
+        Failed is the number of failed child Jobs.  # noqa: E501
 
         :return: The failed of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :rtype: int
@@ -108,6 +111,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def failed(self, failed):
         """Sets the failed of this JobsetV1alpha2ReplicatedJobStatus.
 
+        Failed is the number of failed child Jobs.  # noqa: E501
 
         :param failed: The failed of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :type: int
@@ -121,6 +125,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def name(self):
         """Gets the name of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
 
+        Name of the ReplicatedJob.  # noqa: E501
 
         :return: The name of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :rtype: str
@@ -131,6 +136,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def name(self, name):
         """Sets the name of this JobsetV1alpha2ReplicatedJobStatus.
 
+        Name of the ReplicatedJob.  # noqa: E501
 
         :param name: The name of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :type: str
@@ -144,6 +150,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def ready(self):
         """Gets the ready of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
 
+        Ready is the number of child Jobs where the number of ready pods and completed pods is greater than or equal to the total expected pod count for the Job (i.e., the minimum of job.spec.parallelism and job.spec.completions).  # noqa: E501
 
         :return: The ready of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :rtype: int
@@ -154,6 +161,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def ready(self, ready):
         """Sets the ready of this JobsetV1alpha2ReplicatedJobStatus.
 
+        Ready is the number of child Jobs where the number of ready pods and completed pods is greater than or equal to the total expected pod count for the Job (i.e., the minimum of job.spec.parallelism and job.spec.completions).  # noqa: E501
 
         :param ready: The ready of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :type: int
@@ -167,6 +175,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def succeeded(self):
         """Gets the succeeded of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
 
+        Succeeded is the number of successfully completed child Jobs.  # noqa: E501
 
         :return: The succeeded of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :rtype: int
@@ -177,6 +186,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def succeeded(self, succeeded):
         """Sets the succeeded of this JobsetV1alpha2ReplicatedJobStatus.
 
+        Succeeded is the number of successfully completed child Jobs.  # noqa: E501
 
         :param succeeded: The succeeded of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :type: int
@@ -190,6 +200,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def suspended(self):
         """Gets the suspended of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
 
+        Suspended is the number of child Jobs which are in a suspended state.  # noqa: E501
 
         :return: The suspended of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :rtype: int
@@ -200,6 +211,7 @@ class JobsetV1alpha2ReplicatedJobStatus(object):
     def suspended(self, suspended):
         """Sets the suspended of this JobsetV1alpha2ReplicatedJobStatus.
 
+        Suspended is the number of child Jobs which are in a suspended state.  # noqa: E501
 
         :param suspended: The suspended of this JobsetV1alpha2ReplicatedJobStatus.  # noqa: E501
         :type: int
