@@ -7,7 +7,7 @@ JobSet is a Kubernetes-native API for managing a group of [k8s Jobs](https://kub
 Take a look at the [concepts](/docs/concepts/README.md) page for a brief description of how to use JobSet.
 
 ## Conceptual Diagram
-<img src="https://github.com/kubernetes-sigs/kueue/blob/main/site/static/images/jobset_diagram.svg" alt="jobset diagram">
+<img src="site/static/images/jobset_diagram.png" alt="jobset diagram">
 
 ## Installation
 
