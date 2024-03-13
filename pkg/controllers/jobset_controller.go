@@ -475,6 +475,9 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	}
 	allErrs := errors.Join(finalErrs...)
 	if allErrs != nil {
+		// Emit event to propagate the Job creation failures up to be more visible to the user.
+		// TODO(#422): Investigate ways to validate Job templates at JobSet validation time.
+		r.Record.Eventf(js, corev1.EventTypeWarning, "JobCreationFailed", "Job creation(s) failed with error: %s", allErrs)
 		return allErrs
 	}
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
