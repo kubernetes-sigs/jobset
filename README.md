@@ -25,7 +25,7 @@ Read the [installation guide](/docs/setup/install.md) to learn more.
 
 ## Troubleshooting common issues
 
-See the [troubleshoting](/docs/troubleshooting/README.md) docs for help resolving common issues.
+See the [troubleshooting](/docs/troubleshooting/README.md) guide for help resolving common issues.
 
 
 ## Community, discussion, contribution, and support
