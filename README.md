@@ -13,19 +13,21 @@ Take a look at the [concepts](/docs/concepts/README.md) page for a brief descrip
 ## Conceptual Diagram
 <img src="site/static/images/jobset_diagram.png" alt="jobset diagram">
 
-## Installation
+## Features overview
 
-**Requires Kubernetes 1.26 or newer**.
+- **Support for multi-template jobs**: JobSet models a distributed training workload as a group of K8s Jobs. This allows a user to easily specify different pod templates for different distinct groups of pods (e.g. a leader, workers, parameter servers, etc.), something which cannot be done by a single Job.
 
-To install the latest release of JobSet in your cluster, run the following command:
+- **Automatic headless service configuration and lifecycle management**: ML and HPC frameworks require a stable network endpoint for each worker in the distributed workload, and since pod IPs are dynamically assigned and can change between restarts, stable pod hostnames are required for distributed training on k8s, By default, JobSet uses [IndexedJobs](https://kubernetes.io/blog/2021/04/19/introducing-indexed-jobs/) to establish stable pod hostnames, and does automatic configuration and lifecycle management of the headless service to trigger DNS record creations and establish network connectivity via pod hostnames.
 
-```shell
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.4.0/manifests.yaml
-```
+- **Configurable success policies**: JobSet has [configurable success policies](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple/success-policy.yaml) which target specific ReplicatedJobs, with operators to target `Any` or `All` of their child jobs. For example, you can configure the JobSet to be marked complete if and only if all pods that are part of the “worker” ReplicatedJob are completed. This enables users to use their compute resources more efficiently, allowing a workload to be declared successful and release the resources for the next workload more quickly.
 
-The controller runs in the `jobset-system` namespace.
+- **Configurable failure policies**: JobSet has [configurable failure policies](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple/max-restarts.yaml) which allow the user to specify a maximum number of times the JobSet should be restarted in the event of a failure. If any job is marked failed, the entire JobSet will be recreated, allowing the workload to resume from the last checkpoint. When no failure policy is specified, if any job fails, the JobSet simply fails.
 
-Read the [installation guide](/docs/setup/install.md) to learn more.
+- **Exclusive Placement Per Topology Domain**: JobSet includes an [annotation](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple/exclusive-placement.yaml#L6) which can be set by the user, specifying that there should be a 1:1 mapping between child job and a particular topology domain, such as a datacenter rack or zone. This means that all the pods belonging to a child job will be colocated in the same topology domain, while pods from other jobs will not be allowed to run within this domain. This gives the child job exclusive access to computer resources in this domain.
+
+- **Fast failure recovery**: JobSet recovers from failures by recreating all the child Jobs. When scheduling constraints such as exclusive Job placement are used, fast failure recovery at scale can become challenging. As of JobSet v0.3.0, JobSet uses a designed such that it minimizes impact on scheduling throughput. We have benchmarked scheduling throughput during failure recovery at 290 pods/second at a 15k node scale.
+
+- **Startup Sequencing**: As of JobSet v0.4.0 users can configure a [startup order](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/startup-policy/startup-driver-ready.yaml) for the ReplicatedJobs in a JobSet. This enables support for patterns like the “leader-worker” paradigm, where the leader must be running before the workers should start up and connect to it.
 
 ## Production Readiness status
 
@@ -43,6 +45,20 @@ Read the [installation guide](/docs/setup/install.md) to learn more.
 - ✔️ Monitoring via [metrics](https://jobset.sigs.k8s.io/docs/reference/metrics).
 - ✔️ Security: RBAC based accessibility.
 - ✔️ Stable release cycle(2-3 months) for new features, bugfixes, cleanups.
+
+## Installation
+
+**Requires Kubernetes 1.26 or newer**.
+
+To install the latest release of JobSet in your cluster, run the following command:
+
+```shell
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.4.0/manifests.yaml
+```
+
+The controller runs in the `jobset-system` namespace.
+
+Read the [installation guide](/docs/setup/install.md) to learn more.
 
 ## Troubleshooting common issues
 
