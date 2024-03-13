@@ -23,6 +23,23 @@ The controller runs in the `jobset-system` namespace.
 
 Read the [installation guide](/docs/setup/install.md) to learn more.
 
+## Production Readiness status
+
+- ✔️ API version: v1alpha2, respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/)
+- ✔️ Up-to-date [documentation](https://jobset.sigs.k8s.io/docs).
+- ✔️ Test Coverage:
+  - ✔️ Unit Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-unit-main).
+  - ✔️ Integration Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-integration-main)
+  - ✔️ E2E Tests for Kubernetes
+    [1.26](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-26),
+    [1.27](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-27),
+    [1.28](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-28)
+    [1.29](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-29)
+    on Kind.
+- ✔️ Monitoring via [metrics](https://jobset.sigs.k8s.io/docs/reference/metrics).
+- ✔️ Security: RBAC based accessibility.
+- ✔️ Stable release cycle(2-3 months) for new features, bugfixes, cleanups.
+
 ## Troubleshooting common issues
 
 See the [troubleshooting](/docs/troubleshooting/README.md) guide for help resolving common issues.
