@@ -19,7 +19,7 @@ no_list: true
 
 Here we have some simple examples demonstrating core JobSet features.
 
-- [Success Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/driver-worker-success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
+- [Success Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
 Success Policy allows one to specify when to mark a JobSet as success.  
 This example showcases an example of using the success policy to mark the JobSet as successful if the worker replicated job completes.
 
