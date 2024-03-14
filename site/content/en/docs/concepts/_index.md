@@ -11,6 +11,10 @@ no_list: true
 
 A JobSet creates one or more Jobs. It allows you to create sets of jobs of different or identical templates, and control their lifecycle together.
 
+## Conceptual Diagram
+
+![jobset diagram](/images/jobset_diagram.png)
+
 ## Running an Example JobSet
 
 Here is an example JobSet. It runs a distributed PyTorch training workload.
