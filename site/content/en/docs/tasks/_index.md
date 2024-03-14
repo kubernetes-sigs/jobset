@@ -9,41 +9,42 @@ description: >
 no_list: true
 ---
 
-## PyTorch Examples
+## PyTorch Example
 
 In [pytorch](examples/pytorch), there are two examples using pytorch
 
-- [mnist](examples/pytorch/mnist.yaml)
-- [resnet](examples/pytorch/resnet.yaml)
+- [Distributed Training of a CNN on the MNIST dataset using PyTorch and JobSet](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/pytorch/cnn-mnist/mnist.yaml)
 
-Each of these examples demonstrate how you use the JobSet API to run pytorch jobs.  
-
-Machine Learning images can be quite large so it may take some time to pull the images.
+**Note**: machine Learning images can be quite large so it may take some time to pull the images.
 
 ## Simple Examples
 
-In [simple](examples/simple), we have some examples demonstrating features for the JobSet.
+In the [simple](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple) examples directory, we have some examples demonstrating core JobSet features.
 
-- [success-policy](examples/simple/driver-worker-success-policy.yaml)
-- [max-restarts](examples/simple/max-restarts.yaml)
-- [paralleljobs](examples/simple/paralleljobs.yaml)
+- [success-policy](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple/driver-worker-success-policy.yaml)
+- [max-restarts](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple/max-restarts.yaml)
+- [paralleljobs](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple/paralleljobs.yaml)
 
-[Success Policy](examples/simple/driver-worker-success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
+[Success Policy](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple/driver-worker-success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
 Success Policy allows one to specify when to mark a JobSet as success.  
 This example showcases an example of using the success policy to mark the JobSet as successful if the worker replicated job completes.
 
-[Max Restarts](examples/simple/max-restarts.yaml) demonstrates an example of utilizing `failurePolicy`.
+[Max Restarts](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple/max-restarts.yaml) demonstrates an example of utilizing `failurePolicy`.
 Failure Policy allows one to control how many restarts a JobSet can do before declaring the JobSet as failed.
 
-[Parallel Jobs](examples/simple/paralleljobs.yaml) demonstates how we can submit multiple replicated jobs in a jobset.
+[Parallel Jobs](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/simple/paralleljobs.yaml) demonstates how we can submit multiple replicated jobs in a jobset.
 
-## Tensorflow Examples
+[Startup Policy](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/startup-policy/startup-driver-ready.yaml) demonstrates how we can define a startup order for ReplicatedJobs in order to ensure a "leader"
+pod is running before the "workers" are created. This is important for enabling the leader-worker paradigm in distributed ML
+training, where the workers will attempt to register with the leader as soon as they spawn.
 
-In [tensorflow](examples/tensorflow), we have some examples demonstrating how to use Tensorflow with a JobSet.
+## Tensorflow Example
 
-- [mnist](examples/tensorflow/mnist.yaml)
+In [tensorflow](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/tensorflow), we have an example demonstrating how to use Tensorflow with a JobSet.
 
-[mnist](examples/tensorflow/mnist.yaml) runs an example job for a single epoch.
+- [Distributed Training of a Handwritten Digit Classifier on the MNIST dataset using Tensorflow and JobSet](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/tensorflow/mnist.yaml)
+
+This example runs an example job for a single epoch.
 You can view the progress of your jobs via `kubectl logs jobs/tensorflow-tensorflow-0`.
 
 ```
