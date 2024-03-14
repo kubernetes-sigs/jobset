@@ -9,41 +9,34 @@ description: >
 no_list: true
 ---
 
-## PyTorch Examples
+## PyTorch Example
 
-In [pytorch](examples/pytorch), there are two examples using pytorch
+- [Distributed Training of a CNN on the MNIST dataset using PyTorch and JobSet](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/pytorch/cnn-mnist/mnist.yaml)
 
-- [mnist](examples/pytorch/mnist.yaml)
-- [resnet](examples/pytorch/resnet.yaml)
-
-Each of these examples demonstrate how you use the JobSet API to run pytorch jobs.  
-
-Machine Learning images can be quite large so it may take some time to pull the images.
+**Note**: machine Learning images can be quite large so it may take some time to pull the images.
 
 ## Simple Examples
 
-In [simple](examples/simple), we have some examples demonstrating features for the JobSet.
+Here we have some simple examples demonstrating core JobSet features.
 
-- [success-policy](examples/simple/driver-worker-success-policy.yaml)
-- [max-restarts](examples/simple/max-restarts.yaml)
-- [paralleljobs](examples/simple/paralleljobs.yaml)
-
-[Success Policy](examples/simple/driver-worker-success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
+- [Success Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/driver-worker-success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
 Success Policy allows one to specify when to mark a JobSet as success.  
 This example showcases an example of using the success policy to mark the JobSet as successful if the worker replicated job completes.
 
-[Max Restarts](examples/simple/max-restarts.yaml) demonstrates an example of utilizing `failurePolicy`.
-Failure Policy allows one to control how many restarts a JobSet can do before declaring the JobSet as failed.
+- [Failure Policy with Max Restarts](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/max-restarts.yaml) demonstrates an example of utilizing `failurePolicy`. Failure Policy allows one to control how many restarts a JobSet can do before declaring the JobSet as failed.
 
-[Parallel Jobs](examples/simple/paralleljobs.yaml) demonstates how we can submit multiple replicated jobs in a jobset.
+- [Exclusive Job Placement](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/exclusive-placement.yaml) demonstrates how you can configure a JobSet to have a 1:1 mapping between each child Job and a particular topology domain, such as a datacenter rack or zone. This means that all the pods belonging to a child job will be colocated in the same topology domain, while pods from other jobs will not be allowed to run within this domain. This gives the child job exclusive access to computer resources in this domain.
 
-## Tensorflow Examples
+- [Parallel Jobs](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/paralleljobs.yaml) demonstrates how we can submit multiple replicated jobs in a jobset.
 
-In [tensorflow](examples/tensorflow), we have some examples demonstrating how to use Tensorflow with a JobSet.
+- [Startup Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/startup-policy/startup-driver-ready.yaml) demonstrates how we can define a startup order for ReplicatedJobs in order to ensure a "leader"
+pod is running before the "workers" are created. This is important for enabling the leader-worker paradigm in distributed ML training, where the workers will attempt to register with the leader as soon as they spawn.
 
-- [mnist](examples/tensorflow/mnist.yaml)
+## Tensorflow Example
 
-[mnist](examples/tensorflow/mnist.yaml) runs an example job for a single epoch.
+- [Distributed Training of a Handwritten Digit Classifier on the MNIST dataset using Tensorflow and JobSet](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/tensorflow/mnist.yaml)
+
+This example runs an example job for a single epoch.
 You can view the progress of your jobs via `kubectl logs jobs/tensorflow-tensorflow-0`.
 
 ```

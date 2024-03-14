@@ -1,7 +1,7 @@
 ---
 
-title: "Faqs"
-linkTitle: "Faqs"
+title: "Troubleshooting"
+linkTitle: "Troubleshooting"
 weight: 10
 date: 2022-02-14
 description: >
