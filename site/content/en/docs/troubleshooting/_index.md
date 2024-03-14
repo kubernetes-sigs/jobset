@@ -5,7 +5,7 @@ linkTitle: "Troubleshooting"
 weight: 10
 date: 2022-02-14
 description: >
-  Frequently asked questions about JobSet.
+  JobSet troubleshooting tips.
 no_list: true
 ---
 
