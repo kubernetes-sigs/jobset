@@ -82,9 +82,11 @@ help: ## Display this help.
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) \
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
-		crd:generateEmbeddedObjectMeta=true output:crd:artifacts:config=config/components/crd/bases\
+		paths="./api/..."
+	$(CONTROLLER_GEN) \
+		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
 		webhook output:webhook:artifacts:config=config/components/webhook\
-		paths="{./api/..., ./pkg/...}"
+		paths="./pkg/..."
 
 .PHONY: generate
 generate: controller-gen code-generator openapi-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.

@@ -1,6 +1,7 @@
-package v1alpha2
+package webhooks
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -15,6 +16,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
+
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
 // TestPodTemplate is the default pod template spec used for testing.
@@ -31,21 +36,21 @@ var TestPodTemplate = corev1.PodTemplateSpec{
 }
 
 func TestJobSetDefaulting(t *testing.T) {
-	defaultSuccessPolicy := &SuccessPolicy{Operator: OperatorAll}
-	defaultStartupPolicy := &StartupPolicy{StartupPolicyOrder: AnyOrder}
+	defaultSuccessPolicy := &jobset.SuccessPolicy{Operator: jobset.OperatorAll}
+	defaultStartupPolicy := &jobset.StartupPolicy{StartupPolicyOrder: jobset.AnyOrder}
 	testCases := []struct {
 		name string
-		js   *JobSet
-		want *JobSet
+		js   *jobset.JobSet
+		want *jobset.JobSet
 	}{
 		{
 			name: "job completion mode is unset",
-			js: &JobSet{
-				Spec: JobSetSpec{
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -54,15 +59,15 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -72,17 +77,17 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "job completion mode is set to non-indexed",
-			js: &JobSet{
-				Spec: JobSetSpec{
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -92,15 +97,15 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -110,17 +115,17 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "enableDNSHostnames is unset",
-			js: &JobSet{
-				Spec: JobSetSpec{
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					ReplicatedJobs: []ReplicatedJob{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -130,15 +135,15 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -148,18 +153,18 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "enableDNSHostnames is false",
-			js: &JobSet{
-				Spec: JobSetSpec{
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(false)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(false)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -169,15 +174,15 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(false)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(false)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -187,18 +192,18 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "pod restart policy unset",
-			js: &JobSet{
-				Spec: JobSetSpec{
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -210,15 +215,15 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -232,18 +237,18 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "pod restart policy set",
-			js: &JobSet{
-				Spec: JobSetSpec{
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -257,15 +262,15 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -279,17 +284,17 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "success policy unset",
-			js: &JobSet{
-				Spec: JobSetSpec{
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -303,15 +308,15 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					StartupPolicy: defaultStartupPolicy,
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -325,20 +330,20 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "success policy operator set, replicatedJobNames unset",
-			js: &JobSet{
-				Spec: JobSetSpec{
-					SuccessPolicy: &SuccessPolicy{
-						Operator: OperatorAny,
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAny,
 					},
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
 					StartupPolicy: defaultStartupPolicy,
-					ReplicatedJobs: []ReplicatedJob{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -352,17 +357,17 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
-					SuccessPolicy: &SuccessPolicy{
-						Operator: OperatorAny,
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAny,
 					},
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -376,22 +381,22 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "startup policy order InOrder set",
-			js: &JobSet{
-				Spec: JobSetSpec{
-					SuccessPolicy: &SuccessPolicy{
-						Operator: OperatorAny,
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAny,
 					},
-					Network: &Network{EnableDNSHostnames: ptr.To(true)},
-					StartupPolicy: &StartupPolicy{
-						StartupPolicyOrder: InOrder,
+					Network: &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					StartupPolicy: &jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.InOrder,
 					},
-					ReplicatedJobs: []ReplicatedJob{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -407,16 +412,16 @@ func TestJobSetDefaulting(t *testing.T) {
 					},
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
-					SuccessPolicy: &SuccessPolicy{
-						Operator: OperatorAny,
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAny,
 					},
-					StartupPolicy: &StartupPolicy{
-						StartupPolicyOrder: InOrder,
+					StartupPolicy: &jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.InOrder,
 					},
-					Network: &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network: &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -430,17 +435,17 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "managed-by label is unset",
-			js: &JobSet{
-				Spec: JobSetSpec{
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -452,12 +457,12 @@ func TestJobSetDefaulting(t *testing.T) {
 					},
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -467,17 +472,17 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(JobSetControllerName),
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "when provided, managed-by label is preserved",
-			js: &JobSet{
-				Spec: JobSetSpec{
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -490,12 +495,12 @@ func TestJobSetDefaulting(t *testing.T) {
 					ManagedBy: ptr.To("other-controller"),
 				},
 			},
-			want: &JobSet{
-				Spec: JobSetSpec{
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
-					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
-					ReplicatedJobs: []ReplicatedJob{
+					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true)},
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
@@ -510,10 +515,18 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 		},
 	}
+	fakeClient := fake.NewFakeClient()
+	webhook, err := NewJobSetWebhook(fakeClient)
+	if err != nil {
+		t.Fatalf("error creating jobset webhook: %v", err)
+	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.js.Default()
-			if diff := cmp.Diff(tc.want, tc.js); diff != "" {
+			obj := tc.js.DeepCopyObject()
+			if err := webhook.Default(context.TODO(), obj); err != nil {
+				t.Errorf("unexpected error defaulting jobset: %v", err)
+			}
+			if diff := cmp.Diff(tc.want, obj.(*jobset.JobSet)); diff != "" {
 				t.Errorf("unexpected jobset defaulting: (-want/+got): %s", diff)
 			}
 		})
@@ -537,23 +550,39 @@ func TestValidateCreate(t *testing.T) {
 		Name: "js",
 	}
 
+	validPodTemplateSpec := corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "test",
+					Image: "bash:latest",
+				},
+			},
+		},
+	}
+
 	testCases := []struct {
 		name string
-		js   *JobSet
+		js   *jobset.JobSet
 		want error
 	}{
 		{
 			name: "number of pods exceeds the limit",
-			js: &JobSet{
+			js: &jobset.JobSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "JobSet",
+					APIVersion: "jobset.x-k8s.io/v1alpha2",
+				},
 				ObjectMeta: validObjectMeta,
-				Spec: JobSetSpec{
-					ReplicatedJobs: []ReplicatedJob{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "test-jobset-replicated-job-0",
 							Replicas: math.MaxInt32,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Parallelism: ptr.To[int32](math.MaxInt32),
+									Template:    validPodTemplateSpec,
 								},
 							},
 						},
@@ -563,11 +592,14 @@ func TestValidateCreate(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Parallelism: ptr.To[int32](math.MinInt32),
+									Template:    validPodTemplateSpec,
 								},
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAll,
+					},
 				},
 			},
 			want: errors.Join(
@@ -577,65 +609,88 @@ func TestValidateCreate(t *testing.T) {
 		},
 		{
 			name: "number of pods within the limit",
-			js: &JobSet{
+			js: &jobset.JobSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "JobSet",
+					APIVersion: "jobset.x-k8s.io/v1alpha2",
+				},
 				ObjectMeta: validObjectMeta,
-				Spec: JobSetSpec{
-					ReplicatedJobs: []ReplicatedJob{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "test-jobset-replicated-job-0",
 							Replicas: 1,
 							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{},
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAll,
+					},
 				},
 			},
 			want: errors.Join(),
 		},
 		{
 			name: "success policy has non matching replicated job",
-			js: &JobSet{
+			js: &jobset.JobSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "JobSet",
+					APIVersion: "jobset.x-k8s.io/v1alpha2",
+				},
 				ObjectMeta: validObjectMeta,
-				Spec: JobSetSpec{
-					ReplicatedJobs: []ReplicatedJob{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "test-jobset-replicated-job-0",
 							Replicas: 1,
 							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{},
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{
-						TargetReplicatedJobs: []string{"do not exist"},
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator:             jobset.OperatorAll,
+						TargetReplicatedJobs: []string{"does not exist"},
 					},
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("invalid replicatedJob name 'do not exist' does not appear in .spec.ReplicatedJobs"),
+				fmt.Errorf("invalid replicatedJob name 'does not exist' does not appear in .spec.ReplicatedJobs"),
 			),
 		},
 		{
 			name: "network has invalid dns name",
-			js: &JobSet{
+			js: &jobset.JobSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "JobSet",
+					APIVersion: "jobset.x-k8s.io/v1alpha2",
+				},
 				ObjectMeta: validObjectMeta,
-				Spec: JobSetSpec{
-					Network: &Network{
+				Spec: jobset.JobSetSpec{
+					Network: &jobset.Network{
 						EnableDNSHostnames: ptr.To(true),
 						Subdomain:          strings.Repeat("a", 64),
 					},
-					ReplicatedJobs: []ReplicatedJob{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "test-jobset-replicated-job-0",
 							Replicas: 1,
 							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{},
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAll,
+					},
 				},
 			},
 			want: errors.Join(
@@ -644,19 +699,27 @@ func TestValidateCreate(t *testing.T) {
 		},
 		{
 			name: "jobset name with invalid character",
-			js: &JobSet{
+			js: &jobset.JobSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "JobSet",
+					APIVersion: "jobset.x-k8s.io/v1alpha2",
+				},
 				ObjectMeta: validObjectMeta,
-				Spec: JobSetSpec{
-					ReplicatedJobs: []ReplicatedJob{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "username.llama65b",
 							Replicas: 1,
 							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{},
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAll,
+					},
 				},
 			},
 			want: errors.Join(
@@ -665,21 +728,29 @@ func TestValidateCreate(t *testing.T) {
 		},
 		{
 			name: "jobset name will result in job name being too long",
-			js: &JobSet{
+			js: &jobset.JobSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "JobSet",
+					APIVersion: "jobset.x-k8s.io/v1alpha2",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: strings.Repeat("a", 62),
 				},
-				Spec: JobSetSpec{
-					ReplicatedJobs: []ReplicatedJob{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "rj",
 							Replicas: 101,
 							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{},
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAll,
+					},
 				},
 			},
 			want: errors.Join(
@@ -688,12 +759,16 @@ func TestValidateCreate(t *testing.T) {
 		},
 		{
 			name: "jobset name will result in a pod name being too long",
-			js: &JobSet{
+			js: &jobset.JobSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "JobSet",
+					APIVersion: "jobset.x-k8s.io/v1alpha2",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: strings.Repeat("a", 56),
 				},
-				Spec: JobSetSpec{
-					ReplicatedJobs: []ReplicatedJob{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "rj",
 							Replicas: 1,
@@ -702,11 +777,14 @@ func TestValidateCreate(t *testing.T) {
 									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 									Completions:    ptr.To(int32(1)),
 									Parallelism:    ptr.To(int32(1)),
+									Template:       validPodTemplateSpec,
 								},
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAll,
+					},
 				},
 			},
 			want: errors.Join(
@@ -715,11 +793,11 @@ func TestValidateCreate(t *testing.T) {
 		},
 		{
 			name: "jobset controller name is not a domain-prefixed path",
-			js: &JobSet{
+			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
-				Spec: JobSetSpec{
+				Spec: jobset.JobSetSpec{
 					ManagedBy: ptr.To(notDomainPrefixedPathControllerName),
-					ReplicatedJobs: []ReplicatedJob{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "rj",
 							Replicas: 1,
@@ -732,7 +810,7 @@ func TestValidateCreate(t *testing.T) {
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{},
 				},
 			},
 			want: errors.Join(
@@ -741,11 +819,11 @@ func TestValidateCreate(t *testing.T) {
 		},
 		{
 			name: "jobset controller name is too long",
-			js: &JobSet{
+			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
-				Spec: JobSetSpec{
+				Spec: jobset.JobSetSpec{
 					ManagedBy: ptr.To(tooLongControllerName),
-					ReplicatedJobs: []ReplicatedJob{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "rj",
 							Replicas: 1,
@@ -758,7 +836,7 @@ func TestValidateCreate(t *testing.T) {
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{},
 				},
 			},
 			want: errors.Join(
@@ -767,11 +845,11 @@ func TestValidateCreate(t *testing.T) {
 		},
 		{
 			name: "jobset controller name is set and valid",
-			js: &JobSet{
+			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
-				Spec: JobSetSpec{
-					ManagedBy: ptr.To(JobSetControllerName),
-					ReplicatedJobs: []ReplicatedJob{
+				Spec: jobset.JobSetSpec{
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "rj",
 							Replicas: 1,
@@ -784,17 +862,17 @@ func TestValidateCreate(t *testing.T) {
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{},
 				},
 			},
 			want: errors.Join(),
 		},
 		{
 			name: "jobset controller name is unset",
-			js: &JobSet{
+			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
-				Spec: JobSetSpec{
-					ReplicatedJobs: []ReplicatedJob{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "rj",
 							Replicas: 1,
@@ -807,17 +885,27 @@ func TestValidateCreate(t *testing.T) {
 							},
 						},
 					},
-					SuccessPolicy: &SuccessPolicy{},
+					SuccessPolicy: &jobset.SuccessPolicy{},
 				},
 			},
 			want: errors.Join(),
 		},
 	}
-
+	fakeClient := fake.NewFakeClient()
+	webhook, err := NewJobSetWebhook(fakeClient)
+	if err != nil {
+		t.Fatalf("error creating jobset webhook: %v", err)
+	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := tc.js.ValidateCreate()
-			assert.Equal(t, err, tc.want)
+			_, err := webhook.ValidateCreate(context.TODO(), tc.js.DeepCopyObject())
+			if err != nil && tc.want != nil {
+				assert.Contains(t, err.Error(), tc.want.Error())
+			} else if err != nil && tc.want == nil {
+				t.Errorf("unexpected error: %v", err)
+			} else if err == nil && tc.want != nil {
+				t.Errorf("missing expected error: %v", tc.want)
+			}
 		})
 	}
 }

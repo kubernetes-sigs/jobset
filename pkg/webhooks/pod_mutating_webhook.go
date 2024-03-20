@@ -37,8 +37,8 @@ type podWebhook struct {
 	decoder *admission.Decoder
 }
 
-func NewPodWebhook(mgr ctrl.Manager) *podWebhook {
-	return &podWebhook{client: mgr.GetClient()}
+func NewPodWebhook(client client.Client) *podWebhook {
+	return &podWebhook{client: client}
 }
 
 // SetupWebhookWithManager configures the mutating webhook for pods.
