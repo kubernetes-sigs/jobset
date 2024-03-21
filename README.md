@@ -34,12 +34,12 @@ Take a look at the [concepts](/docs/concepts/README.md) page for a brief descrip
 ## Production Readiness status
 
 - ✔️ API version: v1alpha2, respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/)
+- ✔️ Maintains support for latest 3 Kubernetes minor versions.
 - ✔️ Up-to-date [documentation](https://jobset.sigs.k8s.io/docs).
 - ✔️ Test Coverage:
   - ✔️ Unit Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-unit-main).
   - ✔️ Integration Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-integration-main)
   - ✔️ E2E Tests for Kubernetes
-    [1.26](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-26),
     [1.27](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-27),
     [1.28](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-28)
     [1.29](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-29)
@@ -50,7 +50,7 @@ Take a look at the [concepts](/docs/concepts/README.md) page for a brief descrip
 
 ## Installation
 
-**Requires Kubernetes 1.26 or newer**.
+**Requires a Kubernetes cluster running one of the last 3 Kubernetes minor versions.**
 
 To install the latest release of JobSet in your cluster, run the following command:
 
