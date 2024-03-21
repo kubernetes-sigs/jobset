@@ -747,3 +747,132 @@ func TestValidateCreate(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateUpdate(t *testing.T) {
+	validObjectMeta := metav1.ObjectMeta{
+		Name: "js",
+	}
+	validReplicatedJobs := []ReplicatedJob{
+		{
+			Name:     "test-jobset-replicated-job-0",
+			Replicas: 1,
+			Template: batchv1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Parallelism: ptr.To[int32](1),
+				},
+			},
+		},
+		{
+			Name:     "test-jobset-replicated-job-1",
+			Replicas: 1,
+			Template: batchv1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Parallelism: ptr.To[int32](1),
+				},
+			},
+		},
+	}
+	testCases := []struct {
+		name  string
+		oldJs *JobSet
+		js    *JobSet
+		want  error
+	}{
+		{
+			name: "update suspend",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+		},
+		{
+			name: "update labels",
+			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "js", Labels: map[string]string{"hello": "world"}},
+				Spec: JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+		},
+		{
+			name: "forbid update on managed-by",
+			js: &JobSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "js", Labels: map[string]string{LabelManagedBy: "world"}},
+				Spec: JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: errors.Join(fmt.Errorf("metadata.labels[alpha.jobset.sigs.k8s.io/managed-by]: Invalid value: \"world\": field is immutable")),
+		},
+		{
+			name: "replicated jobs are immutable",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+						{
+							Name:     "test-jobset-replicated-job-1",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](1),
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: fmt.Errorf("field is immutable"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tc.js.ValidateUpdate(tc.oldJs)
+			if tc.want != nil {
+				assert.True(t, strings.Contains(err.Error(), tc.want.Error()))
+			} else {
+				assert.Nil(t, err)
+			}
+		})
+	}
+}
