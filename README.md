@@ -62,6 +62,21 @@ The controller runs in the `jobset-system` namespace.
 
 Read the [installation guide](/docs/setup/install.md) to learn more.
 
+## Roadmap
+
+Below is the JobSet roadmap for 2024, in expected order of release:
+
+- Support for MultiKueue (https://github.com/kubernetes-sigs/jobset/issues/440)
+- JobSet TTL to clean up completed workloads (https://github.com/kubernetes-sigs/jobset/issues/279)
+- Configurable Failure Policy (https://github.com/kubernetes-sigs/jobset/issues/262)
+- Graduate API to v1 (https://github.com/kubernetes-sigs/jobset/issues/380)
+- In-place restarts (https://github.com/kubernetes-sigs/jobset/issues/467)
+- Placement Policy API (https://github.com/kubernetes-sigs/jobset/issues/75)
+- Support for JobSet extensions (https://github.com/kubernetes-sigs/jobset/issues/146)
+  - PyTorch Extension
+  - Jax Extension
+  - MPI Extension
+
 ## Troubleshooting common issues
 
 See the [troubleshooting](/docs/troubleshooting/README.md) guide for help resolving common issues.
