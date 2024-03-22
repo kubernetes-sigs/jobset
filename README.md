@@ -29,7 +29,7 @@ Take a look at the [concepts](/docs/concepts/README.md) page for a brief descrip
 
 - **Startup Sequencing**: As of JobSet v0.4.0 users can configure a [startup order](https://github.com/kubernetes-sigs/jobset/blob/v0.4.0/examples/startup-policy/startup-driver-ready.yaml) for the ReplicatedJobs in a JobSet. This enables support for patterns like the “leader-worker” paradigm, where the leader must be running before the workers should start up and connect to it.
 
-- **Integration with Kueue**: Use JobSet v0.2.3+ and [Kueue](https://kueue.sigs.k8s.io/) v0.4.0 to oversubscribe your cluster with JobSet workloads, placing them in queue which supports multi-tenancy, resource sharing and more. See [Kueue documentation](https://kueue.sigs.k8s.io/) for more details on the benefits of managing JobSet workloads via Kueue.
+- **Integration with Kueue**: Use JobSet v0.2.3+ and [Kueue](https://kueue.sigs.k8s.io/) v0.4.0+ to oversubscribe your cluster with JobSet workloads, placing them in queue which supports multi-tenancy, resource sharing and more. See [Kueue documentation](https://kueue.sigs.k8s.io/) for more details on the benefits of managing JobSet workloads via Kueue.
 
 ## Production Readiness status
 
