@@ -23,6 +23,10 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -1149,4 +1153,734 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		PodLabels(labels).
 		PodAnnotations(annotations)
 	return jobWrapper
+}
+
+func makeJobSetReconciler(initObjs ...client.Object) *JobSetReconciler {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(jobset.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	eventBroadcaster := record.NewBroadcaster()
+	recorder := eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "jobset-test-reconciler"})
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(initObjs...).WithStatusSubresource(initObjs...).Build()
+	return &JobSetReconciler{
+		Client: c,
+		Scheme: scheme,
+		Record: recorder,
+	}
+}
+
+func makeJobSetReconcilerWithJobIndexer(js *jobset.JobSet, job *batchv1.Job) *JobSetReconciler {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(jobset.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	eventBroadcaster := record.NewBroadcaster()
+	recorder := eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "jobset-test-reconciler"})
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithIndex(job, ".metadata.controller", func(o client.Object) []string {
+			return []string{js.GetName()}
+		}).WithObjects(js, job).WithStatusSubresource(js, job).Build()
+	return &JobSetReconciler{
+		Client: c,
+		Scheme: scheme,
+		Record: recorder,
+	}
+}
+
+func TestCreateJobs(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name                string
+		js                  *jobset.JobSet
+		jobs                childJobs
+		replicatedJobStatus []jobset.ReplicatedJobStatus
+		expected            error
+	}{
+		{
+			name: "create jobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(1).Obj(),
+				},
+			},
+			replicatedJobStatus: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-1",
+					Ready:     1,
+					Succeeded: 0,
+				},
+			},
+		},
+		{
+			name: "create jobs with network enableDNSHostnames is true",
+			js: testutils.MakeJobSet(jobSetName, ns).EnableDNSHostnames(true).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(1).Obj(),
+				},
+			},
+			replicatedJobStatus: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-1",
+					Ready:     1,
+					Succeeded: 0,
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := makeJobSetReconciler()
+			actual := r.createJobs(context.TODO(), tc.js, &tc.jobs, tc.replicatedJobStatus)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("createJobs() run error: %s", actual)
+			}
+		})
+	}
+}
+
+func TestResumeJob(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name     string
+		jobs     childJobs
+		expected error
+	}{
+		{
+			name: "resume job",
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).Suspend(true).
+						Ready(1).
+						Succeeded(1).Obj(),
+				},
+			},
+		},
+		{
+			name: "resume job with job status is not nil",
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Suspend(true).
+						StartTime().
+						Ready(1).
+						Succeeded(1).Obj(),
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := makeJobSetReconciler(tc.jobs.active[0])
+			actual := r.resumeJob(context.TODO(), tc.jobs.active[0], nil)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("resumeJob() run error: %s", actual)
+			}
+		})
+	}
+}
+
+func TestDeleteJob(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name     string
+		jobs     childJobs
+		expected error
+	}{
+		{
+			name: "delete jobs",
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).Suspend(true).
+						Ready(1).
+						Succeeded(1).Obj(),
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := makeJobSetReconciler(tc.jobs.active[0])
+			actual := r.deleteJobs(context.TODO(), tc.jobs.active)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("deleteJobs() run error: %s", actual)
+			}
+		})
+	}
+}
+
+func TestSuspendJobSet(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name     string
+		js       *jobset.JobSet
+		jobs     childJobs
+		expected error
+	}{
+		{
+			name: "test suspendJobSet",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						restarts:          2,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(1).Obj(),
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := makeJobSetReconciler(tc.js, tc.jobs.active[0])
+			actual := r.suspendJobSet(context.TODO(), tc.js, &tc.jobs)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("suspendJobSet() run error: %s", actual)
+			}
+		})
+	}
+}
+
+func TestExecuteFailurePolicy(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name     string
+		js       *jobset.JobSet
+		jobs     childJobs
+		expected error
+	}{
+		{
+			name: "test executeFailurePolicy",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+			},
+		},
+		{
+			name: "test executeFailurePolicy with failurePolicy is not nil",
+			js: testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{
+				MaxRestarts: 0,
+			}).ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-2").
+				Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+				Replicas(1).
+				Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+			},
+		},
+		{
+			name: "test executeFailurePolicy with status.restarts < failurePolicy.maxRestarts",
+			js: testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{
+				MaxRestarts: 3,
+			}).StatusRestarts(1).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-2").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+			},
+		},
+		{
+			name: "test executeFailurePolicy with status.restarts > failurePolicy.maxRestarts",
+			js: testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{
+				MaxRestarts: 1,
+			}).StatusRestarts(3).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := makeJobSetReconciler(tc.js)
+			actual := r.executeFailurePolicy(context.TODO(), tc.js, &tc.jobs)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("executeFailurePolicy() run error: %s", actual)
+			}
+		})
+	}
+}
+
+func TestExecuteSuccessPolicy(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name                string
+		js                  *jobset.JobSet
+		jobs                childJobs
+		replicatedJobStatus []jobset.ReplicatedJobStatus
+		expected            error
+	}{
+		{
+			name: "test executeSuccessPolicy with spec.successPolicy is All",
+			js: testutils.MakeJobSet(jobSetName, ns).SuccessPolicy(&jobset.SuccessPolicy{
+				Operator:             jobset.OperatorAll,
+				TargetReplicatedJobs: []string{},
+			}).StartupPolicy(&jobset.StartupPolicy{StartupPolicyOrder: jobset.InOrder}).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				successful: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+			},
+		},
+		{
+			name: "test executeSuccessPolicy with spec.successPolicy is Any",
+			js: testutils.MakeJobSet(jobSetName, ns).SuccessPolicy(&jobset.SuccessPolicy{
+				Operator:             jobset.OperatorAny,
+				TargetReplicatedJobs: []string{},
+			}).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				successful: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := makeJobSetReconciler(tc.js)
+			_, actual := r.executeSuccessPolicy(context.TODO(), tc.js, &tc.jobs)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("executeSuccessPolicy() run error: %s", actual)
+			}
+		})
+	}
+}
+
+func TestResumeJobSetIfNecessary(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name                string
+		js                  *jobset.JobSet
+		jobs                childJobs
+		replicatedJobStatus []jobset.ReplicatedJobStatus
+		expected            error
+	}{
+		{
+			name: "test resumeJobSetIfNecessary",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+			},
+			replicatedJobStatus: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-2",
+					Ready:     1,
+					Succeeded: 0,
+				},
+			},
+		},
+		{
+			name: "test resumeJobSetIfNecessary with startupPolicy is not nil",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				StartupPolicy(&jobset.StartupPolicy{StartupPolicyOrder: jobset.InOrder}).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+				successful: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(1).Obj(),
+				},
+			},
+			replicatedJobStatus: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-2",
+					Ready:     1,
+					Succeeded: 0,
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := makeJobSetReconciler(tc.js)
+			actual := r.resumeJobSetIfNecessary(context.TODO(), tc.js, &tc.jobs, tc.replicatedJobStatus)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("resumeJobSetIfNecessary() run error: %s", actual)
+			}
+		})
+	}
+}
+
+func TestUpdateReplicatedJobsStatuses(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name                string
+		js                  *jobset.JobSet
+		jobs                childJobs
+		replicatedJobStatus []jobset.ReplicatedJobStatus
+		expected            error
+	}{
+		{
+			name: "test updateReplicatedJobsStatuses",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+			},
+			replicatedJobStatus: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-1",
+					Ready:     1,
+					Succeeded: 0,
+				},
+			},
+		},
+		{
+			name: "test updateReplicatedJobsStatuses with status ReplicatedJobsStatus has changed",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				StartupPolicy(&jobset.StartupPolicy{StartupPolicyOrder: jobset.InOrder}).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(0).Obj(),
+				},
+			},
+			replicatedJobStatus: []jobset.ReplicatedJobStatus{
+				{
+					Name:      "replicated-job-1",
+					Ready:     1,
+					Succeeded: 0,
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := makeJobSetReconciler(tc.js, tc.jobs.active[0])
+			actual := r.updateReplicatedJobsStatuses(context.TODO(), tc.js, &tc.jobs, tc.replicatedJobStatus)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("updateReplicatedJobsStatuses() run error: %s", actual)
+			}
+		})
+	}
+}
+
+func TestGetChildJobs(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name     string
+		js       *jobset.JobSet
+		jobs     childJobs
+		expected error
+	}{
+		{
+			name: "test getChildJobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						restarts:          2,
+						jobIdx:            0}).
+						Parallelism(1).
+						Completions(2).
+						Ready(1).
+						Succeeded(1).Obj(),
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := makeJobSetReconcilerWithJobIndexer(tc.js, tc.jobs.active[0])
+			_, actual := r.getChildJobs(context.TODO(), tc.js)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("getChildJobs() run error: %s", actual)
+			}
+		})
+	}
+}
+
+func TestJobSetFinished(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+	tests := []struct {
+		name     string
+		js       *jobset.JobSet
+		expected bool
+	}{
+		{
+			name: "test jobSetFinished with not finished",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+		},
+		{
+			name: "test jobSetFinished with finished",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SetConditions([]metav1.Condition{{Type: string(jobset.JobSetCompleted), Status: metav1.ConditionTrue}}).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			expected: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := jobSetFinished(tc.js)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("unexpected finished value (+got/-want): %s", diff)
+			}
+		})
+	}
 }

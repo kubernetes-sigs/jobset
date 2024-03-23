@@ -14,6 +14,8 @@ limitations under the License.
 package testing
 
 import (
+	"time"
+
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,6 +74,12 @@ func (j *JobSetWrapper) StartupPolicy(policy *jobset.StartupPolicy) *JobSetWrapp
 	return j
 }
 
+// StatusRestarts sets the value of jobSet.status.restarts
+func (j *JobSetWrapper) StatusRestarts(restarts int32) *JobSetWrapper {
+	j.Status.Restarts = restarts
+	return j
+}
+
 // SetAnnotations sets the value of the jobSet.metadata.annotations.
 func (j *JobSetWrapper) SetAnnotations(annotations map[string]string) *JobSetWrapper {
 	j.Annotations = annotations
@@ -89,6 +97,12 @@ func (j *JobSetWrapper) SetGenerateName(namePrefix string) *JobSetWrapper {
 	// Name and GenerateName are mutually exclusive, so we must unset the Name field.
 	j.Name = ""
 	j.GenerateName = namePrefix
+	return j
+}
+
+// SetConditions sets the value of the jobSet.status.conditions.
+func (j *JobSetWrapper) SetConditions(conditions []metav1.Condition) *JobSetWrapper {
+	j.Status.Conditions = conditions
 	return j
 }
 
@@ -301,6 +315,12 @@ func (j *JobWrapper) Active(active int32) *JobWrapper {
 // Ready sets the job status ready.
 func (j *JobWrapper) Ready(ready int32) *JobWrapper {
 	j.Status.Ready = ptr.To(ready)
+	return j
+}
+
+// StartTime sets the job status startTime.
+func (j *JobWrapper) StartTime() *JobWrapper {
+	j.Status.StartTime = &metav1.Time{Time: time.Now()}
 	return j
 }
 
