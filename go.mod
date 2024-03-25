@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/google/go-cmp v0.6.0
 	github.com/onsi/ginkgo/v2 v2.16.0
-	github.com/onsi/gomega v1.31.1
+	github.com/onsi/gomega v1.32.0
 	github.com/open-policy-agent/cert-controller v0.10.1
 	github.com/stretchr/testify v1.9.0
 	k8s.io/api v0.29.3
