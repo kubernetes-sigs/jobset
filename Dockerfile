@@ -1,6 +1,9 @@
+ARG BUILDER_IMAGE
+ARG BASE_IMAGE
 # Build the manager binary
-FROM golang:1.20 as builder
-ARG TARGETOS
+FROM --platform=${BUILDPLATFORM} ${BUILDER_IMAGE} as builder
+
+ARG CGO_ENABLED
 ARG TARGETARCH
 
 WORKDIR /workspace
