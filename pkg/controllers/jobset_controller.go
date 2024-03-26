@@ -43,6 +43,18 @@ import (
 const (
 	RestartsKey    string = "jobset.sigs.k8s.io/restart-attempt"
 	maxParallelism int    = 50
+
+	// Event reasons and messages
+	ReachedMaxRestartsReason  = "ReachedMaxRestarts"
+	ReachedMaxRestartsMessage = "jobset failed due to reaching max number of restarts"
+
+	FailedJobsReason  = "FailedJobs"
+	FailedJobsMessage = "jobset failed due to one or more job failures"
+
+	JobCreationFailedReason = "JobCreationFailed"
+
+	AllJobsCompletedReason  = "AllJobsCompleted"
+	AllJobsCompletedMessage = "jobset completed successfully"
 )
 
 var (
@@ -477,7 +489,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	if allErrs != nil {
 		// Emit event to propagate the Job creation failures up to be more visible to the user.
 		// TODO(#422): Investigate ways to validate Job templates at JobSet validation time.
-		r.Record.Eventf(js, corev1.EventTypeWarning, "JobCreationFailed", allErrs.Error())
+		r.Record.Eventf(js, corev1.EventTypeWarning, JobCreationFailedReason, allErrs.Error())
 		return allErrs
 	}
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
@@ -540,8 +552,8 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 			condition: metav1.Condition{
 				Type:    string(jobset.JobSetCompleted),
 				Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-				Reason:  "AllJobsCompleted",
-				Message: "jobset completed successfully",
+				Reason:  AllJobsCompletedReason,
+				Message: AllJobsCompletedMessage,
 			},
 		}); err != nil {
 			return false, err
@@ -552,38 +564,24 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 }
 
 func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	// If no failure policy is defined, the default failure policy is to mark the JobSet
-	// as failed if any of its jobs have failed.
+	// If no failure policy is defined, mark the JobSet as failed.
 	if js.Spec.FailurePolicy == nil {
-		return r.failJobSet(ctx, js)
+		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
+		return r.failJobSet(ctx, js, FailedJobsReason, messageWithFirstFailedJob(FailedJobsMessage, firstFailedJob.Name))
 	}
-	// To reach this point a job must have failed.
-	return r.executeRestartPolicy(ctx, js, ownedJobs)
-}
 
-func (r *JobSetReconciler) executeRestartPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	if js.Spec.FailurePolicy.MaxRestarts == 0 {
-		return r.failJobSet(ctx, js)
-	}
-	return r.restartPolicyRecreateAll(ctx, js, ownedJobs)
-}
-
-func (r *JobSetReconciler) restartPolicyRecreateAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
-	log := ctrl.LoggerFrom(ctx)
-
-	// If JobSet has reached max number of restarts, mark it as failed and return.
+	// If JobSet has reached max restarts, fail the JobSet.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
-		return r.ensureCondition(ctx, ensureConditionOpts{
-			jobset:    js,
-			eventType: corev1.EventTypeWarning,
-			condition: metav1.Condition{
-				Type:    string(jobset.JobSetFailed),
-				Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-				Reason:  "ReachedMaxRestarts",
-				Message: "jobset failed due to reaching max number of restarts",
-			},
-		})
+		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
+		return r.failJobSet(ctx, js, ReachedMaxRestartsReason, messageWithFirstFailedJob(ReachedMaxRestartsMessage, firstFailedJob.Name))
 	}
+
+	// To reach this point a job must have failed.
+	return r.failurePolicyRecreateAll(ctx, js, ownedJobs)
+}
+
+func (r *JobSetReconciler) failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) error {
+	log := ctrl.LoggerFrom(ctx)
 
 	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
 	// of old jobs not part of the current jobSet run.
@@ -651,14 +649,14 @@ func (r *JobSetReconciler) ensureCondition(ctx context.Context, opts ensureCondi
 	return nil
 }
 
-func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet) error {
+func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet, reason, msg string) error {
 	return r.ensureCondition(ctx, ensureConditionOpts{
 		jobset: js,
 		condition: metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
 			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  "FailedJobs",
-			Message: "jobset failed due to one or more job failures",
+			Reason:  reason,
+			Message: msg,
 		},
 		eventType: corev1.EventTypeWarning,
 	})
@@ -915,4 +913,43 @@ func findReplicatedStatus(replicatedJobStatus []jobset.ReplicatedJobStatus, repl
 		}
 	}
 	return jobset.ReplicatedJobStatus{}
+}
+
+// messageWithFirstFailedJob appends the first failed job to the original event message in human readable way.
+func messageWithFirstFailedJob(msg, firstFailedJobName string) string {
+	return fmt.Sprintf("%s (first failed job: %s)", msg, firstFailedJobName)
+}
+
+// findFirstFailedJob accepts a slice of failed Jobs and returns the Job which has a JobFailed condition
+// with the oldest transition time.
+func findFirstFailedJob(failedJobs []*batchv1.Job) *batchv1.Job {
+	var (
+		firstFailedJob   *batchv1.Job
+		firstFailureTime *metav1.Time
+	)
+	for _, job := range failedJobs {
+		failureTime := findJobFailureTime(job)
+		// If job has actually failed and it is the first (or only) failure we've seen,
+		// store the job for output.
+		if failureTime != nil && (firstFailedJob == nil || failureTime.Before(firstFailureTime)) {
+			firstFailedJob = job
+			firstFailureTime = failureTime
+		}
+	}
+	return firstFailedJob
+}
+
+// findJobFailureTime is a helper function which extracts the Job failure time from a Job,
+// if the JobFailed condition exists and is true.
+func findJobFailureTime(job *batchv1.Job) *metav1.Time {
+	if job == nil {
+		return nil
+	}
+	for _, c := range job.Status.Conditions {
+		// If this Job failed before the oldest known Job failiure, update the first failed job.
+		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
+			return &c.LastTransitionTime
+		}
+	}
+	return nil
 }
