@@ -93,7 +93,7 @@ type JobSetSpec struct {
 	Suspend *bool `json:"suspend,omitempty"`
 
 	// ManagedBy is used to indicate the controller or entity that manages an JobSet
-	ManagedBy *string
+	ManagedBy *string `json:"managedBy,omitempty"
 }
 
 // JobSetStatus defines the observed state of JobSet
