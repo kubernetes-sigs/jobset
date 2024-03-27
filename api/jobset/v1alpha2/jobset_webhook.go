@@ -93,11 +93,8 @@ func (js *JobSet) Default() {
 		}
 	}
 
-	if _, found := js.Labels[LabelManagedBy]; !found {
-		if js.Labels == nil {
-			js.Labels = make(map[string]string, 1)
-		}
-		js.Labels[LabelManagedBy] = JobSetManager
+	if js.Spec.ManagedBy == nil {
+		js.Spec.ManagedBy = ptr.To(JobSetManager)
 	}
 }
 
@@ -179,7 +176,7 @@ func (js *JobSet) ValidateUpdate(old runtime.Object) (admission.Warnings, error)
 	}
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
 	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	errs = append(errs, apivalidation.ValidateImmutableField(js.Labels[LabelManagedBy], oldJS.Labels[LabelManagedBy], field.NewPath("metadata").Child("labels").Key(LabelManagedBy))...)
+	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("labels").Key("managedBy"))...)
 	return nil, errs.ToAggregate()
 }
 
