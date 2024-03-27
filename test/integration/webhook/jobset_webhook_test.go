@@ -347,10 +347,10 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			defaultsApplied: func(js *jobset.JobSet) bool {
-				return js.Labels[jobset.LabelManagedBy] == jobset.JobSetManager
+				return ptr.Deref(js.Spec.ManagedBy, "") == jobset.JobSetManager
 			},
 			updateJobSet: func(js *jobset.JobSet) {
-				js.Labels[jobset.LabelManagedBy] = "new-manager"
+				js.Spec.ManagedBy = ptr.To("new-manager")
 			},
 			updateShouldFail: true,
 		}),
