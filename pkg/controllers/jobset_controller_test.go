@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/controllers/constants"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
@@ -1192,7 +1193,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		RestartsKey:                  strconv.Itoa(args.restarts),
+		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
 	annotations := map[string]string{
@@ -1200,7 +1201,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		RestartsKey:                  strconv.Itoa(args.restarts),
+		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
 	// Only set exclusive key if we are using exclusive placement per topology.

@@ -35,6 +35,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/controllers/constants"
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	testutil "sigs.k8s.io/jobset/test/util"
@@ -1461,7 +1462,7 @@ func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
 	}
 	// Check all the jobs restart counter has been incremented.
 	for _, job := range jobList.Items {
-		if job.Labels[controllers.RestartsKey] != strconv.Itoa(expectedRestarts) {
+		if job.Labels[constants.RestartsKey] != strconv.Itoa(expectedRestarts) {
 			return false, nil
 		}
 	}

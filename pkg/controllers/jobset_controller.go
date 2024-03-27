@@ -36,31 +36,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/controllers/constants"
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
-const (
-	RestartsKey    string = "jobset.sigs.k8s.io/restart-attempt"
-	maxParallelism int    = 50
-
-	// Event reasons and messages
-	ReachedMaxRestartsReason  = "ReachedMaxRestarts"
-	ReachedMaxRestartsMessage = "jobset failed due to reaching max number of restarts"
-
-	FailedJobsReason  = "FailedJobs"
-	FailedJobsMessage = "jobset failed due to one or more job failures"
-
-	JobCreationFailedReason = "JobCreationFailed"
-
-	AllJobsCompletedReason  = "AllJobsCompleted"
-	AllJobsCompletedMessage = "jobset completed successfully"
-)
-
-var (
-	jobOwnerKey = ".metadata.controller"
-	apiGVStr    = jobset.GroupVersion.String()
-)
+var apiGVStr = jobset.GroupVersion.String()
 
 // JobSetReconciler reconciles a JobSet object
 type JobSetReconciler struct {
@@ -196,7 +177,7 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error {
-	return indexer.IndexField(ctx, &batchv1.Job{}, jobOwnerKey, func(obj client.Object) []string {
+	return indexer.IndexField(ctx, &batchv1.Job{}, constants.JobOwnerKey, func(obj client.Object) []string {
 		o := obj.(*batchv1.Job)
 		owner := metav1.GetControllerOf(o)
 		if owner == nil {
@@ -217,7 +198,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 
 	// Get all active jobs owned by JobSet.
 	var childJobList batchv1.JobList
-	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{jobOwnerKey: js.Name}); err != nil {
+	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{constants.JobOwnerKey: js.Name}); err != nil {
 		return nil, err
 	}
 
@@ -226,9 +207,9 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	for i, job := range childJobList.Items {
 		// Jobs with jobset.sigs.k8s.io/restart-attempt < jobset.status.restarts are marked for
 		// deletion, as they were part of the previous JobSet run.
-		jobRestarts, err := strconv.Atoi(job.Labels[RestartsKey])
+		jobRestarts, err := strconv.Atoi(job.Labels[constants.RestartsKey])
 		if err != nil {
-			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", RestartsKey))
+			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", constants.RestartsKey))
 			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
 			return nil, err
 		}
@@ -447,12 +428,12 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 
 		status := findReplicatedStatus(replicatedJobStatus, replicatedJob.Name)
 		rjJobStarted := replicatedJobsStarted(replicatedJob.Replicas, status)
-		// For startup policy, if the job is started we can skip this loop
-		// Jobs have been created
+		// For startup policy, if the job is started we can skip this loop.
+		// Jobs have been created.
 		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) && rjJobStarted {
 			continue
 		}
-		workqueue.ParallelizeUntil(ctx, maxParallelism, len(jobs), func(i int) {
+		workqueue.ParallelizeUntil(ctx, constants.MaxParallelism, len(jobs), func(i int) {
 			job := jobs[i]
 
 			// Set jobset controller as owner of the job for garbage collection and reconcilation.
@@ -489,7 +470,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	if allErrs != nil {
 		// Emit event to propagate the Job creation failures up to be more visible to the user.
 		// TODO(#422): Investigate ways to validate Job templates at JobSet validation time.
-		r.Record.Eventf(js, corev1.EventTypeWarning, JobCreationFailedReason, allErrs.Error())
+		r.Record.Eventf(js, corev1.EventTypeWarning, constants.JobCreationFailedReason, allErrs.Error())
 		return allErrs
 	}
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
@@ -552,8 +533,8 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 			condition: metav1.Condition{
 				Type:    string(jobset.JobSetCompleted),
 				Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-				Reason:  AllJobsCompletedReason,
-				Message: AllJobsCompletedMessage,
+				Reason:  constants.AllJobsCompletedReason,
+				Message: constants.AllJobsCompletedMessage,
 			},
 		}); err != nil {
 			return false, err
@@ -567,13 +548,13 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 	// If no failure policy is defined, mark the JobSet as failed.
 	if js.Spec.FailurePolicy == nil {
 		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		return r.failJobSet(ctx, js, FailedJobsReason, messageWithFirstFailedJob(FailedJobsMessage, firstFailedJob.Name))
+		return r.failJobSet(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name))
 	}
 
 	// If JobSet has reached max restarts, fail the JobSet.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
 		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		return r.failJobSet(ctx, js, ReachedMaxRestartsReason, messageWithFirstFailedJob(ReachedMaxRestartsMessage, firstFailedJob.Name))
+		return r.failJobSet(ctx, js, constants.ReachedMaxRestartsReason, messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, firstFailedJob.Name))
 	}
 
 	// To reach this point a job must have failed.
@@ -597,7 +578,7 @@ func (r *JobSetReconciler) deleteJobs(ctx context.Context, jobsForDeletion []*ba
 	log := ctrl.LoggerFrom(ctx)
 	lock := &sync.Mutex{}
 	var finalErrs []error
-	workqueue.ParallelizeUntil(ctx, maxParallelism, len(jobsForDeletion), func(i int) {
+	workqueue.ParallelizeUntil(ctx, constants.MaxParallelism, len(jobsForDeletion), func(i int) {
 		targetJob := jobsForDeletion[i]
 		// Skip deleting jobs with deletion timestamp already set.
 		if targetJob.DeletionTimestamp != nil {
@@ -613,7 +594,7 @@ func (r *JobSetReconciler) deleteJobs(ctx context.Context, jobsForDeletion []*ba
 			finalErrs = append(finalErrs, err)
 			return
 		}
-		log.V(2).Info("successfully deleted job", "job", klog.KObj(targetJob), "restart attempt", targetJob.Labels[targetJob.Labels[RestartsKey]])
+		log.V(2).Info("successfully deleted job", "job", klog.KObj(targetJob), "restart attempt", targetJob.Labels[targetJob.Labels[constants.RestartsKey]])
 	})
 	return errors.Join(finalErrs...)
 }
@@ -773,7 +754,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels := collections.CloneMap(obj.GetLabels())
 	labels[jobset.JobSetNameKey] = js.Name
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
-	labels[RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	labels[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
@@ -781,7 +762,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations := collections.CloneMap(obj.GetAnnotations())
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
-	annotations[RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	annotations[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
@@ -863,39 +844,6 @@ func jobSetFinished(js *jobset.JobSet) bool {
 
 func dnsHostnamesEnabled(js *jobset.JobSet) bool {
 	return js.Spec.Network.EnableDNSHostnames != nil && *js.Spec.Network.EnableDNSHostnames
-}
-
-func jobMatchesSuccessPolicy(js *jobset.JobSet, job *batchv1.Job) bool {
-	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || collections.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
-}
-
-func replicatedJobMatchesSuccessPolicy(js *jobset.JobSet, rjob *jobset.ReplicatedJob) bool {
-	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || collections.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, rjob.Name)
-}
-
-func numJobsMatchingSuccessPolicy(js *jobset.JobSet, jobs []*batchv1.Job) int {
-	total := 0
-	for _, job := range jobs {
-		if jobMatchesSuccessPolicy(js, job) {
-			total += 1
-		}
-	}
-	return total
-}
-
-func numJobsExpectedToSucceed(js *jobset.JobSet) int {
-	total := 0
-	switch js.Spec.SuccessPolicy.Operator {
-	case jobset.OperatorAny:
-		total = 1
-	case jobset.OperatorAll:
-		for _, rjob := range js.Spec.ReplicatedJobs {
-			if replicatedJobMatchesSuccessPolicy(js, &rjob) {
-				total += int(rjob.Replicas)
-			}
-		}
-	}
-	return total
 }
 
 func jobSetSuspended(js *jobset.JobSet) bool {
