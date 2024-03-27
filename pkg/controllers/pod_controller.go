@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"sigs.k8s.io/jobset/pkg/constants"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -198,7 +199,7 @@ func (r *PodReconciler) deleteFollowerPods(ctx context.Context, pods []corev1.Po
 	lock := &sync.Mutex{}
 	var finalErrs []error
 
-	workqueue.ParallelizeUntil(ctx, maxParallelism, len(pods), func(i int) {
+	workqueue.ParallelizeUntil(ctx, constants.MaxParallelism, len(pods), func(i int) {
 		pod := pods[i]
 		// Do not delete leader pod.
 		if placement.IsLeaderPod(&pod) {
@@ -210,8 +211,8 @@ func (r *PodReconciler) deleteFollowerPods(ctx context.Context, pods []corev1.Po
 		condition := corev1.PodCondition{
 			Type:    corev1.DisruptionTarget,
 			Status:  v1.ConditionTrue,
-			Reason:  "ExclusivePlacementViolation",
-			Message: "Pod violated JobSet exclusive placement policy",
+			Reason:  constants.ExclusivePlacementViolationReason,
+			Message: constants.ExclusivePlacementViolationMessage,
 		}
 
 		// If pod status already has this condition, we don't need to send the update again.

@@ -17,15 +17,18 @@ import (
 	"context"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/constants"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
@@ -1106,6 +1109,71 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 	}
 }
 
+func TestFindFirstFailedJob(t *testing.T) {
+	testCases := []struct {
+		name       string
+		failedJobs []*batchv1.Job
+		expected   *batchv1.Job
+	}{
+		{
+			name:       "No failed jobs",
+			failedJobs: []*batchv1.Job{},
+			expected:   nil,
+		},
+		{
+			name: "Single failed job",
+			failedJobs: []*batchv1.Job{
+				jobWithFailedCondition("job1", time.Now().Add(-1*time.Hour)),
+			},
+			expected: jobWithFailedCondition("job1", time.Now().Add(-1*time.Hour)),
+		},
+		{
+			name: "Multiple failed jobs, earliest first",
+			failedJobs: []*batchv1.Job{
+				jobWithFailedCondition("job1", time.Now().Add(-3*time.Hour)),
+				jobWithFailedCondition("job2", time.Now().Add(-5*time.Hour)),
+			},
+			expected: jobWithFailedCondition("job2", time.Now().Add(-5*time.Hour)),
+		},
+		{
+			name: "Jobs without failed condition",
+			failedJobs: []*batchv1.Job{
+				{ObjectMeta: metav1.ObjectMeta{Name: "job1"}},
+				{ObjectMeta: metav1.ObjectMeta{Name: "job2"}},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			result := findFirstFailedJob(tc.failedJobs)
+			if result != nil && tc.expected != nil {
+				assert.Equal(t, result.Name, tc.expected.Name)
+			} else if result != nil && tc.expected == nil || result == nil && tc.expected != nil {
+				t.Errorf("Expected: %v, got: %v)", result, tc.expected)
+			}
+		})
+	}
+}
+
+// Helper function to create a job object with a failed condition
+func jobWithFailedCondition(name string, failureTime time.Time) *batchv1.Job {
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Status: batchv1.JobStatus{
+			Conditions: []batchv1.JobCondition{
+				{
+					Type:               batchv1.JobFailed,
+					Status:             corev1.ConditionTrue,
+					LastTransitionTime: metav1.NewTime(failureTime),
+				},
+			},
+		},
+	}
+}
+
 type makeJobArgs struct {
 	jobSetName           string
 	replicatedJobName    string
@@ -1118,13 +1186,14 @@ type makeJobArgs struct {
 	nodeSelectorStrategy bool
 }
 
+// Helper function to create a Job for unit testing.
 func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	labels := map[string]string{
 		jobset.JobSetNameKey:         args.jobSetName,
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		RestartsKey:                  strconv.Itoa(args.restarts),
+		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
 	annotations := map[string]string{
@@ -1132,7 +1201,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		RestartsKey:                  strconv.Itoa(args.restarts),
+		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
 	// Only set exclusive key if we are using exclusive placement per topology.
