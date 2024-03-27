@@ -17,12 +17,13 @@ package v1alpha2
 // JobSetSpecApplyConfiguration represents an declarative configuration of the JobSetSpec type for use
 // with apply.
 type JobSetSpecApplyConfiguration struct {
-	ReplicatedJobs []ReplicatedJobApplyConfiguration `json:"replicatedJobs,omitempty"`
-	Network        *NetworkApplyConfiguration        `json:"network,omitempty"`
-	SuccessPolicy  *SuccessPolicyApplyConfiguration  `json:"successPolicy,omitempty"`
-	FailurePolicy  *FailurePolicyApplyConfiguration  `json:"failurePolicy,omitempty"`
-	StartupPolicy  *StartupPolicyApplyConfiguration  `json:"startupPolicy,omitempty"`
-	Suspend        *bool                             `json:"suspend,omitempty"`
+	ReplicatedJobs          []ReplicatedJobApplyConfiguration `json:"replicatedJobs,omitempty"`
+	Network                 *NetworkApplyConfiguration        `json:"network,omitempty"`
+	SuccessPolicy           *SuccessPolicyApplyConfiguration  `json:"successPolicy,omitempty"`
+	FailurePolicy           *FailurePolicyApplyConfiguration  `json:"failurePolicy,omitempty"`
+	StartupPolicy           *StartupPolicyApplyConfiguration  `json:"startupPolicy,omitempty"`
+	Suspend                 *bool                             `json:"suspend,omitempty"`
+	TTLSecondsAfterFinished *int32                            `json:"ttlSecondsAfterFinished,omitempty"`
 }
 
 // JobSetSpecApplyConfiguration constructs an declarative configuration of the JobSetSpec type for use with
@@ -81,5 +82,13 @@ func (b *JobSetSpecApplyConfiguration) WithStartupPolicy(value *StartupPolicyApp
 // If called multiple times, the Suspend field is set to the value of the last call.
 func (b *JobSetSpecApplyConfiguration) WithSuspend(value bool) *JobSetSpecApplyConfiguration {
 	b.Suspend = &value
+	return b
+}
+
+// WithTTLSecondsAfterFinished sets the TTLSecondsAfterFinished field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TTLSecondsAfterFinished field is set to the value of the last call.
+func (b *JobSetSpecApplyConfiguration) WithTTLSecondsAfterFinished(value int32) *JobSetSpecApplyConfiguration {
+	b.TTLSecondsAfterFinished = &value
 	return b
 }
