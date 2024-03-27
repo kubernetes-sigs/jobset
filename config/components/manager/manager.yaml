@@ -93,6 +93,9 @@ spec:
         # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
           requests:
+            cpu: 500m
+            memory: 128Mi
+          limits:
             cpu: 2
             memory: 512Mi
       serviceAccountName: controller-manager
