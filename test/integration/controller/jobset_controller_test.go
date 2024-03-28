@@ -198,6 +198,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				}
 			}
 		},
+		ginkgo.Entry("jobset should successfully create jobs", &testCase{
+			makeJobSet: testJobSet,
+		}),
 		ginkgo.Entry("jobset should succeed after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
 			updates: []*update{
