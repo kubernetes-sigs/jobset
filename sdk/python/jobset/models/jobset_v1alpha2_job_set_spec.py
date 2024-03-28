@@ -107,7 +107,7 @@ class JobsetV1alpha2JobSetSpec(object):
     def managed_by(self):
         """Gets the managed_by of this JobsetV1alpha2JobSetSpec.  # noqa: E501
 
-        ManagedBy is used to indicate the controller or entity that manages an JobSet  # noqa: E501
+        ManagedBy is used to indicate the controller or entity that manages a JobSet  # noqa: E501
 
         :return: The managed_by of this JobsetV1alpha2JobSetSpec.  # noqa: E501
         :rtype: str
@@ -118,7 +118,7 @@ class JobsetV1alpha2JobSetSpec(object):
     def managed_by(self, managed_by):
         """Sets the managed_by of this JobsetV1alpha2JobSetSpec.
 
-        ManagedBy is used to indicate the controller or entity that manages an JobSet  # noqa: E501
+        ManagedBy is used to indicate the controller or entity that manages a JobSet  # noqa: E501
 
         :param managed_by: The managed_by of this JobsetV1alpha2JobSetSpec.  # noqa: E501
         :type: str

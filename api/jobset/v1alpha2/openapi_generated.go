@@ -216,7 +216,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 					},
 					"managedBy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ManagedBy is used to indicate the controller or entity that manages an JobSet",
+							Description: "ManagedBy is used to indicate the controller or entity that manages a JobSet",
 							Type:        []string{"string"},
 							Format:      "",
 						},

@@ -74,7 +74,7 @@ spec:
                   rule: self == oldSelf
               managedBy:
                 description: ManagedBy is used to indicate the controller or entity
-                  that manages an JobSet
+                  that manages a JobSet
                 type: string
               network:
                 description: Network defines the networking options for the jobset.

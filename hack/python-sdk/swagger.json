@@ -80,7 +80,7 @@
           "$ref": "#/definitions/jobset.v1alpha2.FailurePolicy"
         },
         "managedBy": {
-          "description": "ManagedBy is used to indicate the controller or entity that manages an JobSet",
+          "description": "ManagedBy is used to indicate the controller or entity that manages a JobSet",
           "type": "string"
         },
         "network": {
