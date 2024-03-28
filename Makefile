@@ -79,7 +79,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen crd ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) \
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
 		paths="./api/..."
@@ -87,10 +87,6 @@ manifests: controller-gen crd ## Generate WebhookConfiguration, ClusterRole and 
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
 		webhook output:webhook:artifacts:config=config/components/webhook\
 		paths="./pkg/..."
-
-.PHONY: crd
-crd: kustomize # Write CRD to independent file used for validation.
-	$(KUSTOMIZE) build config/components/crd -o pkg/webhooks/crds/crd.yaml
 
 .PHONY: generate
 generate: controller-gen code-generator openapi-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.

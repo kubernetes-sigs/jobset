@@ -15,7 +15,6 @@ package webhooks
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 	"math"
@@ -34,8 +33,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-	"sigs.k8s.io/kubectl-validate/pkg/openapiclient"
-	"sigs.k8s.io/kubectl-validate/pkg/validator"
 
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
@@ -59,38 +56,19 @@ const (
 	// Error message returned by JobSet validation if the network subdomain
 	// will be longer than 63 characters.
 	subdomainTooLongErrMsg = ".spec.network.subdomain is too long, must be less than 63 characters"
-
-	// k8sMinorForHardcodedBuitins is used for creating the OpenAPI client.
-	k8sMinorForHardcodedBuitins = "1.27"
 )
-
-// crdsFs is a virtual filesystem embedded in the program which can be referenced by the webhook.
-// We store the JobSet CRD manifest here so the validator is aware of it's structure.
-//
-//go:embed crds
-var crdsFs embed.FS
 
 //+kubebuilder:webhook:path=/mutate-jobset-x-k8s-io-v1alpha2-jobset,mutating=true,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=mjobset.kb.io,admissionReviewVersions=v1
 
 // jobSetWebhook for defaulting and admission.
 type jobSetWebhook struct {
-	client    client.Client
-	decoder   *admission.Decoder
-	validator *validator.Validator
+	client  client.Client
+	decoder *admission.Decoder
 }
 
 func NewJobSetWebhook(mgrClient client.Client) (*jobSetWebhook, error) {
-	client := openapiclient.NewComposite(
-		openapiclient.NewHardcodedBuiltins(k8sMinorForHardcodedBuitins),
-		openapiclient.NewLocalCRDFiles(crdsFs, "crds"),
-	)
-	v, err := validator.New(client)
-	if err != nil {
-		return nil, fmt.Errorf("error creating validator: %v", err)
-	}
 	return &jobSetWebhook{
-		client:    mgrClient,
-		validator: v,
+		client: mgrClient,
 	}, nil
 }
 
