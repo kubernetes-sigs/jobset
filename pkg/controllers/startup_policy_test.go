@@ -17,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
@@ -109,45 +108,8 @@ func TestReplicatedJobStarted(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := replicatedJobsStarted(tc.replicas, tc.replicatedJobStatus)
+			actual := allReplicasStarted(tc.replicas, tc.replicatedJobStatus)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
-				t.Errorf("unexpected finished value (+got/-want): %s", diff)
-			}
-		})
-	}
-}
-
-func TestGenerateStartupPolicyCondition(t *testing.T) {
-	tests := []struct {
-		name              string
-		policyComplete    metav1.ConditionStatus
-		expectedCondition metav1.Condition
-	}{
-		{
-			name:           "in progress startup condition on a",
-			policyComplete: metav1.ConditionFalse,
-			expectedCondition: metav1.Condition{
-				Type:    string(jobset.JobSetStartupPolicyCompleted),
-				Status:  metav1.ConditionFalse,
-				Reason:  "StartupPolicyInOrder",
-				Message: "startup policy in order starting",
-			},
-		},
-		{
-			name:           "startup policy complete",
-			policyComplete: metav1.ConditionTrue,
-			expectedCondition: metav1.Condition{
-				Type:    string(jobset.JobSetStartupPolicyCompleted),
-				Status:  metav1.ConditionTrue,
-				Reason:  "StartupPolicyInOrder",
-				Message: "all replicated jobs have started",
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			actual := generateStartupPolicyCondition(tc.policyComplete)
-			if diff := cmp.Diff(tc.expectedCondition, actual); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}
 		})

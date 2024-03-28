@@ -53,4 +53,9 @@ const (
 	// the same topology domain as the leader pod for that Job).
 	ExclusivePlacementViolationReason  = "ExclusivePlacementViolation"
 	ExclusivePlacementViolationMessage = "Pod violated JobSet exclusive placement policy"
+
+	// Event reason and messages related to startup policy.
+	InOrderStartupPolicyReason           = "StartupPolicyInOrder"
+	InOrderStartupPolicyExecutingMessage = "in order startup policy is executing"
+	InOrderStartupPolicyCompletedMessage = "in order startup policy has completed"
 )
