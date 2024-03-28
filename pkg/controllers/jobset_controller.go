@@ -143,6 +143,12 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
+	// If pod DNS hostnames are enabled, create a headless service for the JobSet
+	if err := r.createHeadlessSvcIfNecessary(ctx, &js); err != nil {
+		log.Error(err, "creating headless service")
+		return ctrl.Result{}, err
+	}
+
 	// If job has not failed or succeeded, continue creating any
 	// jobs that are ready to be started.
 	if err := r.createJobs(ctx, &js, ownedJobs, status); err != nil {
@@ -421,12 +427,6 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, node
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatus []jobset.ReplicatedJobStatus) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// If pod DNS hostnames are enabled, create a headless service for the JobSet
-	if dnsHostnamesEnabled(js) {
-		if err := r.createHeadlessSvcIfNotExist(ctx, js); err != nil {
-			return err
-		}
-	}
 	startupPolicy := js.Spec.StartupPolicy
 	var lock sync.Mutex
 	var finalErrs []error
@@ -523,8 +523,14 @@ func (r *JobSetReconciler) deleteJobs(ctx context.Context, jobsForDeletion []*ba
 
 // TODO: look into adopting service and updating the selector
 // if it is not matching the job selector.
-func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *jobset.JobSet) error {
+func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js *jobset.JobSet) error {
 	log := ctrl.LoggerFrom(ctx)
+
+	// Headless service is only necessary for indexed jobs whose pods need to communicate with
+	// eachother via pod hostnames.
+	if !dnsHostnamesEnabled(js) {
+		return nil
+	}
 
 	// Check if service already exists. The service name should match the subdomain specified in
 	// Spec.Network.Subdomain, with default of <jobSetName> set by the webhook.
