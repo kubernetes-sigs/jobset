@@ -143,6 +143,13 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
+	// If pod DNS hostnames are enabled, create a headless service for the JobSet
+	if dnsHostnamesEnabled(&js) {
+		if err := r.createHeadlessSvcIfNotExist(ctx, &js); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	// If job has not failed or succeeded, continue creating any
 	// jobs that are ready to be started.
 	if err := r.createJobs(ctx, &js, ownedJobs, status); err != nil {
@@ -411,12 +418,6 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, node
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatus []jobset.ReplicatedJobStatus) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// If pod DNS hostnames are enabled, create a headless service for the JobSet
-	if dnsHostnamesEnabled(js) {
-		if err := r.createHeadlessSvcIfNotExist(ctx, js); err != nil {
-			return err
-		}
-	}
 	startupPolicy := js.Spec.StartupPolicy
 	var lock sync.Mutex
 	var finalErrs []error
