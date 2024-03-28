@@ -54,6 +54,12 @@ func MakeJobSet(name, ns string) *JobSetWrapper {
 	}
 }
 
+// ManagedBy sets the value of jobSet.spec.managedBy
+func (j *JobSetWrapper) ManagedBy(managedBy string) *JobSetWrapper {
+	j.Spec.ManagedBy = ptr.To(managedBy)
+	return j
+}
+
 // SuccessPolicy sets the value of jobSet.spec.successPolicy
 func (j *JobSetWrapper) SuccessPolicy(policy *jobset.SuccessPolicy) *JobSetWrapper {
 	j.Spec.SuccessPolicy = policy

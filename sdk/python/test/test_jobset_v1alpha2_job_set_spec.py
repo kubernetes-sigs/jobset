@@ -40,6 +40,7 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
             return JobsetV1alpha2JobSetSpec(
                 failure_policy = jobset.models.jobset_v1alpha2_failure_policy.JobsetV1alpha2FailurePolicy(
                     max_restarts = 56, ), 
+                managed_by = '0', 
                 network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
                     enable_dns_hostnames = True, 
                     subdomain = '0', ), 

@@ -72,6 +72,10 @@ spec:
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
+              managedBy:
+                description: ManagedBy is used to indicate the controller or entity
+                  that manages an JobSet
+                type: string
               network:
                 description: Network defines the networking options for the jobset.
                 properties:
