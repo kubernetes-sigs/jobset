@@ -40,7 +40,7 @@ const (
 	NamespacedJobKey        string = "alpha.jobset.sigs.k8s.io/namespaced-job"
 	NoScheduleTaintKey      string = "alpha.jobset.sigs.k8s.io/no-schedule"
 
-	// JobSetManager is used as the value for LabelManagedBy to identify the jobset controller manager
+	// JobSetManager is used as the value for ManagedBy to identify the jobset controller manager
 	// as the manager of a specific JobSet.
 	JobSetManager = "jobset"
 )
