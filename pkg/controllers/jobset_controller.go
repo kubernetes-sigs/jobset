@@ -144,10 +144,8 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// If pod DNS hostnames are enabled, create a headless service for the JobSet
-	if dnsHostnamesEnabled(&js) {
-		if err := r.createHeadlessSvcIfNotExist(ctx, &js); err != nil {
-			return ctrl.Result{}, err
-		}
+	if err := r.createHeadlessSvcIfNecessary(ctx, &js); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	// If job has not failed or succeeded, continue creating any
@@ -487,8 +485,14 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 
 // TODO: look into adopting service and updating the selector
 // if it is not matching the job selector.
-func (r *JobSetReconciler) createHeadlessSvcIfNotExist(ctx context.Context, js *jobset.JobSet) error {
+func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js *jobset.JobSet) error {
 	log := ctrl.LoggerFrom(ctx)
+
+	// Headless service is only necessary for indexed jobs whose pods need to communicate with
+	// eachother via pod hostnames.
+	if !dnsHostnamesEnabled(js) {
+		return nil
+	}
 
 	// Check if service already exists. The service name should match the subdomain specified in
 	// Spec.Network.Subdomain, with default of <jobSetName> set by the webhook.
