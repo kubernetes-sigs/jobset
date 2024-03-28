@@ -79,6 +79,10 @@
           "description": "FailurePolicy, if set, configures when to declare the JobSet as failed. The JobSet is always declared failed if any job in the set finished with status failed.",
           "$ref": "#/definitions/jobset.v1alpha2.FailurePolicy"
         },
+        "managedBy": {
+          "description": "ManagedBy is used to indicate the controller or entity that manages an JobSet",
+          "type": "string"
+        },
         "network": {
           "description": "Network defines the networking options for the jobset.",
           "$ref": "#/definitions/jobset.v1alpha2.Network"
