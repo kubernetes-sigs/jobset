@@ -8,7 +8,7 @@
 
 JobSet is a Kubernetes-native API for managing a group of [k8s Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/) as a unit. It aims to offer a unified API for deploying HPC (e.g., MPI) and AI/ML training workloads (PyTorch, Jax, Tensorflow etc.) on Kubernetes.
 
-Take a look at the [concepts](/docs/concepts/README.md) page for a brief description of how to use JobSet.
+Take a look at the [concepts](https://jobset.sigs.k8s.io/docs/concepts/) page for a brief description of how to use JobSet.
 
 ## Conceptual Diagram
 <img src="site/static/images/jobset_diagram.png" alt="jobset diagram">
