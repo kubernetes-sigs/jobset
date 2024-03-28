@@ -86,8 +86,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(&js))
 	ctx = ctrl.LoggerInto(ctx, log)
 
-	// TODO: Check if there is a test case for this.
-	// In particular, we treat the nill case as equivalent to being managed by JobSet.
 	if manager := ptr.Deref(js.Spec.ManagedBy, ""); js.Spec.ManagedBy != nil && manager != jobset.JobSetManager {
 		log.V(5).Info("Skipping JobSet managed by a different controller", "managed-by", manager)
 		return ctrl.Result{}, nil
