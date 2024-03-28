@@ -145,6 +145,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// If pod DNS hostnames are enabled, create a headless service for the JobSet
 	if err := r.createHeadlessSvcIfNecessary(ctx, &js); err != nil {
+		log.Error(err, "creating headless service")
 		return ctrl.Result{}, err
 	}
 
