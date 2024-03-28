@@ -17,29 +17,40 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/constants"
 )
 
-// replicatedJobsStarted tells if the replicated jobSet is ready
-// or it has finished
-// If replicas is equal then we assume that replicatedJob is considered ready
-func replicatedJobsStarted(replicas int32, rjJobStatus jobset.ReplicatedJobStatus) bool {
+// replicatedJobsStarted returns a boolean value indicating if all replicatedJob
+// replicas (jobs) have started, regardless of whether they are active, succeeded,
+// or failed.
+func allReplicasStarted(replicas int32, rjJobStatus jobset.ReplicatedJobStatus) bool {
 	return replicas == rjJobStatus.Failed+rjJobStatus.Ready+rjJobStatus.Succeeded
 }
 
+// inOrderStartupPolicy returns true if the startup policy exists and is using an
+// in order startup strategy. Otherwise, it returns false.
 func inOrderStartupPolicy(sp *jobset.StartupPolicy) bool {
 	return sp != nil && sp.StartupPolicyOrder == jobset.InOrder
 }
 
-// generateStartupPolicyCondition generates the StartupPolicyCondition
-// based on the condition
-func generateStartupPolicyCondition(condition metav1.ConditionStatus) metav1.Condition {
-	message := "startup policy in order starting"
-	if condition == metav1.ConditionTrue {
-		message = "all replicated jobs have started"
-	}
+func inOrderStartupPolicyExecutingCondition() metav1.Condition {
 	return metav1.Condition{
-		Type:    string(jobset.JobSetStartupPolicyCompleted),
-		Status:  condition,
-		Reason:  "StartupPolicyInOrder",
-		Message: message}
+		Type: string(jobset.JobSetStartupPolicyCompleted),
+		// Status is True when in order startup policy is completed.
+		// Otherwise it is set as False to indicate it is still executing.
+		Status:  metav1.ConditionFalse,
+		Reason:  constants.InOrderStartupPolicyReason,
+		Message: constants.InOrderStartupPolicyExecutingMessage,
+	}
+}
+
+func inOrderStartupPolicyCompletedCondition() metav1.Condition {
+	return metav1.Condition{
+		Type: string(jobset.JobSetStartupPolicyCompleted),
+		// Status is True when in order startup policy is completed.
+		// Otherwise it is set as False to indicate it is still executing.
+		Status:  metav1.ConditionTrue,
+		Reason:  constants.InOrderStartupPolicyReason,
+		Message: constants.InOrderStartupPolicyCompletedMessage,
+	}
 }
