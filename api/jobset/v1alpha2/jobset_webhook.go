@@ -178,8 +178,7 @@ func (js *JobSet) ValidateUpdate(old runtime.Object) (admission.Warnings, error)
 		}
 	}
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
-	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	errs = append(errs, apivalidation.ValidateImmutableField(js.Labels[LabelManagedBy], oldJS.Labels[LabelManagedBy], field.NewPath("metadata").Child("labels").Key(LabelManagedBy))...)
+	errs := apivalidation.ValidateImmutableField(js.Labels[LabelManagedBy], oldJS.Labels[LabelManagedBy], field.NewPath("metadata").Child("labels").Key(LabelManagedBy))
 	return nil, errs.ToAggregate()
 }
 
