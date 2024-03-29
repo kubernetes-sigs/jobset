@@ -21,7 +21,6 @@ import (
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -210,7 +209,7 @@ func (r *PodReconciler) deleteFollowerPods(ctx context.Context, pods []corev1.Po
 		// deletions by this controller done to handle race conditions.
 		condition := corev1.PodCondition{
 			Type:    corev1.DisruptionTarget,
-			Status:  v1.ConditionTrue,
+			Status:  corev1.ConditionTrue,
 			Reason:  constants.ExclusivePlacementViolationReason,
 			Message: constants.ExclusivePlacementViolationMessage,
 		}
