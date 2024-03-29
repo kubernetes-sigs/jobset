@@ -12,6 +12,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 )
 
@@ -519,9 +521,21 @@ func TestJobSetDefaulting(t *testing.T) {
 }
 
 func TestValidateCreate(t *testing.T) {
+	managedByFieldPath := field.NewPath("spec", "managedBy")
+	maxManagedByLength := 63
+
+	notDomainPrefixedPathControllerName := "notDomainPrefixedPathControllerName"
+	var notDomainPrefixedPathControllerErrors []error
+	for _, err := range validation.IsDomainPrefixedPath(managedByFieldPath, notDomainPrefixedPathControllerName) {
+		notDomainPrefixedPathControllerErrors = append(notDomainPrefixedPathControllerErrors, err)
+	}
+
+	tooLongControllerName := "foo.bar/" + strings.Repeat("a", maxManagedByLength)
+
 	validObjectMeta := metav1.ObjectMeta{
 		Name: "js",
 	}
+
 	testCases := []struct {
 		name string
 		js   *JobSet
@@ -696,6 +710,58 @@ func TestValidateCreate(t *testing.T) {
 			},
 			want: errors.Join(
 				fmt.Errorf(podNameTooLongErrorMsg),
+			),
+		},
+		{
+			name: "jobset controller name is not a domain-prefixed path",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ManagedBy: ptr.To(notDomainPrefixedPathControllerName),
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				notDomainPrefixedPathControllerErrors...,
+			),
+		},
+		{
+			name: "jobset controller name is too long",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ManagedBy: ptr.To(tooLongControllerName),
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				field.TooLongMaxLength(managedByFieldPath, tooLongControllerName, maxManagedByLength),
 			),
 		},
 	}
