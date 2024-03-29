@@ -765,6 +765,54 @@ func TestValidateCreate(t *testing.T) {
 				tooLongControllerNameError,
 			),
 		},
+		{
+			name: "jobset controller name is set and valid",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ManagedBy: ptr.To(JobSetControllerName),
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "jobset controller name is unset",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ManagedBy: ptr.To(JobSetControllerName),
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(),
+		},
 	}
 
 	for _, tc := range testCases {
