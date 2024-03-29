@@ -86,6 +86,9 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(&js))
 	ctx = ctrl.LoggerInto(ctx, log)
 
+	// Check the controller configured for the JobSet.
+	// See https://github.com/kubernetes-sigs/kueue/tree/559faa1aece36d3e3e09001673278396ec28b0cb/keps/693-multikueue
+	// for why a JobSet would not be controlled by the default JobSet controller.
 	if manager := managedByExternalController(js); manager != nil {
 		log.V(5).Info("Skipping JobSet managed by a different controller", "managed-by", manager)
 		return ctrl.Result{}, nil
