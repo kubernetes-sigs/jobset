@@ -37,6 +37,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// maximum lnegth of the value of the managedBy field
+const maxManagedByLength = 63
+
 const (
 	// This is the error message returned by IsDNS1035Label when the given input
 	// is longer than 63 characters.
@@ -122,6 +125,17 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 				errMessage = subdomainTooLongErrMsg
 			}
 			allErrs = append(allErrs, fmt.Errorf(errMessage))
+		}
+	}
+
+	if js.Spec.ManagedBy != nil {
+		manager := *js.Spec.ManagedBy
+		fieldPath := field.NewPath("spec", "managedBy")
+		for _, err := range validation.IsDomainPrefixedPath(fieldPath, manager) {
+			allErrs = append(allErrs, err)
+		}
+		if len(manager) > maxManagedByLength {
+			allErrs = append(allErrs, field.TooLongMaxLength(fieldPath, manager, maxManagedByLength))
 		}
 	}
 
