@@ -794,7 +794,6 @@ func TestValidateCreate(t *testing.T) {
 			js: &JobSet{
 				ObjectMeta: validObjectMeta,
 				Spec: JobSetSpec{
-					ManagedBy: ptr.To(JobSetControllerName),
 					ReplicatedJobs: []ReplicatedJob{
 						{
 							Name:     "rj",
