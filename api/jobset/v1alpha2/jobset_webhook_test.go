@@ -522,7 +522,6 @@ func TestJobSetDefaulting(t *testing.T) {
 
 func TestValidateCreate(t *testing.T) {
 	managedByFieldPath := field.NewPath("spec", "managedBy")
-	maxManagedByLength := 63
 
 	notDomainPrefixedPathControllerName := "notDomainPrefixedPathControllerName"
 	var notDomainPrefixedPathControllerErrors []error
@@ -530,7 +529,9 @@ func TestValidateCreate(t *testing.T) {
 		notDomainPrefixedPathControllerErrors = append(notDomainPrefixedPathControllerErrors, err)
 	}
 
+	maxManagedByLength := 63
 	tooLongControllerName := "foo.bar/" + strings.Repeat("a", maxManagedByLength)
+	tooLongControllerNameError := field.TooLongMaxLength(managedByFieldPath, tooLongControllerName, maxManagedByLength)
 
 	validObjectMeta := metav1.ObjectMeta{
 		Name: "js",
@@ -761,7 +762,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				field.TooLongMaxLength(managedByFieldPath, tooLongControllerName, maxManagedByLength),
+				tooLongControllerNameError,
 			),
 		},
 	}
