@@ -34,6 +34,7 @@ class JobsetV1alpha2JobSetSpec(object):
     """
     openapi_types = {
         'failure_policy': 'JobsetV1alpha2FailurePolicy',
+        'managed_by': 'str',
         'network': 'JobsetV1alpha2Network',
         'replicated_jobs': 'list[JobsetV1alpha2ReplicatedJob]',
         'startup_policy': 'JobsetV1alpha2StartupPolicy',
@@ -43,6 +44,7 @@ class JobsetV1alpha2JobSetSpec(object):
 
     attribute_map = {
         'failure_policy': 'failurePolicy',
+        'managed_by': 'managedBy',
         'network': 'network',
         'replicated_jobs': 'replicatedJobs',
         'startup_policy': 'startupPolicy',
@@ -50,13 +52,14 @@ class JobsetV1alpha2JobSetSpec(object):
         'suspend': 'suspend'
     }
 
-    def __init__(self, failure_policy=None, network=None, replicated_jobs=None, startup_policy=None, success_policy=None, suspend=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, failure_policy=None, managed_by=None, network=None, replicated_jobs=None, startup_policy=None, success_policy=None, suspend=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2JobSetSpec - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._failure_policy = None
+        self._managed_by = None
         self._network = None
         self._replicated_jobs = None
         self._startup_policy = None
@@ -66,6 +69,8 @@ class JobsetV1alpha2JobSetSpec(object):
 
         if failure_policy is not None:
             self.failure_policy = failure_policy
+        if managed_by is not None:
+            self.managed_by = managed_by
         if network is not None:
             self.network = network
         if replicated_jobs is not None:
@@ -97,6 +102,29 @@ class JobsetV1alpha2JobSetSpec(object):
         """
 
         self._failure_policy = failure_policy
+
+    @property
+    def managed_by(self):
+        """Gets the managed_by of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+
+        ManagedBy is used to indicate the controller or entity that manages a JobSet  # noqa: E501
+
+        :return: The managed_by of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :rtype: str
+        """
+        return self._managed_by
+
+    @managed_by.setter
+    def managed_by(self, managed_by):
+        """Sets the managed_by of this JobsetV1alpha2JobSetSpec.
+
+        ManagedBy is used to indicate the controller or entity that manages a JobSet  # noqa: E501
+
+        :param managed_by: The managed_by of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :type: str
+        """
+
+        self._managed_by = managed_by
 
     @property
     def network(self):

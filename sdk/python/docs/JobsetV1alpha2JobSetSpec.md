@@ -5,6 +5,7 @@ JobSetSpec defines the desired state of JobSet
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **failure_policy** | [**JobsetV1alpha2FailurePolicy**](JobsetV1alpha2FailurePolicy.md) |  | [optional] 
+**managed_by** | **str** | ManagedBy is used to indicate the controller or entity that manages a JobSet | [optional] 
 **network** | [**JobsetV1alpha2Network**](JobsetV1alpha2Network.md) |  | [optional] 
 **replicated_jobs** | [**list[JobsetV1alpha2ReplicatedJob]**](JobsetV1alpha2ReplicatedJob.md) | ReplicatedJobs is the group of jobs that will form the set. | [optional] 
 **startup_policy** | [**JobsetV1alpha2StartupPolicy**](JobsetV1alpha2StartupPolicy.md) |  | [optional] 

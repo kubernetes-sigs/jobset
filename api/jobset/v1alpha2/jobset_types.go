@@ -40,12 +40,9 @@ const (
 	NamespacedJobKey        string = "alpha.jobset.sigs.k8s.io/namespaced-job"
 	NoScheduleTaintKey      string = "alpha.jobset.sigs.k8s.io/no-schedule"
 
-	// LabelManagedBy is used to indicate the controller or entity that manages an JobSet
-	LabelManagedBy = "alpha.jobset.sigs.k8s.io/managed-by"
-
-	// JobSetManager is used as the value for LabelManagedBy to identify the jobset controller manager
-	// as the manager of a specific JobSet.
-	JobSetManager = "jobset"
+	// JobSetControllerName is the reserved value for the managedBy field for the built-in
+	// JobSet controller.
+	JobSetControllerName = "jobset.sigs.k8s.io/jobset-controller"
 )
 
 type JobSetConditionType string
@@ -94,6 +91,9 @@ type JobSetSpec struct {
 
 	// Suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"`
+
+	// ManagedBy is used to indicate the controller or entity that manages a JobSet
+	ManagedBy *string `json:"managedBy,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet

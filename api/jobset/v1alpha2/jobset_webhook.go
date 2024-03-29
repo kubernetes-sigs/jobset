@@ -37,6 +37,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// maximum lnegth of the value of the managedBy field
+const maxManagedByLength = 63
+
 const (
 	// This is the error message returned by IsDNS1035Label when the given input
 	// is longer than 63 characters.
@@ -93,11 +96,8 @@ func (js *JobSet) Default() {
 		}
 	}
 
-	if _, found := js.Labels[LabelManagedBy]; !found {
-		if js.Labels == nil {
-			js.Labels = make(map[string]string, 1)
-		}
-		js.Labels[LabelManagedBy] = JobSetManager
+	if js.Spec.ManagedBy == nil {
+		js.Spec.ManagedBy = ptr.To(JobSetControllerName)
 	}
 }
 
@@ -125,6 +125,17 @@ func (js *JobSet) ValidateCreate() (admission.Warnings, error) {
 				errMessage = subdomainTooLongErrMsg
 			}
 			allErrs = append(allErrs, fmt.Errorf(errMessage))
+		}
+	}
+
+	if js.Spec.ManagedBy != nil {
+		manager := *js.Spec.ManagedBy
+		fieldPath := field.NewPath("spec", "managedBy")
+		for _, err := range validation.IsDomainPrefixedPath(fieldPath, manager) {
+			allErrs = append(allErrs, err)
+		}
+		if len(manager) > maxManagedByLength {
+			allErrs = append(allErrs, field.TooLongMaxLength(fieldPath, manager, maxManagedByLength))
 		}
 	}
 
@@ -179,7 +190,7 @@ func (js *JobSet) ValidateUpdate(old runtime.Object) (admission.Warnings, error)
 	}
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
 	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	errs = append(errs, apivalidation.ValidateImmutableField(js.Labels[LabelManagedBy], oldJS.Labels[LabelManagedBy], field.NewPath("metadata").Child("labels").Key(LabelManagedBy))...)
+	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("labels").Key("managedBy"))...)
 	return nil, errs.ToAggregate()
 }
 

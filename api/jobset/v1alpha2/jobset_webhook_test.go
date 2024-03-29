@@ -12,6 +12,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 )
 
@@ -39,9 +41,6 @@ func TestJobSetDefaulting(t *testing.T) {
 		{
 			name: "job completion mode is unset",
 			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -55,12 +54,10 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -75,15 +72,13 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "job completion mode is set to non-indexed",
 			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
@@ -97,12 +92,10 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -117,15 +110,13 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "enableDNSHostnames is unset",
 			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -139,12 +130,10 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -159,15 +148,13 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "enableDNSHostnames is false",
 			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -182,12 +169,10 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -202,15 +187,13 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "pod restart policy unset",
 			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -227,12 +210,10 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -251,15 +232,13 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "pod restart policy set",
 			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -278,12 +257,10 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -302,15 +279,13 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "success policy unset",
 			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					StartupPolicy: defaultStartupPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
@@ -328,12 +303,10 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					StartupPolicy: defaultStartupPolicy,
 					SuccessPolicy: defaultSuccessPolicy,
@@ -352,15 +325,13 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "success policy operator set, replicatedJobNames unset",
 			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
@@ -381,12 +352,10 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
@@ -407,6 +376,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
@@ -438,9 +408,6 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: &SuccessPolicy{
 						Operator: OperatorAny,
@@ -463,6 +430,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
@@ -485,9 +453,6 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: JobSetManager},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -502,15 +467,13 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(JobSetControllerName),
 				},
 			},
 		},
 		{
 			name: "when provided, managed-by label is preserved",
 			js: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: "other-controller"},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					Network:       &Network{EnableDNSHostnames: ptr.To(true)},
@@ -524,12 +487,10 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To("other-controller"),
 				},
 			},
 			want: &JobSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{LabelManagedBy: "other-controller"},
-				},
 				Spec: JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
 					StartupPolicy: defaultStartupPolicy,
@@ -544,6 +505,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To("other-controller"),
 				},
 			},
 		},
@@ -559,9 +521,22 @@ func TestJobSetDefaulting(t *testing.T) {
 }
 
 func TestValidateCreate(t *testing.T) {
+	managedByFieldPath := field.NewPath("spec", "managedBy")
+
+	notDomainPrefixedPathControllerName := "notDomainPrefixedPathControllerName"
+	var notDomainPrefixedPathControllerErrors []error
+	for _, err := range validation.IsDomainPrefixedPath(managedByFieldPath, notDomainPrefixedPathControllerName) {
+		notDomainPrefixedPathControllerErrors = append(notDomainPrefixedPathControllerErrors, err)
+	}
+
+	maxManagedByLength := 63
+	tooLongControllerName := "foo.bar/" + strings.Repeat("a", maxManagedByLength)
+	tooLongControllerNameError := field.TooLongMaxLength(managedByFieldPath, tooLongControllerName, maxManagedByLength)
+
 	validObjectMeta := metav1.ObjectMeta{
 		Name: "js",
 	}
+
 	testCases := []struct {
 		name string
 		js   *JobSet
@@ -737,6 +712,105 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(
 				fmt.Errorf(podNameTooLongErrorMsg),
 			),
+		},
+		{
+			name: "jobset controller name is not a domain-prefixed path",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ManagedBy: ptr.To(notDomainPrefixedPathControllerName),
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				notDomainPrefixedPathControllerErrors...,
+			),
+		},
+		{
+			name: "jobset controller name is too long",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ManagedBy: ptr.To(tooLongControllerName),
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				tooLongControllerNameError,
+			),
+		},
+		{
+			name: "jobset controller name is set and valid",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ManagedBy: ptr.To(JobSetControllerName),
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "jobset controller name is unset",
+			js: &JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: JobSetSpec{
+					ReplicatedJobs: []ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &SuccessPolicy{},
+				},
+			},
+			want: errors.Join(),
 		},
 	}
 

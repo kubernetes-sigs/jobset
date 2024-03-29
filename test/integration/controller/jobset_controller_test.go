@@ -198,6 +198,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				}
 			}
 		},
+		ginkgo.Entry("jobset should successfully create jobs", &testCase{
+			makeJobSet: testJobSet,
+		}),
 		ginkgo.Entry("jobset should succeed after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
 			updates: []*update{
@@ -1144,9 +1147,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			}
 			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
 
-			js = testJobSet(ns).SetGenerateName("name-prefix").SetLabels(map[string]string{
-				jobset.LabelManagedBy: "other-controller",
-			}).Obj()
+			js = testJobSet(ns).SetGenerateName("name-prefix").ManagedBy("other-controller").Obj()
 
 			ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js.Name, js.Namespace))
 			gomega.Eventually(func() error {

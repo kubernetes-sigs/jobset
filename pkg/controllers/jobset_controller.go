@@ -86,7 +86,10 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(&js))
 	ctx = ctrl.LoggerInto(ctx, log)
 
-	if manager, found := js.Labels[jobset.LabelManagedBy]; found && manager != jobset.JobSetManager {
+	// Check the controller configured for the JobSet.
+	// See https://github.com/kubernetes-sigs/kueue/tree/559faa1aece36d3e3e09001673278396ec28b0cb/keps/693-multikueue
+	// for why a JobSet would not be controlled by the default JobSet controller.
+	if manager := managedByExternalController(js); manager != nil {
 		log.V(5).Info("Skipping JobSet managed by a different controller", "managed-by", manager)
 		return ctrl.Result{}, nil
 	}
@@ -933,6 +936,13 @@ func findJobFailureTime(job *batchv1.Job) *metav1.Time {
 		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
 			return &c.LastTransitionTime
 		}
+	}
+	return nil
+}
+
+func managedByExternalController(js jobset.JobSet) *string {
+	if controllerName := js.Spec.ManagedBy; controllerName != nil && *controllerName != jobset.JobSetControllerName {
+		return controllerName
 	}
 	return nil
 }
