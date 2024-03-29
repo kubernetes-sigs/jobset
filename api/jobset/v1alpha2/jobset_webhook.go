@@ -94,7 +94,7 @@ func (js *JobSet) Default() {
 	}
 
 	if js.Spec.ManagedBy == nil {
-		js.Spec.ManagedBy = ptr.To(JobSetManager)
+		js.Spec.ManagedBy = ptr.To(JobSetControllerName)
 	}
 }
 
