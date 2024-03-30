@@ -60,7 +60,7 @@ kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/release
 
 The controller runs in the `jobset-system` namespace.
 
-Read the [installation guide](/docs/setup/install.md) to learn more.
+Read the [installation guide](https://jobset.sigs.k8s.io/docs/installation/) to learn more.
 
 ## Roadmap
 
@@ -79,7 +79,7 @@ Below is the JobSet roadmap for 2024, in expected order of release:
 
 ## Troubleshooting common issues
 
-See the [troubleshooting](/docs/troubleshooting/README.md) guide for help resolving common issues.
+See the [troubleshooting](https://jobset.sigs.k8s.io/docs/troubleshooting/) guide for help resolving common issues.
 
 
 ## Community, discussion, contribution, and support

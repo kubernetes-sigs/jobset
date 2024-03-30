@@ -49,7 +49,7 @@ type JobSetConditionType string
 
 // These are built-in conditions of a JobSet.
 const (
-	// JobSetComplete means the job has completed its execution.
+	// JobSetCompleted means the job has completed its execution.
 	JobSetCompleted JobSetConditionType = "Completed"
 	// JobSetFailed means the job has failed its execution.
 	JobSetFailed JobSetConditionType = "Failed"

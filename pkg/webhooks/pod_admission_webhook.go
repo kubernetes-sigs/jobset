@@ -113,7 +113,7 @@ func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) 
 	// all jobs), and a leader pod may land on different node pools than they were originally scheduled on.
 	// Then when the follower pods are recreated, and we look up the leader pod using the index which maps
 	// [pod name without random suffix] -> corev1.Pod object, we may get a stale index entry and inject
-	// the the wrong nodeSelector, using the topology the leader pod was originally scheduled on before the
+	// the wrong nodeSelector, using the topology the leader pod was originally scheduled on before the
 	// restart.
 	leaderPod := &podList.Items[0]
 	if err := podsOwnedBySameJob(leaderPod, pod); err != nil {
