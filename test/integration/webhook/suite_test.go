@@ -112,11 +112,14 @@ var _ = BeforeSuite(func() {
 	err = controllers.SetupJobSetIndexes(ctx, mgr.GetFieldIndexer())
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&jobset.JobSet{}).SetupWebhookWithManager(mgr)
+	jobSetWebhook, err := webhooks.NewJobSetWebhook(mgr.GetClient())
+	Expect(err).NotTo(HaveOccurred())
+
+	err = jobSetWebhook.SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	// Set up pod webhook and indexes.
-	podWebhook := webhooks.NewPodWebhook(mgr)
+	podWebhook := webhooks.NewPodWebhook(mgr.GetClient())
 	err = controllers.SetupPodIndexes(ctx, mgr.GetFieldIndexer())
 	Expect(err).NotTo(HaveOccurred())
 
