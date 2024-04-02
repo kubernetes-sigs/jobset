@@ -661,62 +661,35 @@ func TestUpdateConditions(t *testing.T) {
 		replicatedJobName = "replicated-job"
 		jobName           = "test-job"
 		ns                = "default"
+		now               = metav1.Now()
 	)
 
 	tests := []struct {
 		name           string
 		js             *jobset.JobSet
-		conditions     []metav1.Condition
-		newCondition   metav1.Condition
-		forceUpdate    bool
+		opts           *conditionOpts
 		expectedUpdate bool
 	}{
 		{
-			name: "no condition",
+			name: "no existing conditions, not adding conditions",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			newCondition:   metav1.Condition{},
-			conditions:     []metav1.Condition{},
+			opts:           &conditionOpts{},
 			expectedUpdate: false,
 		},
 		{
-			name: "do not update if false",
+			name: "no existing conditions, add a condition",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			newCondition:   metav1.Condition{Status: metav1.ConditionFalse, Type: string(jobset.JobSetSuspended), Reason: "JobsResumed"},
-			conditions:     []metav1.Condition{},
-			expectedUpdate: false,
-		},
-		{
-			name: "force update if false",
-			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
-					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
-					Replicas(1).
-					Obj()).Obj(),
-			newCondition:   metav1.Condition{Status: metav1.ConditionFalse, Type: string(jobset.JobSetStartupPolicyCompleted), Reason: "StartupPolicy"},
-			conditions:     []metav1.Condition{},
-			expectedUpdate: true,
-			forceUpdate:    true,
-		},
-		{
-			name: "update if condition is true",
-			js: testutils.MakeJobSet(jobSetName, ns).
-				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
-					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
-					Replicas(1).
-					Obj()).Obj(),
-			newCondition:   metav1.Condition{Status: metav1.ConditionTrue, Type: string(jobset.JobSetSuspended), Reason: "JobsResumed"},
-			conditions:     []metav1.Condition{},
+			opts:           completedConditionsOpts,
 			expectedUpdate: true,
 		},
-
 		{
 			name: "suspended",
 			js: testutils.MakeJobSet(jobSetName, ns).
@@ -724,40 +697,54 @@ func TestUpdateConditions(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			newCondition:   metav1.Condition{Status: metav1.ConditionTrue, Type: string(jobset.JobSetSuspended), Reason: "JobsSuspended"},
-			conditions:     []metav1.Condition{},
+			opts:           makeSuspendedConditionOpts(now),
 			expectedUpdate: true,
 		},
 		{
-			name: "resumed",
+			name: "resume (update suspended condition type in-place)",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
-					Obj()).Obj(),
-			newCondition:   metav1.Condition{Type: string(jobset.JobSetSuspended), Reason: "JobsResumed", Status: metav1.ConditionStatus(corev1.ConditionFalse)},
-			conditions:     []metav1.Condition{{Type: string(jobset.JobSetSuspended), Reason: "JobsSuspended", Status: metav1.ConditionStatus(corev1.ConditionTrue)}},
+					Obj()).
+				Conditions([]metav1.Condition{
+					// JobSet is currrently suspended.
+					{
+						Type:    string(jobset.JobSetSuspended),
+						Reason:  constants.JobSetSuspendedReason,
+						Message: constants.JobSetSuspendedMessage,
+						Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+					},
+				}).
+				Obj(),
+			opts:           makeResumedConditionOpts(now),
 			expectedUpdate: true,
 		},
 		{
-			name: "duplicateComplete",
+			name: "existing conditions, attempt to add duplicate",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
-					Obj()).Obj(),
-			newCondition:   metav1.Condition{Type: string(jobset.JobSetCompleted), Message: "Jobs completed", Reason: "JobsCompleted", Status: metav1.ConditionTrue},
-			conditions:     []metav1.Condition{{Type: string(jobset.JobSetCompleted), Message: "Jobs completed", Reason: "JobsCompleted", Status: metav1.ConditionTrue}},
+					Obj()).
+				Conditions([]metav1.Condition{
+					// JobSet is completed..
+					{
+						Type:    string(jobset.JobSetCompleted),
+						Reason:  constants.AllJobsCompletedReason,
+						Message: constants.AllJobsCompletedMessage,
+						Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+					},
+				}).Obj(),
+			opts:           completedConditionsOpts,
 			expectedUpdate: false,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			jsWithConditions := tc.js
-			jsWithConditions.Status.Conditions = tc.conditions
-			gotUpdate := updateCondition(jsWithConditions, tc.newCondition, tc.forceUpdate)
+			gotUpdate := updateCondition(tc.js, tc.opts)
 			if gotUpdate != tc.expectedUpdate {
-				t.Errorf("updateCondition return mismatch")
+				t.Errorf("updateCondition return mismatch (want: %v, got %v)", tc.expectedUpdate, gotUpdate)
 			}
 		})
 	}
@@ -1099,7 +1086,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := JobSetReconciler{Client: (fake.NewClientBuilder()).Build()}
 			statuses := r.calculateReplicatedJobStatuses(context.TODO(), tc.js, &tc.jobs)
-			var less interface{} = func(a, b jobset.ReplicatedJobStatus) bool {
+			less := func(a, b jobset.ReplicatedJobStatus) bool {
 				return a.Name < b.Name
 			}
 			if diff := cmp.Diff(tc.expected, statuses, cmpopts.SortSlices(less)); diff != "" {

@@ -14,6 +14,7 @@ limitations under the License.
 package controllers
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -33,8 +34,8 @@ func inOrderStartupPolicy(sp *jobset.StartupPolicy) bool {
 	return sp != nil && sp.StartupPolicyOrder == jobset.InOrder
 }
 
-func inOrderStartupPolicyExecutingCondition() metav1.Condition {
-	return metav1.Condition{
+func inOrderStartupPolicyInProgressCondition() *metav1.Condition {
+	return &metav1.Condition{
 		Type: string(jobset.JobSetStartupPolicyCompleted),
 		// Status is True when in order startup policy is completed.
 		// Otherwise it is set as False to indicate it is still executing.
@@ -44,8 +45,8 @@ func inOrderStartupPolicyExecutingCondition() metav1.Condition {
 	}
 }
 
-func inOrderStartupPolicyCompletedCondition() metav1.Condition {
-	return metav1.Condition{
+func inOrderStartupPolicyCompletedCondition() *metav1.Condition {
+	return &metav1.Condition{
 		Type: string(jobset.JobSetStartupPolicyCompleted),
 		// Status is True when in order startup policy is completed.
 		// Otherwise it is set as False to indicate it is still executing.
@@ -53,4 +54,23 @@ func inOrderStartupPolicyCompletedCondition() metav1.Condition {
 		Reason:  constants.InOrderStartupPolicyReason,
 		Message: constants.InOrderStartupPolicyCompletedMessage,
 	}
+}
+
+// setInOrderStartupPolicyInProgress sets a condition on the JobSet status indicating it is
+// currently executing an in-order startup policy.
+func setInOrderStartupPolicyInProgress(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
+	// Add a condition to the JobSet indicating the in order startup policy is executing.
+	setCondition(js, &conditionOpts{
+		eventType: corev1.EventTypeNormal,
+		condition: inOrderStartupPolicyInProgressCondition(),
+	}, updateStatusOpts)
+}
+
+// setInOrderStartupPolicyCompleted sets a condition on the JobSet status indicating it has finished
+// running an in-order startup policy to completion.
+func setInOrderStartupPolicyCompleted(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
+	setCondition(js, &conditionOpts{
+		eventType: corev1.EventTypeNormal,
+		condition: inOrderStartupPolicyCompletedCondition(),
+	}, updateStatusOpts)
 }

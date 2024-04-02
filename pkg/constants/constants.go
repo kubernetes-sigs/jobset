@@ -58,4 +58,15 @@ const (
 	InOrderStartupPolicyReason           = "StartupPolicyInOrder"
 	InOrderStartupPolicyExecutingMessage = "in order startup policy is executing"
 	InOrderStartupPolicyCompletedMessage = "in order startup policy has completed"
+
+	// Event reason and messages related to JobSet restarts.
+	JobSetRestartReason = "Restarting"
+
+	// Event reason and messages related to suspending a JobSet.
+	JobSetSuspendedReason  = "SuspendedJobs"
+	JobSetSuspendedMessage = "jobset is suspended"
+
+	// Event reason and message related to resuming a JobSet.
+	JobSetResumedReason  = "ResumeJobs"
+	JobSetResumedMessage = "jobset is resumed"
 )

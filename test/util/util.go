@@ -96,7 +96,7 @@ func JobSetResumed(ctx context.Context, k8sClient client.Client, js *jobset.JobS
 }
 
 func JobSetStartupPolicyComplete(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
-	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", jobset.JobSetStartupPolicyCompleted))
+	ginkgo.By(fmt.Sprintf("checking jobset condition %q status is %q", jobset.JobSetStartupPolicyCompleted, metav1.ConditionTrue))
 	conditions := []metav1.Condition{
 		{
 			Type:   string(jobset.JobSetStartupPolicyCompleted),
@@ -107,7 +107,7 @@ func JobSetStartupPolicyComplete(ctx context.Context, k8sClient client.Client, j
 }
 
 func JobSetStartupPolicyNotFinished(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
-	ginkgo.By(fmt.Sprintf("checking jobset status is: %s", jobset.JobSetStartupPolicyCompleted))
+	ginkgo.By(fmt.Sprintf("checking jobset condition %q status is %q", jobset.JobSetStartupPolicyCompleted, metav1.ConditionFalse))
 	conditions := []metav1.Condition{
 		{
 			Type:   string(jobset.JobSetStartupPolicyCompleted),
