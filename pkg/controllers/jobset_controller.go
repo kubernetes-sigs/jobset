@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"sync"
 
@@ -83,7 +84,23 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(&js))
+	// Store the original status so at the end of the reconciliation attempt,
+	// we can check if it has changed and do all the status updates in a single API call.
+	originalStatus := js.Status.DeepCopy()
+
+	// Reconcile the JobSet.
+	result, err := r.reconcile(ctx, &js)
+	if err != nil {
+		return result, err
+	}
+
+	// At the end of this Reconcile attempt, do one API call to add all the status changes for the JobSet.
+	return ctrl.Result{}, r.updateJobSetStatus(ctx, &js, originalStatus)
+}
+
+// reconcile is the internal method containing the core JobSet reconciliation logic.
+func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js))
 	ctx = ctrl.LoggerInto(ctx, log)
 
 	// Check the controller configured for the JobSet.
@@ -97,21 +114,18 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	log.V(2).Info("Reconciling JobSet")
 
 	// Get Jobs owned by JobSet.
-	ownedJobs, err := r.getChildJobs(ctx, &js)
+	ownedJobs, err := r.getChildJobs(ctx, js)
 	if err != nil {
 		log.Error(err, "getting jobs owned by jobset")
 		return ctrl.Result{}, err
 	}
 
 	// Calculate JobsReady and update statuses for each ReplicatedJob
-	status := r.calculateReplicatedJobStatuses(ctx, &js, ownedJobs)
-	if err := r.updateReplicatedJobsStatuses(ctx, &js, ownedJobs, status); err != nil {
-		log.Error(err, "updating replicated jobs statuses")
-		return ctrl.Result{}, err
-	}
+	statuses := r.calculateReplicatedJobStatuses(ctx, js, ownedJobs)
+	updateReplicatedJobsStatuses(ctx, js, ownedJobs, statuses)
 
 	// If JobSet is already completed or failed, clean up active child jobs.
-	if jobSetFinished(&js) {
+	if jobSetFinished(js) {
 		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
 			log.Error(err, "deleting jobs")
 			return ctrl.Result{}, err
@@ -127,7 +141,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
-		if err := r.executeFailurePolicy(ctx, &js, ownedJobs); err != nil {
+		if err := r.executeFailurePolicy(ctx, js, ownedJobs); err != nil {
 			log.Error(err, "executing failure policy")
 			return ctrl.Result{}, err
 		}
@@ -136,7 +150,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// If any jobs have succeeded, execute the JobSet success policy.
 	if len(ownedJobs.successful) > 0 {
-		completed, err := r.executeSuccessPolicy(ctx, &js, ownedJobs)
+		completed, err := r.executeSuccessPolicy(ctx, js, ownedJobs)
 		if err != nil {
 			log.Error(err, "executing success policy")
 			return ctrl.Result{}, err
@@ -147,32 +161,31 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// If pod DNS hostnames are enabled, create a headless service for the JobSet
-	if err := r.createHeadlessSvcIfNecessary(ctx, &js); err != nil {
+	if err := r.createHeadlessSvcIfNecessary(ctx, js); err != nil {
 		log.Error(err, "creating headless service")
 		return ctrl.Result{}, err
 	}
 
 	// If job has not failed or succeeded, continue creating any
 	// jobs that are ready to be started.
-	if err := r.createJobs(ctx, &js, ownedJobs, status); err != nil {
+	if err := r.createJobs(ctx, js, ownedJobs, statuses); err != nil {
 		log.Error(err, "creating jobs")
 		return ctrl.Result{}, err
 	}
 
 	// Handle suspending a jobset or resuming a suspended jobset.
-	jobsetSuspended := jobSetSuspended(&js)
+	jobsetSuspended := jobSetSuspended(js)
 	if jobsetSuspended {
-		if err := r.suspendJobs(ctx, &js, ownedJobs.active); err != nil {
+		if err := r.suspendJobs(ctx, js, ownedJobs.active); err != nil {
 			log.Error(err, "suspending jobset")
 			return ctrl.Result{}, err
 		}
 	} else {
-		if err := r.resumeJobsIfNecessary(ctx, &js, ownedJobs.active, status); err != nil {
+		if err := r.resumeJobsIfNecessary(ctx, js, ownedJobs.active, statuses); err != nil {
 			log.Error(err, "resuming jobset")
 			return ctrl.Result{}, err
 		}
 	}
-
 	return ctrl.Result{}, nil
 }
 
@@ -198,6 +211,15 @@ func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error 
 		}
 		return []string{owner.Name}
 	})
+}
+
+// updateJobSetStatus will make a status update call to the apiserver if and only if the JobSet
+// status has changed since the start of the reconciliation attempt.
+func (r *JobSetReconciler) updateJobSetStatus(ctx context.Context, js *jobset.JobSet, originalStatus *jobset.JobSetStatus) error {
+	if !reflect.DeepEqual(originalStatus, js.Status) {
+		return r.Status().Update(ctx, js)
+	}
+	return nil
 }
 
 // getChildJobs gets jobs owned by the JobSet then categorizes them by status (active, successful, failed).
@@ -242,13 +264,12 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	return &ownedJobs, nil
 }
 
-func (r *JobSetReconciler) updateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs, status []jobset.ReplicatedJobStatus) error {
+func updateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs, statuses []jobset.ReplicatedJobStatus) {
 	// Check if status ReplicatedJobsStatus has changed
-	if apiequality.Semantic.DeepEqual(js.Status.ReplicatedJobsStatus, status) {
-		return nil
+	if apiequality.Semantic.DeepEqual(js.Status.ReplicatedJobsStatus, statuses) {
+		return
 	}
-	js.Status.ReplicatedJobsStatus = status
-	return r.Status().Update(ctx, js)
+	js.Status.ReplicatedJobsStatus = statuses
 }
 
 func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) []jobset.ReplicatedJobStatus {
@@ -322,7 +343,7 @@ func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, a
 			}
 		}
 	}
-	return r.ensureCondition(ctx, ensureConditionOpts{
+	r.setCondition(ctx, setConditionOpts{
 		jobset:    js,
 		eventType: corev1.EventTypeNormal,
 		condition: metav1.Condition{
@@ -333,6 +354,7 @@ func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, a
 			Message:            "jobset is suspended",
 		},
 	})
+	return nil
 }
 
 func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job, replicatedJobStatuses []jobset.ReplicatedJobStatus) error {
@@ -367,30 +389,29 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 		// If using in order startup policy, return early and wait for the replicated job to be ready.
 		if inOrderStartupPolicy(startupPolicy) {
 			// Add a condition to the JobSet indicating the in order startup policy is executing.
-			return r.ensureCondition(ctx, ensureConditionOpts{
+			r.setCondition(ctx, setConditionOpts{
 				jobset:           js,
 				eventType:        corev1.EventTypeNormal,
 				forceFalseUpdate: true,
 				condition:        inOrderStartupPolicyExecutingCondition(),
 			})
+			return nil
 		}
 	}
 	// At this point all replicated jobs have had their jobs resumed.
 	// If using an in order startup policy. add a condition to the JobSet indicating the
 	// in order startup policy has completed.
 	if inOrderStartupPolicy(startupPolicy) {
-		if err := r.ensureCondition(ctx, ensureConditionOpts{
+		r.setCondition(ctx, setConditionOpts{
 			jobset:    js,
 			eventType: corev1.EventTypeNormal,
 			condition: inOrderStartupPolicyCompletedCondition(),
-		}); err != nil {
-			return err
-		}
+		})
 	}
 
 	// Finally, set the suspended condition on the JobSet to false to indicate
 	// the JobSet is no longer suspended.
-	return r.ensureCondition(ctx, ensureConditionOpts{
+	r.setCondition(ctx, setConditionOpts{
 		jobset:    js,
 		eventType: corev1.EventTypeNormal,
 		condition: metav1.Condition{
@@ -401,6 +422,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 			Message:            "jobset is resumed",
 		},
 	})
+	return nil
 }
 
 func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, nodeAffinities map[string]map[string]string) error {
@@ -473,12 +495,13 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		// This updates the StartupPolicy condition and notifies that we are waiting
 		// for this replicated job to finish.
 		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-			return r.ensureCondition(ctx, ensureConditionOpts{
+			r.setCondition(ctx, setConditionOpts{
 				jobset:           js,
 				eventType:        corev1.EventTypeNormal,
 				forceFalseUpdate: true,
 				condition:        inOrderStartupPolicyExecutingCondition(),
 			})
+			return nil
 		}
 	}
 	allErrs := errors.Join(finalErrs...)
@@ -490,11 +513,12 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	}
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
 	if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-		return r.ensureCondition(ctx, ensureConditionOpts{
+		r.setCondition(ctx, setConditionOpts{
 			jobset:    js,
 			eventType: corev1.EventTypeNormal,
 			condition: inOrderStartupPolicyCompletedCondition(),
 		})
+		return nil
 	}
 	return allErrs
 }
@@ -573,7 +597,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 // Returns a boolean value indicating if the jobset was completed or not.
 func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs) (bool, error) {
 	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
-		if err := r.ensureCondition(ctx, ensureConditionOpts{
+		r.setCondition(ctx, setConditionOpts{
 			jobset:    js,
 			eventType: corev1.EventTypeNormal,
 			condition: metav1.Condition{
@@ -582,9 +606,7 @@ func (r *JobSetReconciler) executeSuccessPolicy(ctx context.Context, js *jobset.
 				Reason:  constants.AllJobsCompletedReason,
 				Message: constants.AllJobsCompletedMessage,
 			},
-		}); err != nil {
-			return false, err
-		}
+		})
 		return true, nil
 	}
 	return false, nil
@@ -594,13 +616,15 @@ func (r *JobSetReconciler) executeFailurePolicy(ctx context.Context, js *jobset.
 	// If no failure policy is defined, mark the JobSet as failed.
 	if js.Spec.FailurePolicy == nil {
 		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		return r.failJobSet(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name))
+		r.failJobSet(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name))
+		return nil
 	}
 
 	// If JobSet has reached max restarts, fail the JobSet.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
 		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		return r.failJobSet(ctx, js, constants.ReachedMaxRestartsReason, messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, firstFailedJob.Name))
+		r.failJobSet(ctx, js, constants.ReachedMaxRestartsReason, messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, firstFailedJob.Name))
+		return nil
 	}
 
 	// To reach this point a job must have failed.
@@ -613,15 +637,12 @@ func (r *JobSetReconciler) failurePolicyRecreateAll(ctx context.Context, js *job
 	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
 	// of old jobs not part of the current jobSet run.
 	js.Status.Restarts += 1
-	if err := r.updateStatus(ctx, js, corev1.EventTypeWarning, "Restarting", fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts)); err != nil {
-		return err
-	}
 	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
 	return nil
 }
 
-func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet, reason, msg string) error {
-	return r.ensureCondition(ctx, ensureConditionOpts{
+func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet, reason, msg string) {
+	r.setCondition(ctx, setConditionOpts{
 		jobset: js,
 		condition: metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
@@ -633,17 +654,8 @@ func (r *JobSetReconciler) failJobSet(ctx context.Context, js *jobset.JobSet, re
 	})
 }
 
-// updateStatus updates the status of a JobSet.
-func (r *JobSetReconciler) updateStatus(ctx context.Context, js *jobset.JobSet, eventType, eventReason, eventMsg string) error {
-	if err := r.Status().Update(ctx, js); err != nil {
-		return err
-	}
-	r.Record.Eventf(js, eventType, eventReason, eventMsg)
-	return nil
-}
-
-// function parameters for ensureCondition
-type ensureConditionOpts struct {
+// function parameters for setCondition
+type setConditionOpts struct {
 	jobset *jobset.JobSet
 	// specify the type of event
 	eventType string
@@ -652,16 +664,14 @@ type ensureConditionOpts struct {
 	condition        metav1.Condition
 }
 
-func (r *JobSetReconciler) ensureCondition(ctx context.Context, opts ensureConditionOpts) error {
+func (r *JobSetReconciler) setCondition(ctx context.Context, opts setConditionOpts) {
+	// Return early if this condition is already set.
 	if !updateCondition(opts.jobset, opts.condition, opts.forceFalseUpdate) {
-		return nil
+		return
 	}
-	if err := r.Status().Update(ctx, opts.jobset); err != nil {
-		return err
-	}
-
+	// TODO: should we remove this event emission, since now it is occuring before the actual
+	// status update (which could fail)?
 	r.Record.Eventf(opts.jobset, opts.eventType, opts.condition.Reason, opts.condition.Message)
-	return nil
 }
 
 func updateCondition(js *jobset.JobSet, condition metav1.Condition, forceFalseUpdate bool) bool {
@@ -940,7 +950,7 @@ func findJobFailureTime(job *batchv1.Job) *metav1.Time {
 	return nil
 }
 
-func managedByExternalController(js jobset.JobSet) *string {
+func managedByExternalController(js *jobset.JobSet) *string {
 	if controllerName := js.Spec.ManagedBy; controllerName != nil && *controllerName != jobset.JobSetControllerName {
 		return controllerName
 	}
