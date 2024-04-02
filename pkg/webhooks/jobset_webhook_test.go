@@ -909,3 +909,120 @@ func TestValidateCreate(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateUpdate(t *testing.T) {
+	validObjectMeta := metav1.ObjectMeta{
+		Name: "js",
+	}
+	validReplicatedJobs := []jobset.ReplicatedJob{
+		{
+			Name:     "test-jobset-replicated-job-0",
+			Replicas: 1,
+			Template: batchv1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Parallelism: ptr.To[int32](1),
+				},
+			},
+		},
+		{
+			Name:     "test-jobset-replicated-job-1",
+			Replicas: 1,
+			Template: batchv1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Parallelism: ptr.To[int32](1),
+				},
+			},
+		},
+	}
+	testCases := []struct {
+		name  string
+		oldJs *jobset.JobSet
+		js    *jobset.JobSet
+		want  error
+	}{
+		{
+			name: "update suspend",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+		},
+		{
+			name: "update labels",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "js", Labels: map[string]string{"hello": "world"}},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+		},
+		{
+			name: "replicated jobs are immutable",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+						{
+							Name:     "test-jobset-replicated-job-1",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](1),
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: fmt.Errorf("field is immutable"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeClient := fake.NewFakeClient()
+			webhook, err := NewJobSetWebhook(fakeClient)
+			assert.Nil(t, err)
+			newObj := tc.js.DeepCopyObject()
+			oldObj := tc.oldJs.DeepCopyObject()
+			_, err = webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
+			if tc.want != nil {
+				assert.True(t, strings.Contains(err.Error(), tc.want.Error()))
+			} else {
+				assert.Nil(t, err)
+			}
+		})
+	}
+}
