@@ -105,8 +105,7 @@ spec:
                 - name: pytorch
                   image: pytorch/pytorch:latest
                   command:
-                    - bash
-                    - -c
+                    - python3
                     - train.py
 ```
 
@@ -149,8 +148,7 @@ spec:
                 - name: pytorch
                   image: pytorch/pytorch:latest
                   command:
-                    - bash
-                    - -c
+                    - python3
                     - train.py
     - name: auxiliary
       replicas: 1
@@ -165,8 +163,7 @@ spec:
                 - name: auxiliary
                   image: python:3.10
                   command:
-                    - bash
-                    - -c
+                    - python3
                     - run.py
 ```
 
@@ -301,7 +298,7 @@ spec:
                 - name: pytorch
                   image: pytorch/pytorch:latest
                   command:
-                    - bash
+                    - python3
                     - -c
                     - train.py
               volumes:
