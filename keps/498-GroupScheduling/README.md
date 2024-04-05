@@ -55,7 +55,7 @@ However, for dynmaically provisioned clusters, we have no support for group sche
 
 ### Goals
 
-- Enhance the Failure Policy API with options allowing the user to define a group scheduling policy.
+- Enhance the JobSet API with options allowing the user to define a group scheduling policy.
 
 ### Non-Goals
 
@@ -71,18 +71,102 @@ As a user, in order to make efficient use of expensive accelerator (GPU/TPU) res
 auto-provisioning to provision infrastructure on an as-needed basis when a pending workload requires
 it, then deprovision it once it's no longer in use. Since the completion time of these provisioning
 operations is variable, I want to make sure JobSet pods which land on the earliest provisioned nodes
-do not start executing the main workload container until all the infrastructure is provisioned and
+do not start executing the main container until all the infrastructure is provisioned and
 all pods have started. Otherwise, the distributed initialization step will timeout in the earliest
 pods while waiting for the remaining provisioning to complete.
+
+
+### Example JobSet spec using group scheduling for all replicated jobs:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: my-jobset
+  namespace: default
+spec:
+  # main containers in pods part of all replicatedJob will be blocked
+  # from execution until all pods have started, or timeout after 5min.
+  groupSchedulingConfig:
+    timeoutAfterSeconds: 300
+  replicatedJobs:
+    - name: workers
+      replicas: 3
+      template:
+        spec:
+          backoffLimit: 0
+          completions: 100
+          parallelism: 100
+          template:
+            spec:
+              containers:
+                - name: pytorch
+                  image: pytorch/pytorch:latest
+                  command:
+                    - bash
+                    - -c
+                    - train.py
+```
+
 
 #### Story 2: Group scheduling of a specific replicated job
 
 As a user, I have a JobSet with 2 replicated jobs:
 - `workers` which contains my primary batch workload, running on nodes with accelerator chips (GPUs)
-- `auxiliary` which contains auxiliary pods (proxy server, metrics service) running on CPU nodes.
+- `auxiliary` which contains auxiliary workloads (proxy server, metrics service) running on CPU nodes.
 
 I want my batch workload workers to be scheduled as a group, but the auxiliary pods can start up
 individually at any time.
+
+### Example JobSet spec using group scheduling for all replicated jobs:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: my-jobset
+  namespace: default
+spec:
+  # main containers in pods part of replicatedJob `workers` will be blocked
+  # from execution until all pods have started, or timeout after 5min.
+  groupSchedulingConfig:
+    timeoutAfterSeconds: 300
+    targetReplicatedJobs:
+    - workers
+  replicatedJobs:
+    - name: workers
+      replicas: 3
+      template:
+        spec:
+          backoffLimit: 0
+          completions: 100
+          parallelism: 100
+          template:
+            spec:
+              containers:
+                - name: pytorch
+                  image: pytorch/pytorch:latest
+                  command:
+                    - bash
+                    - -c
+                    - train.py
+    - name: auxiliary
+      replicas: 1
+      template:
+        spec:
+          backoffLimit: 0
+          completions: 1
+          parallelism: 1
+          template:
+            spec:
+              containers:
+                - name: auxiliary
+                  image: python:3.10
+                  command:
+                    - bash
+                    - -c
+                    - run.py
+```
 
 ### Notes/Constraints/Caveats (Optional)
 
@@ -117,16 +201,21 @@ Consider including folks who also work outside the SIG or subproject.
 type JobSetSpec struct {
         …
         // GroupSchedulingConfig defines the desired group-scheduling behavior
-        // for the JobSet. If unspecified, pods will begin running as soon as
-        // they are scheduled and ready.
+        // for the JobSet. If unspecified, every pod part of this JobSet will
+        // start as soon as possible, without waiting for the others.
         GroupSchedulingConfig *GroupSchedulingConfig `json:groupSchedulingConfig`
 }
 
 // GroupSchedulingConfig defines the desired group-scheduling behavior for the
-// JobSet. If defined, the main workload container in pods part of the
+// JobSet. If defined, the main container in pods part of the
 // TargetReplicatedJobs will be blocked from executing until all pods in these
 // jobs have started.
 type GroupSchedulingConfig struct {
+        // Timeout defines the period after which the injected initContainer
+        // (which blocks execution of the main container until all pods are started)
+        // will timeout and exit with an error if not all pods have started yet.
+        TimeoutAfterSeconds *int32 `json:"timeoutAfterSeconds"
+
         // TargetReplicatedJobs are the names of the replicated jobs which will
         // be subject to group-scheduling.
         // A null or empty list will apply to all replicatedJobs.
@@ -136,45 +225,13 @@ type GroupSchedulingConfig struct {
 }
 ```
 
-### Example JobSet spec using group scheduling:
-
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: my-jobset
-  namespace: default
-spec:
-  # main containers in pods part of `workers` replicatedJob will be blocked
-  # from execution until all pods have started.
-  groupSchedulingConfig:
-    targetReplicatedJobs:
-    - workers
-  replicatedJobs:
-    - name: workers
-      replicas: 3
-      template:
-        spec:
-          backoffLimit: 0
-          completions: 100
-          parallelism: 100
-          template:
-            spec:
-              containers:
-                - name: pytorch
-                  image: pytorch/pytorch:latest
-                  command:
-                    - bash
-                    - -c
-                    - train.py
-```
-
 ### Constraints
 
-In Order Startup Policy is incompatible with a group scheduling config that spans
-multiple replicated jobs, since they are conceptually mutually exclusive.
-
-We must add validation to our JobSet webhook to enforce this.
+- In Order Startup Policy is incompatible with a group scheduling config that spans
+multiple replicated jobs, since they are conceptually mutually exclusive. We must
+add validation to our JobSet webhook to enforce this.
+- The initContainer name will have a reserved name `group-scheduling-init` that is
+reserved and cannot be used by the main container.
 
 ### Implmentation
 
@@ -201,7 +258,7 @@ When a GroupSchedulingConfig is defined:
     so that it is no longer empty. This will trigger Kubelet to populate
     the initContainer mount point. 
  5. Now that the mount point directory path exists in the initContainer, it
-    will exit and allow the main workload container to start.
+    will exit and allow the main container to start.
 
 
 #### Example JobSet spec AFTER webhook injection:
@@ -213,11 +270,10 @@ metadata:
   name: my-jobset
   namespace: default
 spec:
-  # main containers in pods part of `workers` replicatedJob will be blocked
-  # from execution until all pods have started.
+  # main containers in pods part of all replicatedJob will be blocked
+  # from execution until all pods have started, or timeout after 5min.
   groupSchedulingConfig:
-    targetReplicatedJobs:
-    - workers
+    timeoutAfterSeconds: 300
   replicatedJobs:
     - name: workers
       replicas: 3
@@ -232,7 +288,7 @@ spec:
                 # Check if the started file is present before exiting and starting the main container.
                 - name: group-scheduling-init
                   image: bash
-                  command:
+                  command: # TODO: add support for configurable timeout parameter
                     - bash
                     - -c
                     - while true; do if [ -f /mnt/group-scheduling/started ]; then break; fi; sleep 1; done
@@ -291,7 +347,7 @@ extending the production code to implement this enhancement.
 - `controllers`: `04/05/2024` - `25.4%`
 
 #### Integration tests
--
+- Group schedu
 
 ### Graduation Criteria
 
