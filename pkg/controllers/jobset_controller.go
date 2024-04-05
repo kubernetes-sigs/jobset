@@ -515,9 +515,6 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jo
 		// Create the job.
 		// TODO(#18): Deal with the case where the job exists but is not owned by the jobset.
 		if err := r.Create(ctx, job); err != nil {
-			// Emit event to propagate the Job creation failures up to be more visible to the user.
-			// TODO(#422): Investigate ways to validate Job templates at JobSet validation time.
-			r.Record.Eventf(job, corev1.EventTypeWarning, constants.JobCreationFailedReason, err.Error())
 			lock.Lock()
 			defer lock.Unlock()
 			finalErrs = append(finalErrs, fmt.Errorf("job %q creation failed with error: %v", job.Name, err))
