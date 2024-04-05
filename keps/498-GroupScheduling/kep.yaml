@@ -1,0 +1,11 @@
+title: Group Scheduling
+kep-number: 498
+authors:
+  - "@danielvegamyhre"
+status: provisional
+creation-date: 2023-02-05
+reviewers:
+  - "@kannon92"
+  - "@nstogner"
+approvers:
+  - "@ahg"
