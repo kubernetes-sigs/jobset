@@ -23,12 +23,13 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Proposal](#proposal)
   - [User Stories (Optional)](#user-stories-optional)
     - [Story 1: Group scheduling of all replicated jobs](#story-1-group-scheduling-of-all-replicated-jobs)
+  - [Example JobSet spec using group scheduling for all replicated jobs:](#example-jobset-spec-using-group-scheduling-for-all-replicated-jobs)
     - [Story 2: Group scheduling of a specific replicated job](#story-2-group-scheduling-of-a-specific-replicated-job)
+  - [Example JobSet spec using group scheduling for all replicated jobs:](#example-jobset-spec-using-group-scheduling-for-all-replicated-jobs-1)
   - [Notes/Constraints/Caveats (Optional)](#notesconstraintscaveats-optional)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Design Details](#design-details)
   - [Proposed Group Scheduling API](#proposed-group-scheduling-api)
-  - [Example JobSet spec using group scheduling:](#example-jobset-spec-using-group-scheduling)
   - [Constraints](#constraints)
   - [Implmentation](#implmentation)
     - [Example JobSet spec AFTER webhook injection:](#example-jobset-spec-after-webhook-injection)
@@ -51,7 +52,8 @@ Since node pool provisioning takes a variable amount of time, users are running 
 
 For statically provisioned clusters, we have recommended users use Kueue to handle group scheduling of JobSets once sufficient resources are available.
 
-However, for dynmaically provisioned clusters, we have no support for group scheduling in JobSet yet.
+However, JobSets running independently (without Kueue) on dynmaically provisioned clusters, we need to support group
+scheduling semantics in order to avoid these timeout issues.
 
 ### Goals
 
@@ -315,7 +317,7 @@ spec:
 
 The testing plan will focus on:
 - Unit and integration tests to validate the webhook injection works as intended
-- E2E tests, since we need pods to be created to injectthe initContainer and ConfigMap volume mount.
+- E2E tests, since we need pods to be created to inject the initContainer and ConfigMap volume mount.
 - Scale tests, performance benchmarking
 
 ##### Prerequisite testing updates
@@ -347,7 +349,11 @@ extending the production code to implement this enhancement.
 - `controllers`: `04/05/2024` - `25.4%`
 
 #### Integration tests
-- Group schedu
+- JobSet webhook integration tests validating that for JobSets with group scheduling
+config defined, the ConfigMap is created, and the correct child Jobs have the expected
+initContainers and ConfigMap volume mounts injected.
+- JobSet controller integration tests validating that for JobSets with group scheduling
+config defined, the ConfigMap used for broadcasting the startup signal is created.
 
 ### Graduation Criteria
 
