@@ -15,7 +15,285 @@ A JobSet creates one or more Jobs. It allows you to create sets of jobs of diffe
 
 ![jobset diagram](/images/jobset_diagram.png)
 
-## Running an Example JobSet
+## Running an exclusive-placement JobSet
+
+Here is an exclusive-placement JobSet. It runs a jobset workload in GCP.
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: exclusive-placement
+  annotations:
+    alpha.jobset.sigs.k8s.io/exclusive-topology: cloud.google.com/gke-nodepool # 1:1 job replica to node pool assignment
+spec:
+  failurePolicy:
+    maxRestarts: 3
+  replicatedJobs:
+  - name: workers
+    replicas: 3 # set to number of node pools
+    template:
+      spec:
+        parallelism: 3
+        completions: 3
+        backoffLimit: 10
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command: 
+                - sleep
+              args:
+                - 1000s
+```
+
+## Running a max-restarts JobSet
+
+Here is a max-restarts JobSet. 
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: max-restarts
+spec:
+  # On failure, restart all jobs up to 3 times.
+  failurePolicy:
+    maxRestarts: 3
+  replicatedJobs:
+  - name: leader
+    replicas: 1
+    template:
+      spec:
+        # Set backoff limit to 0 so job will immediately fail if any pod fails.
+        backoffLimit: 0 
+        completions: 2
+        parallelism: 2
+        template:
+          spec:
+            containers:
+            - name: leader
+              image: bash:latest
+              # Default failure policy is to recreate all jobs if any jobs fails. 
+              # The bash script provides a simple demonstration of it by failing
+              # the pod with completion index 0, which will trigger job failure
+              # and the jobset controller wil recreate all jobs. 
+              command:
+              - bash
+              - -xc
+              - |
+                echo "JOB_COMPLETION_INDEX=$JOB_COMPLETION_INDEX"
+                if [[ "$JOB_COMPLETION_INDEX" == "0" ]]; then
+                  for i in $(seq 10 -1 1)
+                  do
+                    echo "Sleeping in $i"
+                    sleep 1
+                  done
+                  exit 1
+                fi
+                for i in $(seq 1 1000)
+                do
+                  echo "$i"
+                  sleep 1
+                done
+  - name: workers
+    replicas: 1
+    template:
+      spec:
+        backoffLimit: 0 
+        completions: 2
+        parallelism: 2
+        template:
+          spec:
+            containers:
+            - name: worker
+              image: bash:latest
+              command:
+              - bash
+              - -xc
+              - |
+                sleep 1000
+```
+
+## Running a paralleljobs JobSet
+
+Here is a paralleljobs JobSet. 
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: paralleljobs
+spec:
+  replicatedJobs:
+  - name: workers
+    template:
+      spec:
+        parallelism: 4
+        completions: 4
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command: 
+                - sleep
+              args:
+                - 100s
+  - name: driver
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command: 
+                - sleep
+              args:
+                - 100s
+```
+
+## Running a success olicy JobSet
+
+Here is a success policy JobSet. 
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: success-policy
+spec:
+# We want to declare our JobSet successful if workers finish.
+# If workers finish we should clean up the remaining replicatedJobs.
+  successPolicy:
+    operator: All
+    targetReplicatedJobs:
+    - workers
+  replicatedJobs:
+  - name: leader
+    replicas: 1
+    template:
+      spec:
+        # Set backoff limit to 0 so job will immediately fail if any pod fails.
+        backoffLimit: 0 
+        completions: 1
+        parallelism: 1
+        template:
+          spec:
+            containers:
+            - name: leader
+              image: bash:latest
+              command:
+              - bash
+              - -xc
+              - |
+                sleep 10000
+  - name: workers
+    replicas: 1
+    template:
+      spec:
+        backoffLimit: 0 
+        completions: 2
+        parallelism: 2
+        template:
+          spec:
+            containers:
+            - name: worker
+              image: bash:latest
+              command:
+              - bash
+              - -xc
+              - |
+                sleep 10
+```
+
+## Running a startup driver ready JobSet
+
+Here is a startup driver ready JobSet. 
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: startup-driver-ready
+spec:
+  startupPolicy:
+    startupPolicyOrder: InOrder
+  replicatedJobs:
+  - name: driver
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command: 
+                - sleep
+              args:
+                - 1000s
+              readinessProbe:
+                exec:
+                  command:
+                  - echo
+                  - "ready"
+                initialDelaySeconds: 30
+  - name: workers
+    template:
+      spec:
+        parallelism: 4
+        completions: 4
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command: 
+                - sleep
+              args:
+                - 100s
+```
+
+## Running a tensorflow JobSet
+
+Here is a tensorflow JobSet. 
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: tensorflow
+spec:
+  replicatedJobs:
+  - name: tensorflow
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        backoffLimit: 5
+        template:
+          spec:
+            containers:
+            - name: tensorflow
+              image: docker.io/kubeflowkatib/tf-mnist-with-summaries:latest
+              command:
+              - "python"
+              - "/opt/tf-mnist-with-summaries/mnist.py"
+              - "--epochs=1"
+              - "--log-path=/mnist-with-summaries-logs"
+```
+
+## Running a pytorch JobSet
 
 Here is an example JobSet. It runs a distributed PyTorch training workload.
 
