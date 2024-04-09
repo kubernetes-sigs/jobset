@@ -16,161 +16,268 @@ package controllers
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	batchv1 "k8s.io/api/batch/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
 func TestJobMatchesSuccessPolicy(t *testing.T) {
-	// Create test data
-	js1 := &jobset.JobSet{
-		Spec: jobset.JobSetSpec{
-			SuccessPolicy: &jobset.SuccessPolicy{
-				TargetReplicatedJobs: []string{},
-			},
+	var (
+		jobSetName = "test-jobset"
+		jobName    = "test-job"
+		ns         = "default"
+	)
+
+	jobMatchesSuccessPolicyTestCases := []struct {
+		name     string
+		js       *jobset.JobSet
+		job      *batchv1.Job
+		expected bool
+	}{
+		{
+			name: "TargetReplicatedJobs is empty",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{},
+				}).Obj(),
+			job: testutils.MakeJob(jobName, ns).
+				JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-1"}).
+				Obj(),
+			expected: true,
+		},
+		{
+			name: "Job matches one of the TargetReplicatedJobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
+				}).Obj(),
+			job: testutils.MakeJob(jobName, ns).
+				JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-1"}).
+				Obj(),
+			expected: true,
+		},
+		{
+			name: "Job does not match any of the TargetReplicatedJobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
+				}).Obj(),
+			job: testutils.MakeJob(jobName, ns).
+				JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-3"}).
+				Obj(),
+			expected: false,
 		},
 	}
 
-	js2 := &jobset.JobSet{
-		Spec: jobset.JobSetSpec{
-			SuccessPolicy: &jobset.SuccessPolicy{
-				TargetReplicatedJobs: []string{"job1", "job2"},
-			},
-		},
-	}
-
-	job1 := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				jobset.ReplicatedJobNameKey: "job1",
-			},
-		},
-	}
-
-	job2 := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				jobset.ReplicatedJobNameKey: "job3",
-			},
-		},
-	}
-
-	// Test case 1: Verify the scenario when TargetReplicatedJobs is empty
-	if !jobMatchesSuccessPolicy(js1, job1) {
-		t.Error("Validation failed when TargetReplicatedJobs is empty")
-	}
-
-	// Test case 2: Verify the scenario when the job matches one of the TargetReplicatedJobs
-	if !jobMatchesSuccessPolicy(js2, job1) {
-		t.Error("Validation failed when the job matches one of the TargetReplicatedJobs")
-	}
-
-	// Test case 3: Verify the scenario when the job does not match any of the TargetReplicatedJobs
-	if jobMatchesSuccessPolicy(js2, job2) {
-		t.Error("Validation failed when the job does not match any of the TargetReplicatedJobs")
+	for _, tc := range jobMatchesSuccessPolicyTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := jobMatchesSuccessPolicy(tc.js, tc.job)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("unexpected finished value (+got/-want): %s", diff)
+			}
+		})
 	}
 }
 
 func TestReplicatedJobMatchesSuccessPolicy(t *testing.T) {
-	// Create test data
-	testJobSet := &jobset.JobSet{
-		Spec: jobset.JobSetSpec{
-			SuccessPolicy: &jobset.SuccessPolicy{
-				TargetReplicatedJobs: []string{"job1", "job2"},
-			},
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+
+	replicatedJobMatchTestCases := []struct {
+		name          string
+		js            *jobset.JobSet
+		replicatedJob jobset.ReplicatedJob
+		expected      bool
+	}{
+		{
+			name: "Empty target replicated jobs",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{},
+				}).Obj(),
+			replicatedJob: testutils.MakeReplicatedJob("test-replicated-job-1").Obj(),
+			expected:      true,
+		},
+		{
+			name: "Matching case",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
+				}).Obj(),
+			replicatedJob: testutils.MakeReplicatedJob("test-replicated-job-1").Obj(),
+			expected:      true,
+		},
+		{
+			name: "Non-matching case",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
+				}).Obj(),
+			replicatedJob: testutils.MakeReplicatedJob("test-replicated-job-3").Obj(),
+			expected:      false,
 		},
 	}
-	testReplicatedJob1 := &jobset.ReplicatedJob{Name: "job1"}
-	testReplicatedJob2 := &jobset.ReplicatedJob{Name: "job3"}
 
-	// Test case 1: Matching case
-	if !replicatedJobMatchesSuccessPolicy(testJobSet, testReplicatedJob1) {
-		t.Error("Expected the replicated job to match the success policy")
-	}
-
-	// Test case 2: Non-matching case
-	if replicatedJobMatchesSuccessPolicy(testJobSet, testReplicatedJob2) {
-		t.Error("Expected the replicated job not to match the success policy")
-	}
-
-	// Test case 3: Empty target replicated jobs
-	emptyTargetJobSet := &jobset.JobSet{
-		Spec: jobset.JobSetSpec{
-			SuccessPolicy: &jobset.SuccessPolicy{
-				TargetReplicatedJobs: []string{},
-			},
-		},
-	}
-	if !replicatedJobMatchesSuccessPolicy(emptyTargetJobSet, testReplicatedJob1) {
-		t.Error("Expected the replicated job to match the success policy for an empty target job set")
+	for _, tc := range replicatedJobMatchTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := replicatedJobMatchesSuccessPolicy(tc.js, &tc.replicatedJob)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("unexpected finished value (+got/-want): %s", diff)
+			}
+		})
 	}
 }
 
 func TestNumJobsMatchingSuccessPolicy(t *testing.T) {
-	js := &jobset.JobSet{
-		Spec: jobset.JobSetSpec{
-			SuccessPolicy: &jobset.SuccessPolicy{
-				TargetReplicatedJobs: []string{"job1", "job2"},
-			},
-		},
-	}
-	jobs := []*batchv1.Job{
+	var (
+		jobSetName = "test-jobset"
+		jobName    = "test-job"
+		ns         = "default"
+	)
+
+	numJobsMatchTestCases := []struct {
+		name     string
+		js       *jobset.JobSet
+		jobs     []*batchv1.Job
+		expected int
+	}{
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{
-					jobset.ReplicatedJobNameKey: "job1",
-				},
+			name: "One job matches the success policy",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
+				}).Obj(),
+			jobs: []*batchv1.Job{
+				testutils.MakeJob(jobName, ns).
+					JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-1"}).
+					Obj(),
+				testutils.MakeJob(jobName, ns).
+					JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-3"}).
+					Obj(),
 			},
+			expected: 1,
 		},
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{
-					jobset.ReplicatedJobNameKey: "job3",
-				},
+			name: "all jobs matches the success policy",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
+				}).Obj(),
+			jobs: []*batchv1.Job{
+				testutils.MakeJob(jobName, ns).
+					JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-1"}).
+					Obj(),
+				testutils.MakeJob(jobName, ns).
+					JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-2"}).
+					Obj(),
 			},
+			expected: 2,
+		},
+		{
+			name: "non job matches the success policy",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
+				}).Obj(),
+			jobs: []*batchv1.Job{
+				testutils.MakeJob(jobName, ns).
+					JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-3"}).
+					Obj(),
+				testutils.MakeJob(jobName, ns).
+					JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-4"}).
+					Obj(),
+			},
+			expected: 0,
+		},
+		{
+			name: "empty target replicated jobs, all job matches the success policy",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					TargetReplicatedJobs: []string{},
+				}).Obj(),
+			jobs: []*batchv1.Job{
+				testutils.MakeJob(jobName, ns).
+					JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-1"}).
+					Obj(),
+				testutils.MakeJob(jobName, ns).
+					JobLabels(map[string]string{jobset.ReplicatedJobNameKey: "test-replicated-job-2"}).
+					Obj(),
+			},
+			expected: 2,
 		},
 	}
 
-	result := numJobsMatchingSuccessPolicy(js, jobs)
-
-	expected := 1
-	if result != expected {
-		t.Errorf("Expected %d, but got %d", expected, result)
+	for _, tc := range numJobsMatchTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := numJobsMatchingSuccessPolicy(tc.js, tc.jobs)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("unexpected finished value (+got/-want): %s", diff)
+			}
+		})
 	}
 }
 
 func TestNumJobsExpectedToSucceed(t *testing.T) {
-	// Create a test jobset
-	testJobSetAny := &jobset.JobSet{
-		Spec: jobset.JobSetSpec{
-			SuccessPolicy: &jobset.SuccessPolicy{
-				Operator: jobset.OperatorAny,
-			},
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+
+	numJobsMatchTests := []struct {
+		name     string
+		js       *jobset.JobSet
+		expected int
+	}{
+		{
+			name: "OperatorAny",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					Operator: jobset.OperatorAny,
+				}).Obj(),
+			expected: 1,
+		},
+		{
+			name: "OperatorAll - all replicated jobs match success policy",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					Operator:             jobset.OperatorAll,
+					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
+				}).
+				ReplicatedJob(testutils.MakeReplicatedJob("test-replicated-job-1").
+					Replicas(1).Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("test-replicated-job-2").
+					Replicas(2).Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("test-replicated-job-3").
+					Replicas(3).Obj()).Obj(),
+			expected: 3,
+		},
+		{
+			name: "OperatorAll - some replicated jobs don't match success policy",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SuccessPolicy(&jobset.SuccessPolicy{
+					Operator:             jobset.OperatorAll,
+					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-3"},
+				}).
+				ReplicatedJob(testutils.MakeReplicatedJob("test-replicated-job-1").
+					Replicas(1).Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("test-replicated-job-2").
+					Replicas(2).Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("test-replicated-job-3").
+					Replicas(3).Obj()).Obj(),
+			expected: 4,
 		},
 	}
-	expectedAny := 1
-	if result := numJobsExpectedToSucceed(testJobSetAny); result != expectedAny {
-		t.Errorf("Expected %d, but got %d", expectedAny, result)
-	}
 
-	testJobSetAll := &jobset.JobSet{
-		Spec: jobset.JobSetSpec{
-			SuccessPolicy: &jobset.SuccessPolicy{
-				Operator: jobset.OperatorAll,
-				TargetReplicatedJobs: []string{"job1", "job2"},
-			},
-			ReplicatedJobs: []jobset.ReplicatedJob{
-				{Name: "job1", Replicas: 1},
-				{Name: "job2", Replicas: 2},
-				{Name: "job3", Replicas: 3},
-			},
-		},
-	}
-
-	expectedAll := 3
-	if result := numJobsExpectedToSucceed(testJobSetAll); result != expectedAll {
-		t.Errorf("Expected %d, but got %d", expectedAll, result)
+	for _, tc := range numJobsMatchTests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := numJobsExpectedToSucceed(tc.js)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("unexpected finished value (+got/-want): %s", diff)
+			}
+		})
 	}
 }
-
