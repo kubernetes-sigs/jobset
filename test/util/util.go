@@ -170,3 +170,21 @@ func JobsFromReplicatedJob(jobList *batchv1.JobList, rjob string) []*batchv1.Job
 	}
 	return matching
 }
+
+// ExpectJobsDeletionTimestamp checks that the jobs' deletion timestamp is set or not set for the provided number of jobs.
+func ExpectJobsDeletionTimestamp(ctx context.Context, c client.Client, js *jobset.JobSet, numJobs int, timeout time.Duration) {
+	ginkgo.By("checking that jobset jobs deletion timestamp is set")
+	gomega.Eventually(func() (bool, error) {
+		var jobList batchv1.JobList
+		if err := c.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+			return false, err
+		}
+		numJobs := numJobs
+		for _, job := range jobList.Items {
+			if job.DeletionTimestamp != nil {
+				numJobs--
+			}
+		}
+		return numJobs == 0, nil
+	}, timeout, interval).Should(gomega.Equal(true))
+}

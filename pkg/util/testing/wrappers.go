@@ -127,6 +127,32 @@ func (j *JobSetWrapper) EnableDNSHostnames(val bool) *JobSetWrapper {
 	return j
 }
 
+// TTLSecondsAfterFinished sets the value of JobSet.Spec.TTLSecondsAfterFinished
+func (j *JobSetWrapper) TTLSecondsAfterFinished(seconds int32) *JobSetWrapper {
+	j.Spec.TTLSecondsAfterFinished = &seconds
+	return j
+}
+
+// CompletedCondition adds a JobSetCompleted condition to the JobSet Status.
+func (j *JobSetWrapper) CompletedCondition(completedAt metav1.Time) *JobSetWrapper {
+	c := metav1.Condition{Type: string(jobset.JobSetCompleted), Status: metav1.ConditionTrue, LastTransitionTime: completedAt}
+	j.Status.Conditions = append(j.Status.Conditions, c)
+	return j
+}
+
+// FailedCondition adds a JobSetFailed condition to the JobSet Status.
+func (j *JobSetWrapper) FailedCondition(failedAt metav1.Time) *JobSetWrapper {
+	c := metav1.Condition{Type: string(jobset.JobSetFailed), Status: metav1.ConditionTrue, LastTransitionTime: failedAt}
+	j.Status.Conditions = append(j.Status.Conditions, c)
+	return j
+}
+
+func (j *JobSetWrapper) DeletionTimestamp(deletionTimestamp *metav1.Time) *JobSetWrapper {
+	j.ObjectMeta.DeletionTimestamp = deletionTimestamp
+	return j
+
+}
+
 // ReplicatedJobWrapper wraps a ReplicatedJob.
 type ReplicatedJobWrapper struct {
 	jobset.ReplicatedJob

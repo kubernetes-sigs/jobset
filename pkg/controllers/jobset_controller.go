@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"sync"
 
+	"k8s.io/utils/clock"
+
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -48,6 +50,7 @@ type JobSetReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Record record.EventRecorder
+	clock  clock.Clock
 }
 
 type childJobs struct {
@@ -62,7 +65,7 @@ type childJobs struct {
 }
 
 func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *JobSetReconciler {
-	return &JobSetReconciler{Client: client, Scheme: scheme, Record: record}
+	return &JobSetReconciler{Client: client, Scheme: scheme, Record: record, clock: clock.RealClock{}}
 }
 
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update;patch
@@ -110,8 +113,16 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	// If JobSet is already completed or failed, clean up active child jobs.
+	// If JobSet is already completed or failed, clean up active child jobs and requeue if TTLSecondsAfterFinished is set.
 	if jobSetFinished(&js) {
+		requeueAfter, err := executeTTLAfterFinishedPolicy(ctx, r.Client, r.clock, &js)
+		if err != nil {
+			log.Error(err, "executing ttl after finished policy")
+			return ctrl.Result{}, err
+		}
+		if requeueAfter > 0 {
+			return ctrl.Result{RequeueAfter: requeueAfter}, nil
+		}
 		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
 			log.Error(err, "deleting jobs")
 			return ctrl.Result{}, err
