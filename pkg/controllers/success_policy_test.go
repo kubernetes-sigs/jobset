@@ -30,14 +30,14 @@ func TestJobMatchesSuccessPolicy(t *testing.T) {
 		ns         = "default"
 	)
 
-	jobMatchesSuccessPolicyTestCases := []struct {
+	tests := []struct {
 		name     string
 		js       *jobset.JobSet
 		job      *batchv1.Job
 		expected bool
 	}{
 		{
-			name: "TargetReplicatedJobs is empty",
+			name: "jobset's TargetReplicatedJobs is empty",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					TargetReplicatedJobs: []string{},
@@ -48,7 +48,7 @@ func TestJobMatchesSuccessPolicy(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "Job matches one of the TargetReplicatedJobs",
+			name: "job matches one of the TargetReplicatedJobs",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
@@ -59,7 +59,7 @@ func TestJobMatchesSuccessPolicy(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "Job does not match any of the TargetReplicatedJobs",
+			name: "job does not match any of the TargetReplicatedJobs",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
@@ -71,7 +71,7 @@ func TestJobMatchesSuccessPolicy(t *testing.T) {
 		},
 	}
 
-	for _, tc := range jobMatchesSuccessPolicyTestCases {
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			actual := jobMatchesSuccessPolicy(tc.js, tc.job)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
@@ -87,14 +87,14 @@ func TestReplicatedJobMatchesSuccessPolicy(t *testing.T) {
 		ns         = "default"
 	)
 
-	replicatedJobMatchTestCases := []struct {
+	tests := []struct {
 		name          string
 		js            *jobset.JobSet
 		replicatedJob jobset.ReplicatedJob
 		expected      bool
 	}{
 		{
-			name: "Empty target replicated jobs",
+			name: "jobset's TargetReplicatedJobs is empty",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					TargetReplicatedJobs: []string{},
@@ -103,7 +103,7 @@ func TestReplicatedJobMatchesSuccessPolicy(t *testing.T) {
 			expected:      true,
 		},
 		{
-			name: "Matching case",
+			name: "matching case",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
@@ -112,7 +112,7 @@ func TestReplicatedJobMatchesSuccessPolicy(t *testing.T) {
 			expected:      true,
 		},
 		{
-			name: "Non-matching case",
+			name: "non-matching case",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
@@ -122,7 +122,7 @@ func TestReplicatedJobMatchesSuccessPolicy(t *testing.T) {
 		},
 	}
 
-	for _, tc := range replicatedJobMatchTestCases {
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			actual := replicatedJobMatchesSuccessPolicy(tc.js, &tc.replicatedJob)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
@@ -139,14 +139,14 @@ func TestNumJobsMatchingSuccessPolicy(t *testing.T) {
 		ns         = "default"
 	)
 
-	numJobsMatchTestCases := []struct {
+	tests := []struct {
 		name     string
 		js       *jobset.JobSet
 		jobs     []*batchv1.Job
 		expected int
 	}{
 		{
-			name: "One job matches the success policy",
+			name: "one job matches the success policy",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
@@ -211,7 +211,7 @@ func TestNumJobsMatchingSuccessPolicy(t *testing.T) {
 		},
 	}
 
-	for _, tc := range numJobsMatchTestCases {
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			actual := numJobsMatchingSuccessPolicy(tc.js, tc.jobs)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
@@ -227,13 +227,13 @@ func TestNumJobsExpectedToSucceed(t *testing.T) {
 		ns         = "default"
 	)
 
-	numJobsMatchTests := []struct {
+	tests := []struct {
 		name     string
 		js       *jobset.JobSet
 		expected int
 	}{
 		{
-			name: "OperatorAny",
+			name: "any single job matching the jobSelector",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					Operator: jobset.OperatorAny,
@@ -241,7 +241,7 @@ func TestNumJobsExpectedToSucceed(t *testing.T) {
 			expected: 1,
 		},
 		{
-			name: "OperatorAll - all replicated jobs match success policy",
+			name: "all replicated jobs match success policy",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					Operator:             jobset.OperatorAll,
@@ -256,7 +256,7 @@ func TestNumJobsExpectedToSucceed(t *testing.T) {
 			expected: 3,
 		},
 		{
-			name: "OperatorAll - some replicated jobs don't match success policy",
+			name: "some replicated jobs don't match success policy",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					Operator:             jobset.OperatorAll,
@@ -272,7 +272,7 @@ func TestNumJobsExpectedToSucceed(t *testing.T) {
 		},
 	}
 
-	for _, tc := range numJobsMatchTests {
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			actual := numJobsExpectedToSucceed(tc.js)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
