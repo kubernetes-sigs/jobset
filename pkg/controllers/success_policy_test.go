@@ -178,7 +178,7 @@ func TestNumJobsMatchingSuccessPolicy(t *testing.T) {
 			expected: 2,
 		},
 		{
-			name: "non job matches the success policy",
+			name: "no jobs match the success policy",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					TargetReplicatedJobs: []string{"test-replicated-job-1", "test-replicated-job-2"},
@@ -233,7 +233,7 @@ func TestNumJobsExpectedToSucceed(t *testing.T) {
 		expected int
 	}{
 		{
-			name: "any single job matching the jobSelector",
+			name: "any job completion fulfills success policy",
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SuccessPolicy(&jobset.SuccessPolicy{
 					Operator: jobset.OperatorAny,
@@ -250,9 +250,7 @@ func TestNumJobsExpectedToSucceed(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob("test-replicated-job-1").
 					Replicas(1).Obj()).
 				ReplicatedJob(testutils.MakeReplicatedJob("test-replicated-job-2").
-					Replicas(2).Obj()).
-				ReplicatedJob(testutils.MakeReplicatedJob("test-replicated-job-3").
-					Replicas(3).Obj()).Obj(),
+					Replicas(2).Obj()).Obj(),
 			expected: 3,
 		},
 		{

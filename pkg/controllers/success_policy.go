@@ -21,8 +21,6 @@ import (
 	"sigs.k8s.io/jobset/pkg/util/collections"
 )
 
-// TODO: add unit tests for the functions in this file.
-
 // jobMatchesSuccessPolicy returns a boolean value indicating if the Job is part of a
 // ReplicatedJob that matches the JobSet's success policy.
 func jobMatchesSuccessPolicy(js *jobset.JobSet, job *batchv1.Job) bool {
