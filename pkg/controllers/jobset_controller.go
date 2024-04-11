@@ -419,18 +419,20 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 			return nil
 		}
 	}
+
+	// If no jobs were resumed / no action was taken, there's nothing more to do here.
+	if numJobsResumed == 0 {
+		return nil
+	}
 	// At this point all replicated jobs have had their jobs resumed.
 	// If using an in order startup policy. add a condition to the JobSet indicating the
 	// in order startup policy has completed.
 	if inOrderStartupPolicy(startupPolicy) {
 		setInOrderStartupPolicyCompleted(js, updateStatusOpts)
 	}
-
 	// Finally, set the suspended condition on the JobSet to false to indicate
 	// the JobSet is no longer suspended.
-	if numJobsResumed > 0 {
-		setJobSetResumed(js, updateStatusOpts)
-	}
+	setJobSetResumed(js, updateStatusOpts)
 	return nil
 }
 
