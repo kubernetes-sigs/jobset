@@ -112,7 +112,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// At the end of this Reconcile attempt, do one API call to persist all the JobSet status changes.
-	return ctrl.Result{}, r.updateJobSetStatus(ctx, &js, &updateStatusOpts)
+	return ctrl.Result{RequeueAfter: result.RequeueAfter}, r.updateJobSetStatus(ctx, &js, &updateStatusOpts)
 }
 
 // reconcile is the internal method containing the core JobSet reconciliation logic.
