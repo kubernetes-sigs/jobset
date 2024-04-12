@@ -19,7 +19,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	batchv1 "k8s.io/api/batch/v1"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha1"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 

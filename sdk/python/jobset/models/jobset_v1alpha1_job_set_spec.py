@@ -39,7 +39,8 @@ class JobsetV1alpha1JobSetSpec(object):
         'replicated_jobs': 'list[JobsetV1alpha1ReplicatedJob]',
         'startup_policy': 'JobsetV1alpha1StartupPolicy',
         'success_policy': 'JobsetV1alpha1SuccessPolicy',
-        'suspend': 'bool'
+        'suspend': 'bool',
+        'ttl_seconds_after_finished': 'int'
     }
 
     attribute_map = {
@@ -53,7 +54,7 @@ class JobsetV1alpha1JobSetSpec(object):
         'ttl_seconds_after_finished': 'ttlSecondsAfterFinished'
     }
 
-    def __init__(self, failure_policy=None, managed_by=None, network=None, replicated_jobs=None, startup_policy=None, success_policy=None, suspend=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, failure_policy=None, managed_by=None, network=None, replicated_jobs=None, startup_policy=None, success_policy=None, suspend=None, ttl_seconds_after_finished=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha1JobSetSpec - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
@@ -241,22 +242,22 @@ class JobsetV1alpha1JobSetSpec(object):
 
     @property
     def ttl_seconds_after_finished(self):
-        """Gets the ttl_seconds_after_finished of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        """Gets the ttl_seconds_after_finished of this JobsetV1alpha1JobSetSpec.  # noqa: E501
 
         TTLSecondsAfterFinished limits the lifetime of a JobSet that has finished execution (either Complete or Failed). If this field is set, TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be automatically deleted. When the JobSet is being deleted, its lifecycle guarantees (e.g. finalizers) will be honored. If this field is unset, the JobSet won't be automatically deleted. If this field is set to zero, the JobSet becomes eligible to be deleted immediately after it finishes.  # noqa: E501
 
-        :return: The ttl_seconds_after_finished of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :return: The ttl_seconds_after_finished of this JobsetV1alpha1JobSetSpec.  # noqa: E501
         :rtype: int
         """
         return self._ttl_seconds_after_finished
 
     @ttl_seconds_after_finished.setter
     def ttl_seconds_after_finished(self, ttl_seconds_after_finished):
-        """Sets the ttl_seconds_after_finished of this JobsetV1alpha2JobSetSpec.
+        """Sets the ttl_seconds_after_finished of this JobsetV1alpha1JobSetSpec.
 
         TTLSecondsAfterFinished limits the lifetime of a JobSet that has finished execution (either Complete or Failed). If this field is set, TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be automatically deleted. When the JobSet is being deleted, its lifecycle guarantees (e.g. finalizers) will be honored. If this field is unset, the JobSet won't be automatically deleted. If this field is set to zero, the JobSet becomes eligible to be deleted immediately after it finishes.  # noqa: E501
 
-        :param ttl_seconds_after_finished: The ttl_seconds_after_finished of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :param ttl_seconds_after_finished: The ttl_seconds_after_finished of this JobsetV1alpha1JobSetSpec.  # noqa: E501
         :type: int
         """
 

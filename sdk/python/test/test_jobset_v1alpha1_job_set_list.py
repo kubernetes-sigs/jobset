@@ -64,7 +64,8 @@ class TestJobsetV1alpha1JobSetList(unittest.TestCase):
                                 target_replicated_jobs = [
                                     '0'
                                     ], ), 
-                            suspend = True, ), 
+                            suspend = True, 
+                            ttl_seconds_after_finished = 56, ), 
                         status = jobset.models.jobset_v1alpha1_job_set_status.JobsetV1alpha1JobSetStatus(
                             conditions = [
                                 None
@@ -110,7 +111,8 @@ class TestJobsetV1alpha1JobSetList(unittest.TestCase):
                                 target_replicated_jobs = [
                                     '0'
                                     ], ), 
-                            suspend = True, ), 
+                            suspend = True, 
+                            ttl_seconds_after_finished = 56, ), 
                         status = jobset.models.jobset_v1alpha1_job_set_status.JobsetV1alpha1JobSetStatus(
                             conditions = [
                                 None
