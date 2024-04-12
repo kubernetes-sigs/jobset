@@ -138,11 +138,8 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 	}
 
 	// Calculate JobsReady and update statuses for each ReplicatedJob.
-	// If status ReplicatedJobsStatus has changed, update the JobSet status.
 	rjobStatuses := r.calculateReplicatedJobStatuses(ctx, js, ownedJobs)
-	if !replicatedJobStatusesEqual(js.Status.ReplicatedJobsStatus, rjobStatuses) {
-		updateReplicatedJobsStatuses(ctx, js, rjobStatuses, updateStatusOpts)
-	}
+	updateReplicatedJobsStatuses(ctx, js, rjobStatuses, updateStatusOpts)
 
 	// If JobSet is already completed or failed, clean up active child jobs and requeue if TTLSecondsAfterFinished is set.
 	if jobSetFinished(js) {
@@ -175,8 +172,7 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 
 	// If any jobs have succeeded, execute the JobSet success policy.
 	if len(ownedJobs.successful) > 0 {
-		completed := executeSuccessPolicy(ctx, js, ownedJobs, updateStatusOpts)
-		if completed {
+		if completed := executeSuccessPolicy(ctx, js, ownedJobs, updateStatusOpts); completed {
 			return ctrl.Result{}, nil
 		}
 	}
@@ -297,6 +293,10 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 
 // updateReplicatedJobsStatuses updates the replicatedJob statuses if they have changed.
 func updateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, statuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) {
+	// If replicated job statuses haven't changed, there's nothing to do here.
+	if replicatedJobStatusesEqual(js.Status.ReplicatedJobsStatus, statuses) {
+		return
+	}
 	// Add a new status update to perform at the end of the reconciliation attempt.
 	js.Status.ReplicatedJobsStatus = statuses
 	updateStatusOpts.shouldUpdate = true
@@ -375,7 +375,7 @@ func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, a
 			}
 		}
 	}
-	setJobSetSuspended(js, updateStatusOpts)
+	setJobSetSuspendedCondition(js, updateStatusOpts)
 	return nil
 }
 
@@ -406,7 +406,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 		jobsFromRJob := replicatedJobToActiveJobs[replicatedJob.Name]
 		for _, job := range jobsFromRJob {
 			if !jobSuspended(job) {
-				return nil
+				continue
 			}
 			if err := r.resumeJob(ctx, job, nodeAffinities); err != nil {
 				return err
@@ -415,7 +415,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 		}
 		// If using in order startup policy, return early and wait for the replicated job to be ready.
 		if numJobsResumed > 0 && inOrderStartupPolicy(startupPolicy) {
-			setInOrderStartupPolicyInProgress(js, updateStatusOpts)
+			setInOrderStartupPolicyInProgressCondition(js, updateStatusOpts)
 			return nil
 		}
 	}
@@ -428,11 +428,11 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 	// If using an in order startup policy. add a condition to the JobSet indicating the
 	// in order startup policy has completed.
 	if inOrderStartupPolicy(startupPolicy) {
-		setInOrderStartupPolicyCompleted(js, updateStatusOpts)
+		setInOrderStartupPolicyCompletedCondition(js, updateStatusOpts)
 	}
 	// Finally, set the suspended condition on the JobSet to false to indicate
 	// the JobSet is no longer suspended.
-	setJobSetResumed(js, updateStatusOpts)
+	setJobSetResumedCondition(js, updateStatusOpts)
 	return nil
 }
 
@@ -503,7 +503,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 		// This updates the StartupPolicy condition and notifies that we are waiting
 		// for this replicated job to finish.
 		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-			setInOrderStartupPolicyInProgress(js, updateStatusOpts)
+			setInOrderStartupPolicyInProgressCondition(js, updateStatusOpts)
 			return nil
 		}
 	}
@@ -513,7 +513,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 	}
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
 	if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-		setInOrderStartupPolicyCompleted(js, updateStatusOpts)
+		setInOrderStartupPolicyCompletedCondition(js, updateStatusOpts)
 		return nil
 	}
 	return nil
@@ -593,7 +593,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 // Returns a boolean value indicating if the jobset was completed or not.
 func executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) bool {
 	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
-		setJobSetCompleted(js, updateStatusOpts)
+		setJobSetCompletedCondition(js, updateStatusOpts)
 		return true
 	}
 	return false
@@ -603,14 +603,14 @@ func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 	// If no failure policy is defined, mark the JobSet as failed.
 	if js.Spec.FailurePolicy == nil {
 		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		setJobSetFailed(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name), updateStatusOpts)
+		setJobSetFailedCondition(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name), updateStatusOpts)
 		return
 	}
 
 	// If JobSet has reached max restarts, fail the JobSet.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
 		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		setJobSetFailed(ctx, js, constants.ReachedMaxRestartsReason, messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, firstFailedJob.Name), updateStatusOpts)
+		setJobSetFailedCondition(ctx, js, constants.ReachedMaxRestartsReason, messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, firstFailedJob.Name), updateStatusOpts)
 		return
 	}
 
@@ -952,24 +952,24 @@ func updateCondition(js *jobset.JobSet, opts *conditionOpts) bool {
 	return true
 }
 
-// setJobSetCompleted sets a condition on the JobSet status indicating it has completed.
-func setJobSetCompleted(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
+// setJobSetCompletedCondition sets a condition on the JobSet status indicating it has completed.
+func setJobSetCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, completedConditionsOpts, updateStatusOpts)
 }
 
-// setJobSetFailed sets a condition on the JobSet status indicating it has failed.
-func setJobSetFailed(ctx context.Context, js *jobset.JobSet, reason, msg string, updateStatusOpts *statusUpdateOpts) {
+// setJobSetFailedCondition sets a condition on the JobSet status indicating it has failed.
+func setJobSetFailedCondition(ctx context.Context, js *jobset.JobSet, reason, msg string, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeFailedConditionOpts(reason, msg), updateStatusOpts)
 }
 
-// setJobSetSuspended sets a condition on the JobSet status indicating it is currently suspended.
-func setJobSetSuspended(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
+// setJobSetSuspendedCondition sets a condition on the JobSet status indicating it is currently suspended.
+func setJobSetSuspendedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeSuspendedConditionOpts(metav1.Now()), updateStatusOpts)
 }
 
-// setJobSetResumed sets a condition on the JobSet status indicating it has been resumed.
+// setJobSetResumedCondition sets a condition on the JobSet status indicating it has been resumed.
 // This updates the "suspended" condition type from "true" to "false."
-func setJobSetResumed(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
+func setJobSetResumedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeResumedConditionOpts(metav1.Now()), updateStatusOpts)
 }
 

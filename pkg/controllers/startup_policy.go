@@ -56,9 +56,9 @@ func inOrderStartupPolicyCompletedCondition() *metav1.Condition {
 	}
 }
 
-// setInOrderStartupPolicyInProgress sets a condition on the JobSet status indicating it is
+// setInOrderStartupPolicyInProgressCondition sets a condition on the JobSet status indicating it is
 // currently executing an in-order startup policy.
-func setInOrderStartupPolicyInProgress(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
+func setInOrderStartupPolicyInProgressCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	// Add a condition to the JobSet indicating the in order startup policy is executing.
 	setCondition(js, &conditionOpts{
 		eventType: corev1.EventTypeNormal,
@@ -66,9 +66,9 @@ func setInOrderStartupPolicyInProgress(js *jobset.JobSet, updateStatusOpts *stat
 	}, updateStatusOpts)
 }
 
-// setInOrderStartupPolicyCompleted sets a condition on the JobSet status indicating it has finished
+// setInOrderStartupPolicyCompletedCondition sets a condition on the JobSet status indicating it has finished
 // running an in-order startup policy to completion.
-func setInOrderStartupPolicyCompleted(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
+func setInOrderStartupPolicyCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, &conditionOpts{
 		eventType: corev1.EventTypeNormal,
 		condition: inOrderStartupPolicyCompletedCondition(),
