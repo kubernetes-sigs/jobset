@@ -16,33 +16,33 @@ package applyconfiguration
 
 import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	v1beta1 "sigs.k8s.io/jobset/api/jobset/v1beta1"
-	jobsetv1beta1 "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1beta1"
+	v1alpha1 "sigs.k8s.io/jobset/api/jobset/v1alpha1"
+	jobsetv1alpha1 "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1alpha1"
 )
 
 // ForKind returns an apply configuration type for the given GroupVersionKind, or nil if no
 // apply configuration type exists for the given GroupVersionKind.
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
-	// Group=jobset.x-k8s.io, Version=v1beta1
-	case v1beta1.SchemeGroupVersion.WithKind("FailurePolicy"):
-		return &jobsetv1beta1.FailurePolicyApplyConfiguration{}
-	case v1beta1.SchemeGroupVersion.WithKind("JobSet"):
-		return &jobsetv1beta1.JobSetApplyConfiguration{}
-	case v1beta1.SchemeGroupVersion.WithKind("JobSetSpec"):
-		return &jobsetv1beta1.JobSetSpecApplyConfiguration{}
-	case v1beta1.SchemeGroupVersion.WithKind("JobSetStatus"):
-		return &jobsetv1beta1.JobSetStatusApplyConfiguration{}
-	case v1beta1.SchemeGroupVersion.WithKind("Network"):
-		return &jobsetv1beta1.NetworkApplyConfiguration{}
-	case v1beta1.SchemeGroupVersion.WithKind("ReplicatedJob"):
-		return &jobsetv1beta1.ReplicatedJobApplyConfiguration{}
-	case v1beta1.SchemeGroupVersion.WithKind("ReplicatedJobStatus"):
-		return &jobsetv1beta1.ReplicatedJobStatusApplyConfiguration{}
-	case v1beta1.SchemeGroupVersion.WithKind("StartupPolicy"):
-		return &jobsetv1beta1.StartupPolicyApplyConfiguration{}
-	case v1beta1.SchemeGroupVersion.WithKind("SuccessPolicy"):
-		return &jobsetv1beta1.SuccessPolicyApplyConfiguration{}
+	// Group=jobset.x-k8s.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("FailurePolicy"):
+		return &jobsetv1alpha1.FailurePolicyApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("JobSet"):
+		return &jobsetv1alpha1.JobSetApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("JobSetSpec"):
+		return &jobsetv1alpha1.JobSetSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("JobSetStatus"):
+		return &jobsetv1alpha1.JobSetStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("Network"):
+		return &jobsetv1alpha1.NetworkApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ReplicatedJob"):
+		return &jobsetv1alpha1.ReplicatedJobApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ReplicatedJobStatus"):
+		return &jobsetv1alpha1.ReplicatedJobStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("StartupPolicy"):
+		return &jobsetv1alpha1.StartupPolicyApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("SuccessPolicy"):
+		return &jobsetv1alpha1.SuccessPolicyApplyConfiguration{}
 
 	}
 	return nil

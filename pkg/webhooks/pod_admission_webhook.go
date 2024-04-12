@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1beta1"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )

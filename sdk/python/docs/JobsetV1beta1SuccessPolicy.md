@@ -1,4 +1,4 @@
-# JobsetV1beta1SuccessPolicy
+# Jobsetv1alpha1SuccessPolicy
 
 ## Properties
 Name | Type | Description | Notes

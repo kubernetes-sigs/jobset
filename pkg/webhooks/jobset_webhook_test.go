@@ -19,7 +19,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1beta1"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha1"
 )
 
 // TestPodTemplate is the default pod template spec used for testing.

@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1beta1"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	"sigs.k8s.io/jobset/test/util"
 )

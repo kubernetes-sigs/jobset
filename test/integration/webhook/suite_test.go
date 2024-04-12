@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1alpha1 "k8s.io/api/admission/v1beta1"
 	//+kubebuilder:scaffold:imports
 
 	"k8s.io/client-go/kubernetes/scheme"
@@ -38,7 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1beta1"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha1"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/webhooks"
 )
@@ -82,7 +82,7 @@ var _ = BeforeSuite(func() {
 	err = jobset.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = admissionv1beta1.AddToScheme(scheme.Scheme)
+	err = admissionv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme

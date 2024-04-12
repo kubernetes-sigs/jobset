@@ -21,23 +21,23 @@ import (
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
-	jobsetv1beta1 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1beta1"
+	jobsetv1alpha1 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1alpha1"
 )
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	JobsetV1beta1() jobsetv1beta1.JobsetV1beta1Interface
+	JobsetV1alpha1() jobsetv1alpha1.JobsetV1alpha1Interface
 }
 
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	jobsetV1beta1 *jobsetv1beta1.JobsetV1beta1Client
+	jobsetV1alpha1 *jobsetv1alpha1.JobsetV1alpha1Client
 }
 
-// JobsetV1beta1 retrieves the JobsetV1beta1Client
-func (c *Clientset) JobsetV1beta1() jobsetv1beta1.JobsetV1beta1Interface {
-	return c.jobsetV1beta1
+// JobsetV1alpha1 retrieves the JobsetV1alpha1Client
+func (c *Clientset) JobsetV1alpha1() jobsetv1alpha1.JobsetV1alpha1Interface {
+	return c.jobsetV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -84,7 +84,7 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
-	cs.jobsetV1beta1, err = jobsetv1beta1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	cs.jobsetV1alpha1, err = jobsetv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.jobsetV1beta1 = jobsetv1beta1.New(c)
+	cs.jobsetV1alpha1 = jobsetv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

@@ -26,7 +26,7 @@ import (
 
 	_ "k8s.io/code-generator"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1beta1"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha1"
 )
 
 // Generate OpenAPI spec definitions for API resources

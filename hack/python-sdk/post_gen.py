@@ -27,8 +27,8 @@ from pathlib import Path
 
 
 __import_replacements = [
-    ("jobset\.models\.jobset\/v1beta1\/", "jobset.models.jobset_v1beta1_"),
-    (".jobset\.v1beta1\.", ".JobsetV1beta2")
+    ("jobset\.models\.jobset\/v1alpha1\/", "jobset.models.jobset_v1alpha1_"),
+    (".jobset\.v1alpha1\.", ".JobsetV1alpha1")
 ]
 
 __requirement_replacements = [
