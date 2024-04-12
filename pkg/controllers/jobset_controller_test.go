@@ -27,7 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1beta1"
 	"sigs.k8s.io/jobset/pkg/constants"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )

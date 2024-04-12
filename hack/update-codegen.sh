@@ -43,8 +43,8 @@ kube::codegen::gen_helpers \
 
 echo "gen_openapi"
 kube::codegen::gen_openapi \
-  --input-pkg-root sigs.k8s.io/jobset/api \
-  --output-pkg-root sigs.k8s.io/jobset/api/jobset/v1alpha1 \
+  --input-pkg-root sigs.k8s.io/jobset/api/jobset \
+  --output-pkg-root sigs.k8s.io/jobset/api/jobset/v1beta1 \
   --output-base "${JOBSET_ROOT}" \
   --update-report \
   --boilerplate "${JOBSET_ROOT}/hack/boilerplate.go.txt"

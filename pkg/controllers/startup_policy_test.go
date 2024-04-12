@@ -18,7 +18,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1beta1"
 )
 
 func TestInOrderStartupPolicy(t *testing.T) {

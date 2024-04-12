@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1beta1"
 )
 
 // maximum lnegth of the value of the managedBy field

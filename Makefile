@@ -81,8 +81,13 @@ help: ## Display this help.
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) \
+		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
+		paths="./api/..."
+
+	$(CONTROLLER_GEN) \
 		crd:generateEmbeddedObjectMeta=true output:crd:artifacts:config=config/components/crd/bases\
 		paths="./api/..."
+
 	$(CONTROLLER_GEN) \
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
 		webhook output:webhook:artifacts:config=config/components/webhook\
@@ -244,9 +249,9 @@ code-generator:
 .PHONY: openapi-gen
 openapi-gen:
 	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install k8s.io/code-generator/cmd/openapi-gen@latest
-	$(PROJECT_DIR)/bin/openapi-gen --go-header-file hack/boilerplate.go.txt -i sigs.k8s.io/jobset/api/jobset/v1alpha2 -p sigs.k8s.io/jobset/api/jobset/v1alpha2 --alsologtostderr
-	if [ $(GOPATH)/src/sigs.k8s.io/jobset/api/jobset/v1alpha2/openapi_generated.go != $(PROJECT_DIR)/api/jobset/v1alpha2/openapi_generated.go ]; then \
-		mv $(GOPATH)/src/sigs.k8s.io/jobset/api/jobset/v1alpha2/openapi_generated.go $(PROJECT_DIR)/api/jobset/v1alpha2/openapi_generated.go; \
+	$(PROJECT_DIR)/bin/openapi-gen --go-header-file hack/boilerplate.go.txt -i sigs.k8s.io/jobset/api/jobset/v1beta1 -p sigs.k8s.io/jobset/api/jobset/v1beta1 --alsologtostderr
+	if [ $(GOPATH)/src/sigs.k8s.io/jobset/api/jobset/v1beta1/openapi_generated.go != $(PROJECT_DIR)/api/jobset/v1alpha2/openapi_generated.go ]; then \
+		mv $(GOPATH)/src/sigs.k8s.io/jobset/api/jobset/v1beta1/openapi_generated.go $(PROJECT_DIR)/api/jobset/v1alpha2/openapi_generated.go; \
 	fi
 	
 .PHONY: envtest

@@ -7,7 +7,7 @@
   },
   "paths": {},
   "definitions": {
-    "jobset.v1alpha2.FailurePolicy": {
+    "jobset.v1beta1.FailurePolicy": {
       "type": "object",
       "properties": {
         "maxRestarts": {
@@ -17,7 +17,7 @@
         }
       }
     },
-    "jobset.v1alpha2.JobSet": {
+    "jobset.v1beta1.JobSet": {
       "description": "JobSet is the Schema for the jobsets API",
       "type": "object",
       "properties": {
@@ -35,15 +35,15 @@
         },
         "spec": {
           "default": {},
-          "$ref": "#/definitions/jobset.v1alpha2.JobSetSpec"
+          "$ref": "#/definitions/jobset.v1beta1.JobSetSpec"
         },
         "status": {
           "default": {},
-          "$ref": "#/definitions/jobset.v1alpha2.JobSetStatus"
+          "$ref": "#/definitions/jobset.v1beta1.JobSetStatus"
         }
       }
     },
-    "jobset.v1alpha2.JobSetList": {
+    "jobset.v1beta1.JobSetList": {
       "description": "JobSetList contains a list of JobSet",
       "type": "object",
       "required": [
@@ -58,7 +58,7 @@
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "#/definitions/jobset.v1alpha2.JobSet"
+            "$ref": "#/definitions/jobset.v1beta1.JobSet"
           }
         },
         "kind": {
@@ -71,13 +71,13 @@
         }
       }
     },
-    "jobset.v1alpha2.JobSetSpec": {
+    "jobset.v1beta1.JobSetSpec": {
       "description": "JobSetSpec defines the desired state of JobSet",
       "type": "object",
       "properties": {
         "failurePolicy": {
           "description": "FailurePolicy, if set, configures when to declare the JobSet as failed. The JobSet is always declared failed if any job in the set finished with status failed.",
-          "$ref": "#/definitions/jobset.v1alpha2.FailurePolicy"
+          "$ref": "#/definitions/jobset.v1beta1.FailurePolicy"
         },
         "managedBy": {
           "description": "ManagedBy is used to indicate the controller or entity that manages a JobSet",
@@ -85,14 +85,14 @@
         },
         "network": {
           "description": "Network defines the networking options for the jobset.",
-          "$ref": "#/definitions/jobset.v1alpha2.Network"
+          "$ref": "#/definitions/jobset.v1beta1.Network"
         },
         "replicatedJobs": {
           "description": "ReplicatedJobs is the group of jobs that will form the set.",
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "#/definitions/jobset.v1alpha2.ReplicatedJob"
+            "$ref": "#/definitions/jobset.v1beta1.ReplicatedJob"
           },
           "x-kubernetes-list-map-keys": [
             "name"
@@ -101,11 +101,11 @@
         },
         "startupPolicy": {
           "description": "StartupPolicy, if set, configures in what order jobs must be started",
-          "$ref": "#/definitions/jobset.v1alpha2.StartupPolicy"
+          "$ref": "#/definitions/jobset.v1beta1.StartupPolicy"
         },
         "successPolicy": {
           "description": "SuccessPolicy configures when to declare the JobSet as succeeded. The JobSet is always declared succeeded if all jobs in the set finished with status complete.",
-          "$ref": "#/definitions/jobset.v1alpha2.SuccessPolicy"
+          "$ref": "#/definitions/jobset.v1beta1.SuccessPolicy"
         },
         "suspend": {
           "description": "Suspend suspends all running child Jobs when set to true.",
@@ -118,7 +118,7 @@
         }
       }
     },
-    "jobset.v1alpha2.JobSetStatus": {
+    "jobset.v1beta1.JobSetStatus": {
       "description": "JobSetStatus defines the observed state of JobSet",
       "type": "object",
       "properties": {
@@ -138,7 +138,7 @@
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "#/definitions/jobset.v1alpha2.ReplicatedJobStatus"
+            "$ref": "#/definitions/jobset.v1beta1.ReplicatedJobStatus"
           },
           "x-kubernetes-list-map-keys": [
             "name"
@@ -152,7 +152,7 @@
         }
       }
     },
-    "jobset.v1alpha2.Network": {
+    "jobset.v1beta1.Network": {
       "type": "object",
       "properties": {
         "enableDNSHostnames": {
@@ -165,7 +165,7 @@
         }
       }
     },
-    "jobset.v1alpha2.ReplicatedJob": {
+    "jobset.v1beta1.ReplicatedJob": {
       "type": "object",
       "required": [
         "name",
@@ -189,7 +189,7 @@
         }
       }
     },
-    "jobset.v1alpha2.ReplicatedJobStatus": {
+    "jobset.v1beta1.ReplicatedJobStatus": {
       "description": "ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.",
       "type": "object",
       "required": [
@@ -238,7 +238,7 @@
         }
       }
     },
-    "jobset.v1alpha2.StartupPolicy": {
+    "jobset.v1beta1.StartupPolicy": {
       "type": "object",
       "required": [
         "startupPolicyOrder"
@@ -251,7 +251,7 @@
         }
       }
     },
-    "jobset.v1alpha2.SuccessPolicy": {
+    "jobset.v1beta1.SuccessPolicy": {
       "type": "object",
       "required": [
         "operator"

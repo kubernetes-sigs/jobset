@@ -21,8 +21,8 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
 	clientset "sigs.k8s.io/jobset/client-go/clientset/versioned"
-	jobsetv1alpha2 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1alpha2"
-	fakejobsetv1alpha2 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1alpha2/fake"
+	jobsetv1beta1 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1beta1"
+	fakejobsetv1beta1 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1beta1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.
@@ -75,7 +75,7 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
-// JobsetV1alpha2 retrieves the JobsetV1alpha2Client
-func (c *Clientset) JobsetV1alpha2() jobsetv1alpha2.JobsetV1alpha2Interface {
-	return &fakejobsetv1alpha2.FakeJobsetV1alpha2{Fake: &c.Fake}
+// JobsetV1beta1 retrieves the JobsetV1beta1Client
+func (c *Clientset) JobsetV1beta1() jobsetv1beta1.JobsetV1beta1Interface {
+	return &fakejobsetv1beta1.FakeJobsetV1beta1{Fake: &c.Fake}
 }
