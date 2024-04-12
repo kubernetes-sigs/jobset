@@ -48,6 +48,10 @@ const (
 	// The event uses the error(s) as the reason.
 	JobCreationFailedReason = "JobCreationFailed"
 
+	// Event reason used when a Headless Service creation fails.
+	// The event uses the error(s) as the reason.
+	HeadlessServiceCreationFailedReason = "HeadlessServiceCreationFailed"
+
 	// Event reason and message for when the pod controller detects a violation
 	// of the JobSet exclusive placment policy (i.e., follower pods not colocated in
 	// the same topology domain as the leader pod for that Job).
