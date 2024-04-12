@@ -1,5 +1,5 @@
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.26.0
+ENVTEST_K8S_VERSION = 1.29.0
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -81,7 +81,7 @@ help: ## Display this help.
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) \
-		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
+		crd:generateEmbeddedObjectMeta=true output:crd:artifacts:config=config/components/crd/bases\
 		paths="./api/..."
 	$(CONTROLLER_GEN) \
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
@@ -89,9 +89,9 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 		paths="./pkg/..."
 
 .PHONY: generate
-generate: controller-gen code-generator openapi-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.
+generate: controller-gen code-generator ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
-	./hack/update-codegen.sh $(GO_CMD) $(PROJECT_DIR)/bin
+	./hack/update-codegen.sh $(GO_CMD)
 	./hack/python-sdk/gen-sdk.sh
 
 .PHONY: fmt
@@ -105,6 +105,10 @@ fmt-verify:
 	    echo "$$out"; \
 	    exit 1; \
 	fi
+
+.PHONY: gomod-download
+gomod-download:
+	$(GO_CMD) mod download
 
 .PHONY: toc-update
 toc-update:
@@ -218,11 +222,11 @@ $(KUSTOMIZE): $(LOCALBIN)
 	fi
 	test -s $(LOCALBIN)/kustomize || { curl -Ss $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
 
+
+CONTROLLER_GEN = $(PROJECT_DIR)/bin/controller-gen
 .PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
-$(CONTROLLER_GEN): $(LOCALBIN)
-	test -s $(LOCALBIN)/controller-gen && $(LOCALBIN)/controller-gen --version | grep -q $(CONTROLLER_TOOLS_VERSION) || \
-	GOBIN=$(LOCALBIN) $(GO_CMD) install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+controller-gen: ## Download controller-gen locally if necessary.
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 
 
 # Use same code-generator version as k8s.io/api

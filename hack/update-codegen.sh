@@ -18,15 +18,15 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-cd "$(dirname "${0}")/.."
 GO_CMD=${1:-go}
-CODEGEN_PKG=${2:-bin}
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+JOBSET_ROOT=$(realpath $(dirname ${BASH_SOURCE[0]})/..)
+CODEGEN_PKG=$($GO_CMD list -m -f "{{.Dir}}" k8s.io/code-generator)
 
-echo "GOPATH=$GOPATH"
+cd $(dirname ${BASH_SOURCE[0]})/..
 
 source "${CODEGEN_PKG}/kube_codegen.sh"
 
+echo $JOBSET_ROOT
 # TODO: remove the workaround when the issue is solved in the code-generator
 # (https://github.com/kubernetes/code-generator/issues/165).
 # Here, we create the soft link named "sigs.k8s.io" to the parent directory of
@@ -34,15 +34,28 @@ source "${CODEGEN_PKG}/kube_codegen.sh"
 ln -s .. sigs.k8s.io
 trap "rm sigs.k8s.io" EXIT
 
+echo "gen_helpers"
 kube::codegen::gen_helpers \
     --input-pkg-root sigs.k8s.io/jobset/api \
-    --output-base "${REPO_ROOT}" \
-    --boilerplate "${REPO_ROOT}/hack/boilerplate.go.txt"
+    --output-base "${JOBSET_ROOT}" \
+    --boilerplate "${JOBSET_ROOT}/hack/boilerplate.go.txt"
 
+
+echo "gen_openapi"
+kube::codegen::gen_openapi \
+  --input-pkg-root sigs.k8s.io/jobset/api \
+  --output-pkg-root sigs.k8s.io/jobset/api/jobset/v1alpha1 \
+  --output-base "${JOBSET_ROOT}" \
+  --update-report \
+  --boilerplate "${JOBSET_ROOT}/hack/boilerplate.go.txt"
+
+echo "gen_client"
 kube::codegen::gen_client \
     --with-watch \
     --with-applyconfig \
     --input-pkg-root sigs.k8s.io/jobset/api \
-    --output-base "$REPO_ROOT" \
+    --output-base "$JOBSET_ROOT" \
     --output-pkg-root sigs.k8s.io/jobset/client-go \
-    --boilerplate "${REPO_ROOT}/hack/boilerplate.go.txt"
+    --boilerplate "${JOBSET_ROOT}/hack/boilerplate.go.txt"
+
+echo "done"
