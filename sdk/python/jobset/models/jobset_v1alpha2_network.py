@@ -34,26 +34,31 @@ class JobsetV1alpha2Network(object):
     """
     openapi_types = {
         'enable_dns_hostnames': 'bool',
+        'publish_not_ready_addresses': 'bool',
         'subdomain': 'str'
     }
 
     attribute_map = {
         'enable_dns_hostnames': 'enableDNSHostnames',
+        'publish_not_ready_addresses': 'publishNotReadyAddresses',
         'subdomain': 'subdomain'
     }
 
-    def __init__(self, enable_dns_hostnames=None, subdomain=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, enable_dns_hostnames=None, publish_not_ready_addresses=None, subdomain=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2Network - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._enable_dns_hostnames = None
+        self._publish_not_ready_addresses = None
         self._subdomain = None
         self.discriminator = None
 
         if enable_dns_hostnames is not None:
             self.enable_dns_hostnames = enable_dns_hostnames
+        if publish_not_ready_addresses is not None:
+            self.publish_not_ready_addresses = publish_not_ready_addresses
         if subdomain is not None:
             self.subdomain = subdomain
 
@@ -79,6 +84,29 @@ class JobsetV1alpha2Network(object):
         """
 
         self._enable_dns_hostnames = enable_dns_hostnames
+
+    @property
+    def publish_not_ready_addresses(self):
+        """Gets the publish_not_ready_addresses of this JobsetV1alpha2Network.  # noqa: E501
+
+        PublishNotReadyAddresses indicates that any agent which deals with endpoints for this Service should disregard any indications of ready/not-ready. Defaults to true if not set  # noqa: E501
+
+        :return: The publish_not_ready_addresses of this JobsetV1alpha2Network.  # noqa: E501
+        :rtype: bool
+        """
+        return self._publish_not_ready_addresses
+
+    @publish_not_ready_addresses.setter
+    def publish_not_ready_addresses(self, publish_not_ready_addresses):
+        """Sets the publish_not_ready_addresses of this JobsetV1alpha2Network.
+
+        PublishNotReadyAddresses indicates that any agent which deals with endpoints for this Service should disregard any indications of ready/not-ready. Defaults to true if not set  # noqa: E501
+
+        :param publish_not_ready_addresses: The publish_not_ready_addresses of this JobsetV1alpha2Network.  # noqa: E501
+        :type: bool
+        """
+
+        self._publish_not_ready_addresses = publish_not_ready_addresses
 
     @property
     def subdomain(self):

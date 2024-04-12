@@ -146,6 +146,7 @@ func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 	cmd := getPingCommand(podHostnames)
 	return testing.MakeJobSet(jsName, ns.Name).
 		EnableDNSHostnames(true).
+		PublishNotReadyAddresses(true).
 		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
 			Job(testing.MakeJobTemplate("job", ns.Name).
 				PodSpec(corev1.PodSpec{
@@ -180,6 +181,7 @@ func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 	cmd := getPingCommand(podHostnames)
 	return testing.MakeJobSet(jsName, ns.Name).
 		EnableDNSHostnames(true).
+		PublishNotReadyAddresses(true).
 		NetworkSubdomain(subdomain).
 		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
 			Job(testing.MakeJobTemplate("job", ns.Name).

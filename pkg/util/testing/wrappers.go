@@ -121,9 +121,15 @@ func (j *JobSetWrapper) NetworkSubdomain(val string) *JobSetWrapper {
 	return j
 }
 
-// EnableDNSHostnames sets the value of ReplicatedJob.Network.EnableDNSHostnames.
+// EnableDNSHostnames sets the value of JobSet.Network.EnableDNSHostnames.
 func (j *JobSetWrapper) EnableDNSHostnames(val bool) *JobSetWrapper {
 	j.JobSet.Spec.Network.EnableDNSHostnames = ptr.To(val)
+	return j
+}
+
+// PublishNotReadyAddresses sets the value of JobSet.Network.PublishNotReadyAddresses.
+func (j *JobSetWrapper) PublishNotReadyAddresses(val bool) *JobSetWrapper {
+	j.JobSet.Spec.Network.PublishNotReadyAddresses = ptr.To(val)
 	return j
 }
 

@@ -321,6 +321,13 @@ func schema_jobset_api_jobset_v1alpha2_Network(ref common.ReferenceCallback) com
 							Format:      "",
 						},
 					},
+					"publishNotReadyAddresses": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PublishNotReadyAddresses indicates that any agent which deals with endpoints for this Service should disregard any indications of ready/not-ready. Defaults to true if not set",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

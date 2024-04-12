@@ -566,6 +566,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 				Selector: map[string]string{
 					jobset.JobSetNameKey: js.Name,
 				},
+				PublishNotReadyAddresses: ptr.Deref(js.Spec.Network.PublishNotReadyAddresses, true),
 			},
 		}
 

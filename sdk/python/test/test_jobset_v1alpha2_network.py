@@ -39,6 +39,7 @@ class TestJobsetV1alpha2Network(unittest.TestCase):
         if include_optional :
             return JobsetV1alpha2Network(
                 enable_dns_hostnames = True, 
+                publish_not_ready_addresses = True, 
                 subdomain = '0'
             )
         else :

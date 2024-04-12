@@ -85,6 +85,12 @@ spec:
                       Pods will be reachable using the fully qualified pod hostname:
                       <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>
                     type: boolean
+                  publishNotReadyAddresses:
+                    description: |-
+                      PublishNotReadyAddresses indicates that any agent
+                      which deals with endpoints for this Service should disregard any indications of ready/not-ready.
+                      Defaults to true if not set
+                    type: boolean
                   subdomain:
                     description: |-
                       Subdomain is an explicit choice for a network subdomain name

@@ -198,6 +198,12 @@ type Network struct {
 	// Defaults to <jobSet.name> if not set.
 	// +optional
 	Subdomain string `json:"subdomain,omitempty"`
+
+	// PublishNotReadyAddresses indicates that any agent
+	// which deals with endpoints for this Service should disregard any indications of ready/not-ready.
+	// Defaults to true if not set
+	// +optional
+	PublishNotReadyAddresses *bool `json:"publishNotReadyAddresses,omitempty"`
 }
 
 // Operator defines the target of a SuccessPolicy or FailurePolicy.
