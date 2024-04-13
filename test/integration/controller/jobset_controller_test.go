@@ -825,6 +825,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					})
 			},
 			updates: []*update{
+				// Ensure replicated job statuses report all child jobs are suspended.
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -839,6 +840,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						})
 					},
 				},
+				// Resume jobset. Only first replicated job should be unsuspended due to in-order
+				// startup policy.
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						suspendJobSet(js, false)
@@ -858,6 +861,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						})
 					},
 				},
+				// Update first replicatedJob so all its child jobs are ready. This will allow
+				// the next replicatedJob to proceed.
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						readyReplicatedJob(jobList, "replicated-job-a")

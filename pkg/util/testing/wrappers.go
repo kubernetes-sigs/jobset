@@ -54,6 +54,12 @@ func MakeJobSet(name, ns string) *JobSetWrapper {
 	}
 }
 
+// Conditions sets the value of jobSet.status.conditions
+func (j *JobSetWrapper) Conditions(conditions []metav1.Condition) *JobSetWrapper {
+	j.Status.Conditions = conditions
+	return j
+}
+
 // ManagedBy sets the value of jobSet.spec.managedBy
 func (j *JobSetWrapper) ManagedBy(managedBy string) *JobSetWrapper {
 	j.Spec.ManagedBy = ptr.To(managedBy)
