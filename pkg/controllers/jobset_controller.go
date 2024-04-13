@@ -198,12 +198,10 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 			return ctrl.Result{}, err
 		}
 	} else {
-		requeue, err := r.resumeJobsIfNecessary(ctx, js, ownedJobs.active, rjobStatuses, updateStatusOpts)
-		if err != nil {
+		if err := r.resumeJobsIfNecessary(ctx, js, ownedJobs.active, rjobStatuses, updateStatusOpts); err != nil {
 			log.Error(err, "resuming jobset")
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{Requeue: requeue}, nil
 	}
 	return ctrl.Result{}, nil
 }
@@ -385,7 +383,7 @@ func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, a
 // is not suspended. Returns a boolean value indicating if the JobSet should be requeued for reconciliation.
 // This is so in-order startup policy can be respected, where after resuming one replicatedJob, we must
 // wait for it to become ready before resuming the next.
-func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) (bool, error) {
+func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
 	// Store node selector for each replicatedJob template.
 	nodeAffinities := map[string]map[string]string{}
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
@@ -414,21 +412,21 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 				continue
 			}
 			if err := r.resumeJob(ctx, job, nodeAffinities); err != nil {
-				return false, err
+				return err
 			}
 		}
 		// If in order startup policy, we need to return early and allow for
 		// this replicatedJob to become ready before resuming the next.
 		if inOrderStartupPolicy(startupPolicy) {
 			setInOrderStartupPolicyInProgressCondition(js, updateStatusOpts)
-			return true, nil
+			return nil
 		}
 	}
 
 	// Finally, set the suspended condition on the JobSet to false to indicate
 	// the JobSet is no longer suspended.
 	setJobSetResumedCondition(js, updateStatusOpts)
-	return false, nil
+	return nil
 }
 
 func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, nodeAffinities map[string]map[string]string) error {
