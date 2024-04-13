@@ -53,9 +53,11 @@ const (
 	JobSetCompleted JobSetConditionType = "Completed"
 	// JobSetFailed means the job has failed its execution.
 	JobSetFailed JobSetConditionType = "Failed"
-	// JobSetSuspended means the job is suspended
+	// JobSetSuspended means the job is suspended.
 	JobSetSuspended JobSetConditionType = "Suspended"
-	// JobSetStartupPolicyCompleted means the StartupPolicy was complete
+	// JobSetStartupPolicyInProgress means the StartupPolicy is in progress.
+	JobSetStartupPolicyInProgress JobSetConditionType = "StartupPolicyInProgress"
+	// JobSetStartupPolicyCompleted means the StartupPolicy has completed.
 	JobSetStartupPolicyCompleted JobSetConditionType = "StartupPolicyCompleted"
 )
 

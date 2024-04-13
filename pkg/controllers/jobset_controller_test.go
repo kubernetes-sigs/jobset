@@ -661,7 +661,6 @@ func TestUpdateConditions(t *testing.T) {
 		replicatedJobName = "replicated-job"
 		jobName           = "test-job"
 		ns                = "default"
-		now               = metav1.Now()
 	)
 
 	tests := []struct {
@@ -687,7 +686,7 @@ func TestUpdateConditions(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			opts:           completedConditionsOpts,
+			opts:           makeCompletedConditionsOpts(),
 			expectedUpdate: true,
 		},
 		{
@@ -697,7 +696,7 @@ func TestUpdateConditions(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).Obj(),
-			opts:           makeSuspendedConditionOpts(now),
+			opts:           makeSuspendedConditionOpts(),
 			expectedUpdate: true,
 		},
 		{
@@ -717,7 +716,7 @@ func TestUpdateConditions(t *testing.T) {
 					},
 				}).
 				Obj(),
-			opts:           makeResumedConditionOpts(now),
+			opts:           makeResumedConditionOpts(),
 			expectedUpdate: true,
 		},
 		{
@@ -736,7 +735,7 @@ func TestUpdateConditions(t *testing.T) {
 						Status:  metav1.ConditionStatus(corev1.ConditionTrue),
 					},
 				}).Obj(),
-			opts:           completedConditionsOpts,
+			opts:           makeCompletedConditionsOpts(),
 			expectedUpdate: false,
 		},
 	}

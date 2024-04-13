@@ -34,35 +34,18 @@ func inOrderStartupPolicy(sp *jobset.StartupPolicy) bool {
 	return sp != nil && sp.StartupPolicyOrder == jobset.InOrder
 }
 
-func inOrderStartupPolicyInProgressCondition() *metav1.Condition {
-	return &metav1.Condition{
-		Type: string(jobset.JobSetStartupPolicyCompleted),
-		// Status is True when in order startup policy is completed.
-		// Otherwise it is set as False to indicate it is still executing.
-		Status:  metav1.ConditionFalse,
-		Reason:  constants.InOrderStartupPolicyReason,
-		Message: constants.InOrderStartupPolicyExecutingMessage,
-	}
-}
-
-func inOrderStartupPolicyCompletedCondition() *metav1.Condition {
-	return &metav1.Condition{
-		Type: string(jobset.JobSetStartupPolicyCompleted),
-		// Status is True when in order startup policy is completed.
-		// Otherwise it is set as False to indicate it is still executing.
-		Status:  metav1.ConditionTrue,
-		Reason:  constants.InOrderStartupPolicyReason,
-		Message: constants.InOrderStartupPolicyCompletedMessage,
-	}
-}
-
 // setInOrderStartupPolicyInProgressCondition sets a condition on the JobSet status indicating it is
 // currently executing an in-order startup policy.
 func setInOrderStartupPolicyInProgressCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	// Add a condition to the JobSet indicating the in order startup policy is executing.
 	setCondition(js, &conditionOpts{
 		eventType: corev1.EventTypeNormal,
-		condition: inOrderStartupPolicyInProgressCondition(),
+		condition: &metav1.Condition{
+			Type:    string(jobset.JobSetStartupPolicyInProgress),
+			Status:  metav1.ConditionTrue,
+			Reason:  constants.InOrderStartupPolicyInProgressReason,
+			Message: constants.InOrderStartupPolicyInProgressMessage,
+		},
 	}, updateStatusOpts)
 }
 
@@ -71,6 +54,11 @@ func setInOrderStartupPolicyInProgressCondition(js *jobset.JobSet, updateStatusO
 func setInOrderStartupPolicyCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, &conditionOpts{
 		eventType: corev1.EventTypeNormal,
-		condition: inOrderStartupPolicyCompletedCondition(),
+		condition: &metav1.Condition{
+			Type:    string(jobset.JobSetStartupPolicyCompleted),
+			Status:  metav1.ConditionTrue,
+			Reason:  constants.InOrderStartupPolicyCompletedReason,
+			Message: constants.InOrderStartupPolicyCompletedMessage,
+		},
 	}, updateStatusOpts)
 }

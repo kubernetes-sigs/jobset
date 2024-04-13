@@ -110,8 +110,8 @@ func JobSetStartupPolicyNotFinished(ctx context.Context, k8sClient client.Client
 	ginkgo.By(fmt.Sprintf("checking jobset condition %q status is %q", jobset.JobSetStartupPolicyCompleted, metav1.ConditionFalse))
 	conditions := []metav1.Condition{
 		{
-			Type:   string(jobset.JobSetStartupPolicyCompleted),
-			Status: metav1.ConditionFalse,
+			Type:   string(jobset.JobSetStartupPolicyInProgress),
+			Status: metav1.ConditionTrue,
 		},
 	}
 	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
