@@ -153,6 +153,11 @@ func (j *JobSetWrapper) DeletionTimestamp(deletionTimestamp *metav1.Time) *JobSe
 
 }
 
+func (j *JobSetWrapper) Finalizers(finalizers []string) *JobSetWrapper {
+	j.ObjectMeta.Finalizers = finalizers
+	return j
+}
+
 // ReplicatedJobWrapper wraps a ReplicatedJob.
 type ReplicatedJobWrapper struct {
 	jobset.ReplicatedJob
