@@ -1,5 +1,5 @@
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.26.0
+ENVTEST_K8S_VERSION = 1.29
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -82,6 +82,7 @@ help: ## Display this help.
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) \
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
+		crd:generateEmbeddedObjectMeta=true output:crd:artifacts:config=config/components/crd/bases\
 		paths="./api/..."
 	$(CONTROLLER_GEN) \
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
