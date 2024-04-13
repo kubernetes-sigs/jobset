@@ -10,14 +10,14 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-jobset-x-k8s-io-v1alpha2-jobset
+      path: /mutate-jobset-x-k8s-io-v1-jobset
   failurePolicy: Fail
   name: mjobset.kb.io
   rules:
   - apiGroups:
     - jobset.x-k8s.io
     apiVersions:
-    - v1alpha2
+    - v1
     operations:
     - CREATE
     - UPDATE
@@ -55,14 +55,14 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-jobset-x-k8s-io-v1alpha2-jobset
+      path: /validate-jobset-x-k8s-io-v1-jobset
   failurePolicy: Fail
   name: vjobset.kb.io
   rules:
   - apiGroups:
     - jobset.x-k8s.io
     apiVersions:
-    - v1alpha2
+    - v1
     operations:
     - CREATE
     - UPDATE

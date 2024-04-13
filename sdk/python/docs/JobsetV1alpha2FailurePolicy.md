@@ -1,4 +1,4 @@
-# JobsetV1alpha2FailurePolicy
+# Jobsetv1FailurePolicy
 
 ## Properties
 Name | Type | Description | Notes

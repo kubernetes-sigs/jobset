@@ -1,4 +1,4 @@
-# JobsetV1alpha2TargetReplicatedJobStartup
+# Jobsetv1TargetReplicatedJobStartup
 
 ## Properties
 Name | Type | Description | Notes

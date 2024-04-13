@@ -12,7 +12,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1"
 )
 
 // executeTTLAfterFinishedPolicy checks if the JobSet has a TTLSecondsAfterFinished set.

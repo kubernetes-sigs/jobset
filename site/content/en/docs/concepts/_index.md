@@ -20,7 +20,7 @@ A JobSet creates one or more Jobs. It allows you to create sets of jobs of diffe
 Here is an example JobSet. It runs a distributed PyTorch training workload.
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: pytorch
@@ -132,7 +132,7 @@ For example, consider the case where the nodes are assigned a rack label. To opt
 performance, we want to assign each job exclusively to one rack. This can be done as follows:
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: pytorch

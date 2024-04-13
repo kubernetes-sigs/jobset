@@ -96,7 +96,7 @@ This is useful for HPC/AI/ML workloads as some frameworks have a driver pod that
 The API below would fit my purpose.
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: driver-ready-worker-start
@@ -150,7 +150,7 @@ One area that this could be useful is if someone has a message queue replicatedJ
 In this case, I want message queue to start first, then the driver, and then finally the worker.  
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: messagequeue-driver-worker

@@ -19,7 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1"
 )
 
 // TestPodSpec is the default pod spec used for testing.

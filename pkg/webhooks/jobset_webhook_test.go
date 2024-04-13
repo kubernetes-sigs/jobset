@@ -19,7 +19,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1"
 )
 
 // TestPodTemplate is the default pod template spec used for testing.
@@ -571,7 +571,7 @@ func TestValidateCreate(t *testing.T) {
 			js: &jobset.JobSet{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "JobSet",
-					APIVersion: "jobset.x-k8s.io/v1alpha2",
+					APIVersion: "jobset.x-k8s.io/v1",
 				},
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
@@ -612,7 +612,7 @@ func TestValidateCreate(t *testing.T) {
 			js: &jobset.JobSet{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "JobSet",
-					APIVersion: "jobset.x-k8s.io/v1alpha2",
+					APIVersion: "jobset.x-k8s.io/v1",
 				},
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
@@ -639,7 +639,7 @@ func TestValidateCreate(t *testing.T) {
 			js: &jobset.JobSet{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "JobSet",
-					APIVersion: "jobset.x-k8s.io/v1alpha2",
+					APIVersion: "jobset.x-k8s.io/v1",
 				},
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
@@ -669,7 +669,7 @@ func TestValidateCreate(t *testing.T) {
 			js: &jobset.JobSet{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "JobSet",
-					APIVersion: "jobset.x-k8s.io/v1alpha2",
+					APIVersion: "jobset.x-k8s.io/v1",
 				},
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
@@ -702,7 +702,7 @@ func TestValidateCreate(t *testing.T) {
 			js: &jobset.JobSet{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "JobSet",
-					APIVersion: "jobset.x-k8s.io/v1alpha2",
+					APIVersion: "jobset.x-k8s.io/v1",
 				},
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
@@ -731,7 +731,7 @@ func TestValidateCreate(t *testing.T) {
 			js: &jobset.JobSet{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "JobSet",
-					APIVersion: "jobset.x-k8s.io/v1alpha2",
+					APIVersion: "jobset.x-k8s.io/v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: strings.Repeat("a", 62),
@@ -762,7 +762,7 @@ func TestValidateCreate(t *testing.T) {
 			js: &jobset.JobSet{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "JobSet",
-					APIVersion: "jobset.x-k8s.io/v1alpha2",
+					APIVersion: "jobset.x-k8s.io/v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: strings.Repeat("a", 56),

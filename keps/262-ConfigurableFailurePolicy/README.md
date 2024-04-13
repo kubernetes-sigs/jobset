@@ -88,7 +88,7 @@ attempts in the event of an non-retriable application code error.
 **Example Failure Policy Configuration for this use case**:
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: fail-jobset-example
@@ -139,7 +139,7 @@ the JobSet does not restart indefinitely, hogging compute resources unnecessaril
 **Example Failure Policy Configuration for this use case**:
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: restart-jobset-example
@@ -180,7 +180,7 @@ but restart a limited number of times for any other kind of error.
 **Example Failure Policy Configuration for this use case**:
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: ignore-max-restarts-example
@@ -242,7 +242,7 @@ to restart but only up to 3 times, as the job
 **Example Failure Policy Configuration for this use case**:
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: different-policies-for-different-replicated-jobs
@@ -500,7 +500,7 @@ the driver crashes, I want to restart the entire JobSet, then resume training fr
 **Example Failure Policy configuration for this use case**:
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: restart-replicated-job-example
@@ -566,7 +566,7 @@ When a Job fails due to a pod failing with exit code 3, I want to restart the Jo
 **Example Failure Policy configuration for this use case**:
 
 ```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: restart-replicated-job-example

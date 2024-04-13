@@ -29,7 +29,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	//+kubebuilder:scaffold:imports
 )

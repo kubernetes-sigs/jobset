@@ -1,6 +1,6 @@
 # Distributed training of a ResNet18 model to do image classification 
 # using the CIFAR-10 dataset and PyTorch.
-apiVersion: jobset.x-k8s.io/v1alpha2
+apiVersion: jobset.x-k8s.io/v1
 kind: JobSet
 metadata:
   name: pytorch

@@ -33,7 +33,7 @@ Take a look at the [concepts](https://jobset.sigs.k8s.io/docs/concepts/) page fo
 
 ## Production Readiness status
 
-- ✔️ API version: v1alpha2, respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/)
+- ✔️ API version: v1, respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/)
 - ✔️ Maintains support for latest 3 Kubernetes minor versions.
 - ✔️ Up-to-date [documentation](https://jobset.sigs.k8s.io/docs).
 - ✔️ Test Coverage:

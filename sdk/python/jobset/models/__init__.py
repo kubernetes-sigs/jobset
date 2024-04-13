@@ -17,13 +17,13 @@ from __future__ import absolute_import
 from kubernetes.client import *
 
 # import models into model package
-from jobset.models.jobset_v1alpha2_failure_policy import JobsetV1alpha2FailurePolicy
-from jobset.models.jobset_v1alpha2_job_set import JobsetV1alpha2JobSet
-from jobset.models.jobset_v1alpha2_job_set_list import JobsetV1alpha2JobSetList
-from jobset.models.jobset_v1alpha2_job_set_spec import JobsetV1alpha2JobSetSpec
-from jobset.models.jobset_v1alpha2_job_set_status import JobsetV1alpha2JobSetStatus
-from jobset.models.jobset_v1alpha2_network import JobsetV1alpha2Network
-from jobset.models.jobset_v1alpha2_replicated_job import JobsetV1alpha2ReplicatedJob
-from jobset.models.jobset_v1alpha2_replicated_job_status import JobsetV1alpha2ReplicatedJobStatus
-from jobset.models.jobset_v1alpha2_startup_policy import JobsetV1alpha2StartupPolicy
-from jobset.models.jobset_v1alpha2_success_policy import JobsetV1alpha2SuccessPolicy
+from jobset.models.jobset_v1_failure_policy import JobsetV1FailurePolicy
+from jobset.models.jobset_v1_job_set import JobsetV1JobSet
+from jobset.models.jobset_v1_job_set_list import JobsetV1JobSetList
+from jobset.models.jobset_v1_job_set_spec import JobsetV1JobSetSpec
+from jobset.models.jobset_v1_job_set_status import JobsetV1JobSetStatus
+from jobset.models.jobset_v1_network import JobsetV1Network
+from jobset.models.jobset_v1_replicated_job import JobsetV1ReplicatedJob
+from jobset.models.jobset_v1_replicated_job_status import JobsetV1ReplicatedJobStatus
+from jobset.models.jobset_v1_startup_policy import JobsetV1StartupPolicy
+from jobset.models.jobset_v1_success_policy import JobsetV1SuccessPolicy

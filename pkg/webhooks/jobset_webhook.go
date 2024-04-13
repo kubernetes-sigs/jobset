@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobset "sigs.k8s.io/jobset/api/jobset/v1"
 )
 
 // maximum lnegth of the value of the managedBy field
@@ -61,7 +61,7 @@ const (
 	subdomainTooLongErrMsg = ".spec.network.subdomain is too long, must be less than 63 characters"
 )
 
-//+kubebuilder:webhook:path=/mutate-jobset-x-k8s-io-v1alpha2-jobset,mutating=true,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=mjobset.kb.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-jobset-x-k8s-io-v1-jobset,mutating=true,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1,name=mjobset.kb.io,admissionReviewVersions=v1
 
 // jobSetWebhook for defaulting and admission.
 type jobSetWebhook struct {
@@ -124,7 +124,7 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	return nil
 }
 
-//+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha2-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=vjobset.kb.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1,name=vjobset.kb.io,admissionReviewVersions=v1
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {

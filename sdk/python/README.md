@@ -64,16 +64,16 @@ Class | Method | HTTP request | Description
 
 ## Documentation For Models
 
- - [JobsetV1alpha2FailurePolicy](docs/JobsetV1alpha2FailurePolicy.md)
- - [JobsetV1alpha2JobSet](docs/JobsetV1alpha2JobSet.md)
- - [JobsetV1alpha2JobSetList](docs/JobsetV1alpha2JobSetList.md)
- - [JobsetV1alpha2JobSetSpec](docs/JobsetV1alpha2JobSetSpec.md)
- - [JobsetV1alpha2JobSetStatus](docs/JobsetV1alpha2JobSetStatus.md)
- - [JobsetV1alpha2Network](docs/JobsetV1alpha2Network.md)
- - [JobsetV1alpha2ReplicatedJob](docs/JobsetV1alpha2ReplicatedJob.md)
- - [JobsetV1alpha2ReplicatedJobStatus](docs/JobsetV1alpha2ReplicatedJobStatus.md)
- - [JobsetV1alpha2StartupPolicy](docs/JobsetV1alpha2StartupPolicy.md)
- - [JobsetV1alpha2SuccessPolicy](docs/JobsetV1alpha2SuccessPolicy.md)
+ - [JobsetV1FailurePolicy](docs/JobsetV1FailurePolicy.md)
+ - [JobsetV1JobSet](docs/JobsetV1JobSet.md)
+ - [JobsetV1JobSetList](docs/JobsetV1JobSetList.md)
+ - [JobsetV1JobSetSpec](docs/JobsetV1JobSetSpec.md)
+ - [JobsetV1JobSetStatus](docs/JobsetV1JobSetStatus.md)
+ - [JobsetV1Network](docs/JobsetV1Network.md)
+ - [JobsetV1ReplicatedJob](docs/JobsetV1ReplicatedJob.md)
+ - [JobsetV1ReplicatedJobStatus](docs/JobsetV1ReplicatedJobStatus.md)
+ - [JobsetV1StartupPolicy](docs/JobsetV1StartupPolicy.md)
+ - [JobsetV1SuccessPolicy](docs/JobsetV1SuccessPolicy.md)
 
 
 ## Documentation For Authorization

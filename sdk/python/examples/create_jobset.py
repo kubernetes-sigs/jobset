@@ -14,7 +14,7 @@ with client.ApiClient() as api_client:
     # Create an instance of the API class
     api_instance = client.CustomObjectsApi(api_client)
     group = "jobset.x-k8s.io"  # str | the custom resource's group
-version = "v1alpha2"  # str | the custom resource's version
+version = "v1"  # str | the custom resource's version
 namespace = "default"  # str | The custom resource's namespace
 plural = "jobsets"  # str | the custom resource's plural name. For TPRs this would be lowercase plural kind.
 name = "failurepolicy"  # str | the custom object's name
@@ -28,17 +28,17 @@ job_template.spec = client.V1JobSpec(
     )
 )
 replicated_job = (
-    jobset.models.jobset_v1alpha2_replicated_job.JobsetV1alpha2ReplicatedJob(
+    jobset.models.jobset_v1_replicated_job.JobsetV1ReplicatedJob(
         name="main",
         replicas=1,
         template=job_template,
     )
 )
-jobset_example = jobset.models.jobset_v1alpha2_job_set.JobsetV1alpha2JobSet(
-    api_version="jobset.x-k8s.io/v1alpha2",
+jobset_example = jobset.models.jobset_v1_job_set.JobsetV1JobSet(
+    api_version="jobset.x-k8s.io/v1",
     kind="JobSet",
     metadata=V1ObjectMeta(name="test-jobset"),
-    spec=jobset.models.jobset_v1alpha2_job_set_spec.JobsetV1alpha2JobSetSpec(
+    spec=jobset.models.jobset_v1_job_set_spec.JobsetV1JobSetSpec(
         replicated_jobs=[replicated_job],
         suspend=True,
     ),

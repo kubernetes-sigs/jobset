@@ -20,14 +20,14 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	jobsetv1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobsetv1 "sigs.k8s.io/jobset/api/jobset/v1"
 )
 
 var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
 
 var localSchemeBuilder = runtime.SchemeBuilder{
-	jobsetv1alpha2.AddToScheme,
+	jobsetv1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

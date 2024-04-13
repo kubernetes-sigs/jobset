@@ -241,9 +241,9 @@ code-generator:
 .PHONY: openapi-gen
 openapi-gen:
 	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install k8s.io/code-generator/cmd/openapi-gen@latest
-	$(PROJECT_DIR)/bin/openapi-gen --go-header-file hack/boilerplate.go.txt -i sigs.k8s.io/jobset/api/jobset/v1alpha2 -p sigs.k8s.io/jobset/api/jobset/v1alpha2 --alsologtostderr
-	if [ $(GOPATH)/src/sigs.k8s.io/jobset/api/jobset/v1alpha2/openapi_generated.go != $(PROJECT_DIR)/api/jobset/v1alpha2/openapi_generated.go ]; then \
-		mv $(GOPATH)/src/sigs.k8s.io/jobset/api/jobset/v1alpha2/openapi_generated.go $(PROJECT_DIR)/api/jobset/v1alpha2/openapi_generated.go; \
+	$(PROJECT_DIR)/bin/openapi-gen --go-header-file hack/boilerplate.go.txt -i sigs.k8s.io/jobset/api/jobset/v1 -p sigs.k8s.io/jobset/api/jobset/v1 --alsologtostderr
+	if [ $(GOPATH)/src/sigs.k8s.io/jobset/api/jobset/v1/openapi_generated.go != $(PROJECT_DIR)/api/jobset/v1/openapi_generated.go ]; then \
+		mv $(GOPATH)/src/sigs.k8s.io/jobset/api/jobset/v1/openapi_generated.go $(PROJECT_DIR)/api/jobset/v1/openapi_generated.go; \
 	fi
 	
 .PHONY: envtest
