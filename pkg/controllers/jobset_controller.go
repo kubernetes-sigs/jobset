@@ -242,7 +242,7 @@ func (r *JobSetReconciler) updateJobSetStatus(ctx context.Context, js *jobset.Jo
 			log.Error(err, "updating jobset status")
 			return err
 		}
-		// If the status update was successful (or if we had no status updates), emit any enqueued events.
+		// If the status update was successful, emit any enqueued events.
 		for _, event := range updateStatusOpts.events {
 			r.Record.Eventf(event.object, event.eventType, event.eventReason, event.eventMessage)
 		}
@@ -381,9 +381,7 @@ func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, a
 }
 
 // resumeJobsIfNecessary iterates through each replicatedJob, resuming any suspended jobs if the JobSet
-// is not suspended. Returns a boolean value indicating if the JobSet should be requeued for reconciliation.
-// This is so in-order startup policy can be respected, where after resuming one replicatedJob, we must
-// wait for it to become ready before resuming the next.
+// is not suspended.
 func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
 	// Store node selector for each replicatedJob template.
 	nodeAffinities := map[string]map[string]string{}
