@@ -15,9 +15,21 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"k8s.io/client-go/tools/record"
+
+	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/klog/v2/ktesting"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -1204,4 +1216,153 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		PodLabels(labels).
 		PodAnnotations(annotations)
 	return jobWrapper
+}
+
+func TestCreateHeadlessSvcIfNecessary(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+	)
+
+	tests := []struct {
+		name                           string
+		jobSet                         *jobset.JobSet
+		existingService                bool
+		expectServiceCreate            bool
+		expectServiceName              string
+		expectPublishNotReadyAddresses bool
+		expectErr                      bool
+		expectErrStr                   string
+	}{
+		{
+			name:            "headless service exists and should not be created",
+			jobSet:          testutils.MakeJobSet(jobSetName, ns).EnableDNSHostnames(true).Obj(),
+			existingService: true,
+		},
+		{
+			name:            "headless service creation fails with unexpected error",
+			jobSet:          testutils.MakeJobSet(jobSetName, ns).EnableDNSHostnames(true).Obj(),
+			existingService: false,
+			expectErr:       true,
+			expectErrStr:    "unexpected error",
+		},
+		{
+			name:                           "service does not exist and should be created, subdomain not set",
+			jobSet:                         testutils.MakeJobSet(jobSetName, ns).EnableDNSHostnames(true).Obj(),
+			expectServiceCreate:            true,
+			expectServiceName:              "test-jobset",
+			expectPublishNotReadyAddresses: true,
+		},
+		{
+			name:                           "service does not exist and should be created, subdomain set",
+			jobSet:                         testutils.MakeJobSet(jobSetName, ns).EnableDNSHostnames(true).NetworkSubdomain("test-subdomain").Obj(),
+			expectServiceCreate:            true,
+			expectServiceName:              "test-subdomain",
+			expectPublishNotReadyAddresses: true,
+		},
+		{
+			name:                           "service does not exist and should be created, publishNotReadyAddresses is false",
+			jobSet:                         testutils.MakeJobSet(jobSetName, ns).EnableDNSHostnames(true).PublishNotReadyAddresses(false).Obj(),
+			expectServiceCreate:            true,
+			expectServiceName:              "test-jobset",
+			expectPublishNotReadyAddresses: false,
+		},
+		{
+			name:                           "service does not exist and should be created, publishNotReadyAddresses is true",
+			jobSet:                         testutils.MakeJobSet(jobSetName, ns).EnableDNSHostnames(true).PublishNotReadyAddresses(true).Obj(),
+			expectServiceCreate:            true,
+			expectServiceName:              "test-jobset",
+			expectPublishNotReadyAddresses: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var servicesCreated int
+			_, ctx := ktesting.NewTestContext(t)
+			scheme := runtime.NewScheme()
+			utilruntime.Must(jobset.AddToScheme(scheme))
+			utilruntime.Must(corev1.AddToScheme(scheme))
+			fakeClientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithInterceptorFuncs(interceptor.Funcs{
+				Create: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+					if tc.expectErr {
+						return errors.New("unexpected error")
+					}
+					if !tc.expectServiceCreate {
+						t.Fatal("unexpected service creation")
+					}
+					svc := obj.(*corev1.Service)
+					if svc.Name != tc.expectServiceName {
+						t.Errorf("expected service name to be %q, got %q", tc.expectServiceName, svc.Name)
+					}
+					if len(svc.OwnerReferences) != 1 {
+						t.Error("expected service to have owner reference set")
+					}
+					expectedOwnerRef := metav1.OwnerReference{
+						APIVersion:         "jobset.x-k8s.io/v1alpha2",
+						Kind:               "JobSet",
+						Name:               "test-jobset",
+						Controller:         ptr.To(true),
+						BlockOwnerDeletion: ptr.To(true),
+					}
+					if diff := cmp.Diff(expectedOwnerRef, svc.OwnerReferences[0]); diff != "" {
+						t.Errorf("unexpected service owner reference value (+got/-want): %s", diff)
+					}
+					if svc.Spec.ClusterIP != corev1.ClusterIPNone {
+						t.Errorf("expected service to have ClusterIP None, got %s", svc.Spec.ClusterIP)
+					}
+					selectorValue, ok := svc.Spec.Selector[jobset.JobSetNameKey]
+					if !ok {
+						t.Errorf("expected service selector to contain %q key", jobset.JobSetNameKey)
+					}
+					if selectorValue != tc.jobSet.Name {
+						t.Errorf("expected service selector to be %q, got %q", tc.jobSet.Name, selectorValue)
+					}
+					if svc.Spec.PublishNotReadyAddresses != tc.expectPublishNotReadyAddresses {
+						t.Errorf("expected PublishNotReadyAddresses to be %t, got %t", tc.expectPublishNotReadyAddresses, svc.Spec.PublishNotReadyAddresses)
+					}
+					servicesCreated++
+					return nil
+				},
+			})
+			if tc.existingService {
+				svc := &corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-jobset",
+						Namespace: ns,
+					},
+				}
+				fakeClientBuilder.WithObjects(svc)
+			}
+			fakeClient := fakeClientBuilder.Build()
+
+			eventBroadcaster := record.NewBroadcaster()
+			recorder := eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "jobset-test-reconciler"})
+
+			// Create a JobSetReconciler instance with the fake client
+			r := &JobSetReconciler{
+				Client: fakeClient,
+				Scheme: scheme,
+				Record: recorder,
+			}
+
+			// Execute the function under test
+			gotErr := r.createHeadlessSvcIfNecessary(ctx, tc.jobSet)
+			if tc.expectErr != (gotErr != nil) {
+				t.Errorf("expected error is %t, got %t, error: %v", tc.expectErr, gotErr != nil, gotErr)
+			}
+			if tc.expectErr && len(tc.expectErrStr) == 0 {
+				t.Error("invalid test setup; error message must not be empty for error cases")
+			}
+			if tc.expectErr && !strings.Contains(gotErr.Error(), tc.expectErrStr) {
+				t.Errorf("expected error message contains %q, got %v", tc.expectErrStr, gotErr)
+			}
+			if !tc.expectServiceCreate && servicesCreated != 0 {
+				t.Errorf("expected no service to be created, got %d created services", servicesCreated)
+			}
+			if tc.expectServiceCreate && servicesCreated != 1 {
+				t.Errorf("expected 1 service to be created, got %d created services", servicesCreated)
+			}
+		})
+	}
 }
