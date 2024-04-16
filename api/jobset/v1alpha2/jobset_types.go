@@ -199,9 +199,8 @@ type Network struct {
 	// +optional
 	Subdomain string `json:"subdomain,omitempty"`
 
-	// PublishNotReadyAddresses indicates that any agent
-	// which deals with endpoints for this Service should disregard any indications of ready/not-ready.
-	// Defaults to true if not set
+	// Indicates if DNS records of pods should be published before the pods are ready.
+	// Defaults to True.
 	// +optional
 	PublishNotReadyAddresses *bool `json:"publishNotReadyAddresses,omitempty"`
 }

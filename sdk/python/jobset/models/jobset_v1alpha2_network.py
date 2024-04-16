@@ -89,7 +89,7 @@ class JobsetV1alpha2Network(object):
     def publish_not_ready_addresses(self):
         """Gets the publish_not_ready_addresses of this JobsetV1alpha2Network.  # noqa: E501
 
-        PublishNotReadyAddresses indicates that any agent which deals with endpoints for this Service should disregard any indications of ready/not-ready. Defaults to true if not set  # noqa: E501
+        Indicates if DNS records of pods should be published before the pods are ready. Defaults to True.  # noqa: E501
 
         :return: The publish_not_ready_addresses of this JobsetV1alpha2Network.  # noqa: E501
         :rtype: bool
@@ -100,7 +100,7 @@ class JobsetV1alpha2Network(object):
     def publish_not_ready_addresses(self, publish_not_ready_addresses):
         """Sets the publish_not_ready_addresses of this JobsetV1alpha2Network.
 
-        PublishNotReadyAddresses indicates that any agent which deals with endpoints for this Service should disregard any indications of ready/not-ready. Defaults to true if not set  # noqa: E501
+        Indicates if DNS records of pods should be published before the pods are ready. Defaults to True.  # noqa: E501
 
         :param publish_not_ready_addresses: The publish_not_ready_addresses of this JobsetV1alpha2Network.  # noqa: E501
         :type: bool

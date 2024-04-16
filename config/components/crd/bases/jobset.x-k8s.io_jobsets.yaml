@@ -87,9 +87,8 @@ spec:
                     type: boolean
                   publishNotReadyAddresses:
                     description: |-
-                      PublishNotReadyAddresses indicates that any agent
-                      which deals with endpoints for this Service should disregard any indications of ready/not-ready.
-                      Defaults to true if not set
+                      Indicates if DNS records of pods should be published before the pods are ready.
+                      Defaults to True.
                     type: boolean
                   subdomain:
                     description: |-
