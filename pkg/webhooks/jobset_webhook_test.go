@@ -35,11 +35,10 @@ var TestPodTemplate = corev1.PodTemplateSpec{
 	},
 }
 
-var defaultNetwork = &jobset.Network{EnableDNSHostnames: ptr.To(true), PublishNotReadyAddresses: ptr.To(true)}
-
 func TestJobSetDefaulting(t *testing.T) {
 	defaultSuccessPolicy := &jobset.SuccessPolicy{Operator: jobset.OperatorAll}
 	defaultStartupPolicy := &jobset.StartupPolicy{StartupPolicyOrder: jobset.AnyOrder}
+	defaultNetwork := &jobset.Network{EnableDNSHostnames: ptr.To(true), PublishNotReadyAddresses: ptr.To(true)}
 	testCases := []struct {
 		name string
 		js   *jobset.JobSet
