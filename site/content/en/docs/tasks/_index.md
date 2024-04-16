@@ -19,22 +19,24 @@ no_list: true
 
 Here we have some simple examples demonstrating core JobSet features.
 
-- [Success Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
+- [Success Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
 Success Policy allows one to specify when to mark a JobSet as success.  
 This example showcases an example of using the success policy to mark the JobSet as successful if the worker replicated job completes.
 
-- [Failure Policy with Max Restarts](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/max-restarts.yaml) demonstrates an example of utilizing `failurePolicy`. Failure Policy allows one to control how many restarts a JobSet can do before declaring the JobSet as failed.
+- [Failure Policy with Max Restarts](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/max-restarts.yaml) demonstrates an example of utilizing `failurePolicy`. Failure Policy allows one to control how many restarts a JobSet can do before declaring the JobSet as failed.
 
-- [Exclusive Job Placement](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/exclusive-placement.yaml) demonstrates how you can configure a JobSet to have a 1:1 mapping between each child Job and a particular topology domain, such as a datacenter rack or zone. This means that all the pods belonging to a child job will be colocated in the same topology domain, while pods from other jobs will not be allowed to run within this domain. This gives the child job exclusive access to computer resources in this domain.
+- [Exclusive Job Placement](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/exclusive-placement.yaml) demonstrates how you can configure a JobSet to have a 1:1 mapping between each child Job and a particular topology domain, such as a datacenter rack or zone. This means that all the pods belonging to a child job will be colocated in the same topology domain, while pods from other jobs will not be allowed to run within this domain. This gives the child job exclusive access to computer resources in this domain.
 
-- [Parallel Jobs](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/simple/paralleljobs.yaml) demonstrates how we can submit multiple replicated jobs in a jobset.
+- [Parallel Jobs](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/paralleljobs.yaml) demonstrates how we can submit multiple replicated jobs in a jobset.
 
-- [Startup Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/startup-policy/startup-driver-ready.yaml) demonstrates how we can define a startup order for ReplicatedJobs in order to ensure a "leader"
+- [Startup Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/startup-policy/startup-driver-ready.yaml) demonstrates how we can define a startup order for ReplicatedJobs in order to ensure a "leader"
 pod is running before the "workers" are created. This is important for enabling the leader-worker paradigm in distributed ML training, where the workers will attempt to register with the leader as soon as they spawn.
+
+- [TTL after finished](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/ttl-after-finished.yaml) demonstrates how you can configure a JobSet to be cleaned up automatically after a defined period of time has passed after the JobSet finishes.
 
 ## Tensorflow Example
 
-- [Distributed Training of a Handwritten Digit Classifier on the MNIST dataset using Tensorflow and JobSet](https://github.com/kubernetes-sigs/jobset/blob/release-0.4/examples/tensorflow/mnist.yaml)
+- [Distributed Training of a Handwritten Digit Classifier on the MNIST dataset using Tensorflow and JobSet](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/tensorflow/mnist.yaml)
 
 This example runs an example job for a single epoch.
 You can view the progress of your jobs via `kubectl logs jobs/tensorflow-tensorflow-0`.
