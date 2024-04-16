@@ -105,6 +105,31 @@ var _ = ginkgo.Describe("JobSet", func() {
 			util.JobSetCompleted(ctx, k8sClient, js, timeout)
 		})
 	})
+	ginkgo.When("ttl seconds after finished is set", func() {
+		ginkgo.It("should clean up the completed jobset after configured ttl seconds expire", func() {
+			ctx := context.Background()
+
+			// Create JobSet.
+			testFinalizer := "fake.example.com/blockDeletion"
+			ginkgo.By("creating jobset with ttl seconds after finished")
+			js := sleepTestJobSet(ns).Finalizers([]string{testFinalizer}).TTLSecondsAfterFinished(5).Obj()
+
+			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			// Check jobset status if specified.
+			ginkgo.By("checking jobset condition")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
+
+			// We remove the jobset finalizer, so it can get deleted when ttl expires.
+			util.RemoveJobSetFinalizer(ctx, k8sClient, js, testFinalizer, timeout)
+
+			// Check jobset is cleaned up after ttl seconds.
+			ginkgo.By("checking jobset is cleaned up after ttl seconds")
+			util.JobSetDeleted(ctx, k8sClient, js, timeout)
+		})
+	})
 
 }) // end of Describe
 
@@ -191,6 +216,28 @@ func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 							Image:   "bash:latest",
 							Command: []string{"bash", "-c"},
 							Args:    []string{cmd},
+						},
+					},
+				}).Obj()).
+			Replicas(int32(replicas)).
+			Obj())
+}
+
+func sleepTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
+	jsName := "js"
+	rjobName := "rjob"
+	replicas := 4
+	return testing.MakeJobSet(jsName, ns.Name).
+		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
+			Job(testing.MakeJobTemplate("job", ns.Name).
+				PodSpec(corev1.PodSpec{
+					RestartPolicy: "Never",
+					Containers: []corev1.Container{
+						{
+							Name:    "sleep-test-container",
+							Image:   "bash:latest",
+							Command: []string{"bash", "-c"},
+							Args:    []string{"sleep 20"},
 						},
 					},
 				}).Obj()).

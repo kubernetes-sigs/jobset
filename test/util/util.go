@@ -188,3 +188,40 @@ func ExpectJobsDeletionTimestamp(ctx context.Context, c client.Client, js *jobse
 		return numJobs == 0, nil
 	}, timeout, interval).Should(gomega.Equal(true))
 }
+
+func JobSetDeleted(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
+	ginkgo.By("checking jobset is deleted")
+	gomega.Eventually(func() (bool, error) {
+		err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, js)
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}, timeout, interval).Should(gomega.Equal(true))
+}
+
+// RemoveJobSetFinalizer removes the provided finalizer from the jobset and updates it.
+func RemoveJobSetFinalizer(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, finalizer string, timeout time.Duration) {
+	ginkgo.By("removing jobset finalizers")
+	gomega.Eventually(func() (bool, error) {
+		// We get the latest version of the jobset before removing the finalizer.
+		var fresh jobset.JobSet
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &fresh); err != nil {
+			return false, err
+		}
+		removeJobSetFinalizer(&fresh, finalizer)
+		if err := k8sClient.Update(ctx, &fresh); err != nil {
+			return false, err
+		}
+		return true, nil
+	}, timeout, interval).Should(gomega.Equal(true))
+}
+
+// removeJobSetFinalizer removes the provided finalizer from the jobset.
+func removeJobSetFinalizer(js *jobset.JobSet, finalizer string) {
+	for i, f := range js.Finalizers {
+		if f == finalizer {
+			js.Finalizers = append(js.Finalizers[:i], js.Finalizers[i+1:]...)
+		}
+	}
+}
