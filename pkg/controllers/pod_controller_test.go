@@ -56,6 +56,7 @@ func TestValidatePodPlacements(t *testing.T) {
 			podName:           "test-jobset-replicated-job-1-test-job-0-1",
 			ns:                ns,
 			jobIdx:            0})
+		nodeSelector = map[string]string{"test-node-topologyKey": "topologyDomain"}
 	)
 	tests := []struct {
 		name           string
@@ -73,7 +74,7 @@ func TestValidatePodPlacements(t *testing.T) {
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
 					leaderPodWrapper.AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
-					podWrapper.NodeSelector(map[string]string{"test-node-topologyKey": "topologyDomain"}).Obj(),
+					podWrapper.NodeSelector(nodeSelector).Obj(),
 				},
 			},
 			node: &corev1.Node{
@@ -81,8 +82,7 @@ func TestValidatePodPlacements(t *testing.T) {
 					Name: "test-node",
 				},
 			},
-			wantMatched: false,
-			wantErr:     fmt.Errorf("node does not have topology label: %s", "test-node-topologyKey"),
+			wantErr: fmt.Errorf("node does not have topology label: %s", "test-node-topologyKey"),
 		},
 		{
 			name: "valid pod placements with matched",
@@ -90,22 +90,21 @@ func TestValidatePodPlacements(t *testing.T) {
 				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(map[string]string{"test-node-topologyKey": "topologyDomain"}).
+					leaderPodWrapper.NodeSelector(nodeSelector).
 						AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
-					podWrapper.NodeSelector(map[string]string{"test-node-topologyKey": "topologyDomain"}).Obj(),
+					podWrapper.NodeSelector(nodeSelector).Obj(),
 				},
 			},
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-node",
-					Labels: map[string]string{"test-node-topologyKey": "topologyDomain"},
+					Labels: nodeSelector,
 				},
 			},
 			wantMatched: true,
-			wantErr:     nil,
 		},
 		{
-			name: "valid pod placements with pod nodeSelector is nil",
+			name: "follower pod nodeSelector is nil",
 			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, "test-node-topologyKey").
 				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
 			podList: &corev1.PodList{
@@ -119,14 +118,14 @@ func TestValidatePodPlacements(t *testing.T) {
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-node",
-					Labels: map[string]string{"test-node-topologyKey": "topologyDomain"},
+					Labels: nodeSelector,
 				},
 			},
 			wantMatched: false,
 			wantErr:     fmt.Errorf("pod %s nodeSelector is nil", "test-jobset-replicated-job-1-test-job-0-1"),
 		},
 		{
-			name: "valid pod placements with pod nodeSelector is missing key",
+			name: "valid pod placements with pod nodeSelector is empty",
 			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, "test-node-topologyKey").
 				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
 			podList: &corev1.PodList{
@@ -138,10 +137,9 @@ func TestValidatePodPlacements(t *testing.T) {
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-node",
-					Labels: map[string]string{"test-node-topologyKey": "topologyDomain"},
+					Labels: nodeSelector,
 				},
 			},
-			wantMatched: false,
 			wantErr: fmt.Errorf("pod %s nodeSelector is missing key: %s",
 				"test-jobset-replicated-job-1-test-job-0-1", "test-node-topologyKey"),
 		},
@@ -151,7 +149,7 @@ func TestValidatePodPlacements(t *testing.T) {
 				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(map[string]string{"test-node-topologyKey": "topologyDomain"}).
+					leaderPodWrapper.NodeSelector(nodeSelector).
 						AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
 					podWrapper.NodeSelector(map[string]string{"test-node-topologyKey": "topologyDomain1"}).Obj(),
 				},
@@ -159,10 +157,9 @@ func TestValidatePodPlacements(t *testing.T) {
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-node",
-					Labels: map[string]string{"test-node-topologyKey": "topologyDomain"},
+					Labels: nodeSelector,
 				},
 			},
-			wantMatched: false,
 			wantErr: fmt.Errorf("follower topology %q != leader topology %q",
 				"topologyDomain1", "topologyDomain"),
 		},
@@ -172,7 +169,7 @@ func TestValidatePodPlacements(t *testing.T) {
 				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(map[string]string{"test-node-topologyKey": "topologyDomain"}).
+					leaderPodWrapper.NodeSelector(nodeSelector).
 						AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
 					podWrapper.NodeSelector(map[string]string{"test-node-topologyKey": "topologyDomain1"}).Obj(),
 				},
@@ -180,10 +177,9 @@ func TestValidatePodPlacements(t *testing.T) {
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-node",
-					Labels: map[string]string{"test-node-topologyKey": "topologyDomain"},
+					Labels: nodeSelector,
 				},
 			},
-			wantMatched:    false,
 			forceClientErr: true,
 			wantErr:        errors.Join(errors.New("example error")),
 		},
@@ -298,7 +294,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 					Type:               corev1.DisruptionTarget,
 					Status:             corev1.ConditionFalse,
 					Reason:             constants.ExclusivePlacementViolationReason,
-					LastTransitionTime: metav1.Now().Rfc3339Copy(),
+					LastTransitionTime: metav1.Now(),
 					Message:            constants.ExclusivePlacementViolationMessage,
 				},
 				}).Obj(),
@@ -336,7 +332,8 @@ func TestDeleteFollowerPods(t *testing.T) {
 					if tc.forceClientErr || pod == nil {
 						return errors.Join(errors.New("example error"))
 					}
-					// This is to solve the problem that the timestamps do not match. There will be a slight gap.
+					// This is to solve the problem that the timestamps do not match.
+					// There will be a slight gap.
 					pod.Status.Conditions[0].LastTransitionTime =
 						tc.wantPodsDeleted[0].Status.Conditions[0].LastTransitionTime
 					gotPodsDeleted = append(gotPodsDeleted, *pod)
