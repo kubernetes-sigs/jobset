@@ -32,7 +32,7 @@ This example showcases an example of using the success policy to mark the JobSet
 - [Startup Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/startup-policy/startup-driver-ready.yaml) demonstrates how we can define a startup order for ReplicatedJobs in order to ensure a "leader"
 pod is running before the "workers" are created. This is important for enabling the leader-worker paradigm in distributed ML training, where the workers will attempt to register with the leader as soon as they spawn.
 
-- [Automatic Cleanup for Finished Jobs](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/ttl-after-finished.yaml) demonstrates an example of `ttlSecondsAfterFinished`. ttlSecondsAfterFinished is a feature that allows you to specify the maximum lifetime of a job. When a job reaches the specified lifetime, it will be deleted.
+- [TTL after finished](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/ttl-after-finished.yaml) demonstrates how you can configure a JobSet to be cleaned up automatically after a defined period of time has passed after the JobSet finishes.
 
 ## Tensorflow Example
 
