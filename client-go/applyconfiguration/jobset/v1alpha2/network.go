@@ -17,8 +17,9 @@ package v1alpha2
 // NetworkApplyConfiguration represents an declarative configuration of the Network type for use
 // with apply.
 type NetworkApplyConfiguration struct {
-	EnableDNSHostnames *bool   `json:"enableDNSHostnames,omitempty"`
-	Subdomain          *string `json:"subdomain,omitempty"`
+	EnableDNSHostnames       *bool   `json:"enableDNSHostnames,omitempty"`
+	Subdomain                *string `json:"subdomain,omitempty"`
+	PublishNotReadyAddresses *bool   `json:"publishNotReadyAddresses,omitempty"`
 }
 
 // NetworkApplyConfiguration constructs an declarative configuration of the Network type for use with
@@ -40,5 +41,13 @@ func (b *NetworkApplyConfiguration) WithEnableDNSHostnames(value bool) *NetworkA
 // If called multiple times, the Subdomain field is set to the value of the last call.
 func (b *NetworkApplyConfiguration) WithSubdomain(value string) *NetworkApplyConfiguration {
 	b.Subdomain = &value
+	return b
+}
+
+// WithPublishNotReadyAddresses sets the PublishNotReadyAddresses field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PublishNotReadyAddresses field is set to the value of the last call.
+func (b *NetworkApplyConfiguration) WithPublishNotReadyAddresses(value bool) *NetworkApplyConfiguration {
+	b.PublishNotReadyAddresses = &value
 	return b
 }

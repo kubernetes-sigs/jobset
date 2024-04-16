@@ -43,6 +43,7 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
                 managed_by = '0', 
                 network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
                     enable_dns_hostnames = True, 
+                    publish_not_ready_addresses = True, 
                     subdomain = '0', ), 
                 replicated_jobs = [
                     jobset.models.jobset_v1alpha2_replicated_job.JobsetV1alpha2ReplicatedJob(

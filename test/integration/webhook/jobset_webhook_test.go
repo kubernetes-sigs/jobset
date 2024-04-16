@@ -149,6 +149,20 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				return js.Spec.Network != nil && *js.Spec.Network.EnableDNSHostnames
 			},
 		}),
+		ginkgo.Entry("publishNotReadyAddresses defaults to true if unset", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("publishnotready-unset", ns.Name).
+					EnableDNSHostnames(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodSpec(testing.TestPodSpec).Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return js.Spec.Network != nil && *js.Spec.Network.PublishNotReadyAddresses
+			},
+		}),
 		ginkgo.Entry("pod restart policy defaults to OnFailure if unset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("enablednshostnames-unset", ns.Name).
@@ -174,6 +188,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
 					Suspend(true).
 					EnableDNSHostnames(false).
+					PublishNotReadyAddresses(true).
 					ReplicatedJob(testing.MakeReplicatedJob("rjob").
 						Job(testing.MakeJobTemplate("job", ns.Name).
 							PodSpec(testing.TestPodSpec).
@@ -204,6 +219,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
 					EnableDNSHostnames(true).
+					PublishNotReadyAddresses(true).
 					ReplicatedJob(testing.MakeReplicatedJob("rjob").
 						Job(testing.MakeJobTemplate("job", ns.Name).
 							PodSpec(testing.TestPodSpec).
@@ -275,6 +291,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
 					EnableDNSHostnames(true).
+					PublishNotReadyAddresses(true).
 					ReplicatedJob(testing.MakeReplicatedJob("rjob").
 						Job(testing.MakeJobTemplate("job", ns.Name).
 							PodSpec(testing.TestPodSpec).
@@ -290,6 +307,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
 					EnableDNSHostnames(true).
+					PublishNotReadyAddresses(true).
 					Suspend(true).
 					ReplicatedJob(testing.MakeReplicatedJob("rjob").
 						Job(testing.MakeJobTemplate("job", ns.Name).

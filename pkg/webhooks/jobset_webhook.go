@@ -104,18 +104,21 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 		if js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
 			js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
 		}
-		// Enable DNS hostnames by default.
-		if js.Spec.Network == nil {
-			js.Spec.Network = &jobset.Network{}
-		}
-		if js.Spec.Network.EnableDNSHostnames == nil {
-			js.Spec.Network.EnableDNSHostnames = ptr.To(true)
-		}
-
 		// Default pod restart policy to OnFailure.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
 			js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 		}
+	}
+
+	// Enable DNS hostnames by default.
+	if js.Spec.Network == nil {
+		js.Spec.Network = &jobset.Network{}
+	}
+	if js.Spec.Network.EnableDNSHostnames == nil {
+		js.Spec.Network.EnableDNSHostnames = ptr.To(true)
+	}
+	if js.Spec.Network.PublishNotReadyAddresses == nil {
+		js.Spec.Network.PublishNotReadyAddresses = ptr.To(true)
 	}
 
 	if js.Spec.ManagedBy == nil {
