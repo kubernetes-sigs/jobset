@@ -154,3 +154,12 @@ A JobSet failure is counted when ANY of its child Jobs fail. `spec.failurePolicy
 to automatically restart the JobSet. A restart is done by recreating all child jobs.
 
 A JobSet is terminally failed when the number of failures reaches `spec.failurePolicy.maxRestarts`
+
+## Elastic JobSets
+
+JobSets have the ability to upscale or downscale after the job is created.
+
+JobSet supports this feature by allowing mutable changes for the replicas of a JobSet.
+
+One can increase or decrease the replicas of a ReplicatedJob.
+Templates and Names of replicate jobs are not allowed to change during updates.

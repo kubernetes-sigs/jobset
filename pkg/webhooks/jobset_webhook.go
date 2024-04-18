@@ -24,6 +24,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -320,11 +321,16 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.
 			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
 		}
 	}
-
-	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
-	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
-	return nil, errs.ToAggregate()
+	// Note that SuccessPolicy and failurePolicy are made immutable via CEL.
+	// Comparing job templates can be slow
+	// Only do it if we detect a difference.
+	if !equality.Semantic.DeepEqual(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs) {
+		if err := validateReplicatedJobsUpdate(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs); err != nil {
+			return nil, err
+		}
+	}
+	errList := apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))
+	return nil, errList.ToAggregate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
@@ -342,4 +348,20 @@ func replicatedJobNamesFromSpec(js *jobset.JobSet) []string {
 		names = append(names, rjob.Name)
 	}
 	return names
+}
+
+func validateReplicatedJobsUpdate(currentRepJobs, oldRepJobs []jobset.ReplicatedJob) error {
+	// Changing length of replicated jobs on updates is forbidden
+	if len(currentRepJobs) != len(oldRepJobs) {
+		return fmt.Errorf("updates can not change the length of replicated jobs")
+	}
+	for i := range currentRepJobs {
+		if currentRepJobs[i].Name != oldRepJobs[i].Name {
+			return fmt.Errorf("updates can not change job names or reorder the jobs")
+		}
+		if !equality.Semantic.DeepEqual(currentRepJobs[i].Template, oldRepJobs[i].Template) {
+			return fmt.Errorf("updates can not change job templates")
+		}
+	}
+	return nil
 }
