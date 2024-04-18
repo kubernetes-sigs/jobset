@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -973,6 +974,26 @@ func TestValidateUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "managedBy is immutable",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ManagedBy:      ptr.To("example.com/one"),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ManagedBy:      ptr.To("example.com/two"),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("managedBy"), "", "field is immutable"),
+			}.ToAggregate(),
+		},
+		{
 			name: "replicated jobs are immutable",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -1006,7 +1027,9 @@ func TestValidateUpdate(t *testing.T) {
 					ReplicatedJobs: validReplicatedJobs,
 				},
 			},
-			want: fmt.Errorf("field is immutable"),
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
 		},
 	}
 
@@ -1018,10 +1041,8 @@ func TestValidateUpdate(t *testing.T) {
 			newObj := tc.js.DeepCopyObject()
 			oldObj := tc.oldJs.DeepCopyObject()
 			_, err = webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
-			if tc.want != nil {
-				assert.True(t, strings.Contains(err.Error(), tc.want.Error()))
-			} else {
-				assert.Nil(t, err)
+			if diff := cmp.Diff(tc.want, err, cmpopts.IgnoreFields(field.Error{}, "BadValue")); diff != "" {
+				t.Errorf("ValidateResources() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
