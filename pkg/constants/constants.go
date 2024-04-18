@@ -45,8 +45,12 @@ const (
 	AllJobsCompletedMessage = "jobset completed successfully"
 
 	// Event reason used when a Job creation fails.
-	// The event uses the error(s) as the reason.
+	// The event uses the error(s) as the message.
 	JobCreationFailedReason = "JobCreationFailed"
+
+	// Event reason used when a Headless Service creation fails.
+	// The event uses the error(s) as the message.
+	HeadlessServiceCreationFailedReason = "HeadlessServiceCreationFailed"
 
 	// Event reason and message for when the pod controller detects a violation
 	// of the JobSet exclusive placment policy (i.e., follower pods not colocated in

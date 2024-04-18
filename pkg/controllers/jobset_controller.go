@@ -584,6 +584,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 
 		// Create headless service.
 		if err := r.Create(ctx, &headlessSvc); err != nil {
+			r.Record.Eventf(js, corev1.EventTypeWarning, constants.HeadlessServiceCreationFailedReason, err.Error())
 			return err
 		}
 		log.V(2).Info("successfully created headless service", "service", klog.KObj(&headlessSvc))
