@@ -121,9 +121,6 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 		js.Spec.Network.PublishNotReadyAddresses = ptr.To(true)
 	}
 
-	if js.Spec.ManagedBy == nil {
-		js.Spec.ManagedBy = ptr.To(jobset.JobSetControllerName)
-	}
 	return nil
 }
 
