@@ -16,6 +16,7 @@ package util
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -119,7 +120,26 @@ func JobSetStartupPolicyNotFinished(ctx context.Context, k8sClient client.Client
 
 func JobSetActive(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
 	ginkgo.By("checking jobset status is active")
-	gomega.Consistently(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, []metav1.Condition{}).Should(gomega.Equal(true))
+	gomega.Consistently(checkJobSetActive, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(true))
+}
+
+// checkJobSetActive performs a check if the JobSet is active.
+// A JobSet is not active when any of the conditions JobSetFailed, JobSetComplete, or JobSetSuspended are true.
+// A JobSet is otherwise considered active.
+func checkJobSetActive(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (bool, error) {
+	var fetchedJS jobset.JobSet
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
+		return false, err
+	}
+
+	forbiddenTypes := []string{string(jobset.JobSetFailed), string(jobset.JobSetCompleted), string(jobset.JobSetSuspended)}
+
+	for _, c := range fetchedJS.Status.Conditions {
+		if slices.Contains(forbiddenTypes, c.Type) && c.Status == metav1.ConditionTrue {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func checkJobSetStatus(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, conditions []metav1.Condition) (bool, error) {
