@@ -203,6 +203,13 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
+	// ElasticJobSet can downscale and upscale Jobs of a given replicated job
+	// On downscale, we need to gather the jobs to delete.
+	if err := r.downscaleElasticJobs(ctx, js, rjobStatuses); err != nil {
+		log.Error(err, "unable to downscale elastic jobs")
+		return ctrl.Result{}, err
+	}
+
 	// Handle suspending a jobset or resuming a suspended jobset.
 	jobsetSuspended := jobSetSuspended(js)
 	if jobsetSuspended {
@@ -518,6 +525,22 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		setInOrderStartupPolicyCompletedCondition(js, updateStatusOpts)
 	}
 	return nil
+}
+
+// We need to check if the replicas of a replicated job are mismatching
+// If they are, we should delete the extra jobs
+func (r *JobSetReconciler) downscaleElasticJobs(ctx context.Context, js *jobset.JobSet, replicatedJobStatus []jobset.ReplicatedJobStatus) error {
+	// Get all active jobs owned by JobSet.
+	var childJobList batchv1.JobList
+	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{constants.JobOwnerKey: js.Name}); err != nil {
+		return err
+	}
+
+	jobsToDelete, err := jobsToDeleteDownScale(js.Spec.ReplicatedJobs, replicatedJobStatus, childJobList.Items)
+	if err != nil {
+		return err
+	}
+	return r.deleteJobs(ctx, jobsToDelete)
 }
 
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jobs []*batchv1.Job) error {

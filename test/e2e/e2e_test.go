@@ -131,6 +131,52 @@ var _ = ginkgo.Describe("JobSet", func() {
 			util.JobSetDeleted(ctx, k8sClient, js, timeout)
 		})
 	})
+	ginkgo.When("elastic jobs are upscaling", func() {
+		ginkgo.It("should create more replicas", func() {
+			ctx := context.Background()
+
+			// Create JobSet.
+			ginkgo.By("creating jobset with four replicas")
+			js := sleepTestJobSet(ns, 60).Obj()
+
+			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			util.UpdateReplicas(ctx, k8sClient, js, 0, 8, timeout)
+			ginkgo.By("jobset should upscale")
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(8))
+			// Check jobset status if specified.
+			ginkgo.By("checking jobset condition")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
+		})
+	})
+	ginkgo.When("elastic jobs are downscaling", func() {
+		ginkgo.It("should create less replicas", func() {
+			ctx := context.Background()
+
+			// Create JobSet.
+			ginkgo.By("creating jobset with four replicas")
+			js := sleepTestJobSet(ns, 60).Obj()
+
+			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			ginkgo.By("jobset should have 4 jobs")
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(4))
+
+			util.UpdateReplicas(ctx, k8sClient, js, 0, 2, timeout)
+			ginkgo.By("jobset should downscale")
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(2))
+			// Check jobset status if specified.
+			ginkgo.By("checking jobset condition")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
+		})
+	})
 
 	// This test is added to test the JobSet transitions as Kueue would when:
 	// doing: resume in ResourceFlavor1 -> suspend -> resume in ResourceFlavor2.
@@ -295,7 +341,6 @@ func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 func sleepTestJobSet(ns *corev1.Namespace, durationSeconds int32) *testing.JobSetWrapper {
 	jsName := "js"
 	rjobName := "rjob"
-	replicas := 4
 	return testing.MakeJobSet(jsName, ns.Name).
 		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
 			Job(testing.MakeJobTemplate("job", ns.Name).
@@ -310,6 +355,6 @@ func sleepTestJobSet(ns *corev1.Namespace, durationSeconds int32) *testing.JobSe
 						},
 					},
 				}).Obj()).
-			Replicas(int32(replicas)).
+			Replicas(4).
 			Obj())
 }
