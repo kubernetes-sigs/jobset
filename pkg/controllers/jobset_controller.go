@@ -184,9 +184,8 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
-	// If job has not failed or succeeded, continue creating any
-	// jobs that are ready to be started.
-	if err := r.createJobs(ctx, js, ownedJobs, rjobStatuses, updateStatusOpts); err != nil {
+	// If job has not failed or succeeded, reconcile the state of the replicatedJobs.
+	if err := r.reconcileReplicatedJobs(ctx, js, ownedJobs, rjobStatuses, updateStatusOpts); err != nil {
 		log.Error(err, "creating jobs")
 		return ctrl.Result{}, err
 	}
@@ -449,12 +448,10 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, node
 	return r.Update(ctx, job)
 }
 
-func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatus []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
+func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatus []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
 	log := ctrl.LoggerFrom(ctx)
-
 	startupPolicy := js.Spec.StartupPolicy
-	var lock sync.Mutex
-	var finalErrs []error
+
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
 		jobs, err := constructJobsFromTemplate(js, &replicatedJob, ownedJobs)
 		if err != nil {
@@ -469,27 +466,11 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			continue
 		}
 
-		workqueue.ParallelizeUntil(ctx, constants.MaxParallelism, len(jobs), func(i int) {
-			job := jobs[i]
-
-			// Set jobset controller as owner of the job for garbage collection and reconcilation.
-			if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
-				lock.Lock()
-				defer lock.Unlock()
-				finalErrs = append(finalErrs, err)
-				return
-			}
-
-			// Create the job.
-			// TODO(#18): Deal with the case where the job exists but is not owned by the jobset.
-			if err := r.Create(ctx, job); err != nil {
-				lock.Lock()
-				defer lock.Unlock()
-				finalErrs = append(finalErrs, fmt.Errorf("job %q creation failed with error: %v", job.Name, err))
-				return
-			}
-			log.V(2).Info("successfully created job", "job", klog.KObj(job))
-		})
+		// Create jobs as necessary.
+		if err := r.createJobs(ctx, js, jobs); err != nil {
+			log.Error(err, "creating jobs")
+			return err
+		}
 
 		// If we are using inOrder StartupPolicy, then we return to wait for jobs to be ready.
 		// This updates the StartupPolicy condition and notifies that we are waiting
@@ -499,16 +480,42 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, ow
 			return nil
 		}
 	}
-	allErrs := errors.Join(finalErrs...)
-	if allErrs != nil {
-		return allErrs
-	}
+
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
 	if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
 		setInOrderStartupPolicyCompletedCondition(js, updateStatusOpts)
-		return nil
 	}
 	return nil
+}
+
+func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jobs []*batchv1.Job) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	var lock sync.Mutex
+	var finalErrs []error
+	workqueue.ParallelizeUntil(ctx, constants.MaxParallelism, len(jobs), func(i int) {
+		job := jobs[i]
+
+		// Set jobset controller as owner of the job for garbage collection and reconcilation.
+		if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
+			lock.Lock()
+			defer lock.Unlock()
+			finalErrs = append(finalErrs, err)
+			return
+		}
+
+		// Create the job.
+		// TODO(#18): Deal with the case where the job exists but is not owned by the jobset.
+		if err := r.Create(ctx, job); err != nil {
+			lock.Lock()
+			defer lock.Unlock()
+			finalErrs = append(finalErrs, fmt.Errorf("job %q creation failed with error: %v", job.Name, err))
+			return
+		}
+		log.V(2).Info("successfully created job", "job", klog.KObj(job))
+	})
+	allErrs := errors.Join(finalErrs...)
+	return allErrs
 }
 
 func (r *JobSetReconciler) deleteJobs(ctx context.Context, jobsForDeletion []*batchv1.Job) error {
