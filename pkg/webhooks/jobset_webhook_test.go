@@ -410,6 +410,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 			want: &jobset.JobSet{
@@ -440,7 +441,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 		},
 		{
-			name: "managed-by label is unset",
+			name: "managedBy field is left nil",
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
@@ -472,12 +473,11 @@ func TestJobSetDefaulting(t *testing.T) {
 							},
 						},
 					},
-					ManagedBy: ptr.To(jobset.JobSetControllerName),
 				},
 			},
 		},
 		{
-			name: "when provided, managed-by label is preserved",
+			name: "when provided, managedBy field is preserved",
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,

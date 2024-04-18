@@ -118,9 +118,6 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 		}
 	}
 
-	if js.Spec.ManagedBy == nil {
-		js.Spec.ManagedBy = ptr.To(jobset.JobSetControllerName)
-	}
 	return nil
 }
 
