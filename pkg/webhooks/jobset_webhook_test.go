@@ -977,19 +977,19 @@ func TestValidateUpdate(t *testing.T) {
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
-					ManagedBy:      ptr.To("example.com/one"),
+					ManagedBy:      ptr.To("example.com/new"),
 					ReplicatedJobs: validReplicatedJobs,
 				},
 			},
 			oldJs: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
-					ManagedBy:      ptr.To("example.com/two"),
+					ManagedBy:      ptr.To("example.com/old"),
 					ReplicatedJobs: validReplicatedJobs,
 				},
 			},
 			want: field.ErrorList{
-				field.Invalid(field.NewPath("spec").Child("managedBy"), ptr.To("example.com/one"), "field is immutable"),
+				field.Invalid(field.NewPath("spec").Child("managedBy"), ptr.To("example.com/new"), "field is immutable"),
 			}.ToAggregate(),
 		},
 		{
