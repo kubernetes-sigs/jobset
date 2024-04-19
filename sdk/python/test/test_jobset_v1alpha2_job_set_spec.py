@@ -39,7 +39,17 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
         if include_optional :
             return JobsetV1alpha2JobSetSpec(
                 failure_policy = jobset.models.jobset_v1alpha2_failure_policy.JobsetV1alpha2FailurePolicy(
-                    max_restarts = 56, ), 
+                    max_restarts = 56, 
+                    rules = [
+                        jobset.models.jobset_v1alpha2_failure_policy_rule.JobsetV1alpha2FailurePolicyRule(
+                            action = '0', 
+                            on_job_failure_reasons = [
+                                '0'
+                                ], 
+                            target_replicated_jobs = [
+                                '0'
+                                ], )
+                        ], ), 
                 managed_by = '0', 
                 network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
                     enable_dns_hostnames = True, 

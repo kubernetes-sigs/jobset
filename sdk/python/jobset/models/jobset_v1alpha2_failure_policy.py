@@ -33,24 +33,29 @@ class JobsetV1alpha2FailurePolicy(object):
                             and the value is json key in definition.
     """
     openapi_types = {
-        'max_restarts': 'int'
+        'max_restarts': 'int',
+        'rules': 'list[JobsetV1alpha2FailurePolicyRule]'
     }
 
     attribute_map = {
-        'max_restarts': 'maxRestarts'
+        'max_restarts': 'maxRestarts',
+        'rules': 'rules'
     }
 
-    def __init__(self, max_restarts=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, max_restarts=None, rules=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2FailurePolicy - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._max_restarts = None
+        self._rules = None
         self.discriminator = None
 
         if max_restarts is not None:
             self.max_restarts = max_restarts
+        if rules is not None:
+            self.rules = rules
 
     @property
     def max_restarts(self):
@@ -74,6 +79,29 @@ class JobsetV1alpha2FailurePolicy(object):
         """
 
         self._max_restarts = max_restarts
+
+    @property
+    def rules(self):
+        """Gets the rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
+
+        List of failure policy rules for this JobSet. For a given Job failure, the rules will be evaluated in order, and only the first matching rule will be executed. If no matching rule is found, the RestartJobSet action is applied.  # noqa: E501
+
+        :return: The rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
+        :rtype: list[JobsetV1alpha2FailurePolicyRule]
+        """
+        return self._rules
+
+    @rules.setter
+    def rules(self, rules):
+        """Sets the rules of this JobsetV1alpha2FailurePolicy.
+
+        List of failure policy rules for this JobSet. For a given Job failure, the rules will be evaluated in order, and only the first matching rule will be executed. If no matching rule is found, the RestartJobSet action is applied.  # noqa: E501
+
+        :param rules: The rules of this JobsetV1alpha2FailurePolicy.  # noqa: E501
+        :type: list[JobsetV1alpha2FailurePolicyRule]
+        """
+
+        self._rules = rules
 
     def to_dict(self):
         """Returns the model properties as a dict"""

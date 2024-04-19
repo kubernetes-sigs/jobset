@@ -1158,18 +1158,48 @@ func TestFindFirstFailedJob(t *testing.T) {
 
 // Helper function to create a job object with a failed condition
 func jobWithFailedCondition(name string, failureTime time.Time) *batchv1.Job {
-	return &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+	return jobWithFailedConditionAndOpts(name, failureTime, nil)
+}
+
+type failJobOptions struct {
+	reason                  *string
+	parentReplicatedJobName *string
+}
+
+// Helper function to create a job object with a failed condition
+func jobWithFailedConditionAndOpts(name string, failureTime time.Time, opts *failJobOptions) *batchv1.Job {
+	var reason string
+	labels := make(map[string]string)
+	applyOpts := func() {
+		if opts == nil {
+			return
+		}
+
+		if opts.reason != nil {
+			reason = *opts.reason
+		}
+
+		if opts.parentReplicatedJobName != nil {
+			labels[jobset.ReplicatedJobNameKey] = *opts.parentReplicatedJobName
+		}
+	}
+	applyOpts()
+
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels},
 		Status: batchv1.JobStatus{
 			Conditions: []batchv1.JobCondition{
 				{
 					Type:               batchv1.JobFailed,
 					Status:             corev1.ConditionTrue,
 					LastTransitionTime: metav1.NewTime(failureTime),
+					Reason:             reason,
 				},
 			},
 		},
 	}
+
+	return job
 }
 
 type makeJobArgs struct {

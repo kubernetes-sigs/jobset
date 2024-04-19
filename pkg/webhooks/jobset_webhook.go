@@ -61,6 +61,17 @@ const (
 	subdomainTooLongErrMsg = ".spec.network.subdomain is too long, must be less than 63 characters"
 )
 
+// validOnJobFailureReasons stores supported values of the reason field of the condition of
+// a failed job. See https://github.com/kubernetes/api/blob/2676848ed8201866119a94759a2d525ffc7396c0/batch/v1/types.go#L632
+// for more details.
+var validOnJobFailureReasons = []string{
+	batchv1.JobReasonBackoffLimitExceeded,
+	batchv1.JobReasonDeadlineExceeded,
+	batchv1.JobReasonFailedIndexes,
+	batchv1.JobReasonMaxFailedIndexesExceeded,
+	batchv1.JobReasonPodFailurePolicy,
+}
+
 //+kubebuilder:webhook:path=/mutate-jobset-x-k8s-io-v1alpha2-jobset,mutating=true,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=mjobset.kb.io,admissionReviewVersions=v1
 
 // jobSetWebhook for defaulting and admission.
@@ -205,6 +216,25 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
 		if !collections.Contains(validReplicatedJobs, rjobName) {
 			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
+		}
+	}
+
+	// Validate failure policy
+	if js.Spec.FailurePolicy != nil {
+		for _, rule := range js.Spec.FailurePolicy.Rules {
+			// Validate the rules target replicated jobs are valid
+			for _, rjobName := range rule.TargetReplicatedJobs {
+				if !collections.Contains(validReplicatedJobs, rjobName) {
+					allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' in failure policy does not appear in .spec.ReplicatedJobs", rjobName))
+				}
+			}
+
+			// Validate the rules on job failure reasons are valid
+			for _, failureReason := range rule.OnJobFailureReasons {
+				if !collections.Contains(validOnJobFailureReasons, failureReason) {
+					allErrs = append(allErrs, fmt.Errorf("invalid job failure reason '%s' in failure policy is not a recognized job failure reason", failureReason))
+				}
+			}
 		}
 	}
 	return nil, errors.Join(allErrs...)

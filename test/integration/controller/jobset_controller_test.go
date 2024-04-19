@@ -443,6 +443,328 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("jobset fails immediately with FailJobSet failure policy action.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+			},
+		}),
+		ginkgo.Entry("jobset does not fail immediately with FailJobSet failure policy action.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{batchv1.JobReasonBackoffLimitExceeded},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("jobset restarts with RestartJobSet Failure Policy Action.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJobSet,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+			},
+		}),
+		ginkgo.Entry("jobset restarts with RestartJobSetAndIgnoremaxRestarts Failure Policy Action.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJobSetAndIgnoreMaxRestarts,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("job fails and the parent replicated job is contained in TargetReplicatedJobs.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:               jobset.FailJobSet,
+								OnJobFailureReasons:  []string{batchv1.JobReasonFailedIndexes},
+								TargetReplicatedJobs: []string{"replicated-job-b"},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failFirstMatchingJobWithOptions(jobList, "replicated-job-b", &failJobOptions{reason: ptr.To(batchv1.JobReasonFailedIndexes)})
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+			},
+		}),
+		ginkgo.Entry("job fails and the parent replicated job is not contained in TargetReplicatedJobs.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:               jobset.FailJobSet,
+								OnJobFailureReasons:  []string{batchv1.JobReasonBackoffLimitExceeded},
+								TargetReplicatedJobs: []string{"replicated-job-a"},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failFirstMatchingJobWithOptions(jobList, "replicated-job-b", &failJobOptions{reason: ptr.To(batchv1.JobReasonBackoffLimitExceeded)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+			},
+		}),
+		ginkgo.Entry("failure policy rules order verification test 1", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:               jobset.FailJobSet,
+								OnJobFailureReasons:  []string{batchv1.JobReasonMaxFailedIndexesExceeded},
+								TargetReplicatedJobs: []string{"replicated-job-a"},
+							},
+							{
+								Action:               jobset.RestartJobSet,
+								OnJobFailureReasons:  []string{batchv1.JobReasonMaxFailedIndexesExceeded},
+								TargetReplicatedJobs: []string{"replicated-job-a"},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failFirstMatchingJobWithOptions(jobList, "replicated-job-a", &failJobOptions{reason: ptr.To(batchv1.JobReasonMaxFailedIndexesExceeded)})
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+			},
+		}),
+		ginkgo.Entry("failure policy rules order verification test 2", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:               jobset.RestartJobSet,
+								OnJobFailureReasons:  []string{batchv1.JobReasonMaxFailedIndexesExceeded},
+								TargetReplicatedJobs: []string{"replicated-job-a"},
+							},
+							{
+								Action:               jobset.FailJobSet,
+								OnJobFailureReasons:  []string{batchv1.JobReasonMaxFailedIndexesExceeded},
+								TargetReplicatedJobs: []string{"replicated-job-a"},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failFirstMatchingJobWithOptions(jobList, "replicated-job-a", &failJobOptions{reason: ptr.To(batchv1.JobReasonMaxFailedIndexesExceeded)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("failure policy rules order verification test 3", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:               jobset.RestartJobSetAndIgnoreMaxRestarts,
+								OnJobFailureReasons:  []string{batchv1.JobReasonMaxFailedIndexesExceeded},
+								TargetReplicatedJobs: []string{"replicated-job-a"},
+							},
+							{
+								Action:               jobset.FailJobSet,
+								OnJobFailureReasons:  []string{},
+								TargetReplicatedJobs: []string{},
+							},
+						},
+					})
+			},
+			updates: []*update{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failFirstMatchingJobWithOptions(jobList, "replicated-job-a", &failJobOptions{reason: ptr.To(batchv1.JobReasonMaxFailedIndexesExceeded)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failFirstMatchingJobWithOptions(jobList, "replicated-job-a", &failJobOptions{reason: ptr.To(batchv1.JobReasonMaxFailedIndexesExceeded)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failFirstMatchingJobWithOptions(jobList, "replicated-job-a", &failJobOptions{reason: ptr.To(batchv1.JobReasonMaxFailedIndexesExceeded)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failFirstMatchingJob(jobList, "replicated-job-b")
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+			},
+		}),
 		ginkgo.Entry("job succeeds after one failure", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
@@ -1442,15 +1764,53 @@ func updateJobStatus(job *batchv1.Job, status batchv1.JobStatus) {
 		jobGet.Status = status
 		return k8sClient.Status().Update(ctx, &jobGet)
 	}, timeout, interval).Should(gomega.Succeed())
+
 }
 
-func failJob(job *batchv1.Job) {
+type failJobOptions struct {
+	reason *string
+}
+
+func failJobWithOptions(job *batchv1.Job, failJobOpts *failJobOptions) {
+	if failJobOpts == nil {
+		failJobOpts = &failJobOptions{}
+	}
 	updateJobStatus(job, batchv1.JobStatus{
 		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
 			Type:   batchv1.JobFailed,
 			Status: corev1.ConditionTrue,
+			Reason: ptr.Deref(failJobOpts.reason, ""),
 		}),
 	})
+}
+
+func failJob(job *batchv1.Job) {
+	failJobWithOptions(job, nil)
+}
+
+// failFirstMatchingJobWithOptions fails the first matching job (in terms of index in jobList) that is a child of
+// replicatedJobName with extra options. No job is failed if a matching job does not exist.
+func failFirstMatchingJobWithOptions(jobList *batchv1.JobList, replicatedJobName string, failJobOpts *failJobOptions) {
+	if jobList == nil {
+		return
+	}
+	if failJobOpts == nil {
+		failJobOpts = &failJobOptions{}
+	}
+
+	for _, job := range jobList.Items {
+		parentReplicatedJob := job.Labels[jobset.ReplicatedJobNameKey]
+		if parentReplicatedJob == replicatedJobName {
+			failJobWithOptions(&job, failJobOpts)
+			return
+		}
+	}
+}
+
+// failFirstMatchingJob fails the first matching job (in terms of index in jobList) that is a child of
+// replicatedJobName. No job is failed if a matching job does not exist.
+func failFirstMatchingJob(jobList *batchv1.JobList, replicatedJobName string) {
+	failFirstMatchingJobWithOptions(jobList, replicatedJobName, nil)
 }
 
 func suspendJobSet(js *jobset.JobSet, suspend bool) {

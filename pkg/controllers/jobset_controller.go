@@ -172,7 +172,10 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 
 	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
-		executeFailurePolicy(ctx, js, ownedJobs, updateStatusOpts)
+		if err := executeFailurePolicy(ctx, js, ownedJobs, updateStatusOpts); err != nil {
+			log.Error(err, "executing failure policy")
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -608,46 +611,6 @@ func executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 	return false
 }
 
-func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) {
-	// If no failure policy is defined, mark the JobSet as failed.
-	if js.Spec.FailurePolicy == nil {
-		// firstFailedJob is only computed if necessary since it is expensive to compute
-		// for JobSets with many child jobs. This is why we don't unconditionally compute
-		// it once at the beginning of the function and share the results between the different
-		// possible code paths here.
-		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		setJobSetFailedCondition(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name), updateStatusOpts)
-		return
-	}
-
-	// If JobSet has reached max restarts, fail the JobSet.
-	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
-		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		setJobSetFailedCondition(ctx, js, constants.ReachedMaxRestartsReason, messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, firstFailedJob.Name), updateStatusOpts)
-		return
-	}
-
-	// To reach this point a job must have failed.
-	failurePolicyRecreateAll(ctx, js, updateStatusOpts)
-}
-
-func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
-	log := ctrl.LoggerFrom(ctx)
-
-	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
-	// of old jobs not part of the current jobSet run.
-	js.Status.Restarts += 1
-	updateStatusOpts.shouldUpdate = true
-
-	// Emit event for each JobSet restarts for observability and debugability.
-	enqueueEvent(updateStatusOpts, &eventParams{
-		object:      js,
-		eventType:   corev1.EventTypeWarning,
-		eventReason: fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts),
-	})
-	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
-}
-
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
 	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
@@ -883,19 +846,29 @@ func findFirstFailedJob(failedJobs []*batchv1.Job) *batchv1.Job {
 	return firstFailedJob
 }
 
-// findJobFailureTime is a helper function which extracts the Job failure time from a Job,
+// findJobFailureTimeAndReason is a helper function which extracts the Job failure condition from a Job,
 // if the JobFailed condition exists and is true.
-func findJobFailureTime(job *batchv1.Job) *metav1.Time {
+func findJobFailureCondition(job *batchv1.Job) *batchv1.JobCondition {
 	if job == nil {
 		return nil
 	}
 	for _, c := range job.Status.Conditions {
 		// If this Job failed before the oldest known Job failiure, update the first failed job.
 		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
-			return &c.LastTransitionTime
+			return &c
 		}
 	}
 	return nil
+}
+
+// findJobFailureTime is a helper function which extracts the Job failure time from a Job,
+// if the JobFailed condition exists and is true.
+func findJobFailureTime(job *batchv1.Job) *metav1.Time {
+	failureCondition := findJobFailureCondition(job)
+	if failureCondition == nil {
+		return nil
+	}
+	return &failureCondition.LastTransitionTime
 }
 
 // managedByExternalController returns a pointer to the name of the external controller managing
@@ -927,18 +900,23 @@ func setCondition(js *jobset.JobSet, condOpts *conditionOpts, updateStatusOpts *
 		return
 	}
 
+	if updateStatusOpts == nil {
+		updateStatusOpts = &statusUpdateOpts{}
+	}
+
 	// If we made some changes to the status conditions, configure updateStatusOpts
 	// to persist the status update at the end of the reconciliation attempt.
 	updateStatusOpts.shouldUpdate = true
 
 	// Conditionally emit an event for each JobSet condition update if and only if
 	// the status update call is successful.
-	enqueueEvent(updateStatusOpts, &eventParams{
+	event := &eventParams{
 		object:       js,
 		eventType:    condOpts.eventType,
 		eventReason:  condOpts.condition.Reason,
 		eventMessage: condOpts.condition.Message,
-	})
+	}
+	enqueueEvent(updateStatusOpts, event)
 }
 
 // updateCondition accepts a given condition and does one of the following:

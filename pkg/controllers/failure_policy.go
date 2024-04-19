@@ -1,0 +1,255 @@
+/*
+Copyright 2023 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controllers
+
+import (
+	"context"
+	"fmt"
+	"slices"
+
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/constants"
+)
+
+// actionFunctionMap relates jobset failure policy action names to the appropriate behavior during jobset reconciliation.
+var actionFunctionMap = map[jobset.FailurePolicyAction]failurePolicyActionApplier{
+	jobset.FailJobSet:                        failJobSetActionApplier,
+	jobset.RestartJobSet:                     restartJobSetActionApplier,
+	jobset.RestartJobSetAndIgnoreMaxRestarts: restartJobSetAndIgnoreMaxRestartsActionApplier,
+}
+
+// executeFailurePolicy applies the Failure Policy of a JobSet when a failed child Job is found.
+// This function is run only when a failed child job has already been found.
+func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	// If no failure policy is defined, mark the JobSet as failed.
+	if js.Spec.FailurePolicy == nil {
+		// firstFailedJob is only computed if necessary since it is expensive to compute
+		// for JobSets with many child jobs. This is why we don't unconditionally compute
+		// it once at the beginning of the function and share the results between the different
+		// possible code paths here.
+		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
+		setJobSetFailedCondition(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name), updateStatusOpts)
+		return nil
+	}
+
+	// Check for matching Failure Policy Rule
+	failurePolicyRule, matchingFailedJob := findFirstFailedPolicyRuleAndJob(ctx, js, ownedJobs.failed)
+
+	failurePolicyRuleAction := jobset.RestartJobSet
+	if failurePolicyRule != nil {
+		failurePolicyRuleAction = failurePolicyRule.Action
+	}
+
+	if err := applyFailurePolicyRuleAction(ctx, js, matchingFailedJob, updateStatusOpts, failurePolicyRuleAction); err != nil {
+		log.Error(err, "applying FailurePolicyRuleAction %v", failurePolicyRuleAction)
+		return err
+	}
+
+	return nil
+}
+
+// If the failure policy rule is not nil, then the functions returns:
+// - true if the rule is applicable to the jobFailureReason;
+// - false other.
+// If the rule is nil, we return true.
+func ruleIsApplicable(rule *jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string) bool {
+	if rule == nil {
+		return true
+	}
+
+	ruleAppliesToJobFailureReason := len(rule.OnJobFailureReasons) == 0 || slices.Contains(rule.OnJobFailureReasons, jobFailureReason)
+	if !ruleAppliesToJobFailureReason {
+		return false
+	}
+
+	parentReplicatedJob, exists := parentReplicatedJobName(failedJob)
+	if !exists {
+		// If we cannot find the parent ReplicatedJob, we assume the rule does not apply.
+		// TODO: Add a log statement that the failedJob does not appear to have a parent replicated job.
+		// This error should not happen, but was a pain to debug when adding unit tests.
+		return false
+	}
+
+	ruleAppliesToParentReplicatedJob := len(rule.TargetReplicatedJobs) == 0 || slices.Contains(rule.TargetReplicatedJobs, parentReplicatedJob)
+	return ruleAppliesToParentReplicatedJob
+}
+
+// The function findFirstFailedPolicyRuleAndJob returns the first failure policy rule matching a failed child job.
+// The function also returns the first child job matching the failure policy rule returned.
+// If there does not exist a matching failure policy rule, the function returns nil for the failure policy rule
+// accompanied with the first failing job. This function assumes that the jobset has a non nil failure policy.
+func findFirstFailedPolicyRuleAndJob(ctx context.Context, js *jobset.JobSet, failedOwnedJobs []*batchv1.Job) (*jobset.FailurePolicyRule, *batchv1.Job) {
+	log := ctrl.LoggerFrom(ctx)
+
+	rulesExist := len(js.Spec.FailurePolicy.Rules) > 0
+	if !rulesExist {
+		firstFailedJob := findFirstFailedJob(failedOwnedJobs)
+		return nil, firstFailedJob
+	}
+
+	// These variables are only to make the ensuing lines of code shorter.
+	rules := js.Spec.FailurePolicy.Rules
+	numRules := len(js.Spec.FailurePolicy.Rules)
+
+	// bucket[i] corresponds to js.Spec.FailurePolicy.Rules[i]
+	type bucket struct {
+		firstFailedJob   *batchv1.Job
+		firstFailureTime *metav1.Time
+	}
+
+	// We make a bucket for each rule and then an extra bucket to represent the default rule
+	numBuckets := numRules + 1
+	defaultRuleIndex := numRules
+	var buckets = make([]bucket, numRules+1)
+
+	for _, failedJob := range failedOwnedJobs {
+		jobFailureCondition := findJobFailureCondition(failedJob)
+		// This means that the Job has not failed.
+		if jobFailureCondition == nil {
+			continue
+		}
+
+		jobFailureTime, jobFailureReason := ptr.To(jobFailureCondition.LastTransitionTime), jobFailureCondition.Reason
+		for i := 0; i < numBuckets; i++ {
+			// We use nil to represent the default rule that
+			// applies to all job failure reasons.
+			var rule *jobset.FailurePolicyRule
+			if i < numRules {
+				rule = ptr.To(rules[i])
+			}
+			if ruleIsApplicable(rule, failedJob, jobFailureReason) && (buckets[i].firstFailureTime == nil || jobFailureTime.Before(buckets[i].firstFailureTime)) {
+				buckets[i].firstFailedJob = failedJob
+				buckets[i].firstFailureTime = jobFailureTime
+			}
+		}
+	}
+
+	// Checking if any failure policy rules were matched
+	// and returning the rule along with the first
+	// failed job to match it.
+	for i := 0; i < numRules; i++ {
+		if buckets[i].firstFailedJob != nil {
+			return &rules[i], buckets[i].firstFailedJob
+		}
+	}
+
+	// We get here when no rule matched any of the failure policy rules
+	log.V(2).Info("never found a matching rule and returning nil to represent the default rule.")
+	return nil, buckets[defaultRuleIndex].firstFailedJob
+}
+
+// failurePolicyRecreateAll triggers a JobSet restart for the next reconcillation loop.
+func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCountTowardsMax bool, updateStatusOpts *statusUpdateOpts, event *eventParams) {
+	log := ctrl.LoggerFrom(ctx)
+
+	if updateStatusOpts == nil {
+		updateStatusOpts = &statusUpdateOpts{}
+	}
+
+	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
+	// of old jobs not part of the current jobSet run.
+	js.Status.Restarts += 1
+
+	if shouldCountTowardsMax {
+		js.Status.RestartsCountTowardsMax += 1
+	}
+
+	updateStatusOpts.shouldUpdate = true
+
+	// Emit event for each JobSet restarts for observability and debugability.
+	enqueueEvent(updateStatusOpts, event)
+	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
+}
+
+// parentReplicatedJobName returns the name of the parent
+// ReplicatedJob and true if it is able to retrieve the parent.
+// The empty string and false are returned otherwise.
+func parentReplicatedJobName(job *batchv1.Job) (string, bool) {
+	if job == nil {
+		return "", false
+	}
+
+	replicatedJobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
+	replicatedJobNameIsUnset := !ok || replicatedJobName == ""
+	return replicatedJobName, !replicatedJobNameIsUnset
+}
+
+// The type failurePolicyActionApplier applies a FailurePolicyAction and returns nil if the FailurePolicyAction was successfully applied.
+// The function returns an error otherwise.
+type failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error
+
+// failJobSetActionApplier applies the FailJobSet FailurePolicyAction
+var failJobSetActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	failureMessage := messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, matchingFailedJob.Name)
+	setJobSetFailedCondition(ctx, js, constants.ReachedMaxRestartsReason, failureMessage, updateStatusOpts)
+	return nil
+}
+
+// restartJobSetActionApplier applies the RestartJobSet FailurePolicyAction
+var restartJobSetActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	if js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts {
+		failureMessage := messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, matchingFailedJob.Name)
+		setJobSetFailedCondition(ctx, js, constants.ReachedMaxRestartsReason, failureMessage, updateStatusOpts)
+		return nil
+	}
+
+	shouldCountTowardsMax := true
+	event := &eventParams{
+		object:      js,
+		eventType:   corev1.EventTypeWarning,
+		eventReason: fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts),
+	}
+	failurePolicyRecreateAll(ctx, js, shouldCountTowardsMax, updateStatusOpts, event)
+	return nil
+}
+
+// restartJobSetAndIgnoreMaxRestartsActionApplier applies the RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction
+var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	shouldCountTowardsMax := false
+	event := &eventParams{
+		object:      js,
+		eventType:   corev1.EventTypeWarning,
+		eventReason: fmt.Sprintf("restarting jobset without counting towards maximum restarts, attempt %d", js.Status.Restarts),
+	}
+	failurePolicyRecreateAll(ctx, js, shouldCountTowardsMax, updateStatusOpts, event)
+	return nil
+}
+
+// applyFailurePolicyRuleAction applies the supplied FailurePolicyRuleAction.
+func applyFailurePolicyRuleAction(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOps *statusUpdateOpts, failurePolicyRuleAction jobset.FailurePolicyAction) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	applier, ok := actionFunctionMap[failurePolicyRuleAction]
+	if !ok {
+		err := fmt.Errorf("failed to find a corresponding action for the FailurePolicyRuleAction %v", failurePolicyRuleAction)
+		log.Error(err, "retrieving information for FailurePolicyRuleAction")
+		return err
+	}
+
+	err := applier(ctx, js, matchingFailedJob, updateStatusOps)
+	if err != nil {
+		log.Error(err, "error applying the FailurePolicyRuleAction: %v", failurePolicyRuleAction)
+		return err
+	}
+
+	return nil
+}
