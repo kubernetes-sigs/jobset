@@ -193,7 +193,7 @@ func TestCheckIfTTLExpired(t *testing.T) {
 			r := &JobSetReconciler{clock: tc.clock}
 			expired, err := checkIfTTLExpired(ctx, r.clock, tc.jobset)
 			if tc.expectErr != (err != nil) {
-				t.Fatalf("expected error: %v, got: %v", tc.expectErr, err)
+				t.Errorf("expected error: %v, got: %v", tc.expectErr, err)
 			}
 			if tc.expectErr && !strings.Contains(err.Error(), tc.expectErrStr) {
 				t.Errorf("expected error string '%s' to be in '%v'", tc.expectErrStr, err)
