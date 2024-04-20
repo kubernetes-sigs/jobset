@@ -371,7 +371,7 @@ in the batchv1 Job API. At the time of writing this KEP, these include:
   - `MaxFailedIndexesExceeded`
   - `FailedIndexes`
 
-### Implmentation
+### Implementation
 
 The core part of the implementation will be defining what specific mechanisms the JobSet controller uses to implement
 the behavior defined for each FailurePolicyAction type:
