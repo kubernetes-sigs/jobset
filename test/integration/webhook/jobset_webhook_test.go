@@ -335,7 +335,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: true,
 		}),
-		ginkgo.Entry("validate jobSet immutable for managed-by label", &testCase{
+		ginkgo.Entry("validate jobSet immutable for managedBy field", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
 					Suspend(true).
@@ -347,7 +347,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			defaultsApplied: func(js *jobset.JobSet) bool {
-				return ptr.Deref(js.Spec.ManagedBy, "") == jobset.JobSetControllerName
+				return true
 			},
 			updateJobSet: func(js *jobset.JobSet) {
 				js.Spec.ManagedBy = ptr.To("new-manager")
