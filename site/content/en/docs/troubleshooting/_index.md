@@ -58,4 +58,4 @@ Look at the JobSet controller logs and you'll probably see an error like this:
 
 **Cause**: This could be due to a known bug in an older version of JobSet, or a known bug in an older version of Kueue. JobSet and Kueue integration requires JobSet v0.2.3+ and Kueue v0.4.1+.
 
-**Solution**: If you're using JobSet version less than v0.2.3, uninstall and re-install using a versoin >= v0.2.3 (see the JobSet [installation guide](/docs/setup/install.md) for the commands to do this). If you're using a Kueue version less than v0.4.1, uninstall and re-install using a v0.4.1 (see the Kueue [installation guide](https://kueue.sigs.k8s.io/docs/installation/) for the commands to do this).
+**Solution**: If you're using JobSet version less than v0.2.3, uninstall and re-install using a versoin >= v0.2.3 (see the JobSet [installation guide](https://jobset.sigs.k8s.io/docs/installation/) for the commands to do this). If you're using a Kueue version less than v0.4.1, uninstall and re-install using a v0.4.1 (see the Kueue [installation guide](https://kueue.sigs.k8s.io/docs/installation/) for the commands to do this).
