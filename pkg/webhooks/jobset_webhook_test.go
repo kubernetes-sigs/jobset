@@ -973,6 +973,26 @@ func TestValidateUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "managedBy is immutable",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ManagedBy:      ptr.To("example.com/new"),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ManagedBy:      ptr.To("example.com/old"),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("managedBy"), ptr.To("example.com/new"), "field is immutable"),
+			}.ToAggregate(),
+		},
+		{
 			name: "replicated jobs are immutable",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -1006,7 +1026,28 @@ func TestValidateUpdate(t *testing.T) {
 					ReplicatedJobs: validReplicatedJobs,
 				},
 			},
-			want: fmt.Errorf("field is immutable"),
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), []jobset.ReplicatedJob{
+					{
+						Name:     "test-jobset-replicated-job-0",
+						Replicas: 2,
+						Template: batchv1.JobTemplateSpec{
+							Spec: batchv1.JobSpec{
+								Parallelism: ptr.To[int32](2),
+							},
+						},
+					},
+					{
+						Name:     "test-jobset-replicated-job-1",
+						Replicas: 1,
+						Template: batchv1.JobTemplateSpec{
+							Spec: batchv1.JobSpec{
+								Parallelism: ptr.To[int32](1),
+							},
+						},
+					},
+				}, "field is immutable"),
+			}.ToAggregate(),
 		},
 	}
 
@@ -1018,10 +1059,8 @@ func TestValidateUpdate(t *testing.T) {
 			newObj := tc.js.DeepCopyObject()
 			oldObj := tc.oldJs.DeepCopyObject()
 			_, err = webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
-			if tc.want != nil {
-				assert.True(t, strings.Contains(err.Error(), tc.want.Error()))
-			} else {
-				assert.Nil(t, err)
+			if diff := cmp.Diff(tc.want, err); diff != "" {
+				t.Errorf("ValidateResources() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

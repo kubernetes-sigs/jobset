@@ -225,7 +225,7 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.
 	}
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
 	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("labels").Key("managedBy"))...)
+	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
 	return nil, errs.ToAggregate()
 }
 
