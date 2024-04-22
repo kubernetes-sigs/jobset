@@ -31,7 +31,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Design Details](#design-details)
   - [Proposed Failure Policy API](#proposed-failure-policy-api)
   - [Constraints](#constraints)
-  - [Implmentation](#implmentation)
+  - [Implementation](#implementation)
   - [Test Plan](#test-plan)
       - [Prerequisite testing updates](#prerequisite-testing-updates)
     - [Unit Tests](#unit-tests)
