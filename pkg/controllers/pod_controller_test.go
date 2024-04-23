@@ -55,7 +55,7 @@ func TestValidatePodPlacements(t *testing.T) {
 			jobName:           "test-jobset-replicated-job-1-test-job-0",
 			podName:           "test-jobset-replicated-job-1-test-job-0-1",
 			ns:                ns,
-			jobIdx:            0})
+			jobIdx:            0}).AddAnnotation(batchv1.JobCompletionIndexAnnotation, "1")
 		testTopologyKey = "test-node-topologyKey"
 		nodeSelector    = map[string]string{testTopologyKey: "topologyDomain"}
 	)
@@ -222,14 +222,14 @@ func TestDeleteFollowerPods(t *testing.T) {
 			jobName:           "test-jobset-replicated-job-1-test-job-0",
 			podName:           "test-jobset-replicated-job-1-test-job-0-1",
 			ns:                ns,
-			jobIdx:            0})
+			jobIdx:            0}).AddAnnotation(batchv1.JobCompletionIndexAnnotation, "1")
 		wantPodWrapper = makePod(&makePodArgs{
 			jobSetName:        jobSetName,
 			replicatedJobName: "replicated-job-1",
 			jobName:           "test-jobset-replicated-job-1-test-job-0",
 			podName:           "test-jobset-replicated-job-1-test-job-0-1",
 			ns:                ns,
-			jobIdx:            0})
+			jobIdx:            0}).AddAnnotation(batchv1.JobCompletionIndexAnnotation, "1")
 	)
 	tests := []struct {
 		name            string
