@@ -48,15 +48,16 @@ func TestValidatePodPlacements(t *testing.T) {
 			podName:           "test-jobset-replicated-job-1-test-job-0-0",
 			ns:                ns,
 			nodeName:          "test-node",
-			jobIdx:            0})
-		podWrapper = makePod(&makePodArgs{
+			jobIdx:            0}).AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0")
+		followerPodWrapper = makePod(&makePodArgs{
 			jobSetName:        jobSetName,
 			replicatedJobName: "replicated-job-1",
 			jobName:           "test-jobset-replicated-job-1-test-job-0",
 			podName:           "test-jobset-replicated-job-1-test-job-0-1",
 			ns:                ns,
 			jobIdx:            0})
-		nodeSelector = map[string]string{"test-node-topologyKey": "topologyDomain"}
+		testTopologyKey = "test-node-topologyKey"
+		nodeSelector    = map[string]string{testTopologyKey: "topologyDomain"}
 	)
 	tests := []struct {
 		name           string
@@ -68,13 +69,12 @@ func TestValidatePodPlacements(t *testing.T) {
 		wantMatched    bool
 	}{
 		{
-			name: "topology node label not found",
-			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, "test-node-topologyKey").
-				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+			name:      "topology node label not found",
+			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
-					podWrapper.NodeSelector(nodeSelector).Obj(),
+					leaderPodWrapper.Obj(),
+					followerPodWrapper.NodeSelector(nodeSelector).Obj(),
 				},
 			},
 			node: &corev1.Node{
@@ -82,17 +82,15 @@ func TestValidatePodPlacements(t *testing.T) {
 					Name: "test-node",
 				},
 			},
-			wantErr: fmt.Errorf("node does not have topology label: %s", "test-node-topologyKey"),
+			wantErr: fmt.Errorf("node does not have topology label: %s", testTopologyKey),
 		},
 		{
-			name: "valid pod placements with matched",
-			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, "test-node-topologyKey").
-				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+			name:      "valid pod placements",
+			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(nodeSelector).
-						AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
-					podWrapper.NodeSelector(nodeSelector).Obj(),
+					leaderPodWrapper.NodeSelector(nodeSelector).Obj(),
+					followerPodWrapper.NodeSelector(nodeSelector).Obj(),
 				},
 			},
 			node: &corev1.Node{
@@ -104,15 +102,14 @@ func TestValidatePodPlacements(t *testing.T) {
 			wantMatched: true,
 		},
 		{
-			name: "follower pod nodeSelector is nil",
-			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, "test-node-topologyKey").
-				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+			name:      "follower pod nodeSelector is nil",
+			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
 					leaderPodWrapper.NodeSelector(map[string]string{
-						"test-node-topologyKey": "topologyDomain",
-					}).AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
-					podWrapper.NodeSelector(nil).Obj(),
+						testTopologyKey: "topologyDomain",
+					}).Obj(),
+					followerPodWrapper.NodeSelector(nil).Obj(),
 				},
 			},
 			node: &corev1.Node{
@@ -121,17 +118,15 @@ func TestValidatePodPlacements(t *testing.T) {
 					Labels: nodeSelector,
 				},
 			},
-			wantMatched: false,
-			wantErr:     fmt.Errorf("pod %s nodeSelector is nil", "test-jobset-replicated-job-1-test-job-0-1"),
+			wantErr: fmt.Errorf("pod %s nodeSelector is nil", "test-jobset-replicated-job-1-test-job-0-1"),
 		},
 		{
-			name: "valid pod placements with pod nodeSelector is empty",
-			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, "test-node-topologyKey").
-				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+			name:      "follower pod nodeSelector is empty",
+			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
-					podWrapper.NodeSelector(map[string]string{}).Obj(),
+					leaderPodWrapper.Obj(),
+					followerPodWrapper.NodeSelector(map[string]string{}).Obj(),
 				},
 			},
 			node: &corev1.Node{
@@ -141,17 +136,15 @@ func TestValidatePodPlacements(t *testing.T) {
 				},
 			},
 			wantErr: fmt.Errorf("pod %s nodeSelector is missing key: %s",
-				"test-jobset-replicated-job-1-test-job-0-1", "test-node-topologyKey"),
+				"test-jobset-replicated-job-1-test-job-0-1", testTopologyKey),
 		},
 		{
-			name: "valid pod placements with followerTopology != leaderTopology",
-			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, "test-node-topologyKey").
-				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+			name:      "followerTopology != leaderTopology",
+			leaderPod: leaderPodWrapper.Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(nodeSelector).
-						AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
-					podWrapper.NodeSelector(map[string]string{"test-node-topologyKey": "topologyDomain1"}).Obj(),
+					leaderPodWrapper.NodeSelector(nodeSelector).Obj(),
+					followerPodWrapper.NodeSelector(map[string]string{testTopologyKey: "topologyDomain1"}).Obj(),
 				},
 			},
 			node: &corev1.Node{
@@ -164,14 +157,12 @@ func TestValidatePodPlacements(t *testing.T) {
 				"topologyDomain1", "topologyDomain"),
 		},
 		{
-			name: "valid pod placements with get node error",
-			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, "test-node-topologyKey").
-				AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+			name:      "get node error",
+			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(nodeSelector).
-						AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
-					podWrapper.NodeSelector(map[string]string{"test-node-topologyKey": "topologyDomain1"}).Obj(),
+					leaderPodWrapper.NodeSelector(nodeSelector).Obj(),
+					followerPodWrapper.NodeSelector(map[string]string{testTopologyKey: "topologyDomain"}).Obj(),
 				},
 			},
 			node: &corev1.Node{
@@ -196,6 +187,7 @@ func TestValidatePodPlacements(t *testing.T) {
 					if tc.forceClientErr || node == nil {
 						return errors.Join(errors.New("example error"))
 					}
+					// Set returned node value to be the node defined in the test case.
 					*node = *tc.node
 					return nil
 				}})
@@ -222,7 +214,8 @@ func TestDeleteFollowerPods(t *testing.T) {
 			podName:           "test-jobset-replicated-job-1-test-job-0-0",
 			ns:                ns,
 			nodeName:          "test-node",
-			jobIdx:            0})
+			jobIdx:            0}).
+			AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0")
 		followerPodWrapper = makePod(&makePodArgs{
 			jobSetName:        jobSetName,
 			replicatedJobName: "replicated-job-1",
@@ -248,7 +241,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 		{
 			name: "delete follower pods",
 			pods: []corev1.Pod{
-				leaderPodWrapper.AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+				leaderPodWrapper.Obj(),
 				followerPodWrapper.Obj(),
 			},
 			wantPodsDeleted: []corev1.Pod{
@@ -265,7 +258,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 		{
 			name: "delete follower pods with pod conditions status is false",
 			pods: []corev1.Pod{
-				leaderPodWrapper.AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+				leaderPodWrapper.Obj(),
 				followerPodWrapper.SetConditions([]corev1.PodCondition{{
 					Type:               corev1.DisruptionTarget,
 					Status:             corev1.ConditionFalse,
@@ -289,7 +282,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 		{
 			name: "delete follower pods with update pod status error",
 			pods: []corev1.Pod{
-				leaderPodWrapper.AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+				leaderPodWrapper.Obj(),
 				followerPodWrapper.SetConditions([]corev1.PodCondition{{
 					Type:               corev1.DisruptionTarget,
 					Status:             corev1.ConditionFalse,
@@ -299,14 +292,13 @@ func TestDeleteFollowerPods(t *testing.T) {
 				},
 				}).Obj(),
 			},
-			wantPodsDeleted: nil,
-			forceClientErr:  true,
-			wantErr:         errors.Join(errors.Join(errors.New("example error"))),
+			forceClientErr: true,
+			wantErr:        errors.Join(errors.Join(errors.New("example error"))),
 		},
 		{
 			name: "delete follower pods with delete error",
 			pods: []corev1.Pod{
-				leaderPodWrapper.AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").Obj(),
+				leaderPodWrapper.Obj(),
 				followerPodWrapper.SetConditions([]corev1.PodCondition{{
 					Type:    corev1.DisruptionTarget,
 					Status:  corev1.ConditionTrue,
@@ -314,9 +306,8 @@ func TestDeleteFollowerPods(t *testing.T) {
 					Message: constants.ExclusivePlacementViolationMessage},
 				}).Obj(),
 			},
-			wantPodsDeleted: nil,
-			forceClientErr:  true,
-			wantErr:         errors.Join(errors.Join(errors.New("example error"))),
+			forceClientErr: true,
+			wantErr:        errors.Join(errors.Join(errors.New("example error"))),
 		},
 	}
 	for _, tc := range tests {
