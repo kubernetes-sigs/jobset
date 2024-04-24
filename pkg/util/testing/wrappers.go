@@ -412,12 +412,6 @@ func (p *PodWrapper) Labels(labels map[string]string) *PodWrapper {
 	return p
 }
 
-// ResourceVersion sets the pod.metadata.resourceVersion.
-func (p *PodWrapper) ResourceVersion(resourceVersion string) *PodWrapper {
-	p.ObjectMeta.ResourceVersion = resourceVersion
-	return p
-}
-
 // SetConditions sets the value of the pod.status.conditions.
 func (p *PodWrapper) SetConditions(conditions []corev1.PodCondition) *PodWrapper {
 	p.Status.Conditions = conditions

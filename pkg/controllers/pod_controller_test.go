@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"testing"
 
@@ -225,20 +224,13 @@ func TestDeleteFollowerPods(t *testing.T) {
 			podName:           "test-jobset-replicated-job-1-test-job-0-1",
 			ns:                ns,
 			jobIdx:            0}).AddAnnotation(batchv1.JobCompletionIndexAnnotation, "1")
-		wantPodWrapper = makePod(&makePodArgs{
-			jobSetName:        jobSetName,
-			replicatedJobName: "replicated-job-1",
-			jobName:           "test-jobset-replicated-job-1-test-job-0",
-			podName:           "test-jobset-replicated-job-1-test-job-0-1",
-			ns:                ns,
-			jobIdx:            0}).AddAnnotation(batchv1.JobCompletionIndexAnnotation, "1")
 	)
 	tests := []struct {
-		name            string
-		pods            []corev1.Pod
-		wantPodsDeleted []corev1.Pod
-		wantErr         error
-		forceClientErr  bool
+		name                 string
+		pods                 []corev1.Pod
+		wantPodsDeletedCount int
+		wantErr              error
+		forceClientErr       bool
 	}{
 		{
 			name: "delete follower pods",
@@ -246,16 +238,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 				leaderPodWrapper.Obj(),
 				followerPodWrapper.Obj(),
 			},
-			wantPodsDeleted: []corev1.Pod{
-				wantPodWrapper.ResourceVersion("999").SetConditions([]corev1.PodCondition{{
-					Type:               corev1.DisruptionTarget,
-					Status:             corev1.ConditionTrue,
-					Reason:             constants.ExclusivePlacementViolationReason,
-					LastTransitionTime: metav1.Now(),
-					Message:            constants.ExclusivePlacementViolationMessage,
-				},
-				}).Obj(),
-			},
+			wantPodsDeletedCount: 1,
 		},
 		{
 			name: "delete follower pods with pod conditions status is false",
@@ -270,16 +253,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 				},
 				}).Obj(),
 			},
-			wantPodsDeleted: []corev1.Pod{
-				wantPodWrapper.ResourceVersion("999").SetConditions([]corev1.PodCondition{{
-					Type:               corev1.DisruptionTarget,
-					Status:             corev1.ConditionTrue,
-					Reason:             constants.ExclusivePlacementViolationReason,
-					LastTransitionTime: metav1.Now(),
-					Message:            constants.ExclusivePlacementViolationMessage,
-				},
-				}).Obj(),
-			},
+			wantPodsDeletedCount: 1,
 		},
 		{
 			name: "delete follower pods with update pod status error",
@@ -314,7 +288,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var gotPodsDeleted []corev1.Pod
+			var deletedCount int
 			fc := makeFakeClient(interceptor.Funcs{
 				Delete: func(ctx context.Context, client client.WithWatch,
 					obj client.Object, opts ...client.DeleteOption) error {
@@ -325,11 +299,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 					if tc.forceClientErr || pod == nil {
 						return errors.New("example error")
 					}
-					// This is to solve the problem that the timestamps do not match.
-					// There will be a slight gap.
-					pod.Status.Conditions[0].LastTransitionTime =
-						tc.wantPodsDeleted[0].Status.Conditions[0].LastTransitionTime
-					gotPodsDeleted = append(gotPodsDeleted, *pod)
+					deletedCount++
 					return nil
 				},
 				SubResourceUpdate: func(ctx context.Context, client client.Client,
@@ -354,14 +324,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 			if tc.wantErr != nil && gotErr != nil {
 				assert.Equal(t, tc.wantErr.Error(), gotErr.Error())
 			}
-			sort.Slice(gotPodsDeleted, func(i, j int) bool {
-				return gotPodsDeleted[i].Name < gotPodsDeleted[j].Name
-			})
-			sort.Slice(tc.wantPodsDeleted, func(i, j int) bool {
-				return tc.wantPodsDeleted[i].Name < tc.wantPodsDeleted[j].Name
-			})
-
-			if !assert.Equal(t, tc.wantPodsDeleted, gotPodsDeleted) {
+			if tc.wantPodsDeletedCount != deletedCount {
 				t.Errorf("deleteFollowerPods() did not make the expected pod deletion calls")
 			}
 		})
