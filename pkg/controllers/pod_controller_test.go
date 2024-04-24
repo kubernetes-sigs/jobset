@@ -88,7 +88,7 @@ func TestValidatePodPlacements(t *testing.T) {
 			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(nodeSelector).Obj(),
+					leaderPodWrapper.Obj(),
 					followerPodWrapper.NodeSelector(nodeSelector).Obj(),
 				},
 			},
@@ -105,9 +105,7 @@ func TestValidatePodPlacements(t *testing.T) {
 			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(map[string]string{
-						testTopologyKey: "topologyDomain",
-					}).Obj(),
+					leaderPodWrapper.Obj(),
 					followerPodWrapper.NodeSelector(nil).Obj(),
 				},
 			},
@@ -142,7 +140,7 @@ func TestValidatePodPlacements(t *testing.T) {
 			leaderPod: leaderPodWrapper.Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(nodeSelector).Obj(),
+					leaderPodWrapper.Obj(),
 					followerPodWrapper.NodeSelector(map[string]string{testTopologyKey: "topologyDomain1"}).Obj(),
 				},
 			},
@@ -160,7 +158,7 @@ func TestValidatePodPlacements(t *testing.T) {
 			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
-					leaderPodWrapper.NodeSelector(nodeSelector).Obj(),
+					leaderPodWrapper.Obj(),
 					followerPodWrapper.NodeSelector(map[string]string{testTopologyKey: "topologyDomain"}).Obj(),
 				},
 			},
