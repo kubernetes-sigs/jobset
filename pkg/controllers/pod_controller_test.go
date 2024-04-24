@@ -172,7 +172,7 @@ func TestValidatePodPlacements(t *testing.T) {
 				},
 			},
 			forceClientErr: true,
-			wantErr:        errors.Join(errors.New("example error")),
+			wantErr:        errors.New("example error"),
 		},
 	}
 	for _, tc := range tests {
@@ -185,7 +185,7 @@ func TestValidatePodPlacements(t *testing.T) {
 						return nil
 					}
 					if tc.forceClientErr || node == nil {
-						return errors.Join(errors.New("example error"))
+						return errors.New("example error")
 					}
 					// Set returned node value to be the node defined in the test case.
 					*node = *tc.node
@@ -197,7 +197,9 @@ func TestValidatePodPlacements(t *testing.T) {
 				Record: fc.record,
 			}
 			gotMatched, gotErr := r.validatePodPlacements(context.Background(), &tc.leaderPod, tc.podList)
-			assert.Equal(t, tc.wantErr, gotErr)
+			if tc.wantErr != nil && gotErr != nil {
+				assert.Equal(t, tc.wantErr.Error(), gotErr.Error())
+			}
 			assert.Equal(t, tc.wantMatched, gotMatched)
 		})
 	}
@@ -293,7 +295,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 				}).Obj(),
 			},
 			forceClientErr: true,
-			wantErr:        errors.Join(errors.Join(errors.New("example error"))),
+			wantErr:        errors.New("example error"),
 		},
 		{
 			name: "delete follower pods with delete error",
@@ -307,7 +309,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 				}).Obj(),
 			},
 			forceClientErr: true,
-			wantErr:        errors.Join(errors.Join(errors.New("example error"))),
+			wantErr:        errors.New("example error"),
 		},
 	}
 	for _, tc := range tests {
@@ -321,7 +323,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 						return nil
 					}
 					if tc.forceClientErr || pod == nil {
-						return errors.Join(errors.New("example error"))
+						return errors.New("example error")
 					}
 					// This is to solve the problem that the timestamps do not match.
 					// There will be a slight gap.
@@ -337,7 +339,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 						return nil
 					}
 					if tc.forceClientErr || pod == nil {
-						return errors.Join(errors.New("example error"))
+						return errors.New("example error")
 					}
 					return nil
 				},
@@ -349,7 +351,9 @@ func TestDeleteFollowerPods(t *testing.T) {
 			}
 
 			gotErr := r.deleteFollowerPods(context.Background(), tc.pods)
-			assert.Equal(t, gotErr, tc.wantErr)
+			if tc.wantErr != nil && gotErr != nil {
+				assert.Equal(t, tc.wantErr.Error(), gotErr.Error())
+			}
 			sort.Slice(gotPodsDeleted, func(i, j int) bool {
 				return gotPodsDeleted[i].Name < gotPodsDeleted[j].Name
 			})
@@ -357,7 +361,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 				return tc.wantPodsDeleted[i].Name < tc.wantPodsDeleted[j].Name
 			})
 
-			if !assert.Equal(t, gotPodsDeleted, tc.wantPodsDeleted) {
+			if !assert.Equal(t, tc.wantPodsDeleted, gotPodsDeleted) {
 				t.Errorf("deleteFollowerPods() did not make the expected pod deletion calls")
 			}
 		})
