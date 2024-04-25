@@ -604,16 +604,15 @@ func executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 }
 
 func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) {
+	firstFailedJob := findFirstFailedJob(ownedJobs.failed)
 	// If no failure policy is defined, mark the JobSet as failed.
 	if js.Spec.FailurePolicy == nil {
-		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
 		setJobSetFailedCondition(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name), updateStatusOpts)
 		return
 	}
 
 	// If JobSet has reached max restarts, fail the JobSet.
 	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
-		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
 		setJobSetFailedCondition(ctx, js, constants.ReachedMaxRestartsReason, messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, firstFailedJob.Name), updateStatusOpts)
 		return
 	}
