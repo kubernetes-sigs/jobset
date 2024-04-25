@@ -606,6 +606,10 @@ func executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) {
 	// If no failure policy is defined, mark the JobSet as failed.
 	if js.Spec.FailurePolicy == nil {
+		// firstFailedJob is only computed if necessary since it is expensive to compute
+		// for JobSets with many child jobs. This is why we don't unconditionally compute
+		// it once at the beginning of the function and share the results between the different
+		// possible code paths here.
 		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
 		setJobSetFailedCondition(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name), updateStatusOpts)
 		return
