@@ -96,6 +96,12 @@ func (j *JobSetWrapper) SetLabels(labels map[string]string) *JobSetWrapper {
 	return j
 }
 
+// SetConditions sets the value of the jobSet.status conditions.
+func (j *JobSetWrapper) SetConditions(conditions []metav1.Condition) *JobSetWrapper {
+	j.Status.Conditions = conditions
+	return j
+}
+
 // SetGenerateName sets the JobSet name.
 func (j *JobSetWrapper) SetGenerateName(namePrefix string) *JobSetWrapper {
 	// Name and GenerateName are mutually exclusive, so we must unset the Name field.
@@ -350,6 +356,24 @@ func (j *JobWrapper) Active(active int32) *JobWrapper {
 // Ready sets the job status ready.
 func (j *JobWrapper) Ready(ready int32) *JobWrapper {
 	j.Status.Ready = ptr.To(ready)
+	return j
+}
+
+// DeletionTimestamp sets the job.metadata.deletionTimestamp.
+func (j *JobWrapper) DeletionTimestamp(deletionTimestamp *metav1.Time) *JobWrapper {
+	j.ObjectMeta.DeletionTimestamp = deletionTimestamp
+	return j
+}
+
+// StartTimestamp sets the job.status.startTime.
+func (j *JobWrapper) StartTimestamp(startTime *metav1.Time) *JobWrapper {
+	j.Status.StartTime = startTime
+	return j
+}
+
+// ResourceVersion sets the job.metadata.resourceVersion.
+func (j *JobWrapper) ResourceVersion(resourceVersion string) *JobWrapper {
+	j.ObjectMeta.ResourceVersion = resourceVersion
 	return j
 }
 
