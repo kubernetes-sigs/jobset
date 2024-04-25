@@ -369,3 +369,62 @@ func (j *JobWrapper) NodeSelector(nodeSelector map[string]string) *JobWrapper {
 func (j *JobWrapper) Obj() *batchv1.Job {
 	return &j.Job
 }
+
+// PodWrapper wraps a Pod.
+type PodWrapper struct {
+	corev1.Pod
+}
+
+// MakePod creates a wrapper for a Pod.
+func MakePod(podName, ns string) *PodWrapper {
+	return &PodWrapper{
+		corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      podName,
+				Namespace: ns,
+			},
+			Spec: corev1.PodSpec{},
+		},
+	}
+}
+
+// AddAnnotation add a pod annotation.
+func (p *PodWrapper) AddAnnotation(key, value string) *PodWrapper {
+	p.ObjectMeta.Annotations[key] = value
+	return p
+}
+
+// AddLabel add a pod label.
+func (p *PodWrapper) AddLabel(key, value string) *PodWrapper {
+	p.ObjectMeta.Labels[key] = value
+	return p
+}
+
+// Annotations sets the pod annotations.
+func (p *PodWrapper) Annotations(annotations map[string]string) *PodWrapper {
+	p.ObjectMeta.Annotations = annotations
+	return p
+}
+
+// Labels sets the pod labels.
+func (p *PodWrapper) Labels(labels map[string]string) *PodWrapper {
+	p.ObjectMeta.Labels = labels
+	return p
+}
+
+// SetConditions sets the value of the pod.status.conditions.
+func (p *PodWrapper) SetConditions(conditions []corev1.PodCondition) *PodWrapper {
+	p.Status.Conditions = conditions
+	return p
+}
+
+// NodeSelector sets the value of the pod.spec.nodeSelector.
+func (p *PodWrapper) NodeSelector(nodeSelector map[string]string) *PodWrapper {
+	p.Spec.NodeSelector = nodeSelector
+	return p
+}
+
+// Obj returns the wrapped Pod.
+func (p *PodWrapper) Obj() corev1.Pod {
+	return p.Pod
+}
