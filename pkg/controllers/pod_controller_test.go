@@ -162,12 +162,6 @@ func TestValidatePodPlacements(t *testing.T) {
 					followerPodWrapper.NodeSelector(map[string]string{testTopologyKey: "topologyDomain"}).Obj(),
 				},
 			},
-			node: &corev1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:   "test-node",
-					Labels: nodeSelector,
-				},
-			},
 			forceClientErr: true,
 			wantErr:        errors.New("example error"),
 		},
