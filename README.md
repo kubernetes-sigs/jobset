@@ -66,16 +66,16 @@ Read the [installation guide](https://jobset.sigs.k8s.io/docs/installation/) to 
 
 Below is the JobSet roadmap for 2024, in expected order of release:
 
-- Support for MultiKueue (https://github.com/kubernetes-sigs/jobset/issues/440)
-- JobSet TTL to clean up completed workloads (https://github.com/kubernetes-sigs/jobset/issues/279)
-- Configurable Failure Policy (https://github.com/kubernetes-sigs/jobset/issues/262)
-- Graduate API to v1 (https://github.com/kubernetes-sigs/jobset/issues/380)
-- In-place restarts (https://github.com/kubernetes-sigs/jobset/issues/467)
-- Placement Policy API (https://github.com/kubernetes-sigs/jobset/issues/75)
-- Support for JobSet extensions (https://github.com/kubernetes-sigs/jobset/issues/146)
-  - PyTorch Extension
-  - Jax Extension
-  - MPI Extension
+- [X] Support for MultiKueue (https://github.com/kubernetes-sigs/jobset/issues/440)
+- [X] JobSet TTL to clean up completed workloads (https://github.com/kubernetes-sigs/jobset/issues/279)
+- [ ] Configurable Failure Policy (https://github.com/kubernetes-sigs/jobset/issues/262)
+- [ ] Graduate API to v1 (https://github.com/kubernetes-sigs/jobset/issues/380)
+- [ ] In-place restarts (https://github.com/kubernetes-sigs/jobset/issues/467)
+- [ ] Placement Policy API (https://github.com/kubernetes-sigs/jobset/issues/75)
+- [ ] Support for JobSet extensions (https://github.com/kubernetes-sigs/jobset/issues/146)
+  - [ ] PyTorch Extension
+  - [ ] Jax Extension
+  - [ ] MPI Extension
 
 ## Troubleshooting common issues
 
