@@ -693,6 +693,13 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	jobsetSuspended := jobSetSuspended(js)
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
 
+	// Temporary: add nodeSelector for jobkey for NAP use case where we don't want jobs
+	// swapping between node pools between JobSet restarts.
+	if job.Spec.Template.Spec.NodeSelector == nil {
+		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
+	}
+	job.Spec.Template.Spec.NodeSelector[jobset.JobKey] = jobHashKey(js.Namespace, job.Name)
+
 	return job, nil
 }
 
