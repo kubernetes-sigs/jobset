@@ -36,18 +36,14 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		rule             *jobset.FailurePolicyRule
+		rule             jobset.FailurePolicyRule
 		failedJob        *batchv1.Job
 		jobFailureReason string
 		expected         bool
 	}{
 		{
-			name:     "failure policy rule is nil",
-			expected: true,
-		},
-		{
 			name: "failure policy rule matches on job failure reason",
-			rule: &jobset.FailurePolicyRule{
+			rule: jobset.FailurePolicyRule{
 				OnJobFailureReasons:  []string{batchv1.JobReasonBackoffLimitExceeded},
 				TargetReplicatedJobs: []string{replicatedJobName1},
 			},
@@ -59,7 +55,7 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 		},
 		{
 			name: "failure policy rule matches all on job failure reason",
-			rule: &jobset.FailurePolicyRule{
+			rule: jobset.FailurePolicyRule{
 				TargetReplicatedJobs: []string{replicatedJobName1},
 			},
 			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
@@ -70,7 +66,7 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 		},
 		{
 			name: "failure policy rule does not match on job failure reason",
-			rule: &jobset.FailurePolicyRule{
+			rule: jobset.FailurePolicyRule{
 				OnJobFailureReasons:  []string{batchv1.JobReasonBackoffLimitExceeded},
 				TargetReplicatedJobs: []string{replicatedJobName1},
 			},
@@ -82,7 +78,7 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 		},
 		{
 			name: "failure policy rule is not applicable to parent replicatedJob of failed job",
-			rule: &jobset.FailurePolicyRule{
+			rule: jobset.FailurePolicyRule{
 				OnJobFailureReasons:  []string{batchv1.JobReasonBackoffLimitExceeded},
 				TargetReplicatedJobs: []string{replicatedJobName1},
 			},
@@ -94,7 +90,7 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 		},
 		{
 			name: "failure policy rule is applicable to all replicatedjobs when targetedReplicatedJobs is omitted",
-			rule: &jobset.FailurePolicyRule{
+			rule: jobset.FailurePolicyRule{
 				OnJobFailureReasons: []string{batchv1.JobReasonBackoffLimitExceeded},
 			},
 			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
@@ -105,7 +101,7 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 		},
 		{
 			name: "failure policy rule is applicable to parent replicatedJob when targetedReplicatedJobs is specified",
-			rule: &jobset.FailurePolicyRule{
+			rule: jobset.FailurePolicyRule{
 				OnJobFailureReasons:  []string{batchv1.JobReasonBackoffLimitExceeded},
 				TargetReplicatedJobs: []string{replicatedJobName1},
 			},
@@ -130,8 +126,6 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 func TestFindFirstFailedPolicyRuleAndJob(t *testing.T) {
 	var (
 		replicatedJobName = "test-replicatedJob"
-		jobSetName        = "test-jobset"
-		ns                = "default"
 
 		failedJobNoReason1 = jobWithFailedCondition("job1", time.Now().Add(-6*time.Hour))
 		failedJobNoReason2 = jobWithFailedCondition("job2", time.Now().Add(-3*time.Hour))
@@ -180,7 +174,7 @@ func TestFindFirstFailedPolicyRuleAndJob(t *testing.T) {
 	)
 	tests := []struct {
 		name            string
-		js              *jobset.JobSet
+		rules           []jobset.FailurePolicyRule
 		failedOwnedJobs []*batchv1.Job
 
 		expectedFailurePolicyRule *jobset.FailurePolicyRule
@@ -188,7 +182,6 @@ func TestFindFirstFailedPolicyRuleAndJob(t *testing.T) {
 	}{
 		{
 			name:            "failure policy rules are empty with no failed jobs",
-			js:              testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{}).Obj(),
 			failedOwnedJobs: []*batchv1.Job{},
 
 			expectedFailurePolicyRule: nil,
@@ -196,67 +189,55 @@ func TestFindFirstFailedPolicyRuleAndJob(t *testing.T) {
 		},
 		{
 			name: "failure policy rules are empty with one failed job",
-			js:   testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{}).Obj(),
 			failedOwnedJobs: []*batchv1.Job{
 				failedJobNoReason1,
 			},
 
 			expectedFailurePolicyRule: nil,
-			expectedJob:               failedJobNoReason1,
+			expectedJob:               nil,
 		},
 		{
 			name:            "failure policy rules are empty with multiple failed jobs",
-			js:              testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{}).Obj(),
 			failedOwnedJobs: []*batchv1.Job{failedJobNoReason3, failedJobNoReason1, failedJobNoReason2},
 
 			expectedFailurePolicyRule: nil,
-			expectedJob:               failedJobNoReason1,
+			expectedJob:               nil,
 		},
 		{
-			name: "failure policy rule does not match on job failure reasons",
-			js: testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{
-				Rules: []jobset.FailurePolicyRule{unmatchedRule},
-			}).Obj(),
+			name:            "failure policy rule does not match on job failure reasons",
+			rules:           []jobset.FailurePolicyRule{unmatchedRule},
 			failedOwnedJobs: []*batchv1.Job{failedJob3, failedJob1, failedJob2},
 
 			expectedFailurePolicyRule: nil,
-			expectedJob:               failedJob1,
+			expectedJob:               nil,
 		},
 		{
-			name: "failure policy rule matches first job to fail out of all jobs",
-			js: testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{
-				Rules: []jobset.FailurePolicyRule{rule1},
-			}).Obj(),
+			name:            "failure policy rule matches first job to fail out of all jobs",
+			rules:           []jobset.FailurePolicyRule{rule1},
 			failedOwnedJobs: []*batchv1.Job{failedJob3, failedJob1, failedJob2},
 
 			expectedFailurePolicyRule: &rule1,
 			expectedJob:               failedJob1,
 		},
 		{
-			name: "failure policy rule matches second job to fail out of all jobs",
-			js: testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{
-				Rules: []jobset.FailurePolicyRule{rule2},
-			}).Obj(),
+			name:            "failure policy rule matches second job to fail out of all jobs",
+			rules:           []jobset.FailurePolicyRule{rule2},
 			failedOwnedJobs: []*batchv1.Job{failedJob3, failedJob1, failedJob2},
 
 			expectedFailurePolicyRule: &rule2,
 			expectedJob:               failedJob2,
 		},
 		{
-			name: "failure policy rule matches multiple jobs and first failed job is the last one",
-			js: testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{
-				Rules: []jobset.FailurePolicyRule{rule2},
-			}).Obj(),
+			name:            "failure policy rule matches multiple jobs and first failed job is the last one",
+			rules:           []jobset.FailurePolicyRule{rule2},
 			failedOwnedJobs: []*batchv1.Job{extraFailedJob, failedJob3, failedJob1, failedJob2},
 
 			expectedFailurePolicyRule: &rule2,
 			expectedJob:               failedJob2,
 		},
 		{
-			name: "first failed job that matches a failure policy rule is different from the first job to fail that matches the first matched failure policy rule",
-			js: testutils.MakeJobSet(jobSetName, ns).FailurePolicy(&jobset.FailurePolicy{
-				Rules: []jobset.FailurePolicyRule{rule2, rule1},
-			}).Obj(),
+			name:  "first failed job that matches a failure policy rule is different from the first job to fail that matches the first matched failure policy rule",
+			rules: []jobset.FailurePolicyRule{rule2, rule1},
 			// failedJob1 is the first failedJob1 but does not match rule2 which is the first failure policy rule to be matched
 			failedOwnedJobs: []*batchv1.Job{extraFailedJob, failedJob3, failedJob1, failedJob2},
 
@@ -267,7 +248,7 @@ func TestFindFirstFailedPolicyRuleAndJob(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actualRule, actualJob := findFirstFailedPolicyRuleAndJob(context.TODO(), tc.js, tc.failedOwnedJobs)
+			actualRule, actualJob := findFirstFailedPolicyRuleAndJob(context.TODO(), tc.rules, tc.failedOwnedJobs)
 			if diff := cmp.Diff(tc.expectedJob, actualJob); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}

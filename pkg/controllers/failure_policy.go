@@ -47,15 +47,20 @@ func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 		// it once at the beginning of the function and share the results between the different
 		// possible code paths here.
 		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		setJobSetFailedCondition(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name), updateStatusOpts)
+		msg := messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name)
+		setJobSetFailedCondition(ctx, js, constants.FailedJobsReason, msg, updateStatusOpts)
 		return nil
 	}
 
 	// Check for matching Failure Policy Rule
-	failurePolicyRule, matchingFailedJob := findFirstFailedPolicyRuleAndJob(ctx, js, ownedJobs.failed)
+	rules := js.Spec.FailurePolicy.Rules
+	failurePolicyRule, matchingFailedJob := findFirstFailedPolicyRuleAndJob(ctx, rules, ownedJobs.failed)
 
-	failurePolicyRuleAction := jobset.RestartJobSet
-	if failurePolicyRule != nil {
+	var failurePolicyRuleAction jobset.FailurePolicyAction
+	if failurePolicyRule == nil {
+		failurePolicyRuleAction = jobset.RestartJobSet
+		matchingFailedJob = findFirstFailedJob(ownedJobs.failed)
+	} else {
 		failurePolicyRuleAction = failurePolicyRule.Action
 	}
 
@@ -67,15 +72,9 @@ func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 	return nil
 }
 
-// If the failure policy rule is not nil, then the functions returns:
-// - true if the rule is applicable to the jobFailureReason;
-// - false other.
-// If the rule is nil, we return true.
-func ruleIsApplicable(rule *jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string) bool {
-	if rule == nil {
-		return true
-	}
-
+// ruleIsApplicable returns true if the failed job and job failure reason match the failure policy rule.
+// The function returns false otherwise.
+func ruleIsApplicable(rule jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string) bool {
 	ruleAppliesToJobFailureReason := len(rule.OnJobFailureReasons) == 0 || slices.Contains(rule.OnJobFailureReasons, jobFailureReason)
 	if !ruleAppliesToJobFailureReason {
 		return false
@@ -93,68 +92,37 @@ func ruleIsApplicable(rule *jobset.FailurePolicyRule, failedJob *batchv1.Job, jo
 	return ruleAppliesToParentReplicatedJob
 }
 
-// The function findFirstFailedPolicyRuleAndJob returns the first failure policy rule matching a failed child job.
+// findFirstFailedPolicyRuleAndJob returns the first failure policy rule matching a failed child job.
 // The function also returns the first child job matching the failure policy rule returned.
-// If there does not exist a matching failure policy rule, the function returns nil for the failure policy rule
-// accompanied with the first failing job. This function assumes that the jobset has a non nil failure policy.
-func findFirstFailedPolicyRuleAndJob(ctx context.Context, js *jobset.JobSet, failedOwnedJobs []*batchv1.Job) (*jobset.FailurePolicyRule, *batchv1.Job) {
+// If there does not exist a matching failure policy rule, then the function returns nil for all values.
+func findFirstFailedPolicyRuleAndJob(ctx context.Context, rules []jobset.FailurePolicyRule, failedOwnedJobs []*batchv1.Job) (*jobset.FailurePolicyRule, *batchv1.Job) {
 	log := ctrl.LoggerFrom(ctx)
 
-	rulesExist := len(js.Spec.FailurePolicy.Rules) > 0
-	if !rulesExist {
-		firstFailedJob := findFirstFailedJob(failedOwnedJobs)
-		return nil, firstFailedJob
-	}
-
-	// These variables are only to make the ensuing lines of code shorter.
-	rules := js.Spec.FailurePolicy.Rules
-	numRules := len(js.Spec.FailurePolicy.Rules)
-
-	// bucket[i] corresponds to js.Spec.FailurePolicy.Rules[i]
-	type bucket struct {
-		firstFailedJob   *batchv1.Job
-		firstFailureTime *metav1.Time
-	}
-
-	// We make a bucket for each rule and then an extra bucket to represent the default rule
-	numBuckets := numRules + 1
-	defaultRuleIndex := numRules
-	var buckets = make([]bucket, numRules+1)
-
-	for _, failedJob := range failedOwnedJobs {
-		jobFailureCondition := findJobFailureCondition(failedJob)
-		// This means that the Job has not failed.
-		if jobFailureCondition == nil {
-			continue
-		}
-
-		jobFailureTime, jobFailureReason := ptr.To(jobFailureCondition.LastTransitionTime), jobFailureCondition.Reason
-		for i := 0; i < numBuckets; i++ {
-			// We use nil to represent the default rule that
-			// applies to all job failure reasons.
-			var rule *jobset.FailurePolicyRule
-			if i < numRules {
-				rule = ptr.To(rules[i])
+	for _, rule := range rules {
+		var matchedFailedJob *batchv1.Job
+		var matchedFailureTime *metav1.Time
+		for _, failedJob := range failedOwnedJobs {
+			jobFailureCondition := findJobFailureCondition(failedJob)
+			// This means that the Job has not failed.
+			if jobFailureCondition == nil {
+				continue
 			}
-			if ruleIsApplicable(rule, failedJob, jobFailureReason) && (buckets[i].firstFailureTime == nil || jobFailureTime.Before(buckets[i].firstFailureTime)) {
-				buckets[i].firstFailedJob = failedJob
-				buckets[i].firstFailureTime = jobFailureTime
+
+			jobFailureTime, jobFailureReason := ptr.To(jobFailureCondition.LastTransitionTime), jobFailureCondition.Reason
+			jobFailedEarlier := matchedFailedJob == nil || jobFailureTime.Before(matchedFailureTime)
+			if ruleIsApplicable(rule, failedJob, jobFailureReason) && jobFailedEarlier {
+				matchedFailedJob = failedJob
+				matchedFailureTime = jobFailureTime
 			}
 		}
-	}
 
-	// Checking if any failure policy rules were matched
-	// and returning the rule along with the first
-	// failed job to match it.
-	for i := 0; i < numRules; i++ {
-		if buckets[i].firstFailedJob != nil {
-			return &rules[i], buckets[i].firstFailedJob
+		if matchedFailedJob != nil {
+			return &rule, matchedFailedJob
 		}
 	}
 
-	// We get here when no rule matched any of the failure policy rules
-	log.V(2).Info("never found a matching rule and returning nil to represent the default rule.")
-	return nil, buckets[defaultRuleIndex].firstFailedJob
+	log.V(2).Info("never found a matched failure policy rule.")
+	return nil, nil
 }
 
 // failurePolicyRecreateAll triggers a JobSet restart for the next reconcillation loop.
