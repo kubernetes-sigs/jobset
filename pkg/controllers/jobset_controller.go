@@ -698,7 +698,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	if job.Spec.Template.Spec.NodeSelector == nil {
 		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
 	}
-	job.Spec.Template.Spec.NodeSelector[jobset.JobKey] = jobHashKey(js.Namespace, job.Name)
+	job.Spec.Template.Spec.NodeSelector["job-key"] = jobHashKey(js.Namespace, job.Name)
 
 	return job, nil
 }
