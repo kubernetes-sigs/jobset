@@ -139,7 +139,7 @@ patches:
 Apply the configuration to your Kubernetes cluster using Kustomize and kubectl:
 
 ```shell
-kustomize build . | kubectl apply -f -
+kubectl apply -k .
 ```
 
 ## Uninstall
