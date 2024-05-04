@@ -277,3 +277,4 @@ Next, in the file ``jobset/config/default/kustomization.yaml`` replace ``../comp
 ``../components/certmanager`` then uncomment all the lines beginning with ``[CERTMANAGER]``.
 
 Finally, apply these configurations to your cluster with ``kubectl apply --server-side -k config/default``.
+
