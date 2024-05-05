@@ -115,11 +115,11 @@ spec:
       - name: manager
         resources:
           requests:
-            cpu: "1"      # Updated CPU request
-            memory: "256Mi"  # Updated memory request
+            cpu: "1"      
+            memory: "256Mi"  
           limits:
-            cpu: "4"      # Updated CPU limit
-            memory: "1Gi"  # Updated memory limit
+            cpu: "4"      
+            memory: "1Gi"  
 ```
 
 ### Step 5: Include the Patch in Your Kustomization
