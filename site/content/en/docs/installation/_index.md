@@ -65,6 +65,82 @@ kubectl apply -f https://github.com/kubernetes-sigs/jobset/releases/download/$VE
 If you are using [kube-prometheus](https://github.com/prometheus-operator/kube-prometheus), metrics
 can be scraped without performing this step.
 
+## Customize Your Installation
+
+You can customize the installation according to your requirements using [kustomize](https://kustomize.io/).
+
+For instance, if you need to modify the resource allocations for a specific deployment, follow these steps:
+
+### Step 1: Set Up Your Kustomization Environment
+
+Start by creating a directory for your Kustomize configuration and navigate into it:
+
+```shell
+mkdir kustomize-jobset
+cd kustomize-jobset
+```
+
+### Step 2: Download the Remote Manifest
+
+Retrieve the remote manifest file specifying the version you need:
+
+```shell
+VERSION={{< param "version" >}}
+curl -LO https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
+```
+
+### Step 3: Create a kustomization.yaml File
+
+Create a kustomization.yaml file that references the downloaded manifest:
+
+```shell
+resources:
+  - manifests.yaml
+```
+
+### Step 4: Define Your Resource Adjustments
+
+Create a resource_patch.yaml file to specify your desired resource adjustments for the deployment. For example, to update the jobset-controller-manager:
+
+```shell
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobset-controller-manager
+  namespace: jobset-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        resources:
+          requests:
+            cpu: "1"      
+            memory: "256Mi"  
+          limits:
+            cpu: "4"      
+            memory: "1Gi"  
+```
+
+### Step 5: Include the Patch in Your Kustomization
+
+
+Add the resource_patch.yaml file to your kustomization.yaml to apply the patch:
+
+```shell
+resources:
+  - manifests.yaml
+patches:
+  - path: resource_patch.yaml
+```
+
+### Step 5: Include the Patch in Your Kustomization
+
+Apply the configuration to your Kubernetes cluster using Kustomize and kubectl:
+
+```shell
+kubectl apply -k .
+```
 
 ## Uninstall
 
@@ -201,3 +277,4 @@ Next, in the file ``jobset/config/default/kustomization.yaml`` replace ``../comp
 ``../components/certmanager`` then uncomment all the lines beginning with ``[CERTMANAGER]``.
 
 Finally, apply these configurations to your cluster with ``kubectl apply --server-side -k config/default``.
+
