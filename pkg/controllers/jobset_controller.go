@@ -822,55 +822,6 @@ func findReplicatedJobStatus(replicatedJobStatus []jobset.ReplicatedJobStatus, r
 	return jobset.ReplicatedJobStatus{}
 }
 
-// messageWithFirstFailedJob appends the first failed job to the original event message in human readable way.
-func messageWithFirstFailedJob(msg, firstFailedJobName string) string {
-	return fmt.Sprintf("%s (first failed job: %s)", msg, firstFailedJobName)
-}
-
-// findFirstFailedJob accepts a slice of failed Jobs and returns the Job which has a JobFailed condition
-// with the oldest transition time.
-func findFirstFailedJob(failedJobs []*batchv1.Job) *batchv1.Job {
-	var (
-		firstFailedJob   *batchv1.Job
-		firstFailureTime *metav1.Time
-	)
-	for _, job := range failedJobs {
-		failureTime := findJobFailureTime(job)
-		// If job has actually failed and it is the first (or only) failure we've seen,
-		// store the job for output.
-		if failureTime != nil && (firstFailedJob == nil || failureTime.Before(firstFailureTime)) {
-			firstFailedJob = job
-			firstFailureTime = failureTime
-		}
-	}
-	return firstFailedJob
-}
-
-// findJobFailureTimeAndReason is a helper function which extracts the Job failure condition from a Job,
-// if the JobFailed condition exists and is true.
-func findJobFailureCondition(job *batchv1.Job) *batchv1.JobCondition {
-	if job == nil {
-		return nil
-	}
-	for _, c := range job.Status.Conditions {
-		// If this Job failed before the oldest known Job failiure, update the first failed job.
-		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
-			return &c
-		}
-	}
-	return nil
-}
-
-// findJobFailureTime is a helper function which extracts the Job failure time from a Job,
-// if the JobFailed condition exists and is true.
-func findJobFailureTime(job *batchv1.Job) *metav1.Time {
-	failureCondition := findJobFailureCondition(job)
-	if failureCondition == nil {
-		return nil
-	}
-	return &failureCondition.LastTransitionTime
-}
-
 // managedByExternalController returns a pointer to the name of the external controller managing
 // the JobSet, if one exists. Otherwise, it returns nil.
 func managedByExternalController(js *jobset.JobSet) *string {
@@ -971,11 +922,6 @@ func setJobSetCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpda
 	setCondition(js, makeCompletedConditionsOpts(), updateStatusOpts)
 }
 
-// setJobSetFailedCondition sets a condition on the JobSet status indicating it has failed.
-func setJobSetFailedCondition(ctx context.Context, js *jobset.JobSet, reason, msg string, updateStatusOpts *statusUpdateOpts) {
-	setCondition(js, makeFailedConditionOpts(reason, msg), updateStatusOpts)
-}
-
 // setJobSetSuspendedCondition sets a condition on the JobSet status indicating it is currently suspended.
 func setJobSetSuspendedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeSuspendedConditionOpts(), updateStatusOpts)
@@ -997,19 +943,6 @@ func makeCompletedConditionsOpts() *conditionOpts {
 			Reason:  constants.AllJobsCompletedReason,
 			Message: constants.AllJobsCompletedMessage,
 		},
-	}
-}
-
-// makeFailedConditionOpts returns the options we use to generate the JobSet failed condition.
-func makeFailedConditionOpts(reason, msg string) *conditionOpts {
-	return &conditionOpts{
-		condition: &metav1.Condition{
-			Type:    string(jobset.JobSetFailed),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  reason,
-			Message: msg,
-		},
-		eventType: corev1.EventTypeWarning,
 	}
 }
 
