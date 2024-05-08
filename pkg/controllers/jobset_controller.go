@@ -75,9 +75,13 @@ type statusUpdateOpts struct {
 
 // eventParams contains parameters used for emitting a Kubernetes event.
 type eventParams struct {
-	object       runtime.Object
-	eventType    string
-	eventReason  string
+	// object is the object that caused the event or is for some other reason associated with the event.
+	object runtime.Object
+	// eventType is a machine interpretable CamelCase string like "PanicTypeFooBar" describing the type of event.
+	eventType string
+	// eventReason is a machine interpretable CamelCase string like "FailureReasonFooBar" describing the reason for the event.
+	eventReason string
+	// eventMessage is a human interpretable sentence with details about the event.
 	eventMessage string
 }
 
