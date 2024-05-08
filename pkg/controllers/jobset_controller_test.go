@@ -1116,24 +1116,26 @@ type failJobOptions struct {
 	parentReplicatedJobName *string
 }
 
+func parseFailJobOpts(opts *failJobOptions) (reason string, labels map[string]string) {
+	if opts == nil {
+		return "", nil
+	}
+
+	if opts.parentReplicatedJobName != nil {
+		labels = make(map[string]string)
+		labels[jobset.ReplicatedJobNameKey] = *opts.parentReplicatedJobName
+	}
+
+	if opts.reason != nil {
+		reason = *opts.reason
+	}
+
+	return reason, labels
+}
+
 // Helper function to create a job object with a failed condition
 func jobWithFailedConditionAndOpts(name string, failureTime time.Time, opts *failJobOptions) *batchv1.Job {
-	var reason string
-	labels := make(map[string]string)
-	applyOpts := func() {
-		if opts == nil {
-			return
-		}
-
-		if opts.reason != nil {
-			reason = *opts.reason
-		}
-
-		if opts.parentReplicatedJobName != nil {
-			labels[jobset.ReplicatedJobNameKey] = *opts.parentReplicatedJobName
-		}
-	}
-	applyOpts()
+	reason, labels := parseFailJobOpts(opts)
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels},
