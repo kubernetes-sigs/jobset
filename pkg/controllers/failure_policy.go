@@ -35,6 +35,9 @@ var actionFunctionMap = map[jobset.FailurePolicyAction]failurePolicyActionApplie
 	jobset.RestartJobSetAndIgnoreMaxRestarts: restartJobSetAndIgnoreMaxRestartsActionApplier,
 }
 
+// The source of truth for the definition of defaultFailurePolicyRuleAction is the Configurable Failure Policy KEP.
+const defaultFailurePolicyRuleAction = jobset.RestartJobSet
+
 // executeFailurePolicy applies the Failure Policy of a JobSet when a failed child Job is found.
 // This function is run only when a failed child job has already been found.
 func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) error {
@@ -58,7 +61,7 @@ func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 
 	var failurePolicyRuleAction jobset.FailurePolicyAction
 	if failurePolicyRule == nil {
-		failurePolicyRuleAction = jobset.RestartJobSet
+		failurePolicyRuleAction = defaultFailurePolicyRuleAction
 		matchingFailedJob = findFirstFailedJob(ownedJobs.failed)
 	} else {
 		failurePolicyRuleAction = failurePolicyRule.Action
