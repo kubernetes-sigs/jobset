@@ -126,7 +126,9 @@ func messageWithFirstFailedJob(msg, firstFailedJobName string) string {
 
 // ruleIsApplicable returns true if the failed job and job failure reason match the failure policy rule.
 // The function returns false otherwise.
-func ruleIsApplicable(rule jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string) bool {
+func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string) bool {
+	log := ctrl.LoggerFrom(ctx)
+
 	ruleAppliesToJobFailureReason := len(rule.OnJobFailureReasons) == 0 || slices.Contains(rule.OnJobFailureReasons, jobFailureReason)
 	if !ruleAppliesToJobFailureReason {
 		return false
@@ -135,8 +137,7 @@ func ruleIsApplicable(rule jobset.FailurePolicyRule, failedJob *batchv1.Job, job
 	parentReplicatedJob, exists := parentReplicatedJobName(failedJob)
 	if !exists {
 		// If we cannot find the parent ReplicatedJob, we assume the rule does not apply.
-		// TODO: Add a log statement that the failedJob does not appear to have a parent replicated job.
-		// This error should not happen, but was a pain to debug when adding unit tests.
+		log.V(2).Info("The failed job %v does not appear to have a parent replicatedJob.", failedJob.Name)
 		return false
 	}
 
@@ -177,7 +178,7 @@ func findFirstFailedPolicyRuleAndJob(ctx context.Context, rules []jobset.Failure
 
 			jobFailureTime, jobFailureReason := ptr.To(jobFailureCondition.LastTransitionTime), jobFailureCondition.Reason
 			jobFailedEarlier := matchedFailedJob == nil || jobFailureTime.Before(matchedFailureTime)
-			if ruleIsApplicable(rule, failedJob, jobFailureReason) && jobFailedEarlier {
+			if ruleIsApplicable(ctx, rule, failedJob, jobFailureReason) && jobFailedEarlier {
 				matchedFailedJob = failedJob
 				matchedFailureTime = jobFailureTime
 			}

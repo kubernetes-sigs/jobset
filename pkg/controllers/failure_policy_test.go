@@ -166,7 +166,7 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := ruleIsApplicable(tc.rule, tc.failedJob, tc.jobFailureReason)
+			actual := ruleIsApplicable(context.TODO(), tc.rule, tc.failedJob, tc.jobFailureReason)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}
