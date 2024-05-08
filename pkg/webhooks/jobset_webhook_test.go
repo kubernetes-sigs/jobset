@@ -35,6 +35,9 @@ var TestPodTemplate = corev1.PodTemplateSpec{
 	},
 }
 
+// Question: Should we seperate these tests into different files as jobset_webhook_test.go is getting very long?
+// One possible method of separation is to seperate by the value being defaulted.
+// It would also be nice to reduce the amount of boiler plate repeated in test cases.
 func TestJobSetDefaulting(t *testing.T) {
 	defaultSuccessPolicy := &jobset.SuccessPolicy{Operator: jobset.OperatorAll}
 	defaultStartupPolicy := &jobset.StartupPolicy{StartupPolicyOrder: jobset.AnyOrder}
@@ -593,6 +596,98 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "failure policy rule name is defaulted when: there is one rule and it does not have a name",
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: make([]jobset.FailurePolicyRule, 1),
+					},
+				},
+			},
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "failurePolicyRule0"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "failure policy rule name is defaulted when: there are two rules, the first rule has a name, the second rule does not have a name",
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "ruleWithAName"},
+							{},
+						},
+					},
+				},
+			},
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "ruleWithAName"},
+							{Name: "failurePolicyRule1"},
+						},
+					},
+				},
+			},
+		},
 	}
 	fakeClient := fake.NewFakeClient()
 	webhook, err := NewJobSetWebhook(fakeClient)
@@ -1036,6 +1131,183 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(
 				fmt.Errorf("invalid replicatedJob name '%s' in failure policy does not appear in .spec.ReplicatedJobs", "fakeReplicatedJob"),
 			),
+		},
+		{
+			name: "jobset failure policy rule name is 0 characters long a.k.a unset",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: make([]jobset.FailurePolicyRule, 1),
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid failure policy rule name of length %v, the rule name must be at least %v characters long and at most %v characters long", 0, minRuleNameLength, maxRuleNameLength),
+			),
+		},
+		{
+			name: "jobset failure policy rule name is greater than 128 characters long",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: strings.Repeat("a", 129)},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid failure policy rule name of length %v, the rule name must be at least %v characters long and at most %v characters long", 129, minRuleNameLength, maxRuleNameLength),
+			),
+		},
+		{
+			name: "there are two failure policy rules with the same name",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "repeatedRuleName"},
+							{Name: "repeatedRuleName"},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("rule names are not unique, rules with indices %v all have the same name '%v'", []int{0, 1}, "repeatedRuleName"),
+			),
+		},
+		{
+			name: "failure policy rule name does not start with an alphabetic character",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "1ruleToRuleThemAll"},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid failure policy rule name '%v', a failure policy rule name must start with an alphabetic character, optionally followed by a string of alphanumeric characters or '_,:', and must end with an alphanumeric character or '_'", "1ruleToRuleThemAll"),
+			),
+		},
+		{
+			name: "failure policy rule name does not end with an alphanumeric nor '_'",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "ruleToRuleThemAll,"},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid failure policy rule name '%v', a failure policy rule name must start with an alphabetic character, optionally followed by a string of alphanumeric characters or '_,:', and must end with an alphanumeric character or '_'", "ruleToRuleThemAll,"),
+			),
+		},
+		{
+			name: "failure policy rule name is valid",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "superAwesomeFailurePolicyRule"},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(),
 		},
 	}
 	fakeClient := fake.NewFakeClient()

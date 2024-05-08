@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -98,6 +99,9 @@ func (j *jobSetWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
+const defaultRuleNameFmt = "failurePolicyRule%v"
+
+// Default performs defaulting of jobset values as defined in the JobSet API.
 func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	js, ok := obj.(*jobset.JobSet)
 	if !ok {
@@ -132,10 +136,76 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 		js.Spec.Network.PublishNotReadyAddresses = ptr.To(true)
 	}
 
+	// Apply the default failure policy rule name policy.
+	if js.Spec.FailurePolicy != nil {
+		for i := range js.Spec.FailurePolicy.Rules {
+			rule := &js.Spec.FailurePolicy.Rules[i]
+			if len(rule.Name) == 0 {
+				rule.Name = fmt.Sprintf(defaultRuleNameFmt, i)
+			}
+		}
+	}
+
 	return nil
 }
 
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha2-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=vjobset.kb.io,admissionReviewVersions=v1
+
+const minRuleNameLength = 1
+const maxRuleNameLength = 128
+const ruleNameFmt = "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$"
+
+var ruleNameRegexp = regexp.MustCompile(ruleNameFmt)
+
+// validateFailurePolicy performs validation for jobset failure policies and returns all errors detected.
+func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, validReplicatedJobs []string) []error {
+	var allErrs []error
+	if failurePolicy == nil {
+		return allErrs
+	}
+
+	// ruleNameToRulesWithName is used to verify that rule names are unique
+	ruleNameToRulesWithName := make(map[string]([]int))
+	for index, rule := range failurePolicy.Rules {
+		// Check that the rule name meets the minimum length
+		nameLen := len(rule.Name)
+		if !(minRuleNameLength <= nameLen && nameLen <= maxRuleNameLength) {
+			err := fmt.Errorf("invalid failure policy rule name of length %v, the rule name must be at least %v characters long and at most %v characters long", nameLen, minRuleNameLength, maxRuleNameLength)
+			allErrs = append(allErrs, err)
+		}
+
+		ruleNameToRulesWithName[rule.Name] = append(ruleNameToRulesWithName[rule.Name], index)
+
+		if !ruleNameRegexp.MatchString(rule.Name) {
+			err := fmt.Errorf("invalid failure policy rule name '%v', a failure policy rule name must start with an alphabetic character, optionally followed by a string of alphanumeric characters or '_,:', and must end with an alphanumeric character or '_'", rule.Name)
+			allErrs = append(allErrs, err)
+		}
+
+		// Validate the rules target replicated jobs are valid
+		for _, rjobName := range rule.TargetReplicatedJobs {
+			if !collections.Contains(validReplicatedJobs, rjobName) {
+				allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' in failure policy does not appear in .spec.ReplicatedJobs", rjobName))
+			}
+		}
+
+		// Validate the rules on job failure reasons are valid
+		for _, failureReason := range rule.OnJobFailureReasons {
+			if !collections.Contains(validOnJobFailureReasons, failureReason) {
+				allErrs = append(allErrs, fmt.Errorf("invalid job failure reason '%s' in failure policy is not a recognized job failure reason", failureReason))
+			}
+		}
+	}
+
+	// Checking that rule names are unique
+	for ruleName, rulesWithName := range ruleNameToRulesWithName {
+		if len(rulesWithName) > 1 {
+			err := fmt.Errorf("rule names are not unique, rules with indices %v all have the same name '%v'", rulesWithName, ruleName)
+			allErrs = append(allErrs, err)
+		}
+	}
+
+	return allErrs
+}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
@@ -221,21 +291,8 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 
 	// Validate failure policy
 	if js.Spec.FailurePolicy != nil {
-		for _, rule := range js.Spec.FailurePolicy.Rules {
-			// Validate the rules target replicated jobs are valid
-			for _, rjobName := range rule.TargetReplicatedJobs {
-				if !collections.Contains(validReplicatedJobs, rjobName) {
-					allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' in failure policy does not appear in .spec.ReplicatedJobs", rjobName))
-				}
-			}
-
-			// Validate the rules on job failure reasons are valid
-			for _, failureReason := range rule.OnJobFailureReasons {
-				if !collections.Contains(validOnJobFailureReasons, failureReason) {
-					allErrs = append(allErrs, fmt.Errorf("invalid job failure reason '%s' in failure policy is not a recognized job failure reason", failureReason))
-				}
-			}
-		}
+		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, validReplicatedJobs)
+		allErrs = append(allErrs, failurePolicyErrors...)
 	}
 	return nil, errors.Join(allErrs...)
 }

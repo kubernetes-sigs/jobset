@@ -5,6 +5,7 @@ FailurePolicyRule defines a FailurePolicyAction to be executed if a child job fa
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **action** | **str** | The action to take if the rule is matched. | [default to '']
+**name** | **str** | The name of the failure policy rule. The name is defaulted to &#39;failurePolicyRuleN&#39; where N is the index of the failure policy rule. The name must match the regular expression \&quot;^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$\&quot;. | [default to '']
 **on_job_failure_reasons** | **list[str]** | The requirement on the job failure reasons. The requirement is satisfied if at least one reason matches the list. The rules are evaluated in order, and the first matching rule is executed. An empty list applies the rule to any job failure reason. | 
 **target_replicated_jobs** | **list[str]** | TargetReplicatedJobs are the names of the replicated jobs the operator applies to. An empty list will apply to all replicatedJobs. | [optional] 
 

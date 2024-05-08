@@ -29,12 +29,18 @@
       "description": "FailurePolicyRule defines a FailurePolicyAction to be executed if a child job fails due to a reason listed in OnJobFailureReasons.",
       "type": "object",
       "required": [
+        "name",
         "action",
         "onJobFailureReasons"
       ],
       "properties": {
         "action": {
           "description": "The action to take if the rule is matched.",
+          "type": "string",
+          "default": ""
+        },
+        "name": {
+          "description": "The name of the failure policy rule. The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule. The name must match the regular expression \"^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$\".",
           "type": "string",
           "default": ""
         },

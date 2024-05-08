@@ -21,6 +21,7 @@ import (
 // FailurePolicyRuleApplyConfiguration represents an declarative configuration of the FailurePolicyRule type for use
 // with apply.
 type FailurePolicyRuleApplyConfiguration struct {
+	Name                 *string                       `json:"name,omitempty"`
 	Action               *v1alpha2.FailurePolicyAction `json:"action,omitempty"`
 	OnJobFailureReasons  []string                      `json:"onJobFailureReasons,omitempty"`
 	TargetReplicatedJobs []string                      `json:"targetReplicatedJobs,omitempty"`
@@ -30,6 +31,14 @@ type FailurePolicyRuleApplyConfiguration struct {
 // apply.
 func FailurePolicyRule() *FailurePolicyRuleApplyConfiguration {
 	return &FailurePolicyRuleApplyConfiguration{}
+}
+
+// WithName sets the Name field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Name field is set to the value of the last call.
+func (b *FailurePolicyRuleApplyConfiguration) WithName(value string) *FailurePolicyRuleApplyConfiguration {
+	b.Name = &value
+	return b
 }
 
 // WithAction sets the Action field in the declarative configuration to the given value

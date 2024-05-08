@@ -252,6 +252,10 @@ const (
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
 // fails due to a reason listed in OnJobFailureReasons.
 type FailurePolicyRule struct {
+	// The name of the failure policy rule.
+	// The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
+	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
+	Name string `json:"name"`
 	// The action to take if the rule is matched.
 	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts
 	Action FailurePolicyAction `json:"action"`

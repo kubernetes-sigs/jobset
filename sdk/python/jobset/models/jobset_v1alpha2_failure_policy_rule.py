@@ -34,28 +34,32 @@ class JobsetV1alpha2FailurePolicyRule(object):
     """
     openapi_types = {
         'action': 'str',
+        'name': 'str',
         'on_job_failure_reasons': 'list[str]',
         'target_replicated_jobs': 'list[str]'
     }
 
     attribute_map = {
         'action': 'action',
+        'name': 'name',
         'on_job_failure_reasons': 'onJobFailureReasons',
         'target_replicated_jobs': 'targetReplicatedJobs'
     }
 
-    def __init__(self, action='', on_job_failure_reasons=None, target_replicated_jobs=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, action='', name='', on_job_failure_reasons=None, target_replicated_jobs=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2FailurePolicyRule - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._action = None
+        self._name = None
         self._on_job_failure_reasons = None
         self._target_replicated_jobs = None
         self.discriminator = None
 
         self.action = action
+        self.name = name
         self.on_job_failure_reasons = on_job_failure_reasons
         if target_replicated_jobs is not None:
             self.target_replicated_jobs = target_replicated_jobs
@@ -84,6 +88,31 @@ class JobsetV1alpha2FailurePolicyRule(object):
             raise ValueError("Invalid value for `action`, must not be `None`")  # noqa: E501
 
         self._action = action
+
+    @property
+    def name(self):
+        """Gets the name of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
+
+        The name of the failure policy rule. The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule. The name must match the regular expression \"^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$\".  # noqa: E501
+
+        :return: The name of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        """Sets the name of this JobsetV1alpha2FailurePolicyRule.
+
+        The name of the failure policy rule. The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule. The name must match the regular expression \"^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$\".  # noqa: E501
+
+        :param name: The name of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
+        :type: str
+        """
+        if self.local_vars_configuration.client_side_validation and name is None:  # noqa: E501
+            raise ValueError("Invalid value for `name`, must not be `None`")  # noqa: E501
+
+        self._name = name
 
     @property
     def on_job_failure_reasons(self):
