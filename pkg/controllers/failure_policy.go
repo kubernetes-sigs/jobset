@@ -155,7 +155,6 @@ func findJobFailureCondition(job *batchv1.Job) *batchv1.JobCondition {
 		return nil
 	}
 	for _, c := range job.Status.Conditions {
-		// If this Job failed before the oldest known Job failiure, update the first failed job.
 		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
 			return &c
 		}
