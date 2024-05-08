@@ -235,37 +235,51 @@ type failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, m
 
 // failJobSetActionApplier applies the FailJobSet FailurePolicyAction
 var failJobSetActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
-	failureMessage := messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, matchingFailedJob.Name)
-	setJobSetFailedCondition(ctx, js, constants.ReachedMaxRestartsReason, failureMessage, updateStatusOpts)
+	failureBaseMessage := constants.FailJobSetActionMessage
+	failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
+
+	failureReason := constants.FailJobSetActionReason
+	setJobSetFailedCondition(ctx, js, failureReason, failureMessage, updateStatusOpts)
 	return nil
 }
 
 // restartJobSetActionApplier applies the RestartJobSet FailurePolicyAction
 var restartJobSetActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
 	if js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts {
-		failureMessage := messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, matchingFailedJob.Name)
-		setJobSetFailedCondition(ctx, js, constants.ReachedMaxRestartsReason, failureMessage, updateStatusOpts)
+		failureBaseMessage := constants.ReachedMaxRestartsMessage
+		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
+
+		failureReason := constants.ReachedMaxRestartsReason
+		setJobSetFailedCondition(ctx, js, failureReason, failureMessage, updateStatusOpts)
 		return nil
 	}
 
-	shouldCountTowardsMax := true
+	baseMessage := constants.RestartJobSetActionMessage
+	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
 	event := &eventParams{
-		object:      js,
-		eventType:   corev1.EventTypeWarning,
-		eventReason: fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts),
+		object:       js,
+		eventType:    corev1.EventTypeWarning,
+		eventReason:  constants.RestartJobSetActionReason,
+		eventMessage: eventMessage,
 	}
+
+	shouldCountTowardsMax := true
 	failurePolicyRecreateAll(ctx, js, shouldCountTowardsMax, updateStatusOpts, event)
 	return nil
 }
 
 // restartJobSetAndIgnoreMaxRestartsActionApplier applies the RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction
 var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
-	shouldCountTowardsMax := false
+	baseMessage := constants.RestartJobSetAndIgnoreMaxRestartsActionMessage
+	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
 	event := &eventParams{
-		object:      js,
-		eventType:   corev1.EventTypeWarning,
-		eventReason: fmt.Sprintf("restarting jobset without counting towards maximum restarts, attempt %d", js.Status.Restarts),
+		object:       js,
+		eventType:    corev1.EventTypeWarning,
+		eventReason:  constants.RestartJobSetAndIgnoreMaxRestartsActionReason,
+		eventMessage: eventMessage,
 	}
+
+	shouldCountTowardsMax := false
 	failurePolicyRecreateAll(ctx, js, shouldCountTowardsMax, updateStatusOpts, event)
 	return nil
 }

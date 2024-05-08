@@ -75,4 +75,16 @@ const (
 	// Event reason and message related to resuming a JobSet.
 	JobSetResumedReason  = "ResumeJobs"
 	JobSetResumedMessage = "jobset is resumed"
+
+	// Event reason and message related to applying the FailJobSet failure policy action.
+	FailJobSetActionReason  = "FailJobSetFailurePolicyAction"
+	FailJobSetActionMessage = "applying FailJobSet failure policy action"
+
+	// Event reason and message related to applying the RestartJobSet failure policy action.
+	RestartJobSetActionReason  = "RestartJobSetFailurePolicyAction"
+	RestartJobSetActionMessage = "applying RestartJobSet failure policy action"
+
+	// Event reason and message related to applying the RestartJobSetAndIgnoreMaxRestarts failure policy action.
+	RestartJobSetAndIgnoreMaxRestartsActionReason  = "RestartJobSetAndIgnoreMaxRestartsFailurePolicyActionReason"
+	RestartJobSetAndIgnoreMaxRestartsActionMessage = "applying RestartJobSetAndIgnoreMaxRestarts failure policy action"
 )
