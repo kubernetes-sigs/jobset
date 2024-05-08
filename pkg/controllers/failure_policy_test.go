@@ -81,8 +81,12 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 	var (
 		replicatedJobName1 = "test-replicated-job-1"
 		replicatedJobName2 = "test-replicated-job-2"
-		jobName            = "test-job"
-		ns                 = "default"
+
+		jobFailureReason1 = batchv1.JobReasonBackoffLimitExceeded
+		jobFailureReason2 = batchv1.JobReasonDeadlineExceeded
+
+		jobName = "test-job"
+		ns      = "default"
 	)
 
 	tests := []struct {
@@ -93,74 +97,112 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 		expected         bool
 	}{
 		{
-			name: "failure policy rule matches on job failure reason",
+			name: "a job has failed and the failure policy rule matches all possible parent replicated jobs and matches all possible job failure reasons",
 			rule: jobset.FailurePolicyRule{
-				OnJobFailureReasons:  []string{batchv1.JobReasonBackoffLimitExceeded},
-				TargetReplicatedJobs: []string{replicatedJobName1},
+				OnJobFailureReasons:  []string{},
+				TargetReplicatedJobs: []string{},
 			},
 			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
 				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
 			).Obj(),
-			jobFailureReason: batchv1.JobReasonBackoffLimitExceeded,
+			jobFailureReason: jobFailureReason1,
 			expected:         true,
 		},
 		{
-			name: "failure policy rule matches all on job failure reason",
+			name: "a job has failed and the failure policy rule matches all possible parent replicated jobs and matches the job failure reason",
 			rule: jobset.FailurePolicyRule{
-				TargetReplicatedJobs: []string{replicatedJobName1},
+				OnJobFailureReasons:  []string{jobFailureReason1},
+				TargetReplicatedJobs: []string{},
 			},
 			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
 				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
 			).Obj(),
-			jobFailureReason: batchv1.JobReasonMaxFailedIndexesExceeded,
+			jobFailureReason: jobFailureReason1,
 			expected:         true,
 		},
 		{
-			name: "failure policy rule does not match on job failure reason",
+			name: "a job has failed and the failure policy rule matches all possible parent replicated jobs and does not match the job failure reason",
 			rule: jobset.FailurePolicyRule{
-				OnJobFailureReasons:  []string{batchv1.JobReasonBackoffLimitExceeded},
-				TargetReplicatedJobs: []string{replicatedJobName1},
+				OnJobFailureReasons:  []string{jobFailureReason1},
+				TargetReplicatedJobs: []string{},
 			},
 			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
 				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
 			).Obj(),
-			jobFailureReason: batchv1.JobReasonDeadlineExceeded,
+			jobFailureReason: jobFailureReason2,
 			expected:         false,
 		},
 		{
-			name: "failure policy rule is not applicable to parent replicatedJob of failed job",
+			name: "a job has failed and the failure policy rule matches the parent replicatedJob and matches all possible job failure reasons",
 			rule: jobset.FailurePolicyRule{
-				OnJobFailureReasons:  []string{batchv1.JobReasonBackoffLimitExceeded},
+				OnJobFailureReasons:  []string{},
 				TargetReplicatedJobs: []string{replicatedJobName1},
 			},
-			jobFailureReason: batchv1.JobReasonBackoffLimitExceeded,
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureReason: jobFailureReason1,
+			expected:         true,
+		},
+		{
+			name: "a job has failed and the failure policy rule matches the parent replicatedJob and matches the job failure reason",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureReasons:  []string{jobFailureReason1},
+				TargetReplicatedJobs: []string{replicatedJobName1},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureReason: jobFailureReason1,
+			expected:         true,
+		},
+		{
+			name: "a job has failed and the failure policy rule matches the parent replicatedJob and does not match the job failure reason",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureReasons:  []string{jobFailureReason1},
+				TargetReplicatedJobs: []string{replicatedJobName1},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureReason: jobFailureReason2,
+			expected:         false,
+		},
+		{
+			name: "a job has failed and the failure policy rule does not match the parent replicatedJob and matches all possible job failure reasons",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureReasons:  []string{},
+				TargetReplicatedJobs: []string{replicatedJobName1},
+			},
 			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
 				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName2},
 			).Obj(),
-			expected: false,
+			jobFailureReason: jobFailureReason1,
+			expected:         false,
 		},
 		{
-			name: "failure policy rule is applicable to all replicatedjobs when targetedReplicatedJobs is omitted",
+			name: "a job has failed and the failure policy rule does not match the parent replicatedJob and matches the job failure reason",
 			rule: jobset.FailurePolicyRule{
-				OnJobFailureReasons: []string{batchv1.JobReasonBackoffLimitExceeded},
-			},
-			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
-				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
-			).Obj(),
-			jobFailureReason: batchv1.JobReasonBackoffLimitExceeded,
-			expected:         true,
-		},
-		{
-			name: "failure policy rule is applicable to parent replicatedJob when targetedReplicatedJobs is specified",
-			rule: jobset.FailurePolicyRule{
-				OnJobFailureReasons:  []string{batchv1.JobReasonBackoffLimitExceeded},
+				OnJobFailureReasons:  []string{jobFailureReason1},
 				TargetReplicatedJobs: []string{replicatedJobName1},
 			},
 			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
-				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName2},
 			).Obj(),
-			jobFailureReason: batchv1.JobReasonBackoffLimitExceeded,
-			expected:         true,
+			jobFailureReason: jobFailureReason1,
+			expected:         false,
+		},
+		{
+			name: "a job has failed and the failure policy rule does not match the parent replicatedJob and does not match the job failure reason",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureReasons:  []string{jobFailureReason1},
+				TargetReplicatedJobs: []string{replicatedJobName1},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName2},
+			).Obj(),
+			jobFailureReason: jobFailureReason2,
+			expected:         false,
 		},
 	}
 
