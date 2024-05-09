@@ -751,6 +751,12 @@ type validationTestCase struct {
 	want error
 }
 
+// TestValidateCreate tests the ValidateCreate method of the jobset webhook.
+// Each test case specifies a list of expected errors.
+// For each test case, the function TestValidateCreate checks that each
+// expected error is present in the list of errors returned by
+// ValidateCreate. It is okay if ValidateCreate returns errors
+// beyond the expected errors.
 func TestValidateCreate(t *testing.T) {
 	managedByFieldPath := field.NewPath("spec", "managedBy")
 
