@@ -112,7 +112,7 @@ class JobsetV1alpha2JobSetSpec(object):
     def managed_by(self):
         """Gets the managed_by of this JobsetV1alpha2JobSetSpec.  # noqa: E501
 
-        ManagedBy is used to indicate the controller or entity that manages a JobSet  # noqa: E501
+        ManagedBy is used to indicate the controller or entity that manages a JobSet. The built-in JobSet controller reconciles JobSets which don't have this field at all or the field value is the reserved string `jobset.sigs.k8s.io/jobset-controller`, but skips reconciling JobSets with a custom value for this field.  The value must be a valid domain-prefixed path (e.g. acme.io/foo) - all characters before the first \"/\" must be a valid subdomain as defined by RFC 1123. All characters trailing the first \"/\" must be valid HTTP Path characters as defined by RFC 3986. The value cannot exceed 63 characters. The field is immutable.  # noqa: E501
 
         :return: The managed_by of this JobsetV1alpha2JobSetSpec.  # noqa: E501
         :rtype: str
@@ -123,7 +123,7 @@ class JobsetV1alpha2JobSetSpec(object):
     def managed_by(self, managed_by):
         """Sets the managed_by of this JobsetV1alpha2JobSetSpec.
 
-        ManagedBy is used to indicate the controller or entity that manages a JobSet  # noqa: E501
+        ManagedBy is used to indicate the controller or entity that manages a JobSet. The built-in JobSet controller reconciles JobSets which don't have this field at all or the field value is the reserved string `jobset.sigs.k8s.io/jobset-controller`, but skips reconciling JobSets with a custom value for this field.  The value must be a valid domain-prefixed path (e.g. acme.io/foo) - all characters before the first \"/\" must be a valid subdomain as defined by RFC 1123. All characters trailing the first \"/\" must be valid HTTP Path characters as defined by RFC 3986. The value cannot exceed 63 characters. The field is immutable.  # noqa: E501
 
         :param managed_by: The managed_by of this JobsetV1alpha2JobSetSpec.  # noqa: E501
         :type: str
