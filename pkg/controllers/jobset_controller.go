@@ -103,6 +103,11 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// Don't reconcile JobSets marked for deletion.
+	if jobSetMarkedForDeletion(&js) {
+		return ctrl.Result{}, nil
+	}
+
 	// Track JobSet status updates that should be performed at the end of the reconciliation attempt.
 	updateStatusOpts := statusUpdateOpts{}
 
@@ -814,6 +819,10 @@ func jobSetFinished(js *jobset.JobSet) bool {
 		}
 	}
 	return false
+}
+
+func jobSetMarkedForDeletion(js *jobset.JobSet) bool {
+	return js.DeletionTimestamp != nil
 }
 
 func dnsHostnamesEnabled(js *jobset.JobSet) bool {
