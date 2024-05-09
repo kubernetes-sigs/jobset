@@ -1111,6 +1111,34 @@ func TestValidateCreate(t *testing.T) {
 
 	failurePolicyTests := []validationTestCase{
 		{
+			name: "failure policy rule name is valid",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "superAwesomeFailurePolicyRule"},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(),
+		},
+		{
 			name: "jobset failure policy has an invalid on job failure reason",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -1326,34 +1354,6 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(
 				fmt.Errorf("invalid failure policy rule name '%v', a failure policy rule name must start with an alphabetic character, optionally followed by a string of alphanumeric characters or '_,:', and must end with an alphanumeric character or '_'", "ruleToRuleThemAll,"),
 			),
-		},
-		{
-			name: "failure policy rule name is valid",
-			js: &jobset.JobSet{
-				ObjectMeta: validObjectMeta,
-				Spec: jobset.JobSetSpec{
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Name:     "rj",
-							Replicas: 1,
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									CompletionMode: ptr.To(batchv1.IndexedCompletion),
-									Completions:    ptr.To(int32(1)),
-									Parallelism:    ptr.To(int32(1)),
-								},
-							},
-						},
-					},
-					FailurePolicy: &jobset.FailurePolicy{
-						Rules: []jobset.FailurePolicyRule{
-							{Name: "superAwesomeFailurePolicyRule"},
-						},
-					},
-					SuccessPolicy: &jobset.SuccessPolicy{},
-				},
-			},
-			want: errors.Join(),
 		},
 	}
 
