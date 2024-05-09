@@ -168,7 +168,7 @@ func findJobFailureCondition(job *batchv1.Job) *batchv1.JobCondition {
 func findFirstFailedPolicyRuleAndJob(ctx context.Context, rules []jobset.FailurePolicyRule, failedOwnedJobs []*batchv1.Job) (*jobset.FailurePolicyRule, *batchv1.Job) {
 	log := ctrl.LoggerFrom(ctx)
 
-	for _, rule := range rules {
+	for index, rule := range rules {
 		var matchedFailedJob *batchv1.Job
 		var matchedFailureTime *metav1.Time
 		for _, failedJob := range failedOwnedJobs {
@@ -187,8 +187,10 @@ func findFirstFailedPolicyRuleAndJob(ctx context.Context, rules []jobset.Failure
 		}
 
 		if matchedFailedJob != nil {
+			log.V(2).Info("found a failed job matching failure policy rule with index %v and name %v", index, rule.Name)
 			return &rule, matchedFailedJob
 		}
+		log.V(2).Info("did not find a failed job matching failure policy rule with index %v and name %v", index, rule.Name)
 	}
 
 	log.V(2).Info("never found a matched failure policy rule.")
