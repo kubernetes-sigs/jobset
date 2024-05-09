@@ -745,6 +745,12 @@ func TestJobSetDefaulting(t *testing.T) {
 	}
 }
 
+type validationTestCase struct {
+	name string
+	js   *jobset.JobSet
+	want error
+}
+
 func TestValidateCreate(t *testing.T) {
 	managedByFieldPath := field.NewPath("spec", "managedBy")
 
@@ -773,11 +779,7 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
-	testCases := []struct {
-		name string
-		js   *jobset.JobSet
-		want error
-	}{
+	uncategorizedTests := []validationTestCase{
 		{
 			name: "number of pods exceeds the limit",
 			js: &jobset.JobSet{
@@ -1003,6 +1005,9 @@ func TestValidateCreate(t *testing.T) {
 				fmt.Errorf(podNameTooLongErrorMsg),
 			),
 		},
+	}
+
+	jobsetControllerNameTests := []validationTestCase{
 		{
 			name: "jobset controller name is not a domain-prefixed path",
 			js: &jobset.JobSet{
@@ -1102,6 +1107,9 @@ func TestValidateCreate(t *testing.T) {
 			},
 			want: errors.Join(),
 		},
+	}
+
+	failurePolicyTests := []validationTestCase{
 		{
 			name: "jobset failure policy has an invalid on job failure reason",
 			js: &jobset.JobSet{
@@ -1348,6 +1356,17 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(),
 		},
 	}
+
+	testGroups := [][]validationTestCase{
+		uncategorizedTests,
+		jobsetControllerNameTests,
+		failurePolicyTests,
+	}
+	var testCases []validationTestCase
+	for _, testGroup := range testGroups {
+		testCases = append(testCases, testGroup...)
+	}
+
 	fakeClient := fake.NewFakeClient()
 	webhook, err := NewJobSetWebhook(fakeClient)
 	if err != nil {
