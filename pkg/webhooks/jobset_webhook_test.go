@@ -35,18 +35,18 @@ var TestPodTemplate = corev1.PodTemplateSpec{
 	},
 }
 
-// Question: Should we seperate these tests into different files as jobset_webhook_test.go is getting very long?
-// One possible method of separation is to seperate by the value being defaulted.
-// It would also be nice to reduce the amount of boiler plate repeated in test cases.
+type jobSetDefaultingTestCase struct {
+	name string
+	js   *jobset.JobSet
+	want *jobset.JobSet
+}
+
 func TestJobSetDefaulting(t *testing.T) {
 	defaultSuccessPolicy := &jobset.SuccessPolicy{Operator: jobset.OperatorAll}
 	defaultStartupPolicy := &jobset.StartupPolicy{StartupPolicyOrder: jobset.AnyOrder}
 	defaultNetwork := &jobset.Network{EnableDNSHostnames: ptr.To(true), PublishNotReadyAddresses: ptr.To(true)}
-	testCases := []struct {
-		name string
-		js   *jobset.JobSet
-		want *jobset.JobSet
-	}{
+
+	jobCompletionTests := []jobSetDefaultingTestCase{
 		{
 			name: "job completion mode is unset",
 			js: &jobset.JobSet{
@@ -123,6 +123,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	enablingDNSHostnameTests := []jobSetDefaultingTestCase{
 		{
 			name: "enableDNSHostnames is unset",
 			js: &jobset.JobSet{
@@ -200,6 +203,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	publishNotReadyNetworkAddresessTests := []jobSetDefaultingTestCase{
 		{
 			name: "PublishNotReadyNetworkAddresess is false",
 			js: &jobset.JobSet{
@@ -278,6 +284,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	podRestartTests := []jobSetDefaultingTestCase{
 		{
 			name: "pod restart policy unset",
 			js: &jobset.JobSet{
@@ -370,6 +379,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	successPolicyTests := []jobSetDefaultingTestCase{
 		{
 			name: "success policy unset",
 			js: &jobset.JobSet{
@@ -467,6 +479,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	startupPolicyTests := []jobSetDefaultingTestCase{
 		{
 			name: "startup policy order InOrder set",
 			js: &jobset.JobSet{
@@ -522,6 +537,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	managedByTests := []jobSetDefaultingTestCase{
 		{
 			name: "managedBy field is left nil",
 			js: &jobset.JobSet{
@@ -596,6 +614,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	failurePolicyRuleNameTests := []jobSetDefaultingTestCase{
 		{
 			name: "failure policy rule name is defaulted when: there is one rule and it does not have a name",
 			js: &jobset.JobSet{
@@ -689,6 +710,23 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 		},
 	}
+
+	testGroups := [][]jobSetDefaultingTestCase{
+		jobCompletionTests,
+		enablingDNSHostnameTests,
+		publishNotReadyNetworkAddresessTests,
+		podRestartTests,
+		successPolicyTests,
+		startupPolicyTests,
+		startupPolicyTests,
+		managedByTests,
+		failurePolicyRuleNameTests,
+	}
+	var testCases []jobSetDefaultingTestCase
+	for _, testGroup := range testGroups {
+		testCases = append(testCases, testGroup...)
+	}
+
 	fakeClient := fake.NewFakeClient()
 	webhook, err := NewJobSetWebhook(fakeClient)
 	if err != nil {
