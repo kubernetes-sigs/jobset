@@ -5,7 +5,7 @@ JobSetSpec defines the desired state of JobSet
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **failure_policy** | [**JobsetV1alpha2FailurePolicy**](JobsetV1alpha2FailurePolicy.md) |  | [optional] 
-**managed_by** | **str** | ManagedBy is used to indicate the controller or entity that manages a JobSet | [optional] 
+**managed_by** | **str** | ManagedBy is used to indicate the controller or entity that manages a JobSet. The built-in JobSet controller reconciles JobSets which don&#39;t have this field at all or the field value is the reserved string &#x60;jobset.sigs.k8s.io/jobset-controller&#x60;, but skips reconciling JobSets with a custom value for this field.  The value must be a valid domain-prefixed path (e.g. acme.io/foo) - all characters before the first \&quot;/\&quot; must be a valid subdomain as defined by RFC 1123. All characters trailing the first \&quot;/\&quot; must be valid HTTP Path characters as defined by RFC 3986. The value cannot exceed 63 characters. The field is immutable. | [optional] 
 **network** | [**JobsetV1alpha2Network**](JobsetV1alpha2Network.md) |  | [optional] 
 **replicated_jobs** | [**list[JobsetV1alpha2ReplicatedJob]**](JobsetV1alpha2ReplicatedJob.md) | ReplicatedJobs is the group of jobs that will form the set. | [optional] 
 **startup_policy** | [**JobsetV1alpha2StartupPolicy**](JobsetV1alpha2StartupPolicy.md) |  | [optional] 
