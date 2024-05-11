@@ -49,7 +49,7 @@ INTEGRATION_TARGET ?= ./test/integration/...
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 E2E_TARGET ?= ./test/e2e/...
-E2E_KIND_VERSION ?= kindest/node:v1.25.1
+E2E_KIND_VERSION ?= kindest/node:v1.29.1
 USE_EXISTING_CLUSTER ?= false
 
 # For local testing, we should allow user to use different kind cluster name
