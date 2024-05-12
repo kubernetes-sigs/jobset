@@ -27,14 +27,14 @@ import (
 )
 
 const (
-	// Example
-	// owner: <feature owner>
-	// kep: <KEP link>
-	// alpha: v0.5
-	// beta: v0.6
-	//
-	// Enables example.
-	Example featuregate.Feature = "Example"
+// Example
+// owner: <feature owner>
+// kep: <KEP link>
+// alpha: v0.5
+// beta: v0.6
+//
+// Enables example.
+// Example featuregate.Feature = "Example"
 )
 
 func init() {
@@ -48,7 +48,8 @@ func init() {
 // Entries are separated from each other with blank lines to avoid sweeping gofmt changes
 // when adding or removing one entry.
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	Example: {Default: true, PreRelease: featuregate.Beta},
+	// TODO: add feature gates here.
+	// Example: {Default: true, PreRelease: featuregate.Beta},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) func() {
