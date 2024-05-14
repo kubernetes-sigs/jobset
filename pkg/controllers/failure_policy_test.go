@@ -220,50 +220,54 @@ func TestFindFirstFailedPolicyRuleAndJob(t *testing.T) {
 	var (
 		replicatedJobName = "test-replicatedJob"
 
-		failedJobNoReason1 = jobWithFailedCondition("job1", time.Now().Add(-6*time.Hour))
-		failedJobNoReason2 = jobWithFailedCondition("job2", time.Now().Add(-3*time.Hour))
-		failedJobNoReason3 = jobWithFailedCondition("job2", time.Now().Add(-1*time.Hour))
+		failureReason1 = batchv1.JobReasonBackoffLimitExceeded
+		failureReason2 = batchv1.JobReasonDeadlineExceeded
+		failureReason3 = batchv1.JobReasonFailedIndexes
 
 		failedJob1 = jobWithFailedConditionAndOpts("job1", time.Now().Add(-6*time.Hour),
 			&failJobOptions{
-				reason:                  ptr.To(batchv1.JobReasonBackoffLimitExceeded),
+				reason:                  ptr.To(failureReason1),
+				parentReplicatedJobName: ptr.To(replicatedJobName),
+			},
+		)
+		failedJob1DupEarlierFailure = jobWithFailedConditionAndOpts("job1DupEarlierFailure", time.Now().Add(-12*time.Hour),
+			&failJobOptions{
+				reason:                  ptr.To(failureReason1),
 				parentReplicatedJobName: ptr.To(replicatedJobName),
 			},
 		)
 		failedJob2 = jobWithFailedConditionAndOpts("job2", time.Now().Add(-3*time.Hour),
 			&failJobOptions{
-				reason:                  ptr.To(batchv1.JobReasonDeadlineExceeded),
+				reason:                  ptr.To(failureReason2),
 				parentReplicatedJobName: ptr.To(replicatedJobName),
 			},
 		)
 		failedJob3 = jobWithFailedConditionAndOpts("job3", time.Now().Add(-1*time.Hour),
 			&failJobOptions{
-				reason:                  ptr.To(batchv1.JobReasonFailedIndexes),
+				reason:                  ptr.To(failureReason3),
 				parentReplicatedJobName: ptr.To(replicatedJobName),
 			},
 		)
 
-		// ruleN matches failedJobN
-		rule1 = jobset.FailurePolicyRule{
+		// failurePolicyRuleN matches failedJobN
+		failurePolicyRule1 = jobset.FailurePolicyRule{
 			Action:              jobset.RestartJobSet,
-			OnJobFailureReasons: []string{batchv1.JobReasonBackoffLimitExceeded},
+			OnJobFailureReasons: []string{failureReason1},
 		}
-		rule2 = jobset.FailurePolicyRule{
+		failurePolicyRule2 = jobset.FailurePolicyRule{
 			Action:              jobset.RestartJobSet,
-			OnJobFailureReasons: []string{batchv1.JobReasonDeadlineExceeded},
+			OnJobFailureReasons: []string{failureReason2},
+		}
+		failurePolicyRule3 = jobset.FailurePolicyRule{
+			Action:              jobset.RestartJobSet,
+			OnJobFailureReasons: []string{failureReason3},
 		}
 
-		unmatchedRule = jobset.FailurePolicyRule{
-			Action:              jobset.RestartJobSet,
-			OnJobFailureReasons: []string{batchv1.JobReasonMaxFailedIndexesExceeded, batchv1.JobReasonPodFailurePolicy},
+		fakeReplicatedJobName      = "fakeReplicatedJobName"
+		unmatchedFailurePolicyRule = jobset.FailurePolicyRule{
+			Action:               jobset.RestartJobSet,
+			TargetReplicatedJobs: []string{fakeReplicatedJobName},
 		}
-
-		extraFailedJob = jobWithFailedConditionAndOpts("extra-job1", time.Now().Add(3*time.Hour),
-			&failJobOptions{
-				reason:                  ptr.To(batchv1.JobReasonDeadlineExceeded),
-				parentReplicatedJobName: ptr.To(replicatedJobName),
-			},
-		)
 	)
 	tests := []struct {
 		name            string
@@ -274,68 +278,84 @@ func TestFindFirstFailedPolicyRuleAndJob(t *testing.T) {
 		expectedJob               *batchv1.Job
 	}{
 		{
-			name:            "failure policy rules are empty with no failed jobs",
+			name:            "There are 0 failed jobs and there are 0 failure policy rules, therefore nil is returned for both the rule and job.",
+			rules:           []jobset.FailurePolicyRule{},
 			failedOwnedJobs: []*batchv1.Job{},
 
 			expectedFailurePolicyRule: nil,
 			expectedJob:               nil,
 		},
 		{
-			name: "failure policy rules are empty with one failed job",
-			failedOwnedJobs: []*batchv1.Job{
-				failedJobNoReason1,
-			},
+			name:            "There is 1 failed job and there are 0 failure policy rules, therefore nil is returned for both the rule and job.",
+			rules:           []jobset.FailurePolicyRule{},
+			failedOwnedJobs: []*batchv1.Job{failedJob1},
 
 			expectedFailurePolicyRule: nil,
 			expectedJob:               nil,
 		},
 		{
-			name:            "failure policy rules are empty with multiple failed jobs",
-			failedOwnedJobs: []*batchv1.Job{failedJobNoReason3, failedJobNoReason1, failedJobNoReason2},
+			name:            "There is 1 failed job, there is 1 failure policy rule, and the failure policy rule does not match the job, therefore nil is returned for both the rule and job.",
+			rules:           []jobset.FailurePolicyRule{failurePolicyRule2},
+			failedOwnedJobs: []*batchv1.Job{failedJob1},
 
 			expectedFailurePolicyRule: nil,
 			expectedJob:               nil,
 		},
 		{
-			name:            "failure policy rule does not match on job failure reasons",
-			rules:           []jobset.FailurePolicyRule{unmatchedRule},
-			failedOwnedJobs: []*batchv1.Job{failedJob3, failedJob1, failedJob2},
+			name:            "There is 1 failed job, there are 3 failure policy rules, and the failed job matches the first failure policy rule, therefore the job and first failure policy rule are returned.",
+			rules:           []jobset.FailurePolicyRule{failurePolicyRule1, failurePolicyRule2, failurePolicyRule3},
+			failedOwnedJobs: []*batchv1.Job{failedJob1},
 
-			expectedFailurePolicyRule: nil,
-			expectedJob:               nil,
-		},
-		{
-			name:            "failure policy rule matches first job to fail out of all jobs",
-			rules:           []jobset.FailurePolicyRule{rule1},
-			failedOwnedJobs: []*batchv1.Job{failedJob3, failedJob1, failedJob2},
-
-			expectedFailurePolicyRule: &rule1,
+			expectedFailurePolicyRule: &failurePolicyRule1,
 			expectedJob:               failedJob1,
 		},
 		{
-			name:            "failure policy rule matches second job to fail out of all jobs",
-			rules:           []jobset.FailurePolicyRule{rule2},
-			failedOwnedJobs: []*batchv1.Job{failedJob3, failedJob1, failedJob2},
+			name:            "There is 1 failed job, there are 3 failure policy rules, the failed job does not match the first failure policy rule, and the failed job matches the second failure policy rule, therefore the job and second failure policy rule are returned.",
+			rules:           []jobset.FailurePolicyRule{failurePolicyRule1, failurePolicyRule2, failurePolicyRule3},
+			failedOwnedJobs: []*batchv1.Job{failedJob2},
 
-			expectedFailurePolicyRule: &rule2,
+			expectedFailurePolicyRule: &failurePolicyRule2,
 			expectedJob:               failedJob2,
 		},
 		{
-			name:            "failure policy rule matches multiple jobs and first failed job is the last one",
-			rules:           []jobset.FailurePolicyRule{rule2},
-			failedOwnedJobs: []*batchv1.Job{extraFailedJob, failedJob3, failedJob1, failedJob2},
+			name:            "There is 1 failed job, there are 3 failure policy rules, the failed job does not match the first nor second failure policy rules, and the failed job matches the third failure policy rule, therefore the job and the the third failure policy rule are returned.",
+			rules:           []jobset.FailurePolicyRule{failurePolicyRule1, failurePolicyRule2, failurePolicyRule3},
+			failedOwnedJobs: []*batchv1.Job{failedJob3},
 
-			expectedFailurePolicyRule: &rule2,
-			expectedJob:               failedJob2,
+			expectedFailurePolicyRule: &failurePolicyRule3,
+			expectedJob:               failedJob3,
 		},
 		{
-			name:  "first failed job that matches a failure policy rule is different from the first job to fail that matches the first matched failure policy rule",
-			rules: []jobset.FailurePolicyRule{rule2, rule1},
-			// failedJob1 is the first failedJob1 but does not match rule2 which is the first failure policy rule to be matched
-			failedOwnedJobs: []*batchv1.Job{extraFailedJob, failedJob3, failedJob1, failedJob2},
+			name:            "There are 2 failed jobs and there are 0 failure policy rules, therefore nil is returned for both the rule and job.",
+			rules:           []jobset.FailurePolicyRule{},
+			failedOwnedJobs: []*batchv1.Job{failedJob1, failedJob2},
 
-			expectedFailurePolicyRule: &rule2,
-			expectedJob:               failedJob2,
+			expectedFailurePolicyRule: nil,
+			expectedJob:               nil,
+		},
+		{
+			name:            "There are 2 failed jobs, the second job failed before the first job, there is 1 failure policy rule, and the failure policy rule does not match any of the jobs, therefore nil is returned for both the rule and job.",
+			rules:           []jobset.FailurePolicyRule{failurePolicyRule2},
+			failedOwnedJobs: []*batchv1.Job{failedJob1, failedJob1DupEarlierFailure},
+
+			expectedFailurePolicyRule: nil,
+			expectedJob:               nil,
+		},
+		{
+			name:            "There are 2 failed jobs, the second job failed before the first job, there is 1 failure policy rule, and the failure policy rule matches both jobs, therefore the second job and the failure policy rule are returned.",
+			rules:           []jobset.FailurePolicyRule{failurePolicyRule1},
+			failedOwnedJobs: []*batchv1.Job{failedJob1, failedJob1DupEarlierFailure},
+
+			expectedFailurePolicyRule: &failurePolicyRule1,
+			expectedJob:               failedJob1DupEarlierFailure,
+		},
+		{
+			name:            "There are 2 failed jobs, the second job failed before the first job, there are 2 failure policy rules, the first failure policy does not match any of the jobs, and the second failure policy rule matches both jobs, therefore the second job and the second failure policy rule are returned.",
+			rules:           []jobset.FailurePolicyRule{unmatchedFailurePolicyRule, failurePolicyRule1},
+			failedOwnedJobs: []*batchv1.Job{failedJob1, failedJob1DupEarlierFailure},
+
+			expectedFailurePolicyRule: &failurePolicyRule1,
+			expectedJob:               failedJob1DupEarlierFailure,
 		},
 	}
 
