@@ -48,7 +48,6 @@ func init() {
 // Entries are separated from each other with blank lines to avoid sweeping gofmt changes
 // when adding or removing one entry.
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	// TODO: add feature gates here.
 	// Example: {Default: true, PreRelease: featuregate.Beta},
 }
 
