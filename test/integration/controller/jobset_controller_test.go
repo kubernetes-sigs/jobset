@@ -465,6 +465,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 0)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -489,6 +490,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
 					},
 					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
@@ -525,12 +532,13 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
 						matchJobSetRestartsCountTowardsMax(js, 1)
 					},
 				},
 			},
 		}),
-		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoremaxRestarts failure policy action.", &testCase{
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -556,6 +564,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -574,6 +583,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 2)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -592,6 +602,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 3)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -627,6 +638,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 0)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -654,18 +666,16 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: testutil.JobSetActive,
 				},
 				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
+				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						// For a restart, all jobs will be deleted and recreated, so we expect a
 						// foreground deletion finalizer for every job.
 						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
-					},
-				},
-				{
-					checkJobSetCondition: testutil.JobSetActive,
-				},
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetRestartsCountTowardsMax(js, 1)
 					},
 				},
 			},
@@ -698,6 +708,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 0)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -730,15 +741,16 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: testutil.JobSetActive,
 				},
 				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
+				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						// For a restart, all jobs will be deleted and recreated, so we expect a
 						// foreground deletion finalizer for every job.
 						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
-					},
-				},
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetRestartsCountTowardsMax(js, 1)
 					},
 				},
 			},
@@ -771,6 +783,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -789,6 +802,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 2)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -807,6 +821,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 3)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -825,6 +840,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 3)
 						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
@@ -2014,9 +2030,22 @@ func jobActive(job *batchv1.Job) bool {
 	return active
 }
 
-// matchJobSetRestartsCountTowardsMax checks that the supplied jobset js has expectedMaxRestarts
+// matchJobSetRestarts checks that the supplied jobset js has expectedCount
+// as the value of js.Status.Restarts.
+func matchJobSetRestarts(js *jobset.JobSet, expectedCount int32) {
+	gomega.Eventually(func() (int32, error) {
+		newJs := jobset.JobSet{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
+			return 0, err
+		}
+
+		return newJs.Status.Restarts, nil
+	}, timeout, interval).Should(gomega.BeComparableTo(expectedCount))
+}
+
+// matchJobSetRestartsCountTowardsMax checks that the supplied jobset js has expectedCount
 // as the value of js.Status.RestartsCountTowardsMax.
-func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedMaxRestarts int32) {
+func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedCount int32) {
 	gomega.Eventually(func() (int32, error) {
 		newJs := jobset.JobSet{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
@@ -2024,7 +2053,7 @@ func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedMaxRestarts i
 		}
 
 		return newJs.Status.RestartsCountTowardsMax, nil
-	}, timeout, interval).Should(gomega.BeComparableTo(expectedMaxRestarts))
+	}, timeout, interval).Should(gomega.BeComparableTo(expectedCount))
 }
 
 func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.ReplicatedJobStatus) {
