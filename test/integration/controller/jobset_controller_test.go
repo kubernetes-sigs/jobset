@@ -365,7 +365,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("jobset with no failure policy should fail if any jobs fail", &testCase{
+		ginkgo.Entry("[failure policy] jobset with no failure policy should fail if any jobs fail", &testCase{
 			makeJobSet: testJobSet,
 			updates: []*update{
 				{
@@ -443,7 +443,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("jobset fails immediately with FailJobSet failure policy action.", &testCase{
+		ginkgo.Entry("[failure policy] jobset fails immediately with FailJobSet failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -463,9 +463,14 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetCondition: testutil.JobSetFailed,
 				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
 			},
 		}),
-		ginkgo.Entry("jobset does not fail immediately with FailJobSet failure policy action.", &testCase{
+		ginkgo.Entry("[failure policy] jobset does not fail immediately with FailJobSet failure policy action as the rule is not matched.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -494,7 +499,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("jobset restarts with RestartJobSet Failure Policy Action.", &testCase{
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -518,9 +523,14 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetCondition: testutil.JobSetActive,
 				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
 			},
 		}),
-		ginkgo.Entry("jobset restarts with RestartJobSetAndIgnoremaxRestarts Failure Policy Action.", &testCase{
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoremaxRestarts failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -545,6 +555,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: testutil.JobSetActive,
 				},
 				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
+				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						// For a restart, all jobs will be deleted and recreated, so we expect a
 						// foreground deletion finalizer for every job.
@@ -558,6 +573,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: testutil.JobSetActive,
 				},
 				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
+				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						// For a restart, all jobs will be deleted and recreated, so we expect a
 						// foreground deletion finalizer for every job.
@@ -569,6 +589,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
 					},
 					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
@@ -579,7 +604,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("job fails and the parent replicated job is contained in TargetReplicatedJobs.", &testCase{
+		ginkgo.Entry("[failure policy] job fails and the parent replicated job is contained in TargetReplicatedJobs.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -600,9 +625,14 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetCondition: testutil.JobSetFailed,
 				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
 			},
 		}),
-		ginkgo.Entry("job fails and the parent replicated job is not contained in TargetReplicatedJobs.", &testCase{
+		ginkgo.Entry("[failure policy] job fails and the parent replicated job is not contained in TargetReplicatedJobs.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -633,9 +663,14 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetCondition: testutil.JobSetActive,
 				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
 			},
 		}),
-		ginkgo.Entry("failure policy rules order verification test 1", &testCase{
+		ginkgo.Entry("[failure policy] failure policy rules order verification test 1", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -661,9 +696,14 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetCondition: testutil.JobSetFailed,
 				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
 			},
 		}),
-		ginkgo.Entry("failure policy rules order verification test 2", &testCase{
+		ginkgo.Entry("[failure policy] failure policy rules order verification test 2", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -696,9 +736,14 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
 					},
 				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
 			},
 		}),
-		ginkgo.Entry("failure policy rules order verification test 3", &testCase{
+		ginkgo.Entry("[failure policy] failure policy rules order verification test 3", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -725,6 +770,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: testutil.JobSetActive,
 				},
 				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
+				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						// For a restart, all jobs will be deleted and recreated, so we expect a
 						// foreground deletion finalizer for every job.
@@ -738,6 +788,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetCondition: testutil.JobSetActive,
 				},
 				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
+				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						// For a restart, all jobs will be deleted and recreated, so we expect a
 						// foreground deletion finalizer for every job.
@@ -749,6 +804,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						failFirstMatchingJobWithOptions(jobList, "replicated-job-a", &failJobOptions{reason: ptr.To(batchv1.JobReasonMaxFailedIndexesExceeded)})
 					},
 					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
@@ -762,6 +822,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						failFirstMatchingJob(jobList, "replicated-job-b")
 					},
 					checkJobSetCondition: testutil.JobSetFailed,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
 				},
 			},
 		}),
@@ -1947,6 +2012,19 @@ func jobActive(job *batchv1.Job) bool {
 		}
 	}
 	return active
+}
+
+// matchJobSetRestartsCountTowardsMax checks that the supplied jobset js has expectedMaxRestarts
+// as the value of js.Status.RestartsCountTowardsMax.
+func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedMaxRestarts int32) {
+	gomega.Eventually(func() (int32, error) {
+		newJs := jobset.JobSet{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
+			return 0, err
+		}
+
+		return newJs.Status.RestartsCountTowardsMax, nil
+	}, timeout, interval).Should(gomega.BeComparableTo(expectedMaxRestarts))
 }
 
 func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.ReplicatedJobStatus) {
