@@ -26,6 +26,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -58,6 +59,7 @@ func main() {
 	var probeAddr string
 	var qps float64
 	var burst int
+	var featureGates string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -65,6 +67,8 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Float64Var(&qps, "kube-api-qps", 500, "Maximum QPS to use while talking with Kubernetes API")
 	flag.IntVar(&burst, "kube-api-burst", 500, "Maximum burst for throttle while talking with Kubernetes API")
+	flag.StringVar(&featureGates, "feature-gates", "", "A set of key=value pairs that describe feature gates for alpha/experimental features.")
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -76,6 +80,11 @@ func main() {
 	kubeConfig := ctrl.GetConfigOrDie()
 	kubeConfig.QPS = float32(qps)
 	kubeConfig.Burst = burst
+
+	if err := utilfeature.DefaultMutableFeatureGate.Set(featureGates); err != nil {
+		setupLog.Error(err, "Unable to set flag gates for known features")
+		os.Exit(1)
+	}
 
 	mgr, err := ctrl.NewManager(kubeConfig, ctrl.Options{
 		Scheme: scheme,
