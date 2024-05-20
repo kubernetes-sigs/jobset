@@ -165,7 +165,7 @@ func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, validReplicatedJ
 	}
 
 	// ruleNameToRulesWithName is used to verify that rule names are unique
-	ruleNameToRulesWithName := make(map[string]([]int))
+	ruleNameToRulesWithName := make(map[string][]int)
 	for index, rule := range failurePolicy.Rules {
 		// Check that the rule name meets the minimum length
 		nameLen := len(rule.Name)
