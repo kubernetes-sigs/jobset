@@ -121,8 +121,7 @@ func applyFailurePolicyRuleAction(ctx context.Context, js *jobset.JobSet, matchi
 		return err
 	}
 
-	err := applier(ctx, js, matchingFailedJob, updateStatusOps)
-	if err != nil {
+	if err := applier(ctx, js, matchingFailedJob, updateStatusOps); err != nil {
 		log.Error(err, "error applying the FailurePolicyRuleAction: %v", failurePolicyRuleAction)
 		return err
 	}
