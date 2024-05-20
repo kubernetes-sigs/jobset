@@ -75,93 +75,6 @@ func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 	return nil
 }
 
-// makeFailedConditionOpts returns the options we use to generate the JobSet failed condition.
-func makeFailedConditionOpts(reason, msg string) *conditionOpts {
-	return &conditionOpts{
-		condition: &metav1.Condition{
-			Type:    string(jobset.JobSetFailed),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  reason,
-			Message: msg,
-		},
-		eventType: corev1.EventTypeWarning,
-	}
-}
-
-// setJobSetFailedCondition sets a condition on the JobSet status indicating it has failed.
-func setJobSetFailedCondition(ctx context.Context, js *jobset.JobSet, reason, msg string, updateStatusOpts *statusUpdateOpts) {
-	setCondition(js, makeFailedConditionOpts(reason, msg), updateStatusOpts)
-}
-
-// findJobFailureTime is a helper function which extracts the Job failure time from a Job,
-// if the JobFailed condition exists and is true.
-func findJobFailureTime(job *batchv1.Job) *metav1.Time {
-	failureCondition := findJobFailureCondition(job)
-	if failureCondition == nil {
-		return nil
-	}
-	return &failureCondition.LastTransitionTime
-}
-
-// findFirstFailedJob accepts a slice of failed Jobs and returns the Job which has a JobFailed condition
-// with the oldest transition time.
-func findFirstFailedJob(failedJobs []*batchv1.Job) *batchv1.Job {
-	var (
-		firstFailedJob   *batchv1.Job
-		firstFailureTime *metav1.Time
-	)
-	for _, job := range failedJobs {
-		failureTime := findJobFailureTime(job)
-		// If job has actually failed and it is the first (or only) failure we've seen,
-		// store the job for output.
-		if failureTime != nil && (firstFailedJob == nil || failureTime.Before(firstFailureTime)) {
-			firstFailedJob = job
-			firstFailureTime = failureTime
-		}
-	}
-	return firstFailedJob
-}
-
-// messageWithFirstFailedJob appends the first failed job to the original event message in human readable way.
-func messageWithFirstFailedJob(msg, firstFailedJobName string) string {
-	return fmt.Sprintf("%s (first failed job: %s)", msg, firstFailedJobName)
-}
-
-// ruleIsApplicable returns true if the failed job and job failure reason match the failure policy rule.
-// The function returns false otherwise.
-func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string) bool {
-	log := ctrl.LoggerFrom(ctx)
-
-	ruleAppliesToJobFailureReason := len(rule.OnJobFailureReasons) == 0 || slices.Contains(rule.OnJobFailureReasons, jobFailureReason)
-	if !ruleAppliesToJobFailureReason {
-		return false
-	}
-
-	parentReplicatedJob, exists := parentReplicatedJobName(failedJob)
-	if !exists {
-		// If we cannot find the parent ReplicatedJob, we assume the rule does not apply.
-		log.V(2).Info("The failed job %v does not appear to have a parent replicatedJob.", failedJob.Name)
-		return false
-	}
-
-	ruleAppliesToParentReplicatedJob := len(rule.TargetReplicatedJobs) == 0 || slices.Contains(rule.TargetReplicatedJobs, parentReplicatedJob)
-	return ruleAppliesToParentReplicatedJob
-}
-
-// findJobFailureTimeAndReason is a helper function which extracts the Job failure condition from a Job,
-// if the JobFailed condition exists and is true.
-func findJobFailureCondition(job *batchv1.Job) *batchv1.JobCondition {
-	if job == nil {
-		return nil
-	}
-	for _, c := range job.Status.Conditions {
-		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
-			return &c
-		}
-	}
-	return nil
-}
-
 // findFirstFailedPolicyRuleAndJob returns the first failure policy rule matching a failed child job.
 // The function also returns the first child job matching the failure policy rule returned.
 // If there does not exist a matching failure policy rule, then the function returns nil for all values.
@@ -197,6 +110,47 @@ func findFirstFailedPolicyRuleAndJob(ctx context.Context, rules []jobset.Failure
 	return nil, nil
 }
 
+// applyFailurePolicyRuleAction applies the supplied FailurePolicyRuleAction.
+func applyFailurePolicyRuleAction(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOps *statusUpdateOpts, failurePolicyRuleAction jobset.FailurePolicyAction) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	applier, ok := actionFunctionMap[failurePolicyRuleAction]
+	if !ok {
+		err := fmt.Errorf("failed to find a corresponding action for the FailurePolicyRuleAction %v", failurePolicyRuleAction)
+		log.Error(err, "retrieving information for FailurePolicyRuleAction")
+		return err
+	}
+
+	err := applier(ctx, js, matchingFailedJob, updateStatusOps)
+	if err != nil {
+		log.Error(err, "error applying the FailurePolicyRuleAction: %v", failurePolicyRuleAction)
+		return err
+	}
+
+	return nil
+}
+
+// ruleIsApplicable returns true if the failed job and job failure reason match the failure policy rule.
+// The function returns false otherwise.
+func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string) bool {
+	log := ctrl.LoggerFrom(ctx)
+
+	ruleAppliesToJobFailureReason := len(rule.OnJobFailureReasons) == 0 || slices.Contains(rule.OnJobFailureReasons, jobFailureReason)
+	if !ruleAppliesToJobFailureReason {
+		return false
+	}
+
+	parentReplicatedJob, exists := parentReplicatedJobName(failedJob)
+	if !exists {
+		// If we cannot find the parent ReplicatedJob, we assume the rule does not apply.
+		log.V(2).Info("The failed job %v does not appear to have a parent replicatedJob.", failedJob.Name)
+		return false
+	}
+
+	ruleAppliesToParentReplicatedJob := len(rule.TargetReplicatedJobs) == 0 || slices.Contains(rule.TargetReplicatedJobs, parentReplicatedJob)
+	return ruleAppliesToParentReplicatedJob
+}
+
 // failurePolicyRecreateAll triggers a JobSet restart for the next reconcillation loop.
 func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCountTowardsMax bool, updateStatusOpts *statusUpdateOpts, event *eventParams) {
 	log := ctrl.LoggerFrom(ctx)
@@ -218,19 +172,6 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 	// Emit event for each JobSet restarts for observability and debugability.
 	enqueueEvent(updateStatusOpts, event)
 	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
-}
-
-// parentReplicatedJobName returns the name of the parent
-// ReplicatedJob and true if it is able to retrieve the parent.
-// The empty string and false are returned otherwise.
-func parentReplicatedJobName(job *batchv1.Job) (string, bool) {
-	if job == nil {
-		return "", false
-	}
-
-	replicatedJobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
-	replicatedJobNameIsUnset := !ok || replicatedJobName == ""
-	return replicatedJobName, !replicatedJobNameIsUnset
 }
 
 // The type failurePolicyActionApplier applies a FailurePolicyAction and returns nil if the FailurePolicyAction was successfully applied.
@@ -288,22 +229,81 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 	return nil
 }
 
-// applyFailurePolicyRuleAction applies the supplied FailurePolicyRuleAction.
-func applyFailurePolicyRuleAction(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOps *statusUpdateOpts, failurePolicyRuleAction jobset.FailurePolicyAction) error {
-	log := ctrl.LoggerFrom(ctx)
-
-	applier, ok := actionFunctionMap[failurePolicyRuleAction]
-	if !ok {
-		err := fmt.Errorf("failed to find a corresponding action for the FailurePolicyRuleAction %v", failurePolicyRuleAction)
-		log.Error(err, "retrieving information for FailurePolicyRuleAction")
-		return err
+// parentReplicatedJobName returns the name of the parent
+// ReplicatedJob and true if it is able to retrieve the parent.
+// The empty string and false are returned otherwise.
+func parentReplicatedJobName(job *batchv1.Job) (string, bool) {
+	if job == nil {
+		return "", false
 	}
 
-	err := applier(ctx, js, matchingFailedJob, updateStatusOps)
-	if err != nil {
-		log.Error(err, "error applying the FailurePolicyRuleAction: %v", failurePolicyRuleAction)
-		return err
-	}
+	replicatedJobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
+	replicatedJobNameIsUnset := !ok || replicatedJobName == ""
+	return replicatedJobName, !replicatedJobNameIsUnset
+}
 
+// makeFailedConditionOpts returns the options we use to generate the JobSet failed condition.
+func makeFailedConditionOpts(reason, msg string) *conditionOpts {
+	return &conditionOpts{
+		condition: &metav1.Condition{
+			Type:    string(jobset.JobSetFailed),
+			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Reason:  reason,
+			Message: msg,
+		},
+		eventType: corev1.EventTypeWarning,
+	}
+}
+
+// setJobSetFailedCondition sets a condition on the JobSet status indicating it has failed.
+func setJobSetFailedCondition(ctx context.Context, js *jobset.JobSet, reason, msg string, updateStatusOpts *statusUpdateOpts) {
+	setCondition(js, makeFailedConditionOpts(reason, msg), updateStatusOpts)
+}
+
+// findJobFailureTimeAndReason is a helper function which extracts the Job failure condition from a Job,
+// if the JobFailed condition exists and is true.
+func findJobFailureCondition(job *batchv1.Job) *batchv1.JobCondition {
+	if job == nil {
+		return nil
+	}
+	for _, c := range job.Status.Conditions {
+		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
+			return &c
+		}
+	}
 	return nil
+}
+
+// findJobFailureTime is a helper function which extracts the Job failure time from a Job,
+// if the JobFailed condition exists and is true.
+func findJobFailureTime(job *batchv1.Job) *metav1.Time {
+	failureCondition := findJobFailureCondition(job)
+	if failureCondition == nil {
+		return nil
+	}
+	return &failureCondition.LastTransitionTime
+}
+
+// findFirstFailedJob accepts a slice of failed Jobs and returns the Job which has a JobFailed condition
+// with the oldest transition time.
+func findFirstFailedJob(failedJobs []*batchv1.Job) *batchv1.Job {
+	var (
+		firstFailedJob   *batchv1.Job
+		firstFailureTime *metav1.Time
+	)
+	for _, job := range failedJobs {
+		failureTime := findJobFailureTime(job)
+		// If job has actually failed and it is the first (or only) failure we've seen,
+		// store the job for output.
+		if failureTime != nil && (firstFailedJob == nil || failureTime.Before(firstFailureTime)) {
+			firstFailedJob = job
+			firstFailureTime = failureTime
+		}
+	}
+	return firstFailedJob
+}
+
+// messageWithFirstFailedJob appends the first failed job to the original event message in human readable way.
+func messageWithFirstFailedJob(msg, firstFailedJobName string) string {
+	return fmt.Sprintf("%s (first failed job: %s)", msg, firstFailedJobName)
 }
