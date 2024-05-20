@@ -2053,7 +2053,7 @@ func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedCount int32) 
 		}
 
 		return newJs.Status.RestartsCountTowardsMax, nil
-	}, timeout, interval).Should(gomega.BeComparableTo(expectedCount))
+	}, timeout, interval).Should(gomega.Equal(expectedCount))
 }
 
 func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.ReplicatedJobStatus) {
@@ -2069,7 +2069,7 @@ func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.Repl
 		}
 		sort.Slice(newJs.Status.ReplicatedJobsStatus, compareNames)
 		return newJs.Status.ReplicatedJobsStatus, nil
-	}, timeout, interval).Should(gomega.BeComparableTo(expectedStatus))
+	}, timeout, interval).Should(gomega.Equal(expectedStatus))
 }
 
 // 2 replicated jobs:
