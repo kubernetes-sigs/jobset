@@ -57,14 +57,14 @@ func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 
 	// Check for matching Failure Policy Rule
 	rules := js.Spec.FailurePolicy.Rules
-	failurePolicyRule, matchingFailedJob := findFirstFailedPolicyRuleAndJob(ctx, rules, ownedJobs.failed)
+	matchingFailurePolicyRule, matchingFailedJob := findFirstFailedPolicyRuleAndJob(ctx, rules, ownedJobs.failed)
 
 	var failurePolicyRuleAction jobset.FailurePolicyAction
-	if failurePolicyRule == nil {
+	if matchingFailurePolicyRule == nil {
 		failurePolicyRuleAction = defaultFailurePolicyRuleAction
 		matchingFailedJob = findFirstFailedJob(ownedJobs.failed)
 	} else {
-		failurePolicyRuleAction = failurePolicyRule.Action
+		failurePolicyRuleAction = matchingFailurePolicyRule.Action
 	}
 
 	if err := applyFailurePolicyRuleAction(ctx, js, matchingFailedJob, updateStatusOpts, failurePolicyRuleAction); err != nil {
