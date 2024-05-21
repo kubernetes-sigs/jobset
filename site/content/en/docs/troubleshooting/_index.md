@@ -60,10 +60,11 @@ Look at the JobSet controller logs and you'll probably see an error like this:
 
 **Solution**: If you're using JobSet version less than v0.2.3, uninstall and re-install using a versoin >= v0.2.3 (see the JobSet [installation guide](https://jobset.sigs.k8s.io/docs/installation/) for the commands to do this). If you're using a Kueue version less than v0.4.1, uninstall and re-install using a v0.4.1 (see the Kueue [installation guide](https://kueue.sigs.k8s.io/docs/installation/) for the commands to do this).
 
-## 4. Using a headless service of JobSet to enable communication between different Pods
+## 4. Troubleshooting network communication between different Pods
 
-**Solution**: First, we can deploy the example by running `kubectl apply -f jobset-network.yaml` [example](../../../../../site/static/examples/simple/jobset-with-network.yaml) and then check if the pods and services of the JobSet are running correctly. We can use the exec command to enter the container. By checking the /etc/hosts file within the container, we can observe the presence of a domain name, such as network-jobset-leader-0-0.example.default.svc.cluster.local. This domain name allows other containers to access the current pod. Similarly, we can utilize the domain names of other pods for network communication.
-For instance, we can access the pods with the names network-jobset-workers-0-0-78k9j and network-jobset-workers-0-1-rmw42 respectively.
+**Cause**: The network communication between different Pods might be blocked by the network policy, or caused by unstable cluster environment
+
+**Solution**: You can follow the following debugging steps to troubleshoot. First, you can deploy the example by running `kubectl apply -f jobset-network.yaml` [example](../../../../../site/static/examples/simple/jobset-with-network.yaml) and then check if the pods and services of the JobSet are running correctly. Also, you can use the exec command to enter the container. By checking the /etc/hosts file within the container, you can observe the presence of a domain name, such as network-jobset-leader-0-0.example.default.svc.cluster.local. This domain name allows other containers to access the current pod. Similarly, you can also utilize the domain names of other pods for network communication.
 ```bash
 root@VM-0-4-ubuntu:/home/ubuntu# vi jobset-network.yaml
 root@VM-0-4-ubuntu:/home/ubuntu# kubectl apply -f jobset-network.yaml

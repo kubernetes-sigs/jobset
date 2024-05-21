@@ -31,7 +31,9 @@ spec:
                     - bash
                     - -xc
                     - |
-                      sleep 3600
+                      ping network-jobset-workers-0-.example.default.svc.cluster.local
+                      echo "leader is up"
+                      while true; do sleep 3600; done
     - name: workers
       replicas: 1
       template:
