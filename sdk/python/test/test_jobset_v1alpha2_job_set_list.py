@@ -46,7 +46,18 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                         metadata = None, 
                         spec = jobset.models.jobset_v1alpha2_job_set_spec.JobsetV1alpha2JobSetSpec(
                             failure_policy = jobset.models.jobset_v1alpha2_failure_policy.JobsetV1alpha2FailurePolicy(
-                                max_restarts = 56, ), 
+                                max_restarts = 56, 
+                                rules = [
+                                    jobset.models.jobset_v1alpha2_failure_policy_rule.JobsetV1alpha2FailurePolicyRule(
+                                        action = '0', 
+                                        name = '0', 
+                                        on_job_failure_reasons = [
+                                            '0'
+                                            ], 
+                                        target_replicated_jobs = [
+                                            '0'
+                                            ], )
+                                    ], ), 
                             managed_by = '0', 
                             network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
                                 enable_dns_hostnames = True, 
@@ -61,10 +72,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                             startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
                                 startup_policy_order = '0', ), 
                             success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
-                                operator = '0', 
-                                target_replicated_jobs = [
-                                    '0'
-                                    ], ), 
+                                operator = '0', ), 
                             suspend = True, 
                             ttl_seconds_after_finished = 56, ), 
                         status = jobset.models.jobset_v1alpha2_job_set_status.JobsetV1alpha2JobSetStatus(
@@ -80,7 +88,8 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     succeeded = 56, 
                                     suspended = 56, )
                                 ], 
-                            restarts = 56, ), )
+                            restarts = 56, 
+                            restarts_count_towards_max = 56, ), )
                     ], 
                 kind = '0', 
                 metadata = None
@@ -94,7 +103,18 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                         metadata = None, 
                         spec = jobset.models.jobset_v1alpha2_job_set_spec.JobsetV1alpha2JobSetSpec(
                             failure_policy = jobset.models.jobset_v1alpha2_failure_policy.JobsetV1alpha2FailurePolicy(
-                                max_restarts = 56, ), 
+                                max_restarts = 56, 
+                                rules = [
+                                    jobset.models.jobset_v1alpha2_failure_policy_rule.JobsetV1alpha2FailurePolicyRule(
+                                        action = '0', 
+                                        name = '0', 
+                                        on_job_failure_reasons = [
+                                            '0'
+                                            ], 
+                                        target_replicated_jobs = [
+                                            '0'
+                                            ], )
+                                    ], ), 
                             managed_by = '0', 
                             network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
                                 enable_dns_hostnames = True, 
@@ -109,10 +129,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                             startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
                                 startup_policy_order = '0', ), 
                             success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
-                                operator = '0', 
-                                target_replicated_jobs = [
-                                    '0'
-                                    ], ), 
+                                operator = '0', ), 
                             suspend = True, 
                             ttl_seconds_after_finished = 56, ), 
                         status = jobset.models.jobset_v1alpha2_job_set_status.JobsetV1alpha2JobSetStatus(
@@ -128,7 +145,8 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     succeeded = 56, 
                                     suspended = 56, )
                                 ], 
-                            restarts = 56, ), )
+                            restarts = 56, 
+                            restarts_count_towards_max = 56, ), )
                     ],
         )
 

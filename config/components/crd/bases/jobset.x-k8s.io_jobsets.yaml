@@ -68,6 +68,54 @@ spec:
                       A restart is achieved by recreating all active child jobs.
                     format: int32
                     type: integer
+                  rules:
+                    description: |-
+                      List of failure policy rules for this JobSet.
+                      For a given Job failure, the rules will be evaluated in order,
+                      and only the first matching rule will be executed.
+                      If no matching rule is found, the RestartJobSet action is applied.
+                    items:
+                      description: |-
+                        FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
+                        fails due to a reason listed in OnJobFailureReasons.
+                      properties:
+                        action:
+                          description: The action to take if the rule is matched.
+                          enum:
+                          - FailJobSet
+                          - RestartJobSet
+                          - RestartJobSetAndIgnoreMaxRestarts
+                          type: string
+                        name:
+                          description: |-
+                            The name of the failure policy rule.
+                            The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
+                            The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
+                          type: string
+                        onJobFailureReasons:
+                          description: |-
+                            The requirement on the job failure reasons. The requirement
+                            is satisfied if at least one reason matches the list.
+                            The rules are evaluated in order, and the first matching
+                            rule is executed.
+                            An empty list applies the rule to any job failure reason.
+                          items:
+                            type: string
+                          type: array
+                        targetReplicatedJobs:
+                          description: |-
+                            TargetReplicatedJobs are the names of the replicated jobs the operator applies to.
+                            An empty list will apply to all replicatedJobs.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - action
+                      - name
+                      - onJobFailureReasons
+                      type: object
+                    type: array
                 type: object
                 x-kubernetes-validations:
                 - message: Value is immutable
@@ -8491,6 +8539,12 @@ spec:
               restarts:
                 description: Restarts tracks the number of times the JobSet has restarted
                   (i.e. recreated in case of RecreateAll policy).
+                format: int32
+                type: integer
+              restartsCountTowardsMax:
+                description: RestartsCountTowardsMax tracks the number of times the
+                  JobSet has restarted that counts towards the maximum allowed number
+                  of restarts.
                 format: int32
                 type: integer
             type: object

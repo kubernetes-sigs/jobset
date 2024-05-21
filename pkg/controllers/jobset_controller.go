@@ -75,9 +75,13 @@ type statusUpdateOpts struct {
 
 // eventParams contains parameters used for emitting a Kubernetes event.
 type eventParams struct {
-	object       runtime.Object
-	eventType    string
-	eventReason  string
+	// object is the object that caused the event or is for some other reason associated with the event.
+	object runtime.Object
+	// eventType is a machine interpretable CamelCase string like "PanicTypeFooBar" describing the type of event.
+	eventType string
+	// eventReason is a machine interpretable CamelCase string like "FailureReasonFooBar" describing the reason for the event.
+	eventReason string
+	// eventMessage is a human interpretable sentence with details about the event.
 	eventMessage string
 }
 
@@ -172,7 +176,10 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 
 	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
-		executeFailurePolicy(ctx, js, ownedJobs, updateStatusOpts)
+		if err := executeFailurePolicy(ctx, js, ownedJobs, updateStatusOpts); err != nil {
+			log.Error(err, "executing failure policy")
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -608,46 +615,6 @@ func executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 	return false
 }
 
-func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) {
-	// If no failure policy is defined, mark the JobSet as failed.
-	if js.Spec.FailurePolicy == nil {
-		// firstFailedJob is only computed if necessary since it is expensive to compute
-		// for JobSets with many child jobs. This is why we don't unconditionally compute
-		// it once at the beginning of the function and share the results between the different
-		// possible code paths here.
-		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		setJobSetFailedCondition(ctx, js, constants.FailedJobsReason, messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name), updateStatusOpts)
-		return
-	}
-
-	// If JobSet has reached max restarts, fail the JobSet.
-	if js.Status.Restarts >= js.Spec.FailurePolicy.MaxRestarts {
-		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
-		setJobSetFailedCondition(ctx, js, constants.ReachedMaxRestartsReason, messageWithFirstFailedJob(constants.ReachedMaxRestartsMessage, firstFailedJob.Name), updateStatusOpts)
-		return
-	}
-
-	// To reach this point a job must have failed.
-	failurePolicyRecreateAll(ctx, js, updateStatusOpts)
-}
-
-func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
-	log := ctrl.LoggerFrom(ctx)
-
-	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
-	// of old jobs not part of the current jobSet run.
-	js.Status.Restarts += 1
-	updateStatusOpts.shouldUpdate = true
-
-	// Emit event for each JobSet restarts for observability and debugability.
-	enqueueEvent(updateStatusOpts, &eventParams{
-		object:      js,
-		eventType:   corev1.EventTypeWarning,
-		eventReason: fmt.Sprintf("restarting jobset, attempt %d", js.Status.Restarts),
-	})
-	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
-}
-
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
 	var jobs []*batchv1.Job
 	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
@@ -859,45 +826,6 @@ func findReplicatedJobStatus(replicatedJobStatus []jobset.ReplicatedJobStatus, r
 	return jobset.ReplicatedJobStatus{}
 }
 
-// messageWithFirstFailedJob appends the first failed job to the original event message in human readable way.
-func messageWithFirstFailedJob(msg, firstFailedJobName string) string {
-	return fmt.Sprintf("%s (first failed job: %s)", msg, firstFailedJobName)
-}
-
-// findFirstFailedJob accepts a slice of failed Jobs and returns the Job which has a JobFailed condition
-// with the oldest transition time.
-func findFirstFailedJob(failedJobs []*batchv1.Job) *batchv1.Job {
-	var (
-		firstFailedJob   *batchv1.Job
-		firstFailureTime *metav1.Time
-	)
-	for _, job := range failedJobs {
-		failureTime := findJobFailureTime(job)
-		// If job has actually failed and it is the first (or only) failure we've seen,
-		// store the job for output.
-		if failureTime != nil && (firstFailedJob == nil || failureTime.Before(firstFailureTime)) {
-			firstFailedJob = job
-			firstFailureTime = failureTime
-		}
-	}
-	return firstFailedJob
-}
-
-// findJobFailureTime is a helper function which extracts the Job failure time from a Job,
-// if the JobFailed condition exists and is true.
-func findJobFailureTime(job *batchv1.Job) *metav1.Time {
-	if job == nil {
-		return nil
-	}
-	for _, c := range job.Status.Conditions {
-		// If this Job failed before the oldest known Job failiure, update the first failed job.
-		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
-			return &c.LastTransitionTime
-		}
-	}
-	return nil
-}
-
 // managedByExternalController returns a pointer to the name of the external controller managing
 // the JobSet, if one exists. Otherwise, it returns nil.
 func managedByExternalController(js *jobset.JobSet) *string {
@@ -927,18 +855,23 @@ func setCondition(js *jobset.JobSet, condOpts *conditionOpts, updateStatusOpts *
 		return
 	}
 
+	if updateStatusOpts == nil {
+		updateStatusOpts = &statusUpdateOpts{}
+	}
+
 	// If we made some changes to the status conditions, configure updateStatusOpts
 	// to persist the status update at the end of the reconciliation attempt.
 	updateStatusOpts.shouldUpdate = true
 
 	// Conditionally emit an event for each JobSet condition update if and only if
 	// the status update call is successful.
-	enqueueEvent(updateStatusOpts, &eventParams{
+	event := &eventParams{
 		object:       js,
 		eventType:    condOpts.eventType,
 		eventReason:  condOpts.condition.Reason,
 		eventMessage: condOpts.condition.Message,
-	})
+	}
+	enqueueEvent(updateStatusOpts, event)
 }
 
 // updateCondition accepts a given condition and does one of the following:
@@ -993,11 +926,6 @@ func setJobSetCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpda
 	setCondition(js, makeCompletedConditionsOpts(), updateStatusOpts)
 }
 
-// setJobSetFailedCondition sets a condition on the JobSet status indicating it has failed.
-func setJobSetFailedCondition(ctx context.Context, js *jobset.JobSet, reason, msg string, updateStatusOpts *statusUpdateOpts) {
-	setCondition(js, makeFailedConditionOpts(reason, msg), updateStatusOpts)
-}
-
 // setJobSetSuspendedCondition sets a condition on the JobSet status indicating it is currently suspended.
 func setJobSetSuspendedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeSuspendedConditionOpts(), updateStatusOpts)
@@ -1019,19 +947,6 @@ func makeCompletedConditionsOpts() *conditionOpts {
 			Reason:  constants.AllJobsCompletedReason,
 			Message: constants.AllJobsCompletedMessage,
 		},
-	}
-}
-
-// makeFailedConditionOpts returns the options we use to generate the JobSet failed condition.
-func makeFailedConditionOpts(reason, msg string) *conditionOpts {
-	return &conditionOpts{
-		condition: &metav1.Condition{
-			Type:    string(jobset.JobSetFailed),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
-			Reason:  reason,
-			Message: msg,
-		},
-		eventType: corev1.EventTypeWarning,
 	}
 }
 

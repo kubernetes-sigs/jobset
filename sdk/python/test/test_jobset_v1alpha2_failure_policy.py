@@ -38,7 +38,18 @@ class TestJobsetV1alpha2FailurePolicy(unittest.TestCase):
         # model = jobset.models.jobset_v1alpha2_failure_policy.JobsetV1alpha2FailurePolicy()  # noqa: E501
         if include_optional :
             return JobsetV1alpha2FailurePolicy(
-                max_restarts = 56
+                max_restarts = 56, 
+                rules = [
+                    jobset.models.jobset_v1alpha2_failure_policy_rule.JobsetV1alpha2FailurePolicyRule(
+                        action = '0', 
+                        name = '0', 
+                        on_job_failure_reasons = [
+                            '0'
+                            ], 
+                        target_replicated_jobs = [
+                            '0'
+                            ], )
+                    ]
             )
         else :
             return JobsetV1alpha2FailurePolicy(

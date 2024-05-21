@@ -35,15 +35,18 @@ var TestPodTemplate = corev1.PodTemplateSpec{
 	},
 }
 
+type jobSetDefaultingTestCase struct {
+	name string
+	js   *jobset.JobSet
+	want *jobset.JobSet
+}
+
 func TestJobSetDefaulting(t *testing.T) {
 	defaultSuccessPolicy := &jobset.SuccessPolicy{Operator: jobset.OperatorAll}
 	defaultStartupPolicy := &jobset.StartupPolicy{StartupPolicyOrder: jobset.AnyOrder}
 	defaultNetwork := &jobset.Network{EnableDNSHostnames: ptr.To(true), PublishNotReadyAddresses: ptr.To(true)}
-	testCases := []struct {
-		name string
-		js   *jobset.JobSet
-		want *jobset.JobSet
-	}{
+
+	jobCompletionTests := []jobSetDefaultingTestCase{
 		{
 			name: "job completion mode is unset",
 			js: &jobset.JobSet{
@@ -120,6 +123,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	enablingDNSHostnameTests := []jobSetDefaultingTestCase{
 		{
 			name: "enableDNSHostnames is unset",
 			js: &jobset.JobSet{
@@ -197,6 +203,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	publishNotReadyNetworkAddresessTests := []jobSetDefaultingTestCase{
 		{
 			name: "PublishNotReadyNetworkAddresess is false",
 			js: &jobset.JobSet{
@@ -275,6 +284,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	podRestartTests := []jobSetDefaultingTestCase{
 		{
 			name: "pod restart policy unset",
 			js: &jobset.JobSet{
@@ -367,6 +379,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	successPolicyTests := []jobSetDefaultingTestCase{
 		{
 			name: "success policy unset",
 			js: &jobset.JobSet{
@@ -464,6 +479,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	startupPolicyTests := []jobSetDefaultingTestCase{
 		{
 			name: "startup policy order InOrder set",
 			js: &jobset.JobSet{
@@ -519,6 +537,9 @@ func TestJobSetDefaulting(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	managedByTests := []jobSetDefaultingTestCase{
 		{
 			name: "managedBy field is left nil",
 			js: &jobset.JobSet{
@@ -594,6 +615,118 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 		},
 	}
+
+	failurePolicyRuleNameTests := []jobSetDefaultingTestCase{
+		{
+			name: "failure policy rule name is defaulted when: there is one rule and it does not have a name",
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: make([]jobset.FailurePolicyRule, 1),
+					},
+				},
+			},
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "failurePolicyRule0"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "failure policy rule name is defaulted when: there are two rules, the first rule has a name, the second rule does not have a name",
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "ruleWithAName"},
+							{},
+						},
+					},
+				},
+			},
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "ruleWithAName"},
+							{Name: "failurePolicyRule1"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	testGroups := [][]jobSetDefaultingTestCase{
+		jobCompletionTests,
+		enablingDNSHostnameTests,
+		publishNotReadyNetworkAddresessTests,
+		podRestartTests,
+		successPolicyTests,
+		startupPolicyTests,
+		startupPolicyTests,
+		managedByTests,
+		failurePolicyRuleNameTests,
+	}
+	var testCases []jobSetDefaultingTestCase
+	for _, testGroup := range testGroups {
+		testCases = append(testCases, testGroup...)
+	}
+
 	fakeClient := fake.NewFakeClient()
 	webhook, err := NewJobSetWebhook(fakeClient)
 	if err != nil {
@@ -612,6 +745,18 @@ func TestJobSetDefaulting(t *testing.T) {
 	}
 }
 
+type validationTestCase struct {
+	name string
+	js   *jobset.JobSet
+	want error
+}
+
+// TestValidateCreate tests the ValidateCreate method of the jobset webhook.
+// Each test case specifies a list of expected errors.
+// For each test case, the function TestValidateCreate checks that each
+// expected error is present in the list of errors returned by
+// ValidateCreate. It is okay if ValidateCreate returns errors
+// beyond the expected errors.
 func TestValidateCreate(t *testing.T) {
 	managedByFieldPath := field.NewPath("spec", "managedBy")
 
@@ -640,11 +785,7 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
-	testCases := []struct {
-		name string
-		js   *jobset.JobSet
-		want error
-	}{
+	uncategorizedTests := []validationTestCase{
 		{
 			name: "number of pods exceeds the limit",
 			js: &jobset.JobSet{
@@ -870,6 +1011,9 @@ func TestValidateCreate(t *testing.T) {
 				fmt.Errorf(podNameTooLongErrorMsg),
 			),
 		},
+	}
+
+	jobsetControllerNameTests := []validationTestCase{
 		{
 			name: "jobset controller name is not a domain-prefixed path",
 			js: &jobset.JobSet{
@@ -970,6 +1114,265 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(),
 		},
 	}
+
+	failurePolicyTests := []validationTestCase{
+		{
+			name: "failure policy rule name is valid",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "superAwesomeFailurePolicyRule"},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "jobset failure policy has an invalid on job failure reason",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					FailurePolicy: &jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{"fakeReason"},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid job failure reason '%s' in failure policy is not a recognized job failure reason", "fakeReason"),
+			),
+		},
+		{
+			name: "jobset failure policy has an invalid replicated job",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					FailurePolicy: &jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:               jobset.FailJobSet,
+								TargetReplicatedJobs: []string{"fakeReplicatedJob"},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid replicatedJob name '%s' in failure policy does not appear in .spec.ReplicatedJobs", "fakeReplicatedJob"),
+			),
+		},
+		{
+			name: "jobset failure policy rule name is 0 characters long a.k.a unset",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: make([]jobset.FailurePolicyRule, 1),
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid failure policy rule name of length %v, the rule name must be at least %v characters long and at most %v characters long", 0, minRuleNameLength, maxRuleNameLength),
+			),
+		},
+		{
+			name: "jobset failure policy rule name is greater than 128 characters long",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: strings.Repeat("a", 129)},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid failure policy rule name of length %v, the rule name must be at least %v characters long and at most %v characters long", 129, minRuleNameLength, maxRuleNameLength),
+			),
+		},
+		{
+			name: "there are two failure policy rules with the same name",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "repeatedRuleName"},
+							{Name: "repeatedRuleName"},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("rule names are not unique, rules with indices %v all have the same name '%v'", []int{0, 1}, "repeatedRuleName"),
+			),
+		},
+		{
+			name: "failure policy rule name does not start with an alphabetic character",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "1ruleToRuleThemAll"},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid failure policy rule name '%v', a failure policy rule name must start with an alphabetic character, optionally followed by a string of alphanumeric characters or '_,:', and must end with an alphanumeric character or '_'", "1ruleToRuleThemAll"),
+			),
+		},
+		{
+			name: "failure policy rule name does not end with an alphanumeric nor '_'",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rj",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{Name: "ruleToRuleThemAll,"},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid failure policy rule name '%v', a failure policy rule name must start with an alphabetic character, optionally followed by a string of alphanumeric characters or '_,:', and must end with an alphanumeric character or '_'", "ruleToRuleThemAll,"),
+			),
+		},
+	}
+
+	testGroups := [][]validationTestCase{
+		uncategorizedTests,
+		jobsetControllerNameTests,
+		failurePolicyTests,
+	}
+	var testCases []validationTestCase
+	for _, testGroup := range testGroups {
+		testCases = append(testCases, testGroup...)
+	}
+
 	fakeClient := fake.NewFakeClient()
 	webhook, err := NewJobSetWebhook(fakeClient)
 	if err != nil {

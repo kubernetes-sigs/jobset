@@ -35,16 +35,18 @@ class JobsetV1alpha2JobSetStatus(object):
     openapi_types = {
         'conditions': 'list[V1Condition]',
         'replicated_jobs_status': 'list[JobsetV1alpha2ReplicatedJobStatus]',
-        'restarts': 'int'
+        'restarts': 'int',
+        'restarts_count_towards_max': 'int'
     }
 
     attribute_map = {
         'conditions': 'conditions',
         'replicated_jobs_status': 'replicatedJobsStatus',
-        'restarts': 'restarts'
+        'restarts': 'restarts',
+        'restarts_count_towards_max': 'restartsCountTowardsMax'
     }
 
-    def __init__(self, conditions=None, replicated_jobs_status=None, restarts=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, conditions=None, replicated_jobs_status=None, restarts=None, restarts_count_towards_max=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2JobSetStatus - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
@@ -53,6 +55,7 @@ class JobsetV1alpha2JobSetStatus(object):
         self._conditions = None
         self._replicated_jobs_status = None
         self._restarts = None
+        self._restarts_count_towards_max = None
         self.discriminator = None
 
         if conditions is not None:
@@ -61,6 +64,8 @@ class JobsetV1alpha2JobSetStatus(object):
             self.replicated_jobs_status = replicated_jobs_status
         if restarts is not None:
             self.restarts = restarts
+        if restarts_count_towards_max is not None:
+            self.restarts_count_towards_max = restarts_count_towards_max
 
     @property
     def conditions(self):
@@ -128,6 +133,29 @@ class JobsetV1alpha2JobSetStatus(object):
         """
 
         self._restarts = restarts
+
+    @property
+    def restarts_count_towards_max(self):
+        """Gets the restarts_count_towards_max of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+
+        RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.  # noqa: E501
+
+        :return: The restarts_count_towards_max of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+        :rtype: int
+        """
+        return self._restarts_count_towards_max
+
+    @restarts_count_towards_max.setter
+    def restarts_count_towards_max(self, restarts_count_towards_max):
+        """Sets the restarts_count_towards_max of this JobsetV1alpha2JobSetStatus.
+
+        RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.  # noqa: E501
+
+        :param restarts_count_towards_max: The restarts_count_towards_max of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+        :type: int
+        """
+
+        self._restarts_count_towards_max = restarts_count_towards_max
 
     def to_dict(self):
         """Returns the model properties as a dict"""

@@ -33,7 +33,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1107,69 +1106,52 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 	}
 }
 
-func TestFindFirstFailedJob(t *testing.T) {
-	testCases := []struct {
-		name       string
-		failedJobs []*batchv1.Job
-		expected   *batchv1.Job
-	}{
-		{
-			name:       "No failed jobs",
-			failedJobs: []*batchv1.Job{},
-			expected:   nil,
-		},
-		{
-			name: "Single failed job",
-			failedJobs: []*batchv1.Job{
-				jobWithFailedCondition("job1", time.Now().Add(-1*time.Hour)),
-			},
-			expected: jobWithFailedCondition("job1", time.Now().Add(-1*time.Hour)),
-		},
-		{
-			name: "Multiple failed jobs, earliest first",
-			failedJobs: []*batchv1.Job{
-				jobWithFailedCondition("job1", time.Now().Add(-3*time.Hour)),
-				jobWithFailedCondition("job2", time.Now().Add(-5*time.Hour)),
-			},
-			expected: jobWithFailedCondition("job2", time.Now().Add(-5*time.Hour)),
-		},
-		{
-			name: "Jobs without failed condition",
-			failedJobs: []*batchv1.Job{
-				{ObjectMeta: metav1.ObjectMeta{Name: "job1"}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "job2"}},
-			},
-			expected: nil,
-		},
+// Helper function to create a job object with a failed condition
+func jobWithFailedCondition(name string, failureTime time.Time) *batchv1.Job {
+	return jobWithFailedConditionAndOpts(name, failureTime, nil)
+}
+
+type failJobOptions struct {
+	reason                  *string
+	parentReplicatedJobName *string
+}
+
+func parseFailJobOpts(opts *failJobOptions) (reason string, labels map[string]string) {
+	if opts == nil {
+		return "", nil
 	}
 
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			result := findFirstFailedJob(tc.failedJobs)
-			if result != nil && tc.expected != nil {
-				assert.Equal(t, result.Name, tc.expected.Name)
-			} else if result != nil && tc.expected == nil || result == nil && tc.expected != nil {
-				t.Errorf("Expected: %v, got: %v)", result, tc.expected)
-			}
-		})
+	if opts.parentReplicatedJobName != nil {
+		labels = make(map[string]string)
+		labels[jobset.ReplicatedJobNameKey] = *opts.parentReplicatedJobName
 	}
+
+	if opts.reason != nil {
+		reason = *opts.reason
+	}
+
+	return reason, labels
 }
 
 // Helper function to create a job object with a failed condition
-func jobWithFailedCondition(name string, failureTime time.Time) *batchv1.Job {
-	return &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+func jobWithFailedConditionAndOpts(name string, failureTime time.Time, opts *failJobOptions) *batchv1.Job {
+	reason, labels := parseFailJobOpts(opts)
+
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels},
 		Status: batchv1.JobStatus{
 			Conditions: []batchv1.JobCondition{
 				{
 					Type:               batchv1.JobFailed,
 					Status:             corev1.ConditionTrue,
 					LastTransitionTime: metav1.NewTime(failureTime),
+					Reason:             reason,
 				},
 			},
 		},
 	}
+
+	return job
 }
 
 type makeJobArgs struct {
