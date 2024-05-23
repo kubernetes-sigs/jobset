@@ -55,7 +55,7 @@ Take a look at the [concepts](https://jobset.sigs.k8s.io/docs/concepts/) page fo
 To install the latest release of JobSet in your cluster, run the following command:
 
 ```shell
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.5.0/manifests.yaml
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.5.1/manifests.yaml
 ```
 
 The controller runs in the `jobset-system` namespace.
