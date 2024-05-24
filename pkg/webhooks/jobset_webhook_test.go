@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -1475,8 +1476,72 @@ func TestValidateUpdate(t *testing.T) {
 			}.ToAggregate(),
 		},
 		{
-			name: "replicated jobs are immutable",
+			name: "replicated job pod template can be updated for suspended jobset",
 			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								// Adding an annotation.
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										ObjectMeta: metav1.ObjectMeta{
+											Annotations: map[string]string{"key": "value"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "replicated job pod template cannot be updated for running jobset",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								// Adding an annotation.
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										ObjectMeta: metav1.ObjectMeta{
+											Annotations: map[string]string{"key": "value"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
 					ReplicatedJobs: []jobset.ReplicatedJob{
@@ -1489,12 +1554,25 @@ func TestValidateUpdate(t *testing.T) {
 								},
 							},
 						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+		},
+		{
+			name: "replicated job name cannot be updated",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
-							Name:     "test-jobset-replicated-job-1",
-							Replicas: 1,
+							Name:     "new-replicated-job-name",
+							Replicas: 2,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](1),
+									Parallelism: ptr.To[int32](2),
 								},
 							},
 						},
@@ -1504,31 +1582,22 @@ func TestValidateUpdate(t *testing.T) {
 			oldJs: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
-					Suspend:        ptr.To(true),
-					ReplicatedJobs: validReplicatedJobs,
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+					},
 				},
 			},
 			want: field.ErrorList{
-				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), []jobset.ReplicatedJob{
-					{
-						Name:     "test-jobset-replicated-job-0",
-						Replicas: 2,
-						Template: batchv1.JobTemplateSpec{
-							Spec: batchv1.JobSpec{
-								Parallelism: ptr.To[int32](2),
-							},
-						},
-					},
-					{
-						Name:     "test-jobset-replicated-job-1",
-						Replicas: 1,
-						Template: batchv1.JobTemplateSpec{
-							Spec: batchv1.JobSpec{
-								Parallelism: ptr.To[int32](1),
-							},
-						},
-					},
-				}, "field is immutable"),
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
 			}.ToAggregate(),
 		},
 	}
@@ -1541,7 +1610,8 @@ func TestValidateUpdate(t *testing.T) {
 			newObj := tc.js.DeepCopyObject()
 			oldObj := tc.oldJs.DeepCopyObject()
 			_, err = webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
-			if diff := cmp.Diff(tc.want, err); diff != "" {
+			// Ignore bad value to keep test cases short and readable.
+			if diff := cmp.Diff(tc.want, err, cmpopts.IgnoreFields(field.Error{}, "BadValue")); diff != "" {
 				t.Errorf("ValidateResources() mismatch (-want +got):\n%s", diff)
 			}
 		})

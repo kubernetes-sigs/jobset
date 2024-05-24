@@ -308,11 +308,19 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.
 		return nil, fmt.Errorf("expected a JobSet from old object but got a %T", old)
 	}
 	mungedSpec := js.Spec.DeepCopy()
+
+	// Allow pod template to be mutated for suspended JobSets.
+	// This is needed for integration with Kueue/DWS.
 	if ptr.Deref(oldJS.Spec.Suspend, false) {
 		for index := range js.Spec.ReplicatedJobs {
+			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
 			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
 		}
 	}
+
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
 	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
