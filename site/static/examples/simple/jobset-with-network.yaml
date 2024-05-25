@@ -31,9 +31,7 @@ spec:
                     - bash
                     - -xc
                     - |
-                      ping network-jobset-workers-0-.example.default.svc.cluster.local
-                      echo "leader is up"
-                      while true; do sleep 3600; done
+                      sleep 3600
     - name: workers
       replicas: 1
       template:
@@ -50,4 +48,14 @@ spec:
                     - bash
                     - -xc
                     - |
-                      sleep 3600
+                      sleep 20
+                      success_count=0
+                      for i in {1..2}; do
+                        if ping -c 1 network-jobset-leader-0-0.example.default.svc.cluster.local; then
+                          ((success_count++))
+                        fi
+                      done
+                      if [[ $success_count -eq 2 ]]; then
+                        echo "leader is up"
+                      fi
+                      while true; do sleep 3600; done
