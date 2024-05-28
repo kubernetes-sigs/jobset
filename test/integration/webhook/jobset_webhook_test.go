@@ -73,7 +73,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		updateShouldFail         bool
 	}
 
-	ginkgo.DescribeTable("defaulting on jobset creation",
+	ginkgo.DescribeTable("jobset webhook tests",
 		func(tc *testCase) {
 			ctx := context.Background()
 
@@ -235,26 +235,6 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: true,
 		}),
-		ginkgo.Entry("validate jobSet immutable for fields over than NodeSelector when jobSet is suspended", &testCase{
-			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
-					Suspend(true).
-					EnableDNSHostnames(true).
-					ReplicatedJob(testing.MakeReplicatedJob("rjob").
-						Job(testing.MakeJobTemplate("job", ns.Name).
-							PodSpec(testing.TestPodSpec).
-							CompletionMode(batchv1.IndexedCompletion).Obj()).
-						Obj())
-			},
-			defaultsApplied: func(js *jobset.JobSet) bool {
-				return true
-			},
-			updateJobSet: func(js *jobset.JobSet) {
-				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Hostname = "test"
-				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Subdomain = "test"
-			},
-			updateShouldFail: true,
-		}),
 		ginkgo.Entry("success policy defaults to all", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("success-policy", ns.Name).
@@ -369,6 +349,50 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateJobSet: func(js *jobset.JobSet) {
 				js.Spec.ManagedBy = ptr.To("new-manager")
+			},
+			updateShouldFail: true,
+		}),
+		ginkgo.Entry("updating pod template in suspended jobset is allowed", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("suspended", ns.Name).
+					Suspend(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodTemplateSpec(corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Annotations: map[string]string{"old": "annotation"},
+								},
+								Spec: testing.TestPodSpec,
+							}).Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Annotations["new"] = "annotation"
+			},
+		}),
+		ginkgo.Entry("updating pod template in running jobset is not allowed", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("suspended", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodTemplateSpec(corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Annotations: map[string]string{"old": "annotation"},
+								},
+								Spec: testing.TestPodSpec,
+							}).Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Annotations["new"] = "annotation"
 			},
 			updateShouldFail: true,
 		}),

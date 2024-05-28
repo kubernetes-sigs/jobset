@@ -236,7 +236,13 @@ func (j *JobTemplateWrapper) CompletionMode(mode batchv1.CompletionMode) *JobTem
 	return j
 }
 
-// PodSpec Containers sets the pod template spec containers.
+// PodTemplateSpec sets the pod template spec in a Job spec.
+func (j *JobTemplateWrapper) PodTemplateSpec(podTemplateSpec corev1.PodTemplateSpec) *JobTemplateWrapper {
+	j.Spec.Template = podTemplateSpec
+	return j
+}
+
+// PodSpec sets the pod spec in a Job template.
 func (j *JobTemplateWrapper) PodSpec(podSpec corev1.PodSpec) *JobTemplateWrapper {
 	j.Spec.Template.Spec = podSpec
 	return j
