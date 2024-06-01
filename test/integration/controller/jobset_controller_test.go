@@ -132,9 +132,16 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		updates           []*update
 	}
 
-	nodeSelectors := map[string]map[string]string{
-		"replicated-job-a": {"node-selector-test-a": "node-selector-test-a"},
-		"replicated-job-b": {"node-selector-test-b": "node-selector-test-b"},
+	var podTemplateUpdates = &updatePodTemplateOpts{
+		labels:       map[string]string{"label": "value"},
+		annotations:  map[string]string{"annotation": "value"},
+		nodeSelector: map[string]string{"node-selector-test-a": "node-selector-test-a"},
+		tolerations: []corev1.Toleration{
+			{
+				Key:      "key",
+				Operator: corev1.TolerationOpExists,
+			},
+		},
 	}
 
 	ginkgo.DescribeTable("jobset is created and its jobs go through a series of updates",
@@ -514,7 +521,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
-						updateJobSetNodeSelectors(js, nodeSelectors)
+						updatePodTemplates(js, podTemplateUpdates)
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						ginkgo.By("Check ReplicatedJobStatus for suspend")
@@ -542,7 +549,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						ginkgo.By("checking jobs have expected node selectors")
-						gomega.Eventually(matchJobsNodeSelectors, timeout, interval).WithArguments(js, nodeSelectors).Should(gomega.Equal(true))
+						gomega.Eventually(checkPodTemplateUpdates, timeout, interval).WithArguments(js, podTemplateUpdates).Should(gomega.Equal(true))
 					},
 					jobUpdateFn:          completeAllJobs,
 					checkJobSetCondition: testutil.JobSetCompleted,
@@ -1464,15 +1471,35 @@ func suspendJobSet(js *jobset.JobSet, suspend bool) {
 	}, timeout, interval).Should(gomega.Succeed())
 }
 
-func updateJobSetNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[string]string) {
+// updatePodTemplateOpts contains pod template values
+// which can be mutated on a ReplicatedJob template
+// while a JobSet is suspended.
+type updatePodTemplateOpts struct {
+	labels       map[string]string
+	annotations  map[string]string
+	nodeSelector map[string]string
+	tolerations  []corev1.Toleration
+}
+
+func updatePodTemplates(js *jobset.JobSet, opts *updatePodTemplateOpts) {
 	gomega.Eventually(func() error {
 		var jsGet jobset.JobSet
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jsGet); err != nil {
 			return err
 		}
 		for index := range jsGet.Spec.ReplicatedJobs {
-			jsGet.Spec.ReplicatedJobs[index].
-				Template.Spec.Template.Spec.NodeSelector = nodeSelectors[jsGet.Spec.ReplicatedJobs[index].Name]
+			podTemplate := &jsGet.Spec.ReplicatedJobs[index].Template.Spec.Template
+			// Update labels.
+			podTemplate.Labels = opts.labels
+
+			// Update annotations.
+			podTemplate.Annotations = opts.annotations
+
+			// Update node selector.
+			podTemplate.Spec.NodeSelector = opts.nodeSelector
+
+			// Update tolerations.
+			podTemplate.Spec.Tolerations = opts.tolerations
 		}
 		return k8sClient.Update(ctx, &jsGet)
 	}, timeout, interval).Should(gomega.Succeed())
@@ -1496,7 +1523,7 @@ func matchJobsSuspendState(js *jobset.JobSet, suspend bool) (bool, error) {
 	return true, nil
 }
 
-func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[string]string) (bool, error) {
+func checkPodTemplateUpdates(js *jobset.JobSet, podTemplateUpdates *updatePodTemplateOpts) (bool, error) {
 	var jobList batchv1.JobList
 	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
 		return false, err
@@ -1504,21 +1531,40 @@ func matchJobsNodeSelectors(js *jobset.JobSet, nodeSelectors map[string]map[stri
 	// Count number of updated jobs
 	jobsUpdated := 0
 	for _, job := range jobList.Items {
-		rjobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
-		if !ok {
-			return false, fmt.Errorf(fmt.Sprintf("%s job missing ReplicatedJobName label", job.Name))
+		// Check label was added.
+		for label, value := range podTemplateUpdates.labels {
+			if job.Spec.Template.Labels[label] != value {
+				return false, fmt.Errorf("%s != %s", job.Spec.Template.Labels[label], value)
+			}
 		}
-		if !apiequality.Semantic.DeepEqual(job.Spec.Template.Spec.NodeSelector, nodeSelectors[rjobName]) {
-			return false, nil
+
+		// Check annotation was added.
+		for annotation, value := range podTemplateUpdates.annotations {
+			if job.Spec.Template.Annotations[annotation] != value {
+				return false, fmt.Errorf("%s != %s", job.Spec.Template.Labels[annotation], value)
+			}
 		}
+
+		// Check nodeSelector was updated.
+		for label, value := range podTemplateUpdates.nodeSelector {
+			if job.Spec.Template.Spec.NodeSelector[label] != value {
+				return false, fmt.Errorf("%s != %s", job.Spec.Template.Spec.NodeSelector[label], value)
+			}
+		}
+
+		// Check tolerations were updated.
+		for _, toleration := range podTemplateUpdates.tolerations {
+			if !collections.Contains(job.Spec.Template.Spec.Tolerations, toleration) {
+				return false, fmt.Errorf("missing toleration %v", toleration)
+			}
+		}
+
 		jobsUpdated++
 	}
 	// Calculate expected number of updated jobs
 	wantJobsUpdated := 0
 	for _, rjob := range js.Spec.ReplicatedJobs {
-		if _, exists := nodeSelectors[rjob.Name]; exists {
-			wantJobsUpdated += int(rjob.Replicas)
-		}
+		wantJobsUpdated += int(rjob.Replicas)
 	}
 	return wantJobsUpdated == jobsUpdated, nil
 }

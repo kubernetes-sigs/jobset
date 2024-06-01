@@ -388,10 +388,10 @@ func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, a
 // resumeJobsIfNecessary iterates through each replicatedJob, resuming any suspended jobs if the JobSet
 // is not suspended.
 func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
-	// Store node selector for each replicatedJob template.
-	nodeAffinities := map[string]map[string]string{}
+	// Store pod template for each replicatedJob.
+	replicatedJobTemplateMap := map[string]corev1.PodTemplateSpec{}
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
-		nodeAffinities[replicatedJob.Name] = replicatedJob.Template.Spec.Template.Spec.NodeSelector
+		replicatedJobTemplateMap[replicatedJob.Name] = replicatedJob.Template.Spec.Template
 	}
 
 	// Map each replicatedJob to a list of its active jobs.
@@ -415,7 +415,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 			if !jobSuspended(job) {
 				continue
 			}
-			if err := r.resumeJob(ctx, job, nodeAffinities); err != nil {
+			if err := r.resumeJob(ctx, job, replicatedJobTemplateMap); err != nil {
 				return err
 			}
 		}
@@ -433,7 +433,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 	return nil
 }
 
-func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, nodeAffinities map[string]map[string]string) error {
+func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, replicatedJobTemplateMap map[string]corev1.PodTemplateSpec) error {
 	log := ctrl.LoggerFrom(ctx)
 	// Kubernetes validates that a job template is immutable
 	// so if the job has started i.e., startTime != nil), we must set it to nil first.
@@ -443,10 +443,33 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, node
 			return err
 		}
 	}
+
+	// Get name of parent replicated job and use it to look up the pod template.
+	replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
+	replicatedJobPodTemplate := replicatedJobTemplateMap[replicatedJobName]
 	if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
-		// When resuming a job, its nodeSelectors should match that of the replicatedJob template
-		// that it was created from, which may have been updated while it was suspended.
-		job.Spec.Template.Spec.NodeSelector = nodeAffinities[job.Labels[jobset.ReplicatedJobNameKey]]
+		// Certain fields on the Job pod template may be mutated while a JobSet is suspended,
+		// for integration with Kueue. Ensure these updates are propagated to the child Jobs
+		// when the JobSet is resumed.
+		// Merge values rather than overwriting them, since a different controller
+		// (e.g., the Job controller) may have added labels/annotations/etc to the
+		// Job that do not exist in the ReplicatedJob pod template.
+		job.Spec.Template.Labels = collections.MergeMaps(
+			job.Spec.Template.Labels,
+			replicatedJobPodTemplate.Labels,
+		)
+		job.Spec.Template.Annotations = collections.MergeMaps(
+			job.Spec.Template.Annotations,
+			replicatedJobPodTemplate.Annotations,
+		)
+		job.Spec.Template.Spec.NodeSelector = collections.MergeMaps(
+			job.Spec.Template.Spec.NodeSelector,
+			replicatedJobPodTemplate.Spec.NodeSelector,
+		)
+		job.Spec.Template.Spec.Tolerations = collections.MergeSlices(
+			job.Spec.Template.Spec.Tolerations,
+			replicatedJobPodTemplate.Spec.Tolerations,
+		)
 	} else {
 		log.Error(nil, "job missing ReplicatedJobName label")
 	}
