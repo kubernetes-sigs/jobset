@@ -358,6 +358,13 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							Format:      "int32",
 						},
 					},
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Phase of the JobSet.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"replicatedJobsStatus": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{

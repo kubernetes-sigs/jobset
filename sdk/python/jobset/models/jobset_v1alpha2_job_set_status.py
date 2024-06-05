@@ -34,6 +34,7 @@ class JobsetV1alpha2JobSetStatus(object):
     """
     openapi_types = {
         'conditions': 'list[V1Condition]',
+        'phase': 'str',
         'replicated_jobs_status': 'list[JobsetV1alpha2ReplicatedJobStatus]',
         'restarts': 'int',
         'restarts_count_towards_max': 'int'
@@ -41,18 +42,20 @@ class JobsetV1alpha2JobSetStatus(object):
 
     attribute_map = {
         'conditions': 'conditions',
+        'phase': 'phase',
         'replicated_jobs_status': 'replicatedJobsStatus',
         'restarts': 'restarts',
         'restarts_count_towards_max': 'restartsCountTowardsMax'
     }
 
-    def __init__(self, conditions=None, replicated_jobs_status=None, restarts=None, restarts_count_towards_max=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, conditions=None, phase=None, replicated_jobs_status=None, restarts=None, restarts_count_towards_max=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2JobSetStatus - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._conditions = None
+        self._phase = None
         self._replicated_jobs_status = None
         self._restarts = None
         self._restarts_count_towards_max = None
@@ -60,6 +63,8 @@ class JobsetV1alpha2JobSetStatus(object):
 
         if conditions is not None:
             self.conditions = conditions
+        if phase is not None:
+            self.phase = phase
         if replicated_jobs_status is not None:
             self.replicated_jobs_status = replicated_jobs_status
         if restarts is not None:
@@ -87,6 +92,29 @@ class JobsetV1alpha2JobSetStatus(object):
         """
 
         self._conditions = conditions
+
+    @property
+    def phase(self):
+        """Gets the phase of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+
+        Phase of the JobSet.  # noqa: E501
+
+        :return: The phase of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+        :rtype: str
+        """
+        return self._phase
+
+    @phase.setter
+    def phase(self, phase):
+        """Sets the phase of this JobsetV1alpha2JobSetStatus.
+
+        Phase of the JobSet.  # noqa: E501
+
+        :param phase: The phase of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+        :type: str
+        """
+
+        self._phase = phase
 
     @property
     def replicated_jobs_status(self):

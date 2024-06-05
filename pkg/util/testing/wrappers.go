@@ -159,6 +159,12 @@ func (j *JobSetWrapper) FailedCondition(failedAt metav1.Time) *JobSetWrapper {
 	return j
 }
 
+// Phase sets the value of JobSet.Status.Phase.
+func (j *JobSetWrapper) Phase(phase string) *JobSetWrapper {
+	j.Status.Phase = phase
+	return j
+}
+
 func (j *JobSetWrapper) DeletionTimestamp(deletionTimestamp *metav1.Time) *JobSetWrapper {
 	j.ObjectMeta.DeletionTimestamp = deletionTimestamp
 	return j

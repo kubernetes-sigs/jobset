@@ -736,7 +736,7 @@ func TestUpdateConditions(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
-					Obj()).
+					Obj()).Phase(string(jobset.JobSetCompleted)).
 				Conditions([]metav1.Condition{
 					// JobSet is completed..
 					{
@@ -752,7 +752,7 @@ func TestUpdateConditions(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gotUpdate := updateCondition(tc.js, tc.opts)
+			gotUpdate := updateConditionAndPhase(tc.js, tc.opts)
 			if gotUpdate != tc.expectedUpdate {
 				t.Errorf("updateCondition return mismatch (want: %v, got %v)", tc.expectedUpdate, gotUpdate)
 			}

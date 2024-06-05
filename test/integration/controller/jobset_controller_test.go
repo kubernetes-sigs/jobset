@@ -1612,6 +1612,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						LastTransitionTime: metav1.Now(),
 					},
 				},
+				Phase:    string(jobset.JobSetRunning),
 				Restarts: 1,
 				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 					{

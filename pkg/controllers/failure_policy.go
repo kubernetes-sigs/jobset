@@ -250,6 +250,7 @@ func makeFailedConditionOpts(reason, msg string) *conditionOpts {
 			Reason:  reason,
 			Message: msg,
 		},
+		phase:     string(jobset.JobSetFailed),
 		eventType: corev1.EventTypeWarning,
 	}
 }

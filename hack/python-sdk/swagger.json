@@ -179,6 +179,10 @@
           ],
           "x-kubernetes-list-type": "map"
         },
+        "phase": {
+          "description": "Phase of the JobSet.",
+          "type": "string"
+        },
         "replicatedJobsStatus": {
           "description": "ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.",
           "type": "array",

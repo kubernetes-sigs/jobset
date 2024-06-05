@@ -41,6 +41,7 @@ class TestJobsetV1alpha2JobSetStatus(unittest.TestCase):
                 conditions = [
                     None
                     ], 
+                phase = '0', 
                 replicated_jobs_status = [
                     jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                         active = 56, 
