@@ -100,10 +100,10 @@ func findFirstFailedPolicyRuleAndJob(ctx context.Context, rules []jobset.Failure
 		}
 
 		if matchedFailedJob != nil {
-			log.V(2).Info("found a failed job matching failure policy rule with index %v and name %v", index, rule.Name)
+			log.V(2).Info(fmt.Sprintf("found a failed job matching failure policy rule with index %v and name %v", index, rule.Name))
 			return &rule, matchedFailedJob
 		}
-		log.V(2).Info("did not find a failed job matching failure policy rule with index %v and name %v", index, rule.Name)
+		log.V(2).Info(fmt.Sprintf("did not find a failed job matching failure policy rule with index %v and name %v", index, rule.Name))
 	}
 
 	log.V(2).Info("never found a matched failure policy rule.")
@@ -142,7 +142,7 @@ func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failed
 	parentReplicatedJob, exists := parentReplicatedJobName(failedJob)
 	if !exists {
 		// If we cannot find the parent ReplicatedJob, we assume the rule does not apply.
-		log.V(2).Info("The failed job %v does not appear to have a parent replicatedJob.", failedJob.Name)
+		log.V(2).Info(fmt.Sprintf("The failed job %v does not appear to have a parent replicatedJob.", failedJob.Name))
 		return false
 	}
 
