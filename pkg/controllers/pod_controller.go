@@ -150,7 +150,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, err
 	}
 	if !valid {
-		log.V(2).Info("deleting follower pods for leader pod: %s", leaderPod.Name)
+		log.V(2).Info(fmt.Sprintf("deleting follower pods for leader pod: %s", leaderPod.Name))
 		return ctrl.Result{}, r.deleteFollowerPods(ctx, podList.Items)
 	}
 	return ctrl.Result{}, nil
