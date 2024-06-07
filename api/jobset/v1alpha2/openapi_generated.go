@@ -132,7 +132,7 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref common.ReferenceCal
 						},
 					},
 				},
-				Required: []string{"name", "action", "onJobFailureReasons"},
+				Required: []string{"name", "action"},
 			},
 		},
 	}

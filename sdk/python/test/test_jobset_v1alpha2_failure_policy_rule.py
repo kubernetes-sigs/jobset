@@ -51,9 +51,6 @@ class TestJobsetV1alpha2FailurePolicyRule(unittest.TestCase):
             return JobsetV1alpha2FailurePolicyRule(
                 action = '0',
                 name = '0',
-                on_job_failure_reasons = [
-                    '0'
-                    ],
         )
 
     def testJobsetV1alpha2FailurePolicyRule(self):
