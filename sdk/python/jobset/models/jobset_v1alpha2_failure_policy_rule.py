@@ -60,7 +60,8 @@ class JobsetV1alpha2FailurePolicyRule(object):
 
         self.action = action
         self.name = name
-        self.on_job_failure_reasons = on_job_failure_reasons
+        if on_job_failure_reasons is not None:
+            self.on_job_failure_reasons = on_job_failure_reasons
         if target_replicated_jobs is not None:
             self.target_replicated_jobs = target_replicated_jobs
 
@@ -134,8 +135,6 @@ class JobsetV1alpha2FailurePolicyRule(object):
         :param on_job_failure_reasons: The on_job_failure_reasons of this JobsetV1alpha2FailurePolicyRule.  # noqa: E501
         :type: list[str]
         """
-        if self.local_vars_configuration.client_side_validation and on_job_failure_reasons is None:  # noqa: E501
-            raise ValueError("Invalid value for `on_job_failure_reasons`, must not be `None`")  # noqa: E501
 
         self._on_job_failure_reasons = on_job_failure_reasons
 

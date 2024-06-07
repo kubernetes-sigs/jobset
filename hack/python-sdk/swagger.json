@@ -30,8 +30,7 @@
       "type": "object",
       "required": [
         "name",
-        "action",
-        "onJobFailureReasons"
+        "action"
       ],
       "properties": {
         "action": {

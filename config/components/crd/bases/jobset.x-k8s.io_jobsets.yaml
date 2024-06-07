@@ -113,7 +113,6 @@ spec:
                       required:
                       - action
                       - name
-                      - onJobFailureReasons
                       type: object
                     type: array
                 type: object
