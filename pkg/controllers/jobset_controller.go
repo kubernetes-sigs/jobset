@@ -898,11 +898,13 @@ func setCondition(js *jobset.JobSet, condOpts *conditionOpts, updateStatusOpts *
 	enqueueEvent(updateStatusOpts, event)
 }
 
-// updateConditionAndPhase accepts a given condition and does one of the following:
+// updateConditionAndPhase accepts a condition and a phase, and does the following:
 //  1. If an identical condition already exists, do nothing and return false (indicating
 //     no change was made).
 //  2. If a condition of the same type exists but with a different status, update
 //     the condition in place and return true (indicating a condition change was made).
+//  3. If the specified phase is different from the current phase of the JobSet,
+//     update the JobSet Status Phase
 func updateConditionAndPhase(js *jobset.JobSet, opts *conditionOpts) bool {
 	if opts == nil || opts.condition == nil {
 		return false
@@ -943,7 +945,7 @@ func updateConditionAndPhase(js *jobset.JobSet, opts *conditionOpts) bool {
 		shouldUpdate = true
 	}
 
-	// Update the JobSet phase if necessary.
+	// Update the JobSet Status Phase if necessary.
 	if opts.phase != "" && js.Status.Phase != opts.phase {
 		js.Status.Phase = opts.phase
 		shouldUpdate = true

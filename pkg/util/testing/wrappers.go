@@ -160,8 +160,8 @@ func (j *JobSetWrapper) FailedCondition(failedAt metav1.Time) *JobSetWrapper {
 }
 
 // Phase sets the value of JobSet.Status.Phase.
-func (j *JobSetWrapper) Phase(phase string) *JobSetWrapper {
-	j.Status.Phase = phase
+func (j *JobSetWrapper) Phase(phase jobset.JobSetConditionType) *JobSetWrapper {
+	j.Status.Phase = string(phase)
 	return j
 }
 
