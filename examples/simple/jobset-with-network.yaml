@@ -51,7 +51,7 @@ spec:
                       sleep 20
                       success_count=0
                       for i in {1..2}; do
-                        if ping -c 1 network-jobset-leader-0-0.example.default.svc.cluster.local; then
+                        if ping -c 1 network-jobset-leader-0-0.example; then
                           ((success_count++))
                         fi
                       done
