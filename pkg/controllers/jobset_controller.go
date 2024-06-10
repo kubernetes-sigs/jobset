@@ -149,7 +149,7 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 
 	// Calculate JobsReady and update statuses for each ReplicatedJob.
 	rjobStatuses := r.calculateReplicatedJobStatuses(ctx, js, ownedJobs)
-	updateReplicatedJobsStatuses(ctx, js, rjobStatuses, updateStatusOpts)
+	updateReplicatedJobsStatuses(js, rjobStatuses, updateStatusOpts)
 
 	// If JobSet is already completed or failed, clean up active child jobs and requeue if TTLSecondsAfterFinished is set.
 	if jobSetFinished(js) {
@@ -185,7 +185,7 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 
 	// If any jobs have succeeded, execute the JobSet success policy.
 	if len(ownedJobs.successful) > 0 {
-		if completed := executeSuccessPolicy(ctx, js, ownedJobs, updateStatusOpts); completed {
+		if completed := executeSuccessPolicy(js, ownedJobs, updateStatusOpts); completed {
 			return ctrl.Result{}, nil
 		}
 	}
@@ -304,7 +304,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 }
 
 // updateReplicatedJobsStatuses updates the replicatedJob statuses if they have changed.
-func updateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, statuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) {
+func updateReplicatedJobsStatuses(js *jobset.JobSet, statuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) {
 	// If replicated job statuses haven't changed, there's nothing to do here.
 	if replicatedJobStatusesEqual(js.Status.ReplicatedJobsStatus, statuses) {
 		return
@@ -630,7 +630,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 // executeSuccessPolicy checks the completed jobs against the jobset success policy
 // and updates the jobset status to completed if the success policy conditions are met.
 // Returns a boolean value indicating if the jobset was completed or not.
-func executeSuccessPolicy(_ context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) bool {
+func executeSuccessPolicy(js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) bool {
 	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
 		setJobSetCompletedCondition(js, updateStatusOpts)
 		return true
