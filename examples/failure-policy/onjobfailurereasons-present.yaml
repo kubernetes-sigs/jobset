@@ -1,7 +1,7 @@
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
-  name: failjobset-action-example
+  name: onjobfailurereasons-present-example
 spec:
   failurePolicy:
     maxRestarts: 3
