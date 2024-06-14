@@ -41,7 +41,7 @@ spec:
               - containerPort: 3389
               env:
               - name: MASTER_ADDR
-                value: "pytorch-workers-0-0.pytorch-workers"
+                value: "pytorch-workers-0-0.pytorch"
               - name: MASTER_PORT
                 value: "3389"
               command:
