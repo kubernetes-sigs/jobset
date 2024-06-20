@@ -358,9 +358,9 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							Format:      "int32",
 						},
 					},
-					"phase": {
+					"terminalState": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Phase of the JobSet.",
+							Description: "TerminalState the state of the JobSet when it finishes execution. It can be either Complete or Failed. Otherwise, it is empty by default.",
 							Type:        []string{"string"},
 							Format:      "",
 						},

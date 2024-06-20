@@ -76,7 +76,6 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                     conditions = [
                         None
                         ], 
-                    phase = '0', 
                     replicated_jobs_status = [
                         jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                             active = 56, 
@@ -87,7 +86,8 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             suspended = 56, )
                         ], 
                     restarts = 56, 
-                    restarts_count_towards_max = 56, )
+                    restarts_count_towards_max = 56, 
+                    terminal_state = '0', )
             )
         else :
             return JobsetV1alpha2JobSet(

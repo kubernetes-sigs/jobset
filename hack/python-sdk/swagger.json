@@ -179,10 +179,6 @@
           ],
           "x-kubernetes-list-type": "map"
         },
-        "phase": {
-          "description": "Phase of the JobSet.",
-          "type": "string"
-        },
         "replicatedJobsStatus": {
           "description": "ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.",
           "type": "array",
@@ -204,6 +200,10 @@
           "description": "RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.",
           "type": "integer",
           "format": "int32"
+        },
+        "terminalState": {
+          "description": "TerminalState the state of the JobSet when it finishes execution. It can be either Complete or Failed. Otherwise, it is empty by default.",
+          "type": "string"
         }
       }
     },
