@@ -15,18 +15,21 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
-	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -59,27 +62,34 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	gomega.Expect(k8sClient).NotTo(gomega.BeNil())
 
-	JobSetReadyForTesting(k8sClient)
+	jobSetReadyForTesting(k8sClient)
 })
 
-func JobSetReadyForTesting(client client.Client) {
+func jobSetReadyForTesting(k8sClient client.Client) {
 	ginkgo.By("waiting for resources to be ready for testing")
-	// To verify that webhooks are ready, let's create a simple jobset.
-	js := testutils.MakeJobSet("js", "default").
-		ReplicatedJob(testutils.MakeReplicatedJob("rjob").
-			Job(testutils.MakeJobTemplate("job", "default").
-				PodSpec(testutils.TestPodSpec).Obj()).
-			Obj()).Obj()
-
-	// Once the creation succeeds, that means the webhooks are ready
-	// and we can begin testing.
-	gomega.Eventually(func() error {
-		return client.Create(context.Background(), js)
+	deploymentKey := types.NamespacedName{Namespace: "jobset-system", Name: "jobset-controller-manager"}
+	deployment := &appsv1.Deployment{}
+	pods := &corev1.PodList{}
+	gomega.Eventually(func(g gomega.Gomega) error {
+		// Get controller-manager deployment.
+		g.Expect(k8sClient.Get(ctx, deploymentKey, deployment)).To(gomega.Succeed())
+		// Get pods matches for controller-manager deployment.
+		g.Expect(k8sClient.List(ctx, pods, client.InNamespace(deploymentKey.Namespace), client.MatchingLabels(deployment.Spec.Selector.MatchLabels))).To(gomega.Succeed())
+		for _, pod := range pods.Items {
+			for _, cs := range pod.Status.ContainerStatuses {
+				// To make sure that we don't have restarts of controller-manager.
+				// If we have that's mean that something went wrong, and there is
+				// no needs to continue trying check availability.
+				if cs.RestartCount > 0 {
+					return gomega.StopTrying(fmt.Sprintf("%q in %q has restarted %d times", cs.Name, pod.Name, cs.RestartCount))
+				}
+			}
+		}
+		// To verify that webhooks are ready, checking is deployment have condition Available=True.
+		g.Expect(deployment.Status.Conditions).To(gomega.ContainElement(gomega.BeComparableTo(
+			appsv1.DeploymentCondition{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue},
+			cmpopts.IgnoreFields(appsv1.DeploymentCondition{}, "Reason", "Message", "LastUpdateTime", "LastTransitionTime")),
+		))
+		return nil
 	}, timeout, interval).Should(gomega.Succeed())
-
-	// Delete this jobset before beginning tests.
-	gomega.Expect(client.Delete(ctx, js))
-	gomega.Eventually(func() error {
-		return client.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{})
-	}).ShouldNot(gomega.Succeed())
 }

@@ -17,7 +17,9 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"flag"
+	"net/http"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -136,7 +138,7 @@ func main() {
 	// Controllers who register after manager starts will start directly.
 	go setupControllers(mgr, certsReady)
 
-	setupHealthzAndReadyzCheck(mgr)
+	setupHealthzAndReadyzCheck(mgr, certsReady)
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctx); err != nil {
@@ -186,14 +188,29 @@ func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
 	//+kubebuilder:scaffold:builder
 }
 
-func setupHealthzAndReadyzCheck(mgr ctrl.Manager) {
+func setupHealthzAndReadyzCheck(mgr ctrl.Manager, certsReady <-chan struct{}) {
 	defer setupLog.Info("both healthz and readyz check are finished and configured")
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+
+	// Wait for the webhook server to be listening before advertising the
+	// Jobset deployment replica as ready. This allows users to wait with sending
+	// the first requests, requiring webhooks, until the Jobset deployment is
+	// available, so that the early requests are not rejected during the Jobset's
+	// startup. We wrap the call to GetWebhookServer in a closure to delay calling
+	// the function, otherwise a not fully-initialized webhook server (without
+	// ready certs) fails the start of the manager.
+	if err := mgr.AddReadyzCheck("readyz", func(req *http.Request) error {
+		select {
+		case <-certsReady:
+			return mgr.GetWebhookServer().StartedChecker()(req)
+		default:
+			return errors.New("certificates are not ready")
+		}
+	}); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
