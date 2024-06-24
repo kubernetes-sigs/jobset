@@ -59,3 +59,47 @@ Look at the JobSet controller logs and you'll probably see an error like this:
 **Cause**: This could be due to a known bug in an older version of JobSet, or a known bug in an older version of Kueue. JobSet and Kueue integration requires JobSet v0.2.3+ and Kueue v0.4.1+.
 
 **Solution**: If you're using JobSet version less than v0.2.3, uninstall and re-install using a versoin >= v0.2.3 (see the JobSet [installation guide](https://jobset.sigs.k8s.io/docs/installation/) for the commands to do this). If you're using a Kueue version less than v0.4.1, uninstall and re-install using a v0.4.1 (see the Kueue [installation guide](https://kueue.sigs.k8s.io/docs/installation/) for the commands to do this).
+
+## 4. Troubleshooting network communication between different Pods
+
+**Cause**: The network communication between different Pods might be blocked by the network policy, or caused by unstable cluster environment
+
+**Solution**: You can follow the following debugging steps to troubleshoot. First, you can deploy the example by running `kubectl apply -f jobset-network.yaml` [example](../../../../../site/static/examples/simple/jobset-with-network.yaml) and then check if the pods and services of the JobSet are running correctly. Also, you can use the exec command to enter the container. By checking the /etc/hosts file within the container, you can observe the presence of a domain name, such as network-jobset-leader-0-0.example This domain name allows other containers to access the current pod. Similarly, you can also utilize the domain names of other pods for network communication.
+```bash
+root@VM-0-4-ubuntu:/home/ubuntu# vi jobset-network.yaml
+root@VM-0-4-ubuntu:/home/ubuntu# kubectl apply -f jobset-network.yaml
+jobset.jobset.x-k8s.io/network-jobset created
+root@VM-0-4-ubuntu:/home/ubuntu# kubectl get pods
+NAME                               READY   STATUS    RESTARTS   AGE   IP          NODE               NOMINATED NODE   READINESS GATES
+network-jobset-leader-0-0-5xnzz    1/1     Running   0          17m   10.6.2.27   cluster1-worker    <none>           <none>
+network-jobset-workers-0-0-78k9j   1/1     Running   0          17m   10.6.1.16   cluster1-worker2   <none>           <none>
+network-jobset-workers-0-1-rmw42   1/1     Running   0          17m   10.6.2.28   cluster1-worker    <none>           <none>
+root@VM-0-4-ubuntu:/home/ubuntu# kubectl get svc
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+example      ClusterIP   None         <none>        <none>    19s
+kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   2d1h
+```
+
+```bash
+root@VM-0-4-ubuntu:/home/ubuntu# kubectl exec -it network-jobset-leader-0-0-5xnzz -- sh
+/ # cat /etc/hosts
+# Kubernetes-managed hosts file.
+127.0.0.1	localhost
+...
+10.6.2.27	network-jobset-leader-0-0.example.default.svc.cluster.local	network-jobset-leader-0-0
+/ # ping network-jobset-workers-0-0.example
+PING network-jobset-workers-0-0.example (10.6.1.16): 56 data bytes
+64 bytes from 10.6.1.16: seq=0 ttl=62 time=0.121 ms
+64 bytes from 10.6.1.16: seq=1 ttl=62 time=0.093 ms
+64 bytes from 10.6.1.16: seq=2 ttl=62 time=0.094 ms
+64 bytes from 10.6.1.16: seq=3 ttl=62 time=0.103 ms
+--- network-jobset-workers-0-0.example ping statistics ---
+4 packets transmitted, 4 packets received, 0% packet loss
+round-trip min/avg/max = 0.093/0.102/0.121 ms
+/ # ping network-jobset-workers-0-1.example
+PING network-jobset-workers-0-1.example (10.6.2.28): 56 data bytes
+64 bytes from 10.6.2.28: seq=0 ttl=63 time=0.068 ms
+64 bytes from 10.6.2.28: seq=1 ttl=63 time=0.072 ms
+64 bytes from 10.6.2.28: seq=2 ttl=63 time=0.079 ms
+--- network-jobset-workers-0-1.example ping statistics ---
+```

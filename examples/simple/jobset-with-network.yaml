@@ -1,0 +1,61 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: network-jobset
+spec:
+  network:
+    # this field allows pods to be reached via their hostnames
+    # hostname: <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>
+    # example: network-jobset-leader-0-0.example
+    enableDNSHostnames: true
+    # subdomain is a field for a network subdomain name
+    # defaults to <jobSet.name> if not set.
+    subdomain: example
+    # this field indicates if DNS records of pods should be published before the pods are ready.
+    # default to true
+    publishNotReadyAddresses: true
+  replicatedJobs:
+    - name: leader
+      replicas: 1
+      template:
+        spec:
+          backoffLimit: 0
+          completions: 1
+          parallelism: 1
+          template:
+            spec:
+              containers:
+                - name: leader
+                  image: bash:latest
+                  command:
+                    - bash
+                    - -xc
+                    - |
+                      sleep 3600
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          backoffLimit: 0
+          completions: 2
+          parallelism: 2
+          template:
+            spec:
+              containers:
+                - name: worker
+                  image: bash:latest
+                  command:
+                    - bash
+                    - -xc
+                    - |
+                      sleep 20
+                      success_count=0
+                      for i in {1..2}; do
+                        if ping -c 1 network-jobset-leader-0-0.example; then
+                          ((success_count++))
+                        fi
+                      done
+                      if [[ $success_count -eq 2 ]]; then
+                        echo "leader is up"
+                      fi
+                      while true; do sleep 3600; done
