@@ -134,6 +134,10 @@ type JobSetStatus struct {
 	// RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 
+	// TerminalState the state of the JobSet when it finishes execution.
+	// It can be either Complete or Failed. Otherwise, it is empty by default.
+	TerminalState string `json:"terminalState,omitempty"`
+
 	// ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.
 	// +optional
 	// +listType=map
@@ -169,6 +173,7 @@ type ReplicatedJobStatus struct {
 // +k8s:openapi-gen=true
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="TerminalState",JSONPath=".status.terminalState",type=string,description="Final state of JobSet"
 // +kubebuilder:printcolumn:name="Restarts",JSONPath=".status.restarts",type=string,description="Number of restarts"
 // +kubebuilder:printcolumn:name="Completed",type="string",priority=0,JSONPath=".status.conditions[?(@.type==\"Completed\")].status"
 // +kubebuilder:printcolumn:name="Suspended",type="string",JSONPath=".spec.suspend",description="JobSet suspended"

@@ -736,7 +736,7 @@ func TestUpdateConditions(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
-					Obj()).
+					Obj()).TerminalState(jobset.JobSetCompleted).
 				Conditions([]metav1.Condition{
 					// JobSet is completed..
 					{

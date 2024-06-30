@@ -51,7 +51,7 @@ func executeFailurePolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 		// possible code paths here.
 		firstFailedJob := findFirstFailedJob(ownedJobs.failed)
 		msg := messageWithFirstFailedJob(constants.FailedJobsMessage, firstFailedJob.Name)
-		setJobSetFailedCondition(ctx, js, constants.FailedJobsReason, msg, updateStatusOpts)
+		setJobSetFailedCondition(js, constants.FailedJobsReason, msg, updateStatusOpts)
 		return nil
 	}
 
@@ -183,7 +183,7 @@ var failJobSetActionApplier failurePolicyActionApplier = func(ctx context.Contex
 	failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
 
 	failureReason := constants.FailJobSetActionReason
-	setJobSetFailedCondition(ctx, js, failureReason, failureMessage, updateStatusOpts)
+	setJobSetFailedCondition(js, failureReason, failureMessage, updateStatusOpts)
 	return nil
 }
 
@@ -194,7 +194,7 @@ var restartJobSetActionApplier failurePolicyActionApplier = func(ctx context.Con
 		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
 
 		failureReason := constants.ReachedMaxRestartsReason
-		setJobSetFailedCondition(ctx, js, failureReason, failureMessage, updateStatusOpts)
+		setJobSetFailedCondition(js, failureReason, failureMessage, updateStatusOpts)
 		return nil
 	}
 
@@ -254,9 +254,10 @@ func makeFailedConditionOpts(reason, msg string) *conditionOpts {
 	}
 }
 
-// setJobSetFailedCondition sets a condition on the JobSet status indicating it has failed.
-func setJobSetFailedCondition(ctx context.Context, js *jobset.JobSet, reason, msg string, updateStatusOpts *statusUpdateOpts) {
+// setJobSetFailedCondition sets a condition and terminal state on the JobSet status indicating it has failed.
+func setJobSetFailedCondition(js *jobset.JobSet, reason, msg string, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeFailedConditionOpts(reason, msg), updateStatusOpts)
+	js.Status.TerminalState = string(jobset.JobSetFailed)
 }
 
 // findJobFailureTimeAndReason is a helper function which extracts the Job failure condition from a Job,

@@ -60,7 +60,9 @@ func JobSetCompleted(ctx context.Context, k8sClient client.Client, js *jobset.Jo
 			Status: metav1.ConditionTrue,
 		},
 	}
+	terminalState := string(jobset.JobSetCompleted)
 	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
+	gomega.Eventually(checkJobSetTerminalState, timeout, interval).WithArguments(ctx, k8sClient, js, terminalState).Should(gomega.Equal(true))
 }
 
 func JobSetFailed(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
@@ -71,7 +73,9 @@ func JobSetFailed(ctx context.Context, k8sClient client.Client, js *jobset.JobSe
 			Status: metav1.ConditionTrue,
 		},
 	}
+	terminalState := string(jobset.JobSetFailed)
 	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
+	gomega.Eventually(checkJobSetTerminalState, timeout, interval).WithArguments(ctx, k8sClient, js, terminalState).Should(gomega.Equal(true))
 }
 
 func JobSetSuspended(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
@@ -142,6 +146,7 @@ func checkJobSetActive(ctx context.Context, k8sClient client.Client, js *jobset.
 	return true, nil
 }
 
+// checkJobSetStatus check if the JobSet status matches the expected conditions.
 func checkJobSetStatus(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, conditions []metav1.Condition) (bool, error) {
 	var fetchedJS jobset.JobSet
 	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
@@ -156,6 +161,15 @@ func checkJobSetStatus(ctx context.Context, k8sClient client.Client, js *jobset.
 		}
 	}
 	return found == len(conditions), nil
+}
+
+// checkJobSetTerminalState check if the JobSet is in the expected terminal state.
+func checkJobSetTerminalState(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, terminalState string) (bool, error) {
+	var fetchedJS jobset.JobSet
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
+		return false, err
+	}
+	return fetchedJS.Status.TerminalState == terminalState, nil
 }
 
 // DeleteNamespace deletes all objects the tests typically create in the namespace.

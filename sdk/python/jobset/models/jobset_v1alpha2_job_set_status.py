@@ -36,17 +36,19 @@ class JobsetV1alpha2JobSetStatus(object):
         'conditions': 'list[V1Condition]',
         'replicated_jobs_status': 'list[JobsetV1alpha2ReplicatedJobStatus]',
         'restarts': 'int',
-        'restarts_count_towards_max': 'int'
+        'restarts_count_towards_max': 'int',
+        'terminal_state': 'str'
     }
 
     attribute_map = {
         'conditions': 'conditions',
         'replicated_jobs_status': 'replicatedJobsStatus',
         'restarts': 'restarts',
-        'restarts_count_towards_max': 'restartsCountTowardsMax'
+        'restarts_count_towards_max': 'restartsCountTowardsMax',
+        'terminal_state': 'terminalState'
     }
 
-    def __init__(self, conditions=None, replicated_jobs_status=None, restarts=None, restarts_count_towards_max=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, conditions=None, replicated_jobs_status=None, restarts=None, restarts_count_towards_max=None, terminal_state=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2JobSetStatus - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
@@ -56,6 +58,7 @@ class JobsetV1alpha2JobSetStatus(object):
         self._replicated_jobs_status = None
         self._restarts = None
         self._restarts_count_towards_max = None
+        self._terminal_state = None
         self.discriminator = None
 
         if conditions is not None:
@@ -66,6 +69,8 @@ class JobsetV1alpha2JobSetStatus(object):
             self.restarts = restarts
         if restarts_count_towards_max is not None:
             self.restarts_count_towards_max = restarts_count_towards_max
+        if terminal_state is not None:
+            self.terminal_state = terminal_state
 
     @property
     def conditions(self):
@@ -156,6 +161,29 @@ class JobsetV1alpha2JobSetStatus(object):
         """
 
         self._restarts_count_towards_max = restarts_count_towards_max
+
+    @property
+    def terminal_state(self):
+        """Gets the terminal_state of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+
+        TerminalState the state of the JobSet when it finishes execution. It can be either Complete or Failed. Otherwise, it is empty by default.  # noqa: E501
+
+        :return: The terminal_state of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+        :rtype: str
+        """
+        return self._terminal_state
+
+    @terminal_state.setter
+    def terminal_state(self, terminal_state):
+        """Sets the terminal_state of this JobsetV1alpha2JobSetStatus.
+
+        TerminalState the state of the JobSet when it finishes execution. It can be either Complete or Failed. Otherwise, it is empty by default.  # noqa: E501
+
+        :param terminal_state: The terminal_state of this JobsetV1alpha2JobSetStatus.  # noqa: E501
+        :type: str
+        """
+
+        self._terminal_state = terminal_state
 
     def to_dict(self):
         """Returns the model properties as a dict"""

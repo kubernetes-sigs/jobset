@@ -358,6 +358,13 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							Format:      "int32",
 						},
 					},
+					"terminalState": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TerminalState the state of the JobSet when it finishes execution. It can be either Complete or Failed. Otherwise, it is empty by default.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"replicatedJobsStatus": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{

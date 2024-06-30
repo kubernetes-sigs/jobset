@@ -15,6 +15,10 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - description: Final state of JobSet
+      jsonPath: .status.terminalState
+      name: TerminalState
+      type: string
     - description: Number of restarts
       jsonPath: .status.restarts
       name: Restarts
@@ -8546,6 +8550,11 @@ spec:
                   of restarts.
                 format: int32
                 type: integer
+              terminalState:
+                description: |-
+                  TerminalState the state of the JobSet when it finishes execution.
+                  It can be either Complete or Failed. Otherwise, it is empty by default.
+                type: string
             type: object
         type: object
     served: true

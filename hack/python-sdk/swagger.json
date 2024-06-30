@@ -199,6 +199,10 @@
           "description": "RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.",
           "type": "integer",
           "format": "int32"
+        },
+        "terminalState": {
+          "description": "TerminalState the state of the JobSet when it finishes execution. It can be either Complete or Failed. Otherwise, it is empty by default.",
+          "type": "string"
         }
       }
     },

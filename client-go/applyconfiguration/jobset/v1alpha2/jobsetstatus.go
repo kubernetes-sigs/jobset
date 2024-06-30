@@ -24,6 +24,7 @@ type JobSetStatusApplyConfiguration struct {
 	Conditions              []v1.Condition                          `json:"conditions,omitempty"`
 	Restarts                *int32                                  `json:"restarts,omitempty"`
 	RestartsCountTowardsMax *int32                                  `json:"restartsCountTowardsMax,omitempty"`
+	TerminalState           *string                                 `json:"terminalState,omitempty"`
 	ReplicatedJobsStatus    []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
 }
 
@@ -56,6 +57,14 @@ func (b *JobSetStatusApplyConfiguration) WithRestarts(value int32) *JobSetStatus
 // If called multiple times, the RestartsCountTowardsMax field is set to the value of the last call.
 func (b *JobSetStatusApplyConfiguration) WithRestartsCountTowardsMax(value int32) *JobSetStatusApplyConfiguration {
 	b.RestartsCountTowardsMax = &value
+	return b
+}
+
+// WithTerminalState sets the TerminalState field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TerminalState field is set to the value of the last call.
+func (b *JobSetStatusApplyConfiguration) WithTerminalState(value string) *JobSetStatusApplyConfiguration {
+	b.TerminalState = &value
 	return b
 }
 

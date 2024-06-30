@@ -89,7 +89,8 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     suspended = 56, )
                                 ], 
                             restarts = 56, 
-                            restarts_count_towards_max = 56, ), )
+                            restarts_count_towards_max = 56, 
+                            terminal_state = '0', ), )
                     ], 
                 kind = '0', 
                 metadata = None
@@ -146,7 +147,8 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     suspended = 56, )
                                 ], 
                             restarts = 56, 
-                            restarts_count_towards_max = 56, ), )
+                            restarts_count_towards_max = 56, 
+                            terminal_state = '0', ), )
                     ],
         )
 

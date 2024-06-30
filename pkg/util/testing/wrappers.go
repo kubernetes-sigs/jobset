@@ -159,6 +159,12 @@ func (j *JobSetWrapper) FailedCondition(failedAt metav1.Time) *JobSetWrapper {
 	return j
 }
 
+// TerminalState sets the value of JobSet.Status.TerminalState.
+func (j *JobSetWrapper) TerminalState(terminalState jobset.JobSetConditionType) *JobSetWrapper {
+	j.Status.TerminalState = string(terminalState)
+	return j
+}
+
 func (j *JobSetWrapper) DeletionTimestamp(deletionTimestamp *metav1.Time) *JobSetWrapper {
 	j.ObjectMeta.DeletionTimestamp = deletionTimestamp
 	return j
