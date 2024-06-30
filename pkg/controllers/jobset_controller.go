@@ -866,16 +866,15 @@ func enqueueEvent(updateStatusOpts *statusUpdateOpts, event *eventParams) {
 
 // function parameters for setCondition
 type conditionOpts struct {
-	eventType     string
-	terminalState string
-	condition     *metav1.Condition
+	eventType string
+	condition *metav1.Condition
 }
 
-// setCondition will add a new condition and terminalState to the JobSet status (or update an existing one),
+// setCondition will add a new condition to the JobSet status (or update an existing one),
 // and enqueue an event for emission if the status update succeeds at the end of the reconcile.
 func setCondition(js *jobset.JobSet, condOpts *conditionOpts, updateStatusOpts *statusUpdateOpts) {
-	// Return early if no status update is required for this condition and terminalState.
-	if !updateConditionAndTerminalState(js, condOpts) {
+	// Return early if no status update is required for this condition.
+	if !updateCondition(js, condOpts) {
 		return
 	}
 
@@ -898,14 +897,12 @@ func setCondition(js *jobset.JobSet, condOpts *conditionOpts, updateStatusOpts *
 	enqueueEvent(updateStatusOpts, event)
 }
 
-// updateConditionAndTerminalState accepts a condition and a terminalState, and does the following:
+// updateCondition accepts a given condition and does one of the following:
 //  1. If an identical condition already exists, do nothing and return false (indicating
 //     no change was made).
 //  2. If a condition of the same type exists but with a different status, update
 //     the condition in place and return true (indicating a condition change was made).
-//  3. If the specified terminalState is different from the current terminalState of JobSet,
-//     update the JobSet Status TerminalState
-func updateConditionAndTerminalState(js *jobset.JobSet, opts *conditionOpts) bool {
+func updateCondition(js *jobset.JobSet, opts *conditionOpts) bool {
 	if opts == nil || opts.condition == nil {
 		return false
 	}
@@ -944,19 +941,13 @@ func updateConditionAndTerminalState(js *jobset.JobSet, opts *conditionOpts) boo
 		js.Status.Conditions = append(js.Status.Conditions, newCond)
 		shouldUpdate = true
 	}
-
-	// If the jobset is in a terminal state, set the terminal state on the jobset.
-	if opts.terminalState != "" && js.Status.TerminalState != opts.terminalState {
-		js.Status.TerminalState = opts.terminalState
-		shouldUpdate = true
-	}
-
 	return shouldUpdate
 }
 
-// setJobSetCompletedCondition sets a condition on the JobSet status indicating it has completed.
+// setJobSetCompletedCondition sets a condition and terminal state on the JobSet status indicating it has completed.
 func setJobSetCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeCompletedConditionsOpts(), updateStatusOpts)
+	js.Status.TerminalState = string(jobset.JobSetCompleted)
 }
 
 // setJobSetSuspendedCondition sets a condition on the JobSet status indicating it is currently suspended.
@@ -980,7 +971,6 @@ func makeCompletedConditionsOpts() *conditionOpts {
 			Reason:  constants.AllJobsCompletedReason,
 			Message: constants.AllJobsCompletedMessage,
 		},
-		terminalState: string(jobset.JobSetCompleted),
 	}
 }
 

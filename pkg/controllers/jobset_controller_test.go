@@ -752,7 +752,7 @@ func TestUpdateConditions(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gotUpdate := updateConditionAndTerminalState(tc.js, tc.opts)
+			gotUpdate := updateCondition(tc.js, tc.opts)
 			if gotUpdate != tc.expectedUpdate {
 				t.Errorf("updateCondition return mismatch (want: %v, got %v)", tc.expectedUpdate, gotUpdate)
 			}
