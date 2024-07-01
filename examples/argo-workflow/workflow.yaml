@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  namespace: argo
+  generateName: argo-workflow-jobset-
+spec:
+  serviceAccountName: argo-jobset
+  entrypoint: jobset-example
+  templates:
+    - name: jobset-example
+      resource:                   # indicates that this is a resource template
+        # can be any kubectl action (e.g. create, delete, apply, patch)
+        action: create
+        # The successCondition and failureCondition are optional expressions.
+        # If failureCondition is true, the step is considered failed.
+        # If successCondition is true, the step is considered successful.
+        # They use kubernetes label selection syntax and can be applied against any field
+        # of the resource (not just labels). Multiple AND conditions can be represented by comma
+        # delimited expressions.
+        # For more details: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+        successCondition: status.terminalState == Completed
+        failureCondition: status.terminalState == Failed
+        # put your kubernetes spec here
+        manifest: |
+          apiVersion: jobset.x-k8s.io/v1alpha2
+          kind: JobSet
+          metadata:
+            name: paralleljobs
+            namespace: argo
+          spec:
+            replicatedJobs:
+              - name: workers
+                template:
+                  spec:
+                    parallelism: 4
+                    completions: 4
+                    backoffLimit: 0
+                    template:
+                      spec:
+                        containers:
+                          - name: sleep
+                            image: busybox
+                            command:
+                              - sleep
+                            args:
+                              - 100s
+              - name: driver
+                template:
+                  spec:
+                    parallelism: 1
+                    completions: 1
+                    backoffLimit: 0
+                    template:
+                      spec:
+                        containers:
+                          - name: sleep
+                            image: busybox
+                            command:
+                              - sleep
+                            args:
+                              - 100s
