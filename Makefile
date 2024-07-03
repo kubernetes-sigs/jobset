@@ -133,7 +133,7 @@ test-python-sdk:
 	./hack/python-sdk/test-sdk.sh
 
 .PHONY: verify
-verify: vet fmt-verify ci-lint manifests generate toc-verify
+verify: vet fmt-verify ci-lint manifests generate toc-verify generate-apiref
 	git --no-pager diff --exit-code config api client-go
 	
 
@@ -295,3 +295,13 @@ GOTESTSUM = $(shell pwd)/bin/gotestsum
 .PHONY: gotestsum
 gotestsum: ## Download gotestsum locally if necessary.
 	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install gotest.tools/gotestsum@v1.8.2
+
+
+.PHONY: generate-apiref
+generate-apiref: genref
+	cd $(PROJECT_DIR)/hack/genref/ && $(GENREF) -o $(PROJECT_DIR)/site/content/en/docs/reference
+
+GENREF = $(PROJECT_DIR)/bin/genref
+.PHONY: genref
+genref: ## Download genref locally if necessary.
+	@GOBIN=$(PROJECT_DIR)/bin $(GO_CMD) install github.com/kubernetes-sigs/reference-docs/genref@v0.28.0
