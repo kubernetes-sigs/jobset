@@ -26,6 +26,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/metrics"
 )
 
 // actionFunctionMap relates jobset failure policy action names to the appropriate behavior during jobset reconciliation.
@@ -258,6 +259,8 @@ func makeFailedConditionOpts(reason, msg string) *conditionOpts {
 func setJobSetFailedCondition(js *jobset.JobSet, reason, msg string, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeFailedConditionOpts(reason, msg), updateStatusOpts)
 	js.Status.TerminalState = string(jobset.JobSetFailed)
+	// Update the metrics
+	metrics.FailedCase(fmt.Sprintf("%s/%s", js.Namespace, js.Name))
 }
 
 // findJobFailureTimeAndReason is a helper function which extracts the Job failure condition from a Job,
