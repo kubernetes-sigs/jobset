@@ -950,7 +950,7 @@ func setJobSetCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpda
 	setCondition(js, makeCompletedConditionsOpts(), updateStatusOpts)
 	js.Status.TerminalState = string(jobset.JobSetCompleted)
 	// Update the metrics
-	metrics.CompletedCase(fmt.Sprintf("%s/%s", js.Namespace, js.Name))
+	metrics.JobSetCompleted(fmt.Sprintf("%s/%s", js.Namespace, js.Name))
 }
 
 // setJobSetSuspendedCondition sets a condition on the JobSet status indicating it is currently suspended.

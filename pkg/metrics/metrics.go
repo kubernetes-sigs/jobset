@@ -26,30 +26,30 @@ import (
 var (
 	FailedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Subsystem: constants.JobSetName,
+			Subsystem: constants.JobSetSubsystemName,
 			Name:      "jobset_failed_total",
-			Help:      `The total number of jobset failed case`,
-		}, []string{"jobsetName"},
+			Help:      `The total number of failed JobSets`,
+		}, []string{"jobset_name"},
 	)
 
 	CompletedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Subsystem: constants.JobSetName,
+			Subsystem: constants.JobSetSubsystemName,
 			Name:      "jobset_completed_total",
-			Help:      `The total number of jobset completed case`,
-		}, []string{"jobsetName"},
+			Help:      `The total number of completed JobSets`,
+		}, []string{"jobset_name"},
 	)
 )
 
-// FailedCase records the failed case
+// JobSetFailed records the failed case
 // label values: namespace/name
-func FailedCase(namespaceName string) {
+func JobSetFailed(namespaceName string) {
 	FailedTotal.WithLabelValues(namespaceName).Inc()
 }
 
-// CompletedCase records the completed case
+// JobSetCompleted records the completed case
 // label values: namespace/name
-func CompletedCase(namespaceName string) {
+func JobSetCompleted(namespaceName string) {
 	CompletedTotal.WithLabelValues(namespaceName).Inc()
 }
 
