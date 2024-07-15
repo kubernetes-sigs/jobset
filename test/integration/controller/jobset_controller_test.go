@@ -1544,6 +1544,25 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("jobset with coordinator set should have annotation and label set on all jobs", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Coordinator(&jobset.Coordinator{
+					ReplicatedJob: "replicated-job-a",
+					JobIndex:      0,
+					PodIndex:      0,
+				})
+			},
+			steps: []*step{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(func() (bool, error) {
+							expectedCoordinator := fmt.Sprintf("%s-%s-%d-%d.%s", "test-js", "replicated-job-a", 0, 0, "test-js")
+							return checkCoordinator(js, expectedCoordinator)
+						}, timeout, interval).Should(gomega.BeTrue())
+					},
+				},
+			},
+		}),
 	) // end of DescribeTable
 
 	ginkgo.When("A JobSet is managed by another controller", ginkgo.Ordered, func() {
@@ -2116,6 +2135,30 @@ func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.Repl
 		sort.Slice(newJs.Status.ReplicatedJobsStatus, compareNames)
 		return newJs.Status.ReplicatedJobsStatus, nil
 	}, timeout, interval).Should(gomega.Equal(expectedStatus))
+}
+
+// checkCoordinator verifies that all child Jobs of a JobSet have the label and annotation:
+// jobset.sigs.k8s.io/coordinator=<expectedCoordinator>
+// Returns boolean value indicating if the check passed or not.
+func checkCoordinator(js *jobset.JobSet, expectedCoordinator string) (bool, error) {
+	var jobList batchv1.JobList
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+		return false, err
+	}
+	// Check we have the right number of jobs.
+	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
+		return false, nil
+	}
+	// Check all the jobs have the coordinator label and annotation.
+	for _, job := range jobList.Items {
+		if job.Labels[jobset.CoordinatorKey] != expectedCoordinator {
+			return false, nil
+		}
+		if job.Annotations[jobset.CoordinatorKey] != expectedCoordinator {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // 2 replicated jobs:

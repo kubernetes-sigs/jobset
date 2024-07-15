@@ -33,6 +33,7 @@ class JobsetV1alpha2JobSetSpec(object):
                             and the value is json key in definition.
     """
     openapi_types = {
+        'coordinator': 'JobsetV1alpha2Coordinator',
         'failure_policy': 'JobsetV1alpha2FailurePolicy',
         'managed_by': 'str',
         'network': 'JobsetV1alpha2Network',
@@ -44,6 +45,7 @@ class JobsetV1alpha2JobSetSpec(object):
     }
 
     attribute_map = {
+        'coordinator': 'coordinator',
         'failure_policy': 'failurePolicy',
         'managed_by': 'managedBy',
         'network': 'network',
@@ -54,12 +56,13 @@ class JobsetV1alpha2JobSetSpec(object):
         'ttl_seconds_after_finished': 'ttlSecondsAfterFinished'
     }
 
-    def __init__(self, failure_policy=None, managed_by=None, network=None, replicated_jobs=None, startup_policy=None, success_policy=None, suspend=None, ttl_seconds_after_finished=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, coordinator=None, failure_policy=None, managed_by=None, network=None, replicated_jobs=None, startup_policy=None, success_policy=None, suspend=None, ttl_seconds_after_finished=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2JobSetSpec - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
+        self._coordinator = None
         self._failure_policy = None
         self._managed_by = None
         self._network = None
@@ -70,6 +73,8 @@ class JobsetV1alpha2JobSetSpec(object):
         self._ttl_seconds_after_finished = None
         self.discriminator = None
 
+        if coordinator is not None:
+            self.coordinator = coordinator
         if failure_policy is not None:
             self.failure_policy = failure_policy
         if managed_by is not None:
@@ -86,6 +91,27 @@ class JobsetV1alpha2JobSetSpec(object):
             self.suspend = suspend
         if ttl_seconds_after_finished is not None:
             self.ttl_seconds_after_finished = ttl_seconds_after_finished
+
+    @property
+    def coordinator(self):
+        """Gets the coordinator of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+
+
+        :return: The coordinator of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :rtype: JobsetV1alpha2Coordinator
+        """
+        return self._coordinator
+
+    @coordinator.setter
+    def coordinator(self, coordinator):
+        """Sets the coordinator of this JobsetV1alpha2JobSetSpec.
+
+
+        :param coordinator: The coordinator of this JobsetV1alpha2JobSetSpec.  # noqa: E501
+        :type: JobsetV1alpha2Coordinator
+        """
+
+        self._coordinator = coordinator
 
     @property
     def failure_policy(self):

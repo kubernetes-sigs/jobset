@@ -746,6 +746,12 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 
+	// Apply coordinator annotation/label if a coordinator is defined in the JobSet spec.
+	if js.Spec.Coordinator != nil {
+		labels[jobset.CoordinatorKey] = coordinatorEndpoint(js)
+		annotations[jobset.CoordinatorKey] = coordinatorEndpoint(js)
+	}
+
 	// Check for JobSet level exclusive placement.
 	if topologyDomain, exists := js.Annotations[jobset.ExclusiveKey]; exists {
 		annotations[jobset.ExclusiveKey] = topologyDomain
@@ -1023,4 +1029,10 @@ func exclusiveConditions(cond1, cond2 metav1.Condition) bool {
 	completedAndInProgress := cond1.Type == string(jobset.JobSetStartupPolicyCompleted) &&
 		cond2.Type == string(jobset.JobSetStartupPolicyInProgress)
 	return inProgressAndCompleted || completedAndInProgress
+}
+
+// coordinatorEndpoint returns the stable network endpoint where the coordinator pod can be reached.
+// This function assumes the caller has validated that jobset.Spec.Coordinator != nil.
+func coordinatorEndpoint(js *jobset.JobSet) string {
+	return fmt.Sprintf("%s-%s-%d-%d.%s", js.Name, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex, js.Spec.Coordinator.PodIndex, GetSubdomain(js))
 }
