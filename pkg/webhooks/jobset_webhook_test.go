@@ -1362,6 +1362,129 @@ func TestValidateCreate(t *testing.T) {
 				fmt.Errorf("invalid failure policy rule name '%v', a failure policy rule name must start with an alphabetic character, optionally followed by a string of alphanumeric characters or '_,:', and must end with an alphanumeric character or '_'", "ruleToRuleThemAll,"),
 			),
 		},
+		{
+			name: "coordinator replicated job does not exist",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "fake-rjob",
+						JobIndex:      0,
+						PodIndex:      0,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "replicatedjob-a",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(2)),
+									Parallelism:    ptr.To(int32(2)),
+								},
+							},
+						},
+						{
+							Name:     "replicatedjob-b",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(2)),
+									Parallelism:    ptr.To(int32(2)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("coordinator replicatedJob fake-rjob does not exist"),
+			),
+		},
+		{
+			name: "coordinator job index invalid",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "replicatedjob-a",
+						JobIndex:      2,
+						PodIndex:      0,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "replicatedjob-a",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(2)),
+									Parallelism:    ptr.To(int32(2)),
+								},
+							},
+						},
+						{
+							Name:     "replicatedjob-b",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(2)),
+									Parallelism:    ptr.To(int32(2)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("coordinator job index 2 is invalid for replicatedJob replicatedjob-a"),
+			),
+		},
+		{
+			name: "coordinator pod index invalid",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "replicatedjob-a",
+						JobIndex:      0,
+						PodIndex:      2,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "replicatedjob-a",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(2)),
+									Parallelism:    ptr.To(int32(2)),
+								},
+							},
+						},
+						{
+							Name:     "replicatedjob-b",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(2)),
+									Parallelism:    ptr.To(int32(2)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("coordinator pod index 2 is invalid for replicatedJob replicatedjob-a job index 0"),
+			),
+		},
 	}
 
 	testGroups := [][]validationTestCase{
