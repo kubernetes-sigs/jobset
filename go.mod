@@ -82,3 +82,5 @@ require (
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace k8s.io/api => k8s.io/api v0.0.0-20240718103906-7c71f3c0b7a7 // feature-branch
