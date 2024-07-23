@@ -21,6 +21,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	v1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -130,7 +131,54 @@ var _ = ginkgo.Describe("JobSet", func() {
 			util.JobSetDeleted(ctx, k8sClient, js, timeout)
 		})
 	})
+	ginkgo.When("pod failure policy is used", func() {
+		ginkgo.It("should allow to fail the Job on exit code", func() {
+			ctx := context.Background()
 
+			// This test verifies that the PodFailurePolicy terminated the Job
+			// Otherwise the pod restarts, with the default backoffLimit of 6
+			// the Pod restarts would take cumulatively at least:
+			// 10+20+40+80+160+320=630s (exceeding the test timeout)
+			ginkgo.By("creating jobset with ttl seconds after finished")
+			jsWrapper := testing.MakeJobSet("job-pod-failure-policy", ns.Name).
+				TTLSecondsAfterFinished(5).
+				ReplicatedJob(testing.MakeReplicatedJob("rjob").
+					Job(testing.MakeJobTemplate("job", ns.Name).
+						PodFailurePolicy(v1.PodFailurePolicy{
+							Rules: []v1.PodFailurePolicyRule{
+								{
+									Action: v1.PodFailurePolicyActionFailJob,
+									OnExitCodes: &v1.PodFailurePolicyOnExitCodesRequirement{
+										Operator: v1.PodFailurePolicyOnExitCodesOpIn,
+										Values:   []int32{42},
+									},
+								},
+							},
+						}).
+						PodSpec(corev1.PodSpec{
+							RestartPolicy: "Never",
+							Containers: []corev1.Container{
+								{
+									Name:    "sleep-test-container",
+									Image:   "bash:latest",
+									Command: []string{"bash", "-c"},
+									Args:    []string{"exit 42"},
+								},
+							},
+						}).Obj()).
+					Replicas(int32(1)).
+					Obj())
+			js := jsWrapper.Obj()
+
+			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			// Check jobset status if specified.
+			ginkgo.By("checking jobset condition")
+			util.JobSetFailed(ctx, k8sClient, js, timeout)
+		})
+	})
 }) // end of Describe
 
 // getPingCommand returns ping command for 4 hostnames

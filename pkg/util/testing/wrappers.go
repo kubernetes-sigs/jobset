@@ -254,6 +254,12 @@ func (j *JobTemplateWrapper) PodSpec(podSpec corev1.PodSpec) *JobTemplateWrapper
 	return j
 }
 
+// PodFailurePolicy sets the Job pod failure policy
+func (j *JobTemplateWrapper) PodFailurePolicy(podFailurePolicy batchv1.PodFailurePolicy) *JobTemplateWrapper {
+	j.Spec.PodFailurePolicy = &podFailurePolicy
+	return j
+}
+
 // SetAnnotations sets the annotations on the Job template.
 func (j *JobTemplateWrapper) SetAnnotations(annotations map[string]string) *JobTemplateWrapper {
 	j.Annotations = annotations
