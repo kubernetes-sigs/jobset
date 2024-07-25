@@ -314,18 +314,33 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.
 	}
 	mungedSpec := js.Spec.DeepCopy()
 
-	// Allow pod template to be mutated for suspended JobSets.
+	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
 	// This is needed for integration with Kueue/DWS.
-	if ptr.Deref(oldJS.Spec.Suspend, false) {
+	if ptr.Deref(oldJS.Spec.Suspend, false) || ptr.Deref(js.Spec.Suspend, false) {
 		for index := range js.Spec.ReplicatedJobs {
-			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
+			munge := true
+			// Don't allow to unsuspend if there are still active Jobs with
+			// different PodTemplate. We do this to avoid a race condition when
+			// Jobs with an old PodTemplate (before suspension) are still
+			// runnable and would not be deleted if we unsuspend the JobSet.
+			if !ptr.Deref(js.Spec.Suspend, false) {
+				rStatus := js.Status.ReplicatedJobsStatus
+				// Don't allow to mutate PodTemplate on unsuspending if there
+				// are still active or suspended jobs from the previous run
+				if len(rStatus) > index && (rStatus[index].Active > 0 || rStatus[index].Suspended > 0) {
+					munge = false
+				}
+			}
+			if munge {
+				// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
 
-			// Pod Scheduling Gates can be updated for batch/v1 Job: https://github.com/kubernetes/kubernetes/blob/ceb58a4dbc671b9d0a2de6d73a1616bc0c299863/pkg/apis/batch/validation/validation.go#L662
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates
+				// Pod Scheduling Gates can be updated for batch/v1 Job: https://github.com/kubernetes/kubernetes/blob/ceb58a4dbc671b9d0a2de6d73a1616bc0c299863/pkg/apis/batch/validation/validation.go#L662
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates
+			}
 		}
 	}
 

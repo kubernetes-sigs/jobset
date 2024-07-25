@@ -24,6 +24,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -38,6 +39,9 @@ const interval = time.Millisecond * 250
 
 func NumExpectedJobs(js *jobset.JobSet) int {
 	expectedJobs := 0
+	if ptr.Deref(js.Spec.Suspend, false) {
+		return 0
+	}
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		expectedJobs += int(rjob.Replicas)
 	}

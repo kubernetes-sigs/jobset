@@ -180,9 +180,10 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 				if up.jobSetUpdateFn != nil {
 					up.jobSetUpdateFn(&jobSet)
+					gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobSet)).To(gomega.Succeed())
 				} else if up.jobUpdateFn != nil {
 					if up.checkJobCreation == nil {
-						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(&jobSet)))
 					} else {
 						up.checkJobCreation(&jobSet)
 					}
@@ -899,11 +900,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
 							{
 								Name:      "replicated-job-b",
-								Suspended: 3,
+								Suspended: 0,
 							},
 							{
 								Name:      "replicated-job-a",
-								Suspended: 1,
+								Suspended: 0,
 							},
 						})
 					},
@@ -931,11 +932,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
 							{
 								Name:      "replicated-job-b",
-								Suspended: 3,
+								Suspended: 0,
 							},
 							{
 								Name:      "replicated-job-a",
-								Suspended: 1,
+								Suspended: 0,
 							},
 						})
 					},
@@ -987,6 +988,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						suspendJobSet(js, true)
+						// For suspended JobSet all jobs will be deleted, so we
+						// expect a foreground deletion finalizer for every job.
+						numJobs, err := testutil.NumJobs(ctx, k8sClient, js)
+						gomega.Expect(err).To(gomega.BeNil())
+						removeForegroundDeletionFinalizers(js, numJobs)
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						ginkgo.By("checking all jobs are suspended")
@@ -1143,11 +1149,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
 							{
 								Name:      "replicated-job-b",
-								Suspended: 3,
+								Suspended: 0,
 							},
 							{
 								Name:      "replicated-job-a",
-								Suspended: 1,
+								Suspended: 0,
 							},
 						})
 					},
@@ -1167,11 +1173,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
 							{
 								Name:      "replicated-job-b",
-								Suspended: 3,
+								Suspended: 0,
 							},
 							{
 								Name:      "replicated-job-a",
-								Suspended: 1,
+								Suspended: 0,
 							},
 						})
 					},
@@ -1191,11 +1197,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
 							{
 								Name:      "replicated-job-b",
-								Suspended: 3,
+								Suspended: 0,
 							},
 							{
 								Name:      "replicated-job-a",
-								Suspended: 1,
+								Suspended: 0,
 							},
 						})
 					},
@@ -1241,11 +1247,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
 							{
 								Name:      "replicated-job-b",
-								Suspended: 3,
+								Suspended: 0,
 							},
 							{
 								Name:      "replicated-job-a",
-								Suspended: 1,
+								Suspended: 0,
 							},
 						})
 					},
@@ -1262,7 +1268,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
 							{
 								Name:      "replicated-job-b",
-								Suspended: 3,
+								Suspended: 0,
 							},
 							{
 								Name:      "replicated-job-a",
@@ -1276,6 +1282,10 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						readyReplicatedJob(jobList, "replicated-job-a")
+					},
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
 					},
 				},
 				{

@@ -206,10 +206,11 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 	// Handle suspending a jobset or resuming a suspended jobset.
 	jobsetSuspended := jobSetSuspended(js)
 	if jobsetSuspended {
-		if err := r.suspendJobs(ctx, js, ownedJobs.active, updateStatusOpts); err != nil {
-			log.Error(err, "suspending jobset")
+		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
+			log.Error(err, "deleting jobs")
 			return ctrl.Result{}, err
 		}
+		setJobSetSuspendedCondition(js, updateStatusOpts)
 	} else {
 		if err := r.resumeJobsIfNecessary(ctx, js, ownedJobs.active, rjobStatuses, updateStatusOpts); err != nil {
 			log.Error(err, "resuming jobset")
@@ -379,19 +380,6 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 	return rjStatus
 }
 
-func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
-	for _, job := range activeJobs {
-		if !jobSuspended(job) {
-			job.Spec.Suspend = ptr.To(true)
-			if err := r.Update(ctx, job); err != nil {
-				return err
-			}
-		}
-	}
-	setJobSetSuspendedCondition(js, updateStatusOpts)
-	return nil
-}
-
 // resumeJobsIfNecessary iterates through each replicatedJob, resuming any suspended jobs if the JobSet
 // is not suspended.
 func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
@@ -492,6 +480,11 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		jobs, err := constructJobsFromTemplate(js, &replicatedJob, ownedJobs)
 		if err != nil {
 			return err
+		}
+
+		// Don't create child Jobs if the JobSet is suspended
+		if jobSetSuspended(js) {
+			continue
 		}
 
 		status := findReplicatedJobStatus(replicatedJobStatus, replicatedJob.Name)
