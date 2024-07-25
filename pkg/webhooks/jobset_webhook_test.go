@@ -1562,6 +1562,100 @@ func TestValidateUpdate(t *testing.T) {
 			}.ToAggregate(),
 		},
 		{
+			name: "schedulingGates for pod template can be updated for suspended JobSet",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											// Adding a scheduling gate
+											SchedulingGates: []corev1.PodSchedulingGate{
+												{
+													Name: "example.com/gate",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "schedulingGates for pod template cannot be updated for unsuspended JobSet",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											// Adding a scheduling gate
+											SchedulingGates: []corev1.PodSchedulingGate{
+												{
+													Name: "example.com/gate",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+		},
+		{
 			name: "replicated job name cannot be updated",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
