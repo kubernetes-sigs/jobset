@@ -56,14 +56,14 @@ func schema_jobset_api_jobset_v1alpha2_Coordinator(ref common.ReferenceCallback)
 					},
 					"jobIndex": {
 						SchemaProps: spec.SchemaProps{
-							Description: "JobIndex is the index of Job which contains the coordinator pod (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1). Defaults to 0 if unset.",
+							Description: "JobIndex is the index of Job which contains the coordinator pod (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1).",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"podIndex": {
 						SchemaProps: spec.SchemaProps{
-							Description: "PodIndex is the Job completion index of the coordinator pod. Defaults to 0 if unset.",
+							Description: "PodIndex is the Job completion index of the coordinator pod.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},

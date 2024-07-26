@@ -65,7 +65,7 @@ class JobsetV1alpha2Coordinator(object):
     def job_index(self):
         """Gets the job_index of this JobsetV1alpha2Coordinator.  # noqa: E501
 
-        JobIndex is the index of Job which contains the coordinator pod (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1). Defaults to 0 if unset.  # noqa: E501
+        JobIndex is the index of Job which contains the coordinator pod (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1).  # noqa: E501
 
         :return: The job_index of this JobsetV1alpha2Coordinator.  # noqa: E501
         :rtype: int
@@ -76,7 +76,7 @@ class JobsetV1alpha2Coordinator(object):
     def job_index(self, job_index):
         """Sets the job_index of this JobsetV1alpha2Coordinator.
 
-        JobIndex is the index of Job which contains the coordinator pod (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1). Defaults to 0 if unset.  # noqa: E501
+        JobIndex is the index of Job which contains the coordinator pod (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1).  # noqa: E501
 
         :param job_index: The job_index of this JobsetV1alpha2Coordinator.  # noqa: E501
         :type: int
@@ -88,7 +88,7 @@ class JobsetV1alpha2Coordinator(object):
     def pod_index(self):
         """Gets the pod_index of this JobsetV1alpha2Coordinator.  # noqa: E501
 
-        PodIndex is the Job completion index of the coordinator pod. Defaults to 0 if unset.  # noqa: E501
+        PodIndex is the Job completion index of the coordinator pod.  # noqa: E501
 
         :return: The pod_index of this JobsetV1alpha2Coordinator.  # noqa: E501
         :rtype: int
@@ -99,7 +99,7 @@ class JobsetV1alpha2Coordinator(object):
     def pod_index(self, pod_index):
         """Sets the pod_index of this JobsetV1alpha2Coordinator.
 
-        PodIndex is the Job completion index of the coordinator pod. Defaults to 0 if unset.  # noqa: E501
+        PodIndex is the Job completion index of the coordinator pod.  # noqa: E501
 
         :param pod_index: The pod_index of this JobsetV1alpha2Coordinator.  # noqa: E501
         :type: int

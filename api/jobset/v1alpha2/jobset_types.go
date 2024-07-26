@@ -344,11 +344,9 @@ type Coordinator struct {
 
 	// JobIndex is the index of Job which contains the coordinator pod
 	// (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1).
-	// Defaults to 0 if unset.
 	JobIndex int `json:"jobIndex,omitempty"`
 
 	// PodIndex is the Job completion index of the coordinator pod.
-	// Defaults to 0 if unset.
 	PodIndex int `json:"podIndex,omitempty"`
 }
 
