@@ -294,6 +294,11 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, validReplicatedJobs)
 		allErrs = append(allErrs, failurePolicyErrors...)
 	}
+
+	// Validate coordinator, if set.
+	if js.Spec.Coordinator != nil {
+		allErrs = append(allErrs, validateCoordinator(js))
+	}
 	return nil, errors.Join(allErrs...)
 }
 
@@ -345,4 +350,43 @@ func replicatedJobNamesFromSpec(js *jobset.JobSet) []string {
 		names = append(names, rjob.Name)
 	}
 	return names
+}
+
+// validateCoordinator validates the following:
+// 1. coordinator replicatedJob is a valid replicatedJob in the JobSet spec.
+// 2. coordinator jobIndex is a valid index for the replicatedJob.
+// 3. coordinator podIndex is a valid pod index for the job.
+func validateCoordinator(js *jobset.JobSet) error {
+	// Validate replicatedJob.
+	replicatedJob := replicatedJobByName(js, js.Spec.Coordinator.ReplicatedJob)
+	if replicatedJob == nil {
+		return fmt.Errorf("coordinator replicatedJob %s does not exist", js.Spec.Coordinator.ReplicatedJob)
+	}
+
+	// Validate Job index.
+	if js.Spec.Coordinator.JobIndex < 0 || js.Spec.Coordinator.JobIndex >= int(replicatedJob.Replicas) {
+		return fmt.Errorf("coordinator job index %d is invalid for replicatedJob %s", js.Spec.Coordinator.JobIndex, replicatedJob.Name)
+	}
+
+	// Validate job is using indexed completion mode.
+	if replicatedJob.Template.Spec.CompletionMode == nil || *replicatedJob.Template.Spec.CompletionMode != batchv1.IndexedCompletion {
+		return fmt.Errorf("job for coordinator pod must be indexed completion mode")
+	}
+
+	// Validate Pod index.
+	if js.Spec.Coordinator.PodIndex < 0 || js.Spec.Coordinator.PodIndex >= int(*replicatedJob.Template.Spec.Completions) {
+		return fmt.Errorf("coordinator pod index %d is invalid for replicatedJob %s job index %d", js.Spec.Coordinator.PodIndex, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex)
+	}
+	return nil
+}
+
+// replicatedJobByName fetches the replicatedJob spec from the JobSet by name.
+// Returns nil if no replicatedJob with the given name exists.
+func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.ReplicatedJob {
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		if rjob.Name == js.Spec.Coordinator.ReplicatedJob {
+			return &rjob
+		}
+	}
+	return nil
 }
