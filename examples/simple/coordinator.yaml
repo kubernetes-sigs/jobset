@@ -1,0 +1,43 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: coordinator-example
+spec:
+  # label and annotate jobs and pods with stable network endpoint of the designated
+  # coordinator pod:
+  # jobset.sigs.k8s.io/coordinator=coordinator-example-driver-0-0.coordinator-example
+  coordinator:
+    replicatedJob: driver
+    jobIndex: 0
+    podIndex: 0
+  replicatedJobs:
+  - name: workers
+    template:
+      spec:
+        parallelism: 4
+        completions: 4
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command: 
+                - sleep
+              args:
+                - 100s
+  - name: driver
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command: 
+                - sleep
+              args:
+                - 100s
