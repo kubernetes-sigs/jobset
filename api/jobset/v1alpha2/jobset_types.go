@@ -44,6 +44,11 @@ const (
 	// JobSetControllerName is the reserved value for the managedBy field for the built-in
 	// JobSet controller.
 	JobSetControllerName = "jobset.sigs.k8s.io/jobset-controller"
+
+	// CoordinatorKey is used as an annotation and label on Jobs and Pods. If the JobSet spec
+	// defines the .spec.coordinator field, this annotation/label will be added to store a stable
+	// network endpoint where the coordinator pod can be reached.
+	CoordinatorKey = "jobset.sigs.k8s.io/coordinator"
 )
 
 type JobSetConditionType string
@@ -94,6 +99,14 @@ type JobSetSpec struct {
 
 	// Suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"`
+
+	// Coordinator can be used to assign a specific pod as the coordinator for
+	// the JobSet. If defined, an annotation will be added to all Jobs and pods with
+	// coordinator pod, which contains the stable network endpoint where the
+	// coordinator pod can be reached.
+	// jobset.sigs.k8s.io/coordinator=<pod hostname>.<headless service>
+	// +optional
+	Coordinator *Coordinator `json:"coordinator,omitempty"`
 
 	// ManagedBy is used to indicate the controller or entity that manages a JobSet.
 	// The built-in JobSet controller reconciles JobSets which don't have this
@@ -321,6 +334,20 @@ type StartupPolicy struct {
 	// when all the jobs of the previous one are ready.
 	// +kubebuilder:validation:Enum=AnyOrder;InOrder
 	StartupPolicyOrder StartupPolicyOptions `json:"startupPolicyOrder"`
+}
+
+// Coordinator defines which pod can be marked as the coordinator for the JobSet workload.
+type Coordinator struct {
+	// ReplicatedJob is the name of the ReplicatedJob which contains
+	// the coordinator pod.
+	ReplicatedJob string `json:"replicatedJob"`
+
+	// JobIndex is the index of Job which contains the coordinator pod
+	// (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1).
+	JobIndex int `json:"jobIndex,omitempty"`
+
+	// PodIndex is the Job completion index of the coordinator pod.
+	PodIndex int `json:"podIndex,omitempty"`
 }
 
 func init() {

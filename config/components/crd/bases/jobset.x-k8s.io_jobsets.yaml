@@ -59,6 +59,31 @@ spec:
           spec:
             description: JobSetSpec defines the desired state of JobSet
             properties:
+              coordinator:
+                description: |-
+                  Coordinator can be used to assign a specific pod as the coordinator for
+                  the JobSet. If defined, an annotation will be added to all Jobs and pods with
+                  coordinator pod, which contains the stable network endpoint where the
+                  coordinator pod can be reached.
+                  jobset.sigs.k8s.io/coordinator=<pod hostname>.<headless service>
+                properties:
+                  jobIndex:
+                    description: |-
+                      JobIndex is the index of Job which contains the coordinator pod
+                      (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1).
+                    type: integer
+                  podIndex:
+                    description: PodIndex is the Job completion index of the coordinator
+                      pod.
+                    type: integer
+                  replicatedJob:
+                    description: |-
+                      ReplicatedJob is the name of the ReplicatedJob which contains
+                      the coordinator pod.
+                    type: string
+                required:
+                - replicatedJob
+                type: object
               failurePolicy:
                 description: |-
                   FailurePolicy, if set, configures when to declare the JobSet as

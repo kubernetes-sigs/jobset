@@ -16,6 +16,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -126,11 +127,14 @@ func TestIsJobFinished(t *testing.T) {
 
 func TestConstructJobsFromTemplate(t *testing.T) {
 	var (
-		jobSetName        = "test-jobset"
-		replicatedJobName = "replicated-job"
-		jobName           = "test-job"
-		ns                = "default"
-		topologyDomain    = "test-topology-domain"
+		jobSetName          = "test-jobset"
+		replicatedJobName   = "replicated-job"
+		jobName             = "test-job"
+		ns                  = "default"
+		topologyDomain      = "test-topology-domain"
+		coordinatorKeyValue = map[string]string{
+			jobset.CoordinatorKey: fmt.Sprintf("%s-%s-%d-%d.%s", jobSetName, replicatedJobName, 0, 0, jobSetName),
+		}
 	)
 
 	tests := []struct {
@@ -616,6 +620,39 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 							Effect:   corev1.TaintEffectNoSchedule,
 						},
 					}).Obj(),
+			},
+		},
+		{
+			name: "coordinator",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				Coordinator(&jobset.Coordinator{
+					ReplicatedJob: replicatedJobName,
+					JobIndex:      0,
+					PodIndex:      0,
+				}).
+				EnableDNSHostnames(true).
+				NetworkSubdomain(jobSetName).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Subdomain(jobSetName).
+					Replicas(1).
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).
+					JobAnnotations(coordinatorKeyValue).
+					JobLabels(coordinatorKeyValue).
+					PodAnnotations(coordinatorKeyValue).
+					PodLabels(coordinatorKeyValue).
+					Suspend(false).
+					Subdomain(jobSetName).Obj(),
 			},
 		},
 		{
