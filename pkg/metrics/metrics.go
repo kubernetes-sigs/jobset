@@ -27,7 +27,7 @@ var (
 	FailedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: constants.JobSetSubsystemName,
-			Name:      "jobset_failed_total",
+			Name:      "failed_total",
 			Help:      `The total number of failed JobSets`,
 		}, []string{"jobset_name"},
 	)
@@ -35,7 +35,7 @@ var (
 	CompletedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: constants.JobSetSubsystemName,
-			Name:      "jobset_completed_total",
+			Name:      "completed_total",
 			Help:      `The total number of completed JobSets`,
 		}, []string{"jobset_name"},
 	)
