@@ -64,4 +64,4 @@ Forwarding from 0.0.0.0:39090 -> 9090
 If using kind, we can use port-forward, `kubectl port-forward services/jobset-metrics  39090:9090 --address 0.0.0.0 -n jobset-system`
 This allows us to access prometheus using a browser: `http://{ecs public IP}:39090/graph`
 
-![prometheus](./prometheus.png?raw=true)
+![prometheus](prometheus.png?raw=true)
