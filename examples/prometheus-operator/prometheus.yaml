@@ -27,7 +27,7 @@ spec:
   type: NodePort
   # Port mapping: Note if deploying with kind for testing, if docker mappings are not exposed when the cluster starts,
   # kube port-forward needs to be used for port forwarding
-  # kubectl port-forward services/jobset-metrics  39090:9090 --address 0.0.0.0 -njobset-system
+  # kubectl port-forward services/jobset-metrics  39090:9090 --address 0.0.0.0 -n jobset-system
   ports:
     - name: web
       nodePort: 30900
@@ -37,42 +37,3 @@ spec:
   # Need to match the name in Prometheus
   selector:
     prometheus: jobset-metrics
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: prometheus-jobset
-  namespace: jobset-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: prometheus-jobset
-rules:
-  - apiGroups: [""]
-    resources:
-      - nodes
-      - nodes/metrics
-      - services
-      - endpoints
-      - pods
-    verbs: ["get", "list", "watch"]
-  - apiGroups: [""]
-    resources:
-      - configmaps
-    verbs: ["get"]
-  - nonResourceURLs: ["/metrics"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: prometheus-jobset
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: prometheus-jobset
-subjects:
-  - kind: ServiceAccount
-    name: prometheus-jobset
-    namespace: jobset-system
