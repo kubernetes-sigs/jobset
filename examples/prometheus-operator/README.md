@@ -24,7 +24,7 @@ servicemonitor.monitoring.coreos.com/controller-manager-metrics-monitor serversi
 ```
 
 ```bash
-root@VM-0-5-ubuntu:/home/ubuntu/jobset# kubectl get ServiceMonitor -njobset-system
+root@VM-0-5-ubuntu:/home/ubuntu/jobset# kubectl get ServiceMonitor -n jobset-system
 NAME                                 AGE
 controller-manager-metrics-monitor   7d11h
 ```
@@ -32,12 +32,10 @@ controller-manager-metrics-monitor   7d11h
 ### Install the Prometheus CR for JobSet System
 
 ```bash
-root@VM-0-5-ubuntu:/home/ubuntu# kubectl apply -f rbac.yaml
+root@VM-0-5-ubuntu:/home/ubuntu# kubectl apply -f prometheus.yaml
 serviceaccount/prometheus-jobset created
 clusterrole.rbac.authorization.k8s.io/prometheus-jobset created
 clusterrolebinding.rbac.authorization.k8s.io/prometheus-jobset created
-
-root@VM-0-5-ubuntu:/home/ubuntu# kubectl apply -f prometheus.yaml
 prometheus.monitoring.coreos.com/jobset-metrics created
 service/jobset-metrics created
 ```
@@ -47,7 +45,7 @@ root@VM-0-5-ubuntu:/home/ubuntu# kubectl get pods -n jobset-system
 NAME                                         READY   STATUS    RESTARTS   AGE
 jobset-controller-manager-76767b599b-v8wcc   2/2     Running   0          6d22h
 prometheus-jobset-metrics-0                  2/2     Running   0          17s
-root@VM-0-5-ubuntu:/home/ubuntu# kubectl get svc -njobset-system
+root@VM-0-5-ubuntu:/home/ubuntu# kubectl get svc -n jobset-system
 NAME                                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
 jobset-controller-manager-metrics-service   ClusterIP   10.96.187.196   <none>        8443/TCP         7d11h
 jobset-metrics                              NodePort    10.96.217.176   <none>        9090:30900/TCP   28s
