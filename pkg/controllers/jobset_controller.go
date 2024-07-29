@@ -41,6 +41,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
@@ -954,6 +955,8 @@ func updateCondition(js *jobset.JobSet, opts *conditionOpts) bool {
 func setJobSetCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeCompletedConditionsOpts(), updateStatusOpts)
 	js.Status.TerminalState = string(jobset.JobSetCompleted)
+	// Update the metrics
+	metrics.JobSetCompleted(fmt.Sprintf("%s/%s", js.Namespace, js.Name))
 }
 
 // setJobSetSuspendedCondition sets a condition on the JobSet status indicating it is currently suspended.

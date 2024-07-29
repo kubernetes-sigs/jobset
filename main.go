@@ -38,6 +38,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/cert"
 	"sigs.k8s.io/jobset/pkg/webhooks"
 	//+kubebuilder:scaffold:imports
@@ -87,6 +88,8 @@ func main() {
 		setupLog.Error(err, "Unable to set flag gates for known features")
 		os.Exit(1)
 	}
+
+	metrics.Register()
 
 	mgr, err := ctrl.NewManager(kubeConfig, ctrl.Options{
 		Scheme: scheme,
