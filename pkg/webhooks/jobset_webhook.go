@@ -318,20 +318,7 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.
 	// This is needed for integration with Kueue/DWS.
 	if ptr.Deref(oldJS.Spec.Suspend, false) || ptr.Deref(js.Spec.Suspend, false) {
 		for index := range js.Spec.ReplicatedJobs {
-			munge := true
-			// Don't allow to unsuspend if there are still active Jobs with
-			// different PodTemplate. We do this to avoid a race condition when
-			// Jobs with an old PodTemplate (before suspension) are still
-			// runnable and would not be deleted if we unsuspend the JobSet.
-			if !ptr.Deref(js.Spec.Suspend, false) {
-				rStatus := js.Status.ReplicatedJobsStatus
-				// Don't allow to mutate PodTemplate on unsuspending if there
-				// are still active or suspended jobs from the previous run
-				if len(rStatus) > index && (rStatus[index].Active > 0 || rStatus[index].Suspended > 0) {
-					munge = false
-				}
-			}
-			if munge {
+			if allowToMutatePodTemplate(js, index) {
 				// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
 				mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
 				mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
@@ -348,6 +335,32 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.
 	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
 	return nil, errs.ToAggregate()
+}
+
+// allowToMutatePodTemplate checks if a PodTemplate in a specifc ReplicatedJob
+// can be mutated.
+func allowToMutatePodTemplate(js *jobset.JobSet, index int) bool {
+	// We allow to mutate the PodTemplate when the JobSet is suspended already
+	// or is getting suspended.
+	if ptr.Deref(js.Spec.Suspend, false) {
+		return true
+	}
+	// We allow to mutate the PodTemplate if the ReplicatedJob status is not
+	// initialized yet, because in that case there are no Jobs from the previous
+	// run.
+	if len(js.Status.ReplicatedJobsStatus) < len(js.Spec.ReplicatedJobs) {
+		return true
+	}
+
+	// We don't allow to mutate the PodTemplate when the JobSet is resuming, and
+	// the Jobs from the previous run still exist. This gives time the JobSet
+	// controller to delete the Jobs from the previous run if they could
+	// conflict with the Job creation on resume.
+	rStatus := js.Status.ReplicatedJobsStatus
+	if rStatus[index].Active > 0 || rStatus[index].Suspended > 0 {
+		return false
+	}
+	return true
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
