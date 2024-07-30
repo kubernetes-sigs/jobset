@@ -1581,6 +1581,35 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("elastic replicated jobs; upscale and then downscale", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns)
+			},
+			steps: []*step{
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						setReplicasReplicatedJob(js, "replicated-job-a", 4)
+					},
+				},
+				{
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 7
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						setReplicasReplicatedJob(js, "replicated-job-a", 1)
+					},
+				},
+				{
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 2
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+				},
+			},
+		}),
 	) // end of DescribeTable
 
 	ginkgo.When("A JobSet is managed by another controller", ginkgo.Ordered, func() {
