@@ -206,6 +206,10 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 	// Handle suspending a jobset or resuming a suspended jobset.
 	jobsetSuspended := jobSetSuspended(js)
 	if jobsetSuspended {
+		// We delete Jobs when the JobSet gets suspended. We do it because while
+		// the JobSet is suspended its PodTemplates can be mutated. In that case
+		// we need to recreate the Jobs so that they match the latest
+		// PodTemplates in the JobSet.
 		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
 			log.Error(err, "deleting jobs")
 			return ctrl.Result{}, err
