@@ -54,7 +54,7 @@ func (p *podWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (ad
 		return nil, fmt.Errorf("follower pod node selector not set")
 	}
 	if _, exists := pod.Spec.NodeSelector[topologyKey]; !exists {
-		return nil, fmt.Errorf("follower pod node selector not set")
+		return nil, fmt.Errorf("follower pod node selector for topology domain not found. missing selector: %s", topologyKey)
 	}
 	// For follower pods, validate leader pod exists and is scheduled.
 	leaderScheduled, err := p.leaderPodScheduled(ctx, pod)
