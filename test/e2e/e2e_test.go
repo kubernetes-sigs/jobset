@@ -136,7 +136,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 
 			// Create JobSet.
 			ginkgo.By("creating jobset with four replicas")
-			js := sleepTestJobSet(ns, 4, "sleep 10000").Obj()
+			js := sleepTestJobSet(ns, 4, "sleep 60").Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
@@ -157,7 +157,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 
 			// Create JobSet.
 			ginkgo.By("creating jobset with four replicas")
-			js := sleepTestJobSet(ns, 4, "sleep 10000").Obj()
+			js := sleepTestJobSet(ns, 4, "sleep 60").Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
