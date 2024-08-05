@@ -188,7 +188,7 @@ func (p *podWebhook) topologyFromPod(ctx context.Context, pod *corev1.Pod, topol
 	// Get topology (e.g. node pool name) from node labels.
 	topology, exists := node.Labels[topologyKey]
 	if !exists {
-		return "", fmt.Errorf("node does not have topology label: %s", topology)
+		return "", fmt.Errorf("node does not have topology label: %s", topologyKey)
 	}
 	return topology, nil
 }
