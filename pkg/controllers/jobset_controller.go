@@ -395,12 +395,6 @@ func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, a
 // resumeJobsIfNecessary iterates through each replicatedJob, resuming any suspended jobs if the JobSet
 // is not suspended.
 func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
-	// Store pod template for each replicatedJob.
-	replicatedJobTemplateMap := map[string]corev1.PodTemplateSpec{}
-	for _, replicatedJob := range js.Spec.ReplicatedJobs {
-		replicatedJobTemplateMap[replicatedJob.Name] = replicatedJob.Template.Spec.Template
-	}
-
 	// Map each replicatedJob to a list of its active jobs.
 	replicatedJobToActiveJobs := map[string][]*batchv1.Job{}
 	for _, job := range activeJobs {
@@ -422,7 +416,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 			if !jobSuspended(job) {
 				continue
 			}
-			if err := r.resumeJob(ctx, job, replicatedJobTemplateMap); err != nil {
+			if err := r.resumeJob(ctx, job, js, &replicatedJob); err != nil {
 				return err
 			}
 		}
@@ -440,7 +434,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 	return nil
 }
 
-func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, replicatedJobTemplateMap map[string]corev1.PodTemplateSpec) error {
+func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, js *jobset.JobSet, rjob *jobset.ReplicatedJob) error {
 	log := ctrl.LoggerFrom(ctx)
 	// Kubernetes validates that a job template is immutable
 	// so if the job has started i.e., startTime != nil), we must set it to nil first.
@@ -452,30 +446,44 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 	}
 
 	// Get name of parent replicated job and use it to look up the pod template.
-	replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
-	replicatedJobPodTemplate := replicatedJobTemplateMap[replicatedJobName]
-	if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" {
+	if job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] != "" && job.Labels[jobset.JobIndexKey] != "" {
+		jobIdx, err := strconv.Atoi(job.Labels[jobset.JobIndexKey])
+		if err != nil {
+			return err
+		}
 		// Certain fields on the Job pod template may be mutated while a JobSet is suspended,
 		// for integration with Kueue. Ensure these updates are propagated to the child Jobs
 		// when the JobSet is resumed.
-		// Merge values rather than overwriting them, since a different controller
-		// (e.g., the Job controller) may have added labels/annotations/etc to the
-		// Job that do not exist in the ReplicatedJob pod template.
+		// We merge the PodTemplate properties from the latest PodTemplate
+		// in the JobSet, with the PodTemplate corresponding to a newly created
+		// Job.
+		newJob, err := constructJob(js, rjob, jobIdx)
+		if err != nil {
+			return err
+		}
+		// Copy the Job labels managed by the Job controller
+		for _, labelKey := range jobset.JobManagedLabels {
+			newJob.Spec.Template.Labels[labelKey] = job.Spec.Template.Labels[labelKey]
+		}
 		job.Spec.Template.Labels = collections.MergeMaps(
-			job.Spec.Template.Labels,
-			replicatedJobPodTemplate.Labels,
+			newJob.Spec.Template.Labels,
+			rjob.Template.Spec.Template.Labels,
 		)
 		job.Spec.Template.Annotations = collections.MergeMaps(
-			job.Spec.Template.Annotations,
-			replicatedJobPodTemplate.Annotations,
+			newJob.Spec.Template.Annotations,
+			rjob.Template.Spec.Template.Annotations,
 		)
 		job.Spec.Template.Spec.NodeSelector = collections.MergeMaps(
-			job.Spec.Template.Spec.NodeSelector,
-			replicatedJobPodTemplate.Spec.NodeSelector,
+			newJob.Spec.Template.Spec.NodeSelector,
+			rjob.Template.Spec.Template.Spec.NodeSelector,
 		)
 		job.Spec.Template.Spec.Tolerations = collections.MergeSlices(
-			job.Spec.Template.Spec.Tolerations,
-			replicatedJobPodTemplate.Spec.Tolerations,
+			newJob.Spec.Template.Spec.Tolerations,
+			rjob.Template.Spec.Template.Spec.Tolerations,
+		)
+		job.Spec.Template.Spec.SchedulingGates = collections.MergeSlices(
+			newJob.Spec.Template.Spec.SchedulingGates,
+			rjob.Template.Spec.Template.Spec.SchedulingGates,
 		)
 	} else {
 		log.Error(nil, "job missing ReplicatedJobName label")

@@ -51,6 +51,11 @@ const (
 	CoordinatorKey = "jobset.sigs.k8s.io/coordinator"
 )
 
+var (
+	// the legacy names are no longer defined in the api, only in k/2/apis/batch
+	JobManagedLabels = []string{"job-name", "controller-uid", batchv1.JobNameLabel, batchv1.ControllerUidLabel}
+)
+
 type JobSetConditionType string
 
 // These are built-in conditions of a JobSet.

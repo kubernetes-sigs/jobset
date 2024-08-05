@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/util/testing"
@@ -112,7 +113,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 			// Create JobSet.
 			testFinalizer := "fake.example.com/blockDeletion"
 			ginkgo.By("creating jobset with ttl seconds after finished")
-			js := sleepTestJobSet(ns).Finalizers([]string{testFinalizer}).TTLSecondsAfterFinished(5).Obj()
+			js := sleepTestJobSet(ns, 20).Finalizers([]string{testFinalizer}).TTLSecondsAfterFinished(5).Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
@@ -128,6 +129,82 @@ var _ = ginkgo.Describe("JobSet", func() {
 			// Check jobset is cleaned up after ttl seconds.
 			ginkgo.By("checking jobset is cleaned up after ttl seconds")
 			util.JobSetDeleted(ctx, k8sClient, js, timeout)
+		})
+	})
+
+	ginkgo.When("job is suspended and resumed", func() {
+
+		ginkgo.It("should allow to resume JobSet after restoring PodTemplate", func() {
+			ctx := context.Background()
+			js := sleepTestJobSet(ns, 1).Obj()
+			jsKey := types.NamespacedName{Name: js.Name, Namespace: js.Namespace}
+
+			ginkgo.By("Create a suspended JobSet", func() {
+				js.Spec.Suspend = ptr.To(true)
+				js.Spec.TTLSecondsAfterFinished = ptr.To[int32](5)
+				gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Unsuspend the JobSet setting nodeSelectors that prevent pods from being scheduled", func() {
+				gomega.Eventually(func() error {
+					gomega.Expect(k8sClient.Get(ctx, jsKey, js)).Should(gomega.Succeed())
+					js.Spec.Suspend = ptr.To(false)
+					podTemplate := &js.Spec.ReplicatedJobs[0].Template.Spec.Template
+					if podTemplate.Spec.NodeSelector == nil {
+						podTemplate.Spec.NodeSelector = make(map[string]string)
+					}
+					podTemplate.Spec.NodeSelector["kubernetes.io/hostname"] = "non-existing-node"
+					if podTemplate.Labels == nil {
+						podTemplate.Labels = make(map[string]string)
+					}
+					podTemplate.Labels["custom-label-key"] = "custom-label-value"
+					if podTemplate.Annotations == nil {
+						podTemplate.Annotations = make(map[string]string)
+					}
+					podTemplate.Annotations["custom-annotation-key"] = "custom-annotation-value"
+					podTemplate.Spec.SchedulingGates = []corev1.PodSchedulingGate{
+						{
+							Name: "example.com/gate",
+						},
+					}
+					return k8sClient.Update(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Await for all Jobs to be active", func() {
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jsKey, js)).Should(gomega.Succeed())
+					if js.Status.ReplicatedJobsStatus == nil {
+						return 0
+					}
+					return js.Status.ReplicatedJobsStatus[0].Active
+				}, timeout, interval).Should(gomega.Equal(js.Spec.ReplicatedJobs[0].Replicas))
+			})
+
+			ginkgo.By("Suspend the JobSet restoring the PodTemplate properties", func() {
+				gomega.Eventually(func() error {
+					gomega.Expect(k8sClient.Get(ctx, jsKey, js)).Should(gomega.Succeed())
+					js.Spec.Suspend = ptr.To(true)
+					podTemplate := &js.Spec.ReplicatedJobs[0].Template.Spec.Template
+					delete(podTemplate.Spec.NodeSelector, "kubernetes.io/hostname")
+					delete(podTemplate.Labels, "custom-label-key")
+					delete(podTemplate.Annotations, "custom-annotation-key")
+					podTemplate.Spec.SchedulingGates = nil
+					return k8sClient.Update(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Unsuspending the JobSet again with PodTemplate allowing completion", func() {
+				gomega.Eventually(func() error {
+					gomega.Expect(k8sClient.Get(ctx, jsKey, js)).Should(gomega.Succeed())
+					js.Spec.Suspend = ptr.To(false)
+					return k8sClient.Update(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Await for the JobSet to complete successfully", func() {
+				util.JobSetCompleted(ctx, k8sClient, js, timeout)
+			})
 		})
 	})
 
@@ -225,7 +302,7 @@ func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 			Obj())
 }
 
-func sleepTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
+func sleepTestJobSet(ns *corev1.Namespace, durationSeconds int32) *testing.JobSetWrapper {
 	jsName := "js"
 	rjobName := "rjob"
 	replicas := 4
@@ -239,7 +316,7 @@ func sleepTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 							Name:    "sleep-test-container",
 							Image:   "bash:latest",
 							Command: []string{"bash", "-c"},
-							Args:    []string{"sleep 20"},
+							Args:    []string{fmt.Sprintf("sleep %d", durationSeconds)},
 						},
 					},
 				}).Obj()).
