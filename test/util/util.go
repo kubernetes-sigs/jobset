@@ -242,7 +242,7 @@ func UpdateReplicas(ctx context.Context, k8sClient client.Client, js *jobset.Job
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &fresh); err != nil {
 			return false, err
 		}
-		js.Spec.ReplicatedJobs[replicatedJobIndex].Replicas = replicas
+		fresh.Spec.ReplicatedJobs[replicatedJobIndex].Replicas = replicas
 		if err := k8sClient.Update(ctx, &fresh); err != nil {
 			return false, err
 		}
