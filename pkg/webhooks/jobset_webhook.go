@@ -358,7 +358,7 @@ func replicatedJobNamesFromSpec(js *jobset.JobSet) []string {
 // 3. coordinator podIndex is a valid pod index for the job.
 func validateCoordinator(js *jobset.JobSet) error {
 	// Validate replicatedJob.
-	replicatedJob := replicatedJobByName(js, js.Spec.Coordinator.ReplicatedJob)
+	replicatedJob := replicatedJobByName(js)
 	if replicatedJob == nil {
 		return fmt.Errorf("coordinator replicatedJob %s does not exist", js.Spec.Coordinator.ReplicatedJob)
 	}
@@ -382,7 +382,7 @@ func validateCoordinator(js *jobset.JobSet) error {
 
 // replicatedJobByName fetches the replicatedJob spec from the JobSet by name.
 // Returns nil if no replicatedJob with the given name exists.
-func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.ReplicatedJob {
+func replicatedJobByName(js *jobset.JobSet) *jobset.ReplicatedJob {
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		if rjob.Name == js.Spec.Coordinator.ReplicatedJob {
 			return &rjob

@@ -489,11 +489,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 	startupPolicy := js.Spec.StartupPolicy
 
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
-		jobs, err := constructJobsFromTemplate(js, &replicatedJob, ownedJobs)
-		if err != nil {
-			return err
-		}
-
+		jobs := constructJobsFromTemplate(js, &replicatedJob, ownedJobs)
 		status := findReplicatedJobStatus(replicatedJobStatus, replicatedJob.Name)
 
 		// For startup policy, if the replicatedJob is started we can skip this loop.
@@ -639,23 +635,20 @@ func executeSuccessPolicy(js *jobset.JobSet, ownedJobs *childJobs, updateStatusO
 	return false
 }
 
-func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
+func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) []*batchv1.Job {
 	var jobs []*batchv1.Job
 	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
 		jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 		if create := shouldCreateJob(jobName, ownedJobs); !create {
 			continue
 		}
-		job, err := constructJob(js, rjob, jobIdx)
-		if err != nil {
-			return nil, err
-		}
+		job := constructJob(js, rjob, jobIdx)
 		jobs = append(jobs, job)
 	}
-	return jobs, nil
+	return jobs
 }
 
-func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*batchv1.Job, error) {
+func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) *batchv1.Job {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      collections.CloneMap(rjob.Template.Labels),
@@ -689,7 +682,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	jobsetSuspended := jobSetSuspended(js)
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
 
-	return job, nil
+	return job
 }
 
 func addTaintToleration(job *batchv1.Job) {

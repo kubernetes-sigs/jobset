@@ -16,3 +16,4 @@ linters-settings:
 linters:
   enable:
     - goimports
+    - unparam
