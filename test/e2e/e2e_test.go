@@ -112,7 +112,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 			// Create JobSet.
 			testFinalizer := "fake.example.com/blockDeletion"
 			ginkgo.By("creating jobset with ttl seconds after finished")
-			js := sleepTestJobSet(ns).Finalizers([]string{testFinalizer}).TTLSecondsAfterFinished(5).Obj()
+			js := sleepTestJobSet(ns, 4, "sleep 20").Finalizers([]string{testFinalizer}).TTLSecondsAfterFinished(5).Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
@@ -128,6 +128,52 @@ var _ = ginkgo.Describe("JobSet", func() {
 			// Check jobset is cleaned up after ttl seconds.
 			ginkgo.By("checking jobset is cleaned up after ttl seconds")
 			util.JobSetDeleted(ctx, k8sClient, js, timeout)
+		})
+	})
+	ginkgo.When("elastic jobs are upscaling", func() {
+		ginkgo.It("should create more replicas", func() {
+			ctx := context.Background()
+
+			// Create JobSet.
+			ginkgo.By("creating jobset with four replicas")
+			js := sleepTestJobSet(ns, 4, "sleep 60").Obj()
+
+			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			util.UpdateReplicas(ctx, k8sClient, js, 0, 8, timeout)
+			ginkgo.By("jobset should upscale")
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(8))
+			// Check jobset status if specified.
+			ginkgo.By("checking jobset condition")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
+		})
+	})
+	ginkgo.When("elastic jobs are downscaling", func() {
+		ginkgo.It("should create less replicas", func() {
+			ctx := context.Background()
+
+			// Create JobSet.
+			ginkgo.By("creating jobset with four replicas")
+			js := sleepTestJobSet(ns, 4, "sleep 60").Obj()
+
+			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			ginkgo.By("jobset should have 4 jobs")
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(4))
+
+			util.UpdateReplicas(ctx, k8sClient, js, 0, 2, timeout)
+			ginkgo.By("jobset should downscale")
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(2))
+			// Check jobset status if specified.
+			ginkgo.By("checking jobset condition")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
 		})
 	})
 
@@ -225,10 +271,9 @@ func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 			Obj())
 }
 
-func sleepTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
+func sleepTestJobSet(ns *corev1.Namespace, replicas int32, sleepArg string) *testing.JobSetWrapper {
 	jsName := "js"
 	rjobName := "rjob"
-	replicas := 4
 	return testing.MakeJobSet(jsName, ns.Name).
 		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
 			Job(testing.MakeJobTemplate("job", ns.Name).
@@ -239,7 +284,7 @@ func sleepTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 							Name:    "sleep-test-container",
 							Image:   "bash:latest",
 							Command: []string{"bash", "-c"},
-							Args:    []string{"sleep 20"},
+							Args:    []string{sleepArg},
 						},
 					},
 				}).Obj()).
