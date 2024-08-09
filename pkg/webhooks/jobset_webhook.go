@@ -314,9 +314,9 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.
 	}
 	mungedSpec := js.Spec.DeepCopy()
 
-	// Allow pod template to be mutated for suspended JobSets.
+	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
 	// This is needed for integration with Kueue/DWS.
-	if ptr.Deref(oldJS.Spec.Suspend, false) {
+	if ptr.Deref(oldJS.Spec.Suspend, false) || ptr.Deref(js.Spec.Suspend, false) {
 		for index := range js.Spec.ReplicatedJobs {
 			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
 			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
