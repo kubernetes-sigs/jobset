@@ -26,7 +26,6 @@ const (
 	ReplicatedJobNameKey string = "jobset.sigs.k8s.io/replicatedjob-name"
 	JobIndexKey          string = "jobset.sigs.k8s.io/job-index"
 	JobKey               string = "jobset.sigs.k8s.io/job-key"
-	JobNameKey           string = "job-name" // TODO(#26): Migrate to the fully qualified label name.
 	// ExclusiveKey is an annotation that can be set on the JobSet or on a ReplicatedJob template.
 	// If set at the JobSet level, all child jobs from all ReplicatedJobs will be scheduled using exclusive
 	// job placement per topology group (defined as the label value).
