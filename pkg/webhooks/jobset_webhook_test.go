@@ -1641,6 +1641,49 @@ func TestValidateUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "replicated job pod template can be updated for jobset getting suspended",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								// Adding an annotation.
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										ObjectMeta: metav1.ObjectMeta{
+											Annotations: map[string]string{"key": "value"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(false),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "replicated job pod template cannot be updated for running jobset",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
