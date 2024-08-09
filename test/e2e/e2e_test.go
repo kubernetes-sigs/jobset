@@ -133,7 +133,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 	})
 
 	// This test is added to test the JobSet transitions as Kueue would when:
-	// doing: resume in RF1 -> suspend -> resume in RF2.
+	// doing: resume in ResourceFlavor1 -> suspend -> resume in ResourceFlavor2.
 	// In particular, Kueue updates the PodTemplate on suspending and resuming
 	// the JobSet.
 	ginkgo.When("JobSet is suspended and resumed", func() {
@@ -145,7 +145,6 @@ var _ = ginkgo.Describe("JobSet", func() {
 
 			ginkgo.By("Create a suspended JobSet", func() {
 				js.Spec.Suspend = ptr.To(true)
-				js.Spec.TTLSecondsAfterFinished = ptr.To[int32](5)
 				gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
 			})
 
@@ -163,6 +162,9 @@ var _ = ginkgo.Describe("JobSet", func() {
 			})
 
 			ginkgo.By("Await for all Jobs to be active", func() {
+				// In this step the Pods remain Pending due to the nodeSelector
+				// which does not match any nodes. Still, JobSet considers as
+				// active any Jobs which have at least one Pending or Running Pod.
 				gomega.Eventually(func() int32 {
 					gomega.Expect(k8sClient.Get(ctx, jsKey, js)).Should(gomega.Succeed())
 					if js.Status.ReplicatedJobsStatus == nil {
