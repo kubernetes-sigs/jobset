@@ -384,7 +384,7 @@ func validateCoordinator(js *jobset.JobSet) error {
 // Returns nil if no replicatedJob with the given name exists.
 func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.ReplicatedJob {
 	for _, rjob := range js.Spec.ReplicatedJobs {
-		if rjob.Name == js.Spec.Coordinator.ReplicatedJob {
+		if rjob.Name == replicatedJob {
 			return &rjob
 		}
 	}
