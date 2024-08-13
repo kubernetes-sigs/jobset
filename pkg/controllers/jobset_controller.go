@@ -730,7 +730,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
-	labels[jobset.JobIDKey] = calculateJobID(js, rjob, jobIdx)
+	labels[jobset.JobIDKey] = calculateJobID(js, rjob.Name, jobIdx)
 
 	// Set annotations on the object.
 	annotations := collections.CloneMap(obj.GetAnnotations())
@@ -740,7 +740,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
-	annotations[jobset.JobIDKey] = calculateJobID(js, rjob, jobIdx)
+	annotations[jobset.JobIDKey] = calculateJobID(js, rjob.Name, jobIdx)
 
 	// Apply coordinator annotation/label if a coordinator is defined in the JobSet spec.
 	if js.Spec.Coordinator != nil {
@@ -1035,16 +1035,28 @@ func coordinatorEndpoint(js *jobset.JobSet) string {
 	return fmt.Sprintf("%s-%s-%d-%d.%s", js.Name, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex, js.Spec.Coordinator.PodIndex, GetSubdomain(js))
 }
 
-// calculateJobID deterministically assigns a unique integer Job ID for a particular
-// job in a jobset. The job index `j` for replicatedJob[i] is calculated as the sum
-// of all replicatedJob[k].replicas for k in range 0 to i-1 inclusive, plus `j`.
-// This works because the replicatedJobs order is immutable.
+// calculateJobID determines the job ID for a given job. The job ID is a unique
+// global index for the job, with values ranging from 0 to N-1,
+// where N=total number of jobs in the jobset. The job ID is calculated by
+// iterating through the replicatedJobs in the order, as defined in the JobSet
+// spec, keeping a cumulative sum of total replicas seen so far, then when we
+// arrive at the parent replicatedJob of the target job, we add the local job
+// index to our running sum of total jobs seen so far, in order to arrive at
+// the final job ID value.
+//
+// Below is a diagram illustrating how job IDs differ from job indexes.
+//
+// |                         my-jobset                       |
+// |      replicated job A       |    replicated job B       |
+// |  job ID 0    |  job ID 1    |  job ID 2   |   job ID 3  |
+// |  job index 0 | job index 1  | job index 0 | job index 1 |
+//
 // Returns an empty string if the parent replicated Job does not exist,
 // although this should never happen in practice.
-func calculateJobID(js *jobset.JobSet, parentReplicatedJob *jobset.ReplicatedJob, jobIdx int) string {
+func calculateJobID(js *jobset.JobSet, replicatedJobName string, jobIdx int) string {
 	currTotalJobs := 0
 	for _, rjob := range js.Spec.ReplicatedJobs {
-		if rjob.Name == parentReplicatedJob.Name {
+		if rjob.Name == replicatedJobName {
 			return strconv.Itoa(currTotalJobs + jobIdx)
 		}
 		currTotalJobs += int(rjob.Replicas)

@@ -686,6 +686,15 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// Here we update the expected Jobs with certain features which require
+			// direct access to the JobSet object itself to calculate. For example,
+			// the `jobset.sigs.k8s.io/job-id` annotation requires access to the
+			// full JobSet spec to calculate a unique ID for each Job.
+			for _, expectedJob := range tc.want {
+				addJobID(t, tc.js, expectedJob)
+			}
+
+			// Now get the actual output of constructJobsFromTemplate, and diff the results.
 			var got []*batchv1.Job
 			for _, rjob := range tc.js.Spec.ReplicatedJobs {
 				jobs := constructJobsFromTemplate(tc.js, &rjob, tc.ownedJobs)
@@ -697,6 +706,26 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// addJobID modifies the Job object in place by adding
+// the `jobset.sigs.k8s.io/job-id` label/annotation to both the
+// Job itself and the Job template spec.`
+func addJobID(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
+	t.Helper()
+
+	rjobName := job.Annotations[jobset.ReplicatedJobNameKey]
+	jobIdx, err := strconv.Atoi(job.Annotations[jobset.JobIndexKey])
+	if err != nil {
+		t.Fatalf("invalid test case: %v", err)
+	}
+	// Job label/annotation
+	job.Labels[jobset.JobIDKey] = calculateJobID(js, rjobName, jobIdx)
+	job.Annotations[jobset.JobIDKey] = calculateJobID(js, rjobName, jobIdx)
+
+	// Job template spec label/annotation
+	job.Spec.Template.Labels[jobset.JobIDKey] = calculateJobID(js, rjobName, jobIdx)
+	job.Spec.Template.Annotations[jobset.JobIDKey] = calculateJobID(js, rjobName, jobIdx)
 }
 
 func TestUpdateConditions(t *testing.T) {
@@ -1384,11 +1413,11 @@ func TestCreateHeadlessSvcIfNecessary(t *testing.T) {
 
 func TestCalculateJobID(t *testing.T) {
 	tests := []struct {
-		name                string
-		jobSet              *jobset.JobSet
-		parentReplicatedJob *jobset.ReplicatedJob
-		jobIdx              int
-		expectedJobID       string
+		name          string
+		jobSet        *jobset.JobSet
+		replicatedJob string
+		jobIdx        int
+		expectedJobID string
 	}{
 		{
 			name: "single replicated job",
@@ -1399,9 +1428,9 @@ func TestCalculateJobID(t *testing.T) {
 					},
 				},
 			},
-			parentReplicatedJob: &jobset.ReplicatedJob{Name: "rjob"},
-			jobIdx:              1,
-			expectedJobID:       "1",
+			replicatedJob: "rjob",
+			jobIdx:        1,
+			expectedJobID: "1",
 		},
 		{
 			name: "multiple replicated jobs",
@@ -1414,9 +1443,9 @@ func TestCalculateJobID(t *testing.T) {
 					},
 				},
 			},
-			parentReplicatedJob: &jobset.ReplicatedJob{Name: "rjob2"},
-			jobIdx:              3,
-			expectedJobID:       "5",
+			replicatedJob: "rjob2",
+			jobIdx:        3,
+			expectedJobID: "5",
 		},
 		{
 			name: "replicated job not found",
@@ -1427,15 +1456,15 @@ func TestCalculateJobID(t *testing.T) {
 					},
 				},
 			},
-			parentReplicatedJob: &jobset.ReplicatedJob{Name: "rjob2"},
-			jobIdx:              0,
-			expectedJobID:       "",
+			replicatedJob: "rjob2",
+			jobIdx:        0,
+			expectedJobID: "",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actualJobID := calculateJobID(tc.jobSet, tc.parentReplicatedJob, tc.jobIdx)
+			actualJobID := calculateJobID(tc.jobSet, tc.replicatedJob, tc.jobIdx)
 			if diff := cmp.Diff(tc.expectedJobID, actualJobID); diff != "" {
 				t.Errorf("unexpected job ID (-want/+got): %s", diff)
 			}
