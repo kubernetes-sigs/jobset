@@ -24,8 +24,15 @@ const (
 	ReplicatedJobReplicas string = "jobset.sigs.k8s.io/replicatedjob-replicas"
 	// ReplicatedJobNameKey is used to index into a Jobs labels and retrieve the name of the parent ReplicatedJob
 	ReplicatedJobNameKey string = "jobset.sigs.k8s.io/replicatedjob-name"
-	JobIndexKey          string = "jobset.sigs.k8s.io/job-index"
-	JobKey               string = "jobset.sigs.k8s.io/job-key"
+	// JobIndexKey is a label/annotation set to the index of the Job replica within its parent replicatedJob.
+	// For each replicatedJob, this value will range from 0 to replicas-1, where `replicas`
+	// is equal to jobset.spec.replicatedJobs[*].replicas.
+	JobIndexKey string = "jobset.sigs.k8s.io/job-index"
+	// JobIDKey is a label/annotation set to an integer that is unique across the entire JobSet.
+	// For each JobSet, this value will range from 0 to N-1, where N=total number of jobs in the jobset.
+	JobIDKey string = "jobset.sigs.k8s.io/job-id"
+	// JobKey holds the SHA256 hash of the namespaced job name, which can be used to uniquely identify the job.
+	JobKey string = "jobset.sigs.k8s.io/job-key"
 	// ExclusiveKey is an annotation that can be set on the JobSet or on a ReplicatedJob template.
 	// If set at the JobSet level, all child jobs from all ReplicatedJobs will be scheduled using exclusive
 	// job placement per topology group (defined as the label value).

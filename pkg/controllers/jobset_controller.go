@@ -730,6 +730,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
+	labels[jobset.JobIDKey] = calculateJobID(js, rjob, jobIdx)
 
 	// Set annotations on the object.
 	annotations := collections.CloneMap(obj.GetAnnotations())
@@ -739,6 +740,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
+	annotations[jobset.JobIDKey] = calculateJobID(js, rjob, jobIdx)
 
 	// Apply coordinator annotation/label if a coordinator is defined in the JobSet spec.
 	if js.Spec.Coordinator != nil {
@@ -1031,4 +1033,21 @@ func exclusiveConditions(cond1, cond2 metav1.Condition) bool {
 // This function assumes the caller has validated that jobset.Spec.Coordinator != nil.
 func coordinatorEndpoint(js *jobset.JobSet) string {
 	return fmt.Sprintf("%s-%s-%d-%d.%s", js.Name, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex, js.Spec.Coordinator.PodIndex, GetSubdomain(js))
+}
+
+// calculateJobID deterministically assigns a unique integer Job ID for a particular
+// job in a jobset. The job index `j` for replicatedJob[i] is calculated as the sum
+// of all replicatedJob[k].replicas for k in range 0 to i-1 inclusive, plus `j`.
+// This works because the replicatedJobs order is immutable.
+// Returns an empty string if the parent replicated Job does not exist,
+// although this should never happen in practice.
+func calculateJobID(js *jobset.JobSet, parentReplicatedJob *jobset.ReplicatedJob, jobIdx int) string {
+	currTotalJobs := 0
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		if rjob.Name == parentReplicatedJob.Name {
+			return strconv.Itoa(currTotalJobs + jobIdx)
+		}
+		currTotalJobs += int(rjob.Replicas)
+	}
+	return ""
 }

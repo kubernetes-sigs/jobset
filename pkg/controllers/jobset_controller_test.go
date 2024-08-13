@@ -1381,3 +1381,64 @@ func TestCreateHeadlessSvcIfNecessary(t *testing.T) {
 		})
 	}
 }
+
+func TestCalculateJobID(t *testing.T) {
+	tests := []struct {
+		name                string
+		jobSet              *jobset.JobSet
+		parentReplicatedJob *jobset.ReplicatedJob
+		jobIdx              int
+		expectedJobID       string
+	}{
+		{
+			name: "single replicated job",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "rjob", Replicas: 3},
+					},
+				},
+			},
+			parentReplicatedJob: &jobset.ReplicatedJob{Name: "rjob"},
+			jobIdx:              1,
+			expectedJobID:       "1",
+		},
+		{
+			name: "multiple replicated jobs",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "rjob1", Replicas: 2},
+						{Name: "rjob2", Replicas: 4},
+						{Name: "rjob3", Replicas: 1},
+					},
+				},
+			},
+			parentReplicatedJob: &jobset.ReplicatedJob{Name: "rjob2"},
+			jobIdx:              3,
+			expectedJobID:       "5",
+		},
+		{
+			name: "replicated job not found",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "rjob1", Replicas: 2},
+					},
+				},
+			},
+			parentReplicatedJob: &jobset.ReplicatedJob{Name: "rjob2"},
+			jobIdx:              0,
+			expectedJobID:       "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actualJobID := calculateJobID(tc.jobSet, tc.parentReplicatedJob, tc.jobIdx)
+			if diff := cmp.Diff(tc.expectedJobID, actualJobID); diff != "" {
+				t.Errorf("unexpected job ID (-want/+got): %s", diff)
+			}
+		})
+	}
+}
