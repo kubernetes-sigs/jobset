@@ -688,10 +688,10 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Here we update the expected Jobs with certain features which require
 			// direct access to the JobSet object itself to calculate. For example,
-			// the `jobset.sigs.k8s.io/job-id` annotation requires access to the
+			// the `jobset.sigs.k8s.io/job-global-index` annotation requires access to the
 			// full JobSet spec to calculate a unique ID for each Job.
 			for _, expectedJob := range tc.want {
-				addJobID(t, tc.js, expectedJob)
+				addJobGlobalIndex(t, tc.js, expectedJob)
 			}
 
 			// Now get the actual output of constructJobsFromTemplate, and diff the results.
@@ -708,10 +708,10 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 	}
 }
 
-// addJobID modifies the Job object in place by adding
-// the `jobset.sigs.k8s.io/job-id` label/annotation to both the
+// addJobGlobalIndex modifies the Job object in place by adding
+// the `jobset.sigs.k8s.io/job-global-index` label/annotation to both the
 // Job itself and the Job template spec.`
-func addJobID(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
+func addJobGlobalIndex(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 	t.Helper()
 
 	rjobName := job.Annotations[jobset.ReplicatedJobNameKey]
@@ -720,12 +720,12 @@ func addJobID(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 		t.Fatalf("invalid test case: %v", err)
 	}
 	// Job label/annotation
-	job.Labels[jobset.JobIDKey] = calculateJobID(js, rjobName, jobIdx)
-	job.Annotations[jobset.JobIDKey] = calculateJobID(js, rjobName, jobIdx)
+	job.Labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjobName, jobIdx)
+	job.Annotations[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjobName, jobIdx)
 
 	// Job template spec label/annotation
-	job.Spec.Template.Labels[jobset.JobIDKey] = calculateJobID(js, rjobName, jobIdx)
-	job.Spec.Template.Annotations[jobset.JobIDKey] = calculateJobID(js, rjobName, jobIdx)
+	job.Spec.Template.Labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjobName, jobIdx)
+	job.Spec.Template.Annotations[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjobName, jobIdx)
 }
 
 func TestUpdateConditions(t *testing.T) {
@@ -1411,13 +1411,13 @@ func TestCreateHeadlessSvcIfNecessary(t *testing.T) {
 	}
 }
 
-func TestCalculateJobID(t *testing.T) {
+func TestGlobalJobIndex(t *testing.T) {
 	tests := []struct {
-		name          string
-		jobSet        *jobset.JobSet
-		replicatedJob string
-		jobIdx        int
-		expectedJobID string
+		name                   string
+		jobSet                 *jobset.JobSet
+		replicatedJob          string
+		jobIdx                 int
+		expectedJobGlobalIndex string
 	}{
 		{
 			name: "single replicated job",
@@ -1428,9 +1428,9 @@ func TestCalculateJobID(t *testing.T) {
 					},
 				},
 			},
-			replicatedJob: "rjob",
-			jobIdx:        1,
-			expectedJobID: "1",
+			replicatedJob:          "rjob",
+			jobIdx:                 1,
+			expectedJobGlobalIndex: "1",
 		},
 		{
 			name: "multiple replicated jobs",
@@ -1443,9 +1443,9 @@ func TestCalculateJobID(t *testing.T) {
 					},
 				},
 			},
-			replicatedJob: "rjob2",
-			jobIdx:        3,
-			expectedJobID: "5",
+			replicatedJob:          "rjob2",
+			jobIdx:                 3,
+			expectedJobGlobalIndex: "5",
 		},
 		{
 			name: "replicated job not found",
@@ -1456,17 +1456,17 @@ func TestCalculateJobID(t *testing.T) {
 					},
 				},
 			},
-			replicatedJob: "rjob2",
-			jobIdx:        0,
-			expectedJobID: "",
+			replicatedJob:          "rjob2",
+			jobIdx:                 0,
+			expectedJobGlobalIndex: "",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actualJobID := calculateJobID(tc.jobSet, tc.replicatedJob, tc.jobIdx)
-			if diff := cmp.Diff(tc.expectedJobID, actualJobID); diff != "" {
-				t.Errorf("unexpected job ID (-want/+got): %s", diff)
+			actualJobGlobalIndex := globalJobIndex(tc.jobSet, tc.replicatedJob, tc.jobIdx)
+			if diff := cmp.Diff(tc.expectedJobGlobalIndex, actualJobGlobalIndex); diff != "" {
+				t.Errorf("unexpected global job index (-want/+got): %s", diff)
 			}
 		})
 	}

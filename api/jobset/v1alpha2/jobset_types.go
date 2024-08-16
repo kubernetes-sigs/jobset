@@ -28,9 +28,9 @@ const (
 	// For each replicatedJob, this value will range from 0 to replicas-1, where `replicas`
 	// is equal to jobset.spec.replicatedJobs[*].replicas.
 	JobIndexKey string = "jobset.sigs.k8s.io/job-index"
-	// JobIDKey is a label/annotation set to an integer that is unique across the entire JobSet.
+	// JobGlobalIndexKey is a label/annotation set to an integer that is unique across the entire JobSet.
 	// For each JobSet, this value will range from 0 to N-1, where N=total number of jobs in the jobset.
-	JobIDKey string = "jobset.sigs.k8s.io/job-id"
+	JobGlobalIndexKey string = "jobset.sigs.k8s.io/job-global-index"
 	// JobKey holds the SHA256 hash of the namespaced job name, which can be used to uniquely identify the job.
 	JobKey string = "jobset.sigs.k8s.io/job-key"
 	// ExclusiveKey is an annotation that can be set on the JobSet or on a ReplicatedJob template.

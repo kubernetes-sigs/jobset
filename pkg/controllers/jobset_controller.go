@@ -730,7 +730,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
-	labels[jobset.JobIDKey] = calculateJobID(js, rjob.Name, jobIdx)
+	labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
 
 	// Set annotations on the object.
 	annotations := collections.CloneMap(obj.GetAnnotations())
@@ -740,7 +740,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
-	annotations[jobset.JobIDKey] = calculateJobID(js, rjob.Name, jobIdx)
+	annotations[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
 
 	// Apply coordinator annotation/label if a coordinator is defined in the JobSet spec.
 	if js.Spec.Coordinator != nil {
@@ -1035,25 +1035,25 @@ func coordinatorEndpoint(js *jobset.JobSet) string {
 	return fmt.Sprintf("%s-%s-%d-%d.%s", js.Name, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex, js.Spec.Coordinator.PodIndex, GetSubdomain(js))
 }
 
-// calculateJobID determines the job ID for a given job. The job ID is a unique
+// globalJobIndex determines the job global index for a given job. The job global index is a unique
 // global index for the job, with values ranging from 0 to N-1,
-// where N=total number of jobs in the jobset. The job ID is calculated by
+// where N=total number of jobs in the jobset. The job global index is calculated by
 // iterating through the replicatedJobs in the order, as defined in the JobSet
 // spec, keeping a cumulative sum of total replicas seen so far, then when we
 // arrive at the parent replicatedJob of the target job, we add the local job
 // index to our running sum of total jobs seen so far, in order to arrive at
-// the final job ID value.
+// the final job global index value.
 //
-// Below is a diagram illustrating how job IDs differ from job indexes.
+// Below is a diagram illustrating how job global indexs differ from job indexes.
 //
-// |                         my-jobset                       |
-// |      replicated job A       |    replicated job B       |
-// |  job ID 0    |  job ID 1    |  job ID 2   |   job ID 3  |
-// |  job index 0 | job index 1  | job index 0 | job index 1 |
+// |                             my-jobset                             |
+// |        replicated job A         |        replicated job B         |
+// |    job index 0 |   job index 1  |   job index 0  | job index 1    |
+// | global index 0 | global index 2 | global index 3 | global index 4 |
 //
 // Returns an empty string if the parent replicated Job does not exist,
 // although this should never happen in practice.
-func calculateJobID(js *jobset.JobSet, replicatedJobName string, jobIdx int) string {
+func globalJobIndex(js *jobset.JobSet, replicatedJobName string, jobIdx int) string {
 	currTotalJobs := 0
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		if rjob.Name == replicatedJobName {
