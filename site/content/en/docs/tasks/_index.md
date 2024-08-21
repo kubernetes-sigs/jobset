@@ -13,7 +13,7 @@ no_list: true
 
 - [Distributed Training of a CNN on the MNIST dataset using PyTorch and JobSet](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/pytorch/cnn-mnist/mnist.yaml)
 
-**Note**: machine Learning images can be quite large so it may take some time to pull the images.
+**Note**: Machine learning container images can be quite large so it may take some time to pull the images.
 
 ## Simple Examples
 
