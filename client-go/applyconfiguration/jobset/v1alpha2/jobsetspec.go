@@ -14,7 +14,7 @@ limitations under the License.
 
 package v1alpha2
 
-// JobSetSpecApplyConfiguration represents an declarative configuration of the JobSetSpec type for use
+// JobSetSpecApplyConfiguration represents a declarative configuration of the JobSetSpec type for use
 // with apply.
 type JobSetSpecApplyConfiguration struct {
 	ReplicatedJobs          []ReplicatedJobApplyConfiguration `json:"replicatedJobs,omitempty"`
@@ -28,7 +28,7 @@ type JobSetSpecApplyConfiguration struct {
 	TTLSecondsAfterFinished *int32                            `json:"ttlSecondsAfterFinished,omitempty"`
 }
 
-// JobSetSpecApplyConfiguration constructs an declarative configuration of the JobSetSpec type for use with
+// JobSetSpecApplyConfiguration constructs a declarative configuration of the JobSetSpec type for use with
 // apply.
 func JobSetSpec() *JobSetSpecApplyConfiguration {
 	return &JobSetSpecApplyConfiguration{}

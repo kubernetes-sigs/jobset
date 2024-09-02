@@ -40,22 +40,24 @@ var jobsetsKind = v1alpha2.SchemeGroupVersion.WithKind("JobSet")
 
 // Get takes name of the jobSet, and returns the corresponding jobSet object, and an error if there is any.
 func (c *FakeJobSets) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha2.JobSet, err error) {
+	emptyResult := &v1alpha2.JobSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(jobsetsResource, c.ns, name), &v1alpha2.JobSet{})
+		Invokes(testing.NewGetActionWithOptions(jobsetsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha2.JobSet), err
 }
 
 // List takes label and field selectors, and returns the list of JobSets that match those selectors.
 func (c *FakeJobSets) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha2.JobSetList, err error) {
+	emptyResult := &v1alpha2.JobSetList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(jobsetsResource, jobsetsKind, c.ns, opts), &v1alpha2.JobSetList{})
+		Invokes(testing.NewListActionWithOptions(jobsetsResource, jobsetsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -74,40 +76,43 @@ func (c *FakeJobSets) List(ctx context.Context, opts v1.ListOptions) (result *v1
 // Watch returns a watch.Interface that watches the requested jobSets.
 func (c *FakeJobSets) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(jobsetsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(jobsetsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a jobSet and creates it.  Returns the server's representation of the jobSet, and an error, if there is any.
 func (c *FakeJobSets) Create(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.CreateOptions) (result *v1alpha2.JobSet, err error) {
+	emptyResult := &v1alpha2.JobSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(jobsetsResource, c.ns, jobSet), &v1alpha2.JobSet{})
+		Invokes(testing.NewCreateActionWithOptions(jobsetsResource, c.ns, jobSet, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha2.JobSet), err
 }
 
 // Update takes the representation of a jobSet and updates it. Returns the server's representation of the jobSet, and an error, if there is any.
 func (c *FakeJobSets) Update(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.UpdateOptions) (result *v1alpha2.JobSet, err error) {
+	emptyResult := &v1alpha2.JobSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(jobsetsResource, c.ns, jobSet), &v1alpha2.JobSet{})
+		Invokes(testing.NewUpdateActionWithOptions(jobsetsResource, c.ns, jobSet, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha2.JobSet), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeJobSets) UpdateStatus(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.UpdateOptions) (*v1alpha2.JobSet, error) {
+func (c *FakeJobSets) UpdateStatus(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.UpdateOptions) (result *v1alpha2.JobSet, err error) {
+	emptyResult := &v1alpha2.JobSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(jobsetsResource, "status", c.ns, jobSet), &v1alpha2.JobSet{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(jobsetsResource, "status", c.ns, jobSet, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha2.JobSet), err
 }
@@ -122,7 +127,7 @@ func (c *FakeJobSets) Delete(ctx context.Context, name string, opts v1.DeleteOpt
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeJobSets) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(jobsetsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(jobsetsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha2.JobSetList{})
 	return err
@@ -130,11 +135,12 @@ func (c *FakeJobSets) DeleteCollection(ctx context.Context, opts v1.DeleteOption
 
 // Patch applies the patch and returns the patched jobSet.
 func (c *FakeJobSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha2.JobSet, err error) {
+	emptyResult := &v1alpha2.JobSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(jobsetsResource, c.ns, name, pt, data, subresources...), &v1alpha2.JobSet{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(jobsetsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha2.JobSet), err
 }
@@ -152,11 +158,12 @@ func (c *FakeJobSets) Apply(ctx context.Context, jobSet *jobsetv1alpha2.JobSetAp
 	if name == nil {
 		return nil, fmt.Errorf("jobSet.Name must be provided to Apply")
 	}
+	emptyResult := &v1alpha2.JobSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(jobsetsResource, c.ns, *name, types.ApplyPatchType, data), &v1alpha2.JobSet{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(jobsetsResource, c.ns, *name, types.ApplyPatchType, data, opts.ToPatchOptions()), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha2.JobSet), err
 }
@@ -175,11 +182,12 @@ func (c *FakeJobSets) ApplyStatus(ctx context.Context, jobSet *jobsetv1alpha2.Jo
 	if name == nil {
 		return nil, fmt.Errorf("jobSet.Name must be provided to Apply")
 	}
+	emptyResult := &v1alpha2.JobSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(jobsetsResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1alpha2.JobSet{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(jobsetsResource, c.ns, *name, types.ApplyPatchType, data, opts.ToPatchOptions(), "status"), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha2.JobSet), err
 }

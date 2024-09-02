@@ -46,6 +46,48 @@ description: Generated API reference documentation for jobset.x-k8s.io/v1alpha2.
 </tbody>
 </table>
 
+## `Coordinator`     {#jobset-x-k8s-io-v1alpha2-Coordinator}
+    
+
+**Appears in:**
+
+- [JobSetSpec](#jobset-x-k8s-io-v1alpha2-JobSetSpec)
+
+
+<p>Coordinator defines which pod can be marked as the coordinator for the JobSet workload.</p>
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+    
+  
+<tr><td><code>replicatedJob</code> <B>[Required]</B><br/>
+<code>string</code>
+</td>
+<td>
+   <p>ReplicatedJob is the name of the ReplicatedJob which contains
+the coordinator pod.</p>
+</td>
+</tr>
+<tr><td><code>jobIndex</code> <B>[Required]</B><br/>
+<code>int</code>
+</td>
+<td>
+   <p>JobIndex is the index of Job which contains the coordinator pod
+(i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1).</p>
+</td>
+</tr>
+<tr><td><code>podIndex</code> <B>[Required]</B><br/>
+<code>int</code>
+</td>
+<td>
+   <p>PodIndex is the Job completion index of the coordinator pod.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
 ## `FailurePolicy`     {#jobset-x-k8s-io-v1alpha2-FailurePolicy}
     
 
@@ -213,6 +255,17 @@ finished with status failed.</p>
 </td>
 <td>
    <p>Suspend suspends all running child Jobs when set to true.</p>
+</td>
+</tr>
+<tr><td><code>coordinator</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-Coordinator"><code>Coordinator</code></a>
+</td>
+<td>
+   <p>Coordinator can be used to assign a specific pod as the coordinator for
+the JobSet. If defined, an annotation will be added to all Jobs and pods with
+coordinator pod, which contains the stable network endpoint where the
+coordinator pod can be reached.
+jobset.sigs.k8s.io/coordinator=<!-- raw HTML omitted -->.<!-- raw HTML omitted --></p>
 </td>
 </tr>
 <tr><td><code>managedBy</code><br/>

@@ -20,7 +20,7 @@ import (
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// JobSetApplyConfiguration represents an declarative configuration of the JobSet type for use
+// JobSetApplyConfiguration represents a declarative configuration of the JobSet type for use
 // with apply.
 type JobSetApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
@@ -29,7 +29,7 @@ type JobSetApplyConfiguration struct {
 	Status                           *JobSetStatusApplyConfiguration `json:"status,omitempty"`
 }
 
-// JobSet constructs an declarative configuration of the JobSet type for use with
+// JobSet constructs a declarative configuration of the JobSet type for use with
 // apply.
 func JobSet(name, namespace string) *JobSetApplyConfiguration {
 	b := &JobSetApplyConfiguration{}
@@ -212,4 +212,10 @@ func (b *JobSetApplyConfiguration) WithSpec(value *JobSetSpecApplyConfiguration)
 func (b *JobSetApplyConfiguration) WithStatus(value *JobSetStatusApplyConfiguration) *JobSetApplyConfiguration {
 	b.Status = value
 	return b
+}
+
+// GetName retrieves the value of the Name field in the declarative configuration.
+func (b *JobSetApplyConfiguration) GetName() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.Name
 }

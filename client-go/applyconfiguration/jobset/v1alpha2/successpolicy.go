@@ -18,14 +18,14 @@ import (
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
-// SuccessPolicyApplyConfiguration represents an declarative configuration of the SuccessPolicy type for use
+// SuccessPolicyApplyConfiguration represents a declarative configuration of the SuccessPolicy type for use
 // with apply.
 type SuccessPolicyApplyConfiguration struct {
 	Operator             *v1alpha2.Operator `json:"operator,omitempty"`
 	TargetReplicatedJobs []string           `json:"targetReplicatedJobs,omitempty"`
 }
 
-// SuccessPolicyApplyConfiguration constructs an declarative configuration of the SuccessPolicy type for use with
+// SuccessPolicyApplyConfiguration constructs a declarative configuration of the SuccessPolicy type for use with
 // apply.
 func SuccessPolicy() *SuccessPolicyApplyConfiguration {
 	return &SuccessPolicyApplyConfiguration{}

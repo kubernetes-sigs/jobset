@@ -15,8 +15,8 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
@@ -34,25 +34,17 @@ type JobSetLister interface {
 
 // jobSetLister implements the JobSetLister interface.
 type jobSetLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1alpha2.JobSet]
 }
 
 // NewJobSetLister returns a new JobSetLister.
 func NewJobSetLister(indexer cache.Indexer) JobSetLister {
-	return &jobSetLister{indexer: indexer}
-}
-
-// List lists all JobSets in the indexer.
-func (s *jobSetLister) List(selector labels.Selector) (ret []*v1alpha2.JobSet, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha2.JobSet))
-	})
-	return ret, err
+	return &jobSetLister{listers.New[*v1alpha2.JobSet](indexer, v1alpha2.Resource("jobset"))}
 }
 
 // JobSets returns an object that can list and get JobSets.
 func (s *jobSetLister) JobSets(namespace string) JobSetNamespaceLister {
-	return jobSetNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return jobSetNamespaceLister{listers.NewNamespaced[*v1alpha2.JobSet](s.ResourceIndexer, namespace)}
 }
 
 // JobSetNamespaceLister helps list and get JobSets.
@@ -70,26 +62,5 @@ type JobSetNamespaceLister interface {
 // jobSetNamespaceLister implements the JobSetNamespaceLister
 // interface.
 type jobSetNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all JobSets in the indexer for a given namespace.
-func (s jobSetNamespaceLister) List(selector labels.Selector) (ret []*v1alpha2.JobSet, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha2.JobSet))
-	})
-	return ret, err
-}
-
-// Get retrieves the JobSet from the indexer for a given namespace and name.
-func (s jobSetNamespaceLister) Get(name string) (*v1alpha2.JobSet, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1alpha2.Resource("jobset"), name)
-	}
-	return obj.(*v1alpha2.JobSet), nil
+	listers.ResourceIndexer[*v1alpha2.JobSet]
 }
