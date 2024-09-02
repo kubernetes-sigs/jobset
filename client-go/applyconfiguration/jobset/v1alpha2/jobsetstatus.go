@@ -18,7 +18,7 @@ import (
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// JobSetStatusApplyConfiguration represents an declarative configuration of the JobSetStatus type for use
+// JobSetStatusApplyConfiguration represents a declarative configuration of the JobSetStatus type for use
 // with apply.
 type JobSetStatusApplyConfiguration struct {
 	Conditions              []v1.ConditionApplyConfiguration        `json:"conditions,omitempty"`
@@ -28,7 +28,7 @@ type JobSetStatusApplyConfiguration struct {
 	ReplicatedJobsStatus    []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
 }
 
-// JobSetStatusApplyConfiguration constructs an declarative configuration of the JobSetStatus type for use with
+// JobSetStatusApplyConfiguration constructs a declarative configuration of the JobSetStatus type for use with
 // apply.
 func JobSetStatus() *JobSetStatusApplyConfiguration {
 	return &JobSetStatusApplyConfiguration{}

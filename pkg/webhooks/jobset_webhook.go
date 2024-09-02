@@ -167,7 +167,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 
 		// This can return 1 or 2 errors, validating max length and format
 		for _, errMessage := range validation.IsDNS1123Subdomain(js.Spec.Network.Subdomain) {
-			allErrs = append(allErrs, fmt.Errorf(errMessage))
+			allErrs = append(allErrs, errors.New(errMessage))
 		}
 
 		// Since subdomain name is also used as service name, it must adhere to RFC 1035 as well.
@@ -175,7 +175,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 				errMessage = subdomainTooLongErrMsg
 			}
-			allErrs = append(allErrs, fmt.Errorf(errMessage))
+			allErrs = append(allErrs, errors.New(errMessage))
 		}
 	}
 
@@ -208,7 +208,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 				errMessage = jobNameTooLongErrorMsg
 			}
-			allErrs = append(allErrs, fmt.Errorf(errMessage))
+			allErrs = append(allErrs, errors.New(errMessage))
 		}
 		// Check that the generated pod names for the replicated job is DNS 1035 compliant.
 		isIndexedJob := rjob.Template.Spec.CompletionMode != nil && *rjob.Template.Spec.CompletionMode == batchv1.IndexedCompletion
@@ -221,7 +221,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 				if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 					errMessage = podNameTooLongErrorMsg
 				}
-				allErrs = append(allErrs, fmt.Errorf(errMessage))
+				allErrs = append(allErrs, errors.New(errMessage))
 			}
 		}
 	}

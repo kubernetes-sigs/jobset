@@ -18,13 +18,13 @@ import (
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
-// StartupPolicyApplyConfiguration represents an declarative configuration of the StartupPolicy type for use
+// StartupPolicyApplyConfiguration represents a declarative configuration of the StartupPolicy type for use
 // with apply.
 type StartupPolicyApplyConfiguration struct {
 	StartupPolicyOrder *v1alpha2.StartupPolicyOptions `json:"startupPolicyOrder,omitempty"`
 }
 
-// StartupPolicyApplyConfiguration constructs an declarative configuration of the StartupPolicy type for use with
+// StartupPolicyApplyConfiguration constructs a declarative configuration of the StartupPolicy type for use with
 // apply.
 func StartupPolicy() *StartupPolicyApplyConfiguration {
 	return &StartupPolicyApplyConfiguration{}

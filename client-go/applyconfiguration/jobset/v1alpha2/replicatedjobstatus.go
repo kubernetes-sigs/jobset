@@ -14,7 +14,7 @@ limitations under the License.
 
 package v1alpha2
 
-// ReplicatedJobStatusApplyConfiguration represents an declarative configuration of the ReplicatedJobStatus type for use
+// ReplicatedJobStatusApplyConfiguration represents a declarative configuration of the ReplicatedJobStatus type for use
 // with apply.
 type ReplicatedJobStatusApplyConfiguration struct {
 	Name      *string `json:"name,omitempty"`
@@ -25,7 +25,7 @@ type ReplicatedJobStatusApplyConfiguration struct {
 	Suspended *int32  `json:"suspended,omitempty"`
 }
 
-// ReplicatedJobStatusApplyConfiguration constructs an declarative configuration of the ReplicatedJobStatus type for use with
+// ReplicatedJobStatusApplyConfiguration constructs a declarative configuration of the ReplicatedJobStatus type for use with
 // apply.
 func ReplicatedJobStatus() *ReplicatedJobStatusApplyConfiguration {
 	return &ReplicatedJobStatusApplyConfiguration{}

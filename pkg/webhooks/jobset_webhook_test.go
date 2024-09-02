@@ -915,7 +915,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf(subdomainTooLongErrMsg),
+				errors.New(subdomainTooLongErrMsg),
 			),
 		},
 		{
@@ -975,7 +975,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf(jobNameTooLongErrorMsg),
+				errors.New(jobNameTooLongErrorMsg),
 			),
 		},
 		{
@@ -1009,7 +1009,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf(podNameTooLongErrorMsg),
+				errors.New(podNameTooLongErrorMsg),
 			),
 		},
 	}

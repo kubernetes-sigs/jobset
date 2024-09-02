@@ -14,7 +14,7 @@ limitations under the License.
 
 package v1alpha2
 
-// CoordinatorApplyConfiguration represents an declarative configuration of the Coordinator type for use
+// CoordinatorApplyConfiguration represents a declarative configuration of the Coordinator type for use
 // with apply.
 type CoordinatorApplyConfiguration struct {
 	ReplicatedJob *string `json:"replicatedJob,omitempty"`
@@ -22,7 +22,7 @@ type CoordinatorApplyConfiguration struct {
 	PodIndex      *int    `json:"podIndex,omitempty"`
 }
 
-// CoordinatorApplyConfiguration constructs an declarative configuration of the Coordinator type for use with
+// CoordinatorApplyConfiguration constructs a declarative configuration of the Coordinator type for use with
 // apply.
 func Coordinator() *CoordinatorApplyConfiguration {
 	return &CoordinatorApplyConfiguration{}
