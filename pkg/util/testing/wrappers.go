@@ -20,6 +20,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/util/collections"
 )
 
 // TestPodSpec is the default pod spec used for testing.
@@ -121,6 +122,12 @@ func (j *JobSetWrapper) Suspend(suspend bool) *JobSetWrapper {
 	return j
 }
 
+// Coordinator sets the Coordinator field on the JobSet spec.
+func (j *JobSetWrapper) Coordinator(coordinator *jobset.Coordinator) *JobSetWrapper {
+	j.JobSet.Spec.Coordinator = coordinator
+	return j
+}
+
 // NetworkSubdomain sets the value of JobSet.Network.Subdomain
 func (j *JobSetWrapper) NetworkSubdomain(val string) *JobSetWrapper {
 	j.JobSet.Spec.Network.Subdomain = val
@@ -156,6 +163,12 @@ func (j *JobSetWrapper) CompletedCondition(completedAt metav1.Time) *JobSetWrapp
 func (j *JobSetWrapper) FailedCondition(failedAt metav1.Time) *JobSetWrapper {
 	c := metav1.Condition{Type: string(jobset.JobSetFailed), Status: metav1.ConditionTrue, LastTransitionTime: failedAt}
 	j.Status.Conditions = append(j.Status.Conditions, c)
+	return j
+}
+
+// TerminalState sets the value of JobSet.Status.TerminalState.
+func (j *JobSetWrapper) TerminalState(terminalState jobset.JobSetConditionType) *JobSetWrapper {
+	j.Status.TerminalState = string(terminalState)
 	return j
 }
 
@@ -230,6 +243,12 @@ func MakeJobTemplate(name, ns string) *JobTemplateWrapper {
 	}
 }
 
+// PodFailurePolicy sets the pod failure policy on the job template.
+func (j *JobTemplateWrapper) PodFailurePolicy(policy *batchv1.PodFailurePolicy) *JobTemplateWrapper {
+	j.Spec.PodFailurePolicy = policy
+	return j
+}
+
 // CompletionMode sets the value of job.spec.completionMode
 func (j *JobTemplateWrapper) CompletionMode(mode batchv1.CompletionMode) *JobTemplateWrapper {
 	j.Spec.CompletionMode = &mode
@@ -287,21 +306,36 @@ func (j *JobWrapper) Affinity(affinity *corev1.Affinity) *JobWrapper {
 	return j
 }
 
-// JobLabels sets the Job labels.
+// JobLabels merges the given labels to the existing Job labels.
+// Duplicate keys will be overwritten by the new annotations (given in the function
+// parameter).
 func (j *JobWrapper) JobLabels(labels map[string]string) *JobWrapper {
-	j.Labels = labels
+	if j.Labels == nil {
+		j.Labels = make(map[string]string)
+	}
+	j.Labels = collections.MergeMaps(j.Labels, labels)
 	return j
 }
 
-// JobAnnotations sets the Job annotations.
+// JobAnnotations merges the given annotations to the existing Job annotations.
+// Duplicate keys will be overwritten by the new annotations (given in the function
+// parameter).
 func (j *JobWrapper) JobAnnotations(annotations map[string]string) *JobWrapper {
-	j.Annotations = annotations
+	if j.Annotations == nil {
+		j.Annotations = make(map[string]string)
+	}
+	j.Annotations = collections.MergeMaps(j.Annotations, annotations)
 	return j
 }
 
-// PodLabels sets the pod template spec labels.
+// PodLabels merges the given labels to the existing Pod labels.
+// Duplicate keys will be overwritten by the new annotations (given in the function
+// parameter).
 func (j *JobWrapper) PodLabels(labels map[string]string) *JobWrapper {
-	j.Spec.Template.Labels = labels
+	if j.Spec.Template.Labels == nil {
+		j.Spec.Template.Labels = make(map[string]string)
+	}
+	j.Spec.Template.Labels = collections.MergeMaps(j.Spec.Template.Labels, labels)
 	return j
 }
 
@@ -311,9 +345,14 @@ func (j *JobWrapper) Suspend(suspend bool) *JobWrapper {
 	return j
 }
 
-// PodAnnotations sets the pod template spec annotations.
+// PodAnnotations merges the given annotations to the existing Pod annotations.
+// Duplicate keys will be overwritten by the new annotations (given in the function
+// parameter).
 func (j *JobWrapper) PodAnnotations(annotations map[string]string) *JobWrapper {
-	j.Spec.Template.Annotations = annotations
+	if j.Spec.Template.Annotations == nil {
+		j.Spec.Template.Annotations = make(map[string]string)
+	}
+	j.Spec.Template.Annotations = collections.MergeMaps(j.Spec.Template.Annotations, annotations)
 	return j
 }
 

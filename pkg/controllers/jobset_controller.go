@@ -41,6 +41,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
@@ -149,10 +150,14 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 
 	// Calculate JobsReady and update statuses for each ReplicatedJob.
 	rjobStatuses := r.calculateReplicatedJobStatuses(ctx, js, ownedJobs)
-	updateReplicatedJobsStatuses(ctx, js, rjobStatuses, updateStatusOpts)
+	updateReplicatedJobsStatuses(js, rjobStatuses, updateStatusOpts)
 
 	// If JobSet is already completed or failed, clean up active child jobs and requeue if TTLSecondsAfterFinished is set.
 	if jobSetFinished(js) {
+		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
+			log.Error(err, "deleting jobs")
+			return ctrl.Result{}, err
+		}
 		requeueAfter, err := executeTTLAfterFinishedPolicy(ctx, r.Client, r.clock, js)
 		if err != nil {
 			log.Error(err, "executing ttl after finished policy")
@@ -160,10 +165,6 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		}
 		if requeueAfter > 0 {
 			return ctrl.Result{RequeueAfter: requeueAfter}, nil
-		}
-		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
-			log.Error(err, "deleting jobs")
-			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
@@ -185,7 +186,7 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 
 	// If any jobs have succeeded, execute the JobSet success policy.
 	if len(ownedJobs.successful) > 0 {
-		if completed := executeSuccessPolicy(ctx, js, ownedJobs, updateStatusOpts); completed {
+		if completed := executeSuccessPolicy(js, ownedJobs, updateStatusOpts); completed {
 			return ctrl.Result{}, nil
 		}
 	}
@@ -304,7 +305,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 }
 
 // updateReplicatedJobsStatuses updates the replicatedJob statuses if they have changed.
-func updateReplicatedJobsStatuses(ctx context.Context, js *jobset.JobSet, statuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) {
+func updateReplicatedJobsStatuses(js *jobset.JobSet, statuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) {
 	// If replicated job statuses haven't changed, there's nothing to do here.
 	if replicatedJobStatusesEqual(js.Status.ReplicatedJobsStatus, statuses) {
 		return
@@ -488,11 +489,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 	startupPolicy := js.Spec.StartupPolicy
 
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
-		jobs, err := constructJobsFromTemplate(js, &replicatedJob, ownedJobs)
-		if err != nil {
-			return err
-		}
-
+		jobs := constructJobsFromTemplate(js, &replicatedJob, ownedJobs)
 		status := findReplicatedJobStatus(replicatedJobStatus, replicatedJob.Name)
 
 		// For startup policy, if the replicatedJob is started we can skip this loop.
@@ -630,7 +627,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 // executeSuccessPolicy checks the completed jobs against the jobset success policy
 // and updates the jobset status to completed if the success policy conditions are met.
 // Returns a boolean value indicating if the jobset was completed or not.
-func executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) bool {
+func executeSuccessPolicy(js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) bool {
 	if numJobsMatchingSuccessPolicy(js, ownedJobs.successful) >= numJobsExpectedToSucceed(js) {
 		setJobSetCompletedCondition(js, updateStatusOpts)
 		return true
@@ -638,23 +635,20 @@ func executeSuccessPolicy(ctx context.Context, js *jobset.JobSet, ownedJobs *chi
 	return false
 }
 
-func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) ([]*batchv1.Job, error) {
+func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) []*batchv1.Job {
 	var jobs []*batchv1.Job
 	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
 		jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 		if create := shouldCreateJob(jobName, ownedJobs); !create {
 			continue
 		}
-		job, err := constructJob(js, rjob, jobIdx)
-		if err != nil {
-			return nil, err
-		}
+		job := constructJob(js, rjob, jobIdx)
 		jobs = append(jobs, job)
 	}
-	return jobs, nil
+	return jobs
 }
 
-func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*batchv1.Job, error) {
+func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) *batchv1.Job {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      collections.CloneMap(rjob.Template.Labels),
@@ -688,7 +682,7 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) (*b
 	jobsetSuspended := jobSetSuspended(js)
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
 
-	return job, nil
+	return job
 }
 
 func addTaintToleration(job *batchv1.Job) {
@@ -736,6 +730,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
+	labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
 
 	// Set annotations on the object.
 	annotations := collections.CloneMap(obj.GetAnnotations())
@@ -745,6 +740,13 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
+	annotations[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
+
+	// Apply coordinator annotation/label if a coordinator is defined in the JobSet spec.
+	if js.Spec.Coordinator != nil {
+		labels[jobset.CoordinatorKey] = coordinatorEndpoint(js)
+		annotations[jobset.CoordinatorKey] = coordinatorEndpoint(js)
+	}
 
 	// Check for JobSet level exclusive placement.
 	if topologyDomain, exists := js.Annotations[jobset.ExclusiveKey]; exists {
@@ -944,9 +946,12 @@ func updateCondition(js *jobset.JobSet, opts *conditionOpts) bool {
 	return shouldUpdate
 }
 
-// setJobSetCompletedCondition sets a condition on the JobSet status indicating it has completed.
+// setJobSetCompletedCondition sets a condition and terminal state on the JobSet status indicating it has completed.
 func setJobSetCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeCompletedConditionsOpts(), updateStatusOpts)
+	js.Status.TerminalState = string(jobset.JobSetCompleted)
+	// Update the metrics
+	metrics.JobSetCompleted(fmt.Sprintf("%s/%s", js.Namespace, js.Name))
 }
 
 // setJobSetSuspendedCondition sets a condition on the JobSet status indicating it is currently suspended.
@@ -1022,4 +1027,39 @@ func exclusiveConditions(cond1, cond2 metav1.Condition) bool {
 	completedAndInProgress := cond1.Type == string(jobset.JobSetStartupPolicyCompleted) &&
 		cond2.Type == string(jobset.JobSetStartupPolicyInProgress)
 	return inProgressAndCompleted || completedAndInProgress
+}
+
+// coordinatorEndpoint returns the stable network endpoint where the coordinator pod can be reached.
+// This function assumes the caller has validated that jobset.Spec.Coordinator != nil.
+func coordinatorEndpoint(js *jobset.JobSet) string {
+	return fmt.Sprintf("%s-%s-%d-%d.%s", js.Name, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex, js.Spec.Coordinator.PodIndex, GetSubdomain(js))
+}
+
+// globalJobIndex determines the job global index for a given job. The job global index is a unique
+// global index for the job, with values ranging from 0 to N-1,
+// where N=total number of jobs in the jobset. The job global index is calculated by
+// iterating through the replicatedJobs in the order, as defined in the JobSet
+// spec, keeping a cumulative sum of total replicas seen so far, then when we
+// arrive at the parent replicatedJob of the target job, we add the local job
+// index to our running sum of total jobs seen so far, in order to arrive at
+// the final job global index value.
+//
+// Below is a diagram illustrating how job global indexs differ from job indexes.
+//
+// |                             my-jobset                             |
+// |        replicated job A         |        replicated job B         |
+// |    job index 0 |   job index 1  |   job index 0  | job index 1    |
+// | global index 0 | global index 2 | global index 3 | global index 4 |
+//
+// Returns an empty string if the parent replicated Job does not exist,
+// although this should never happen in practice.
+func globalJobIndex(js *jobset.JobSet, replicatedJobName string, jobIdx int) string {
+	currTotalJobs := 0
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		if rjob.Name == replicatedJobName {
+			return strconv.Itoa(currTotalJobs + jobIdx)
+		}
+		currTotalJobs += int(rjob.Replicas)
+	}
+	return ""
 }

@@ -18,7 +18,7 @@ import (
 	v1 "k8s.io/api/batch/v1"
 )
 
-// ReplicatedJobApplyConfiguration represents an declarative configuration of the ReplicatedJob type for use
+// ReplicatedJobApplyConfiguration represents a declarative configuration of the ReplicatedJob type for use
 // with apply.
 type ReplicatedJobApplyConfiguration struct {
 	Name     *string             `json:"name,omitempty"`
@@ -26,7 +26,7 @@ type ReplicatedJobApplyConfiguration struct {
 	Replicas *int32              `json:"replicas,omitempty"`
 }
 
-// ReplicatedJobApplyConfiguration constructs an declarative configuration of the ReplicatedJob type for use with
+// ReplicatedJobApplyConfiguration constructs a declarative configuration of the ReplicatedJob type for use with
 // apply.
 func ReplicatedJob() *ReplicatedJobApplyConfiguration {
 	return &ReplicatedJobApplyConfiguration{}

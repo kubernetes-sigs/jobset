@@ -14,7 +14,7 @@ limitations under the License.
 
 package v1alpha2
 
-// NetworkApplyConfiguration represents an declarative configuration of the Network type for use
+// NetworkApplyConfiguration represents a declarative configuration of the Network type for use
 // with apply.
 type NetworkApplyConfiguration struct {
 	EnableDNSHostnames       *bool   `json:"enableDNSHostnames,omitempty"`
@@ -22,7 +22,7 @@ type NetworkApplyConfiguration struct {
 	PublishNotReadyAddresses *bool   `json:"publishNotReadyAddresses,omitempty"`
 }
 
-// NetworkApplyConfiguration constructs an declarative configuration of the Network type for use with
+// NetworkApplyConfiguration constructs a declarative configuration of the Network type for use with
 // apply.
 func Network() *NetworkApplyConfiguration {
 	return &NetworkApplyConfiguration{}

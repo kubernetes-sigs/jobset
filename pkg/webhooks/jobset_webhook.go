@@ -151,10 +151,147 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha2-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=vjobset.kb.io,admissionReviewVersions=v1
 
-const minRuleNameLength = 1
-const maxRuleNameLength = 128
-const ruleNameFmt = "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$"
+// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
+func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	js, ok := obj.(*jobset.JobSet)
+	if !ok {
+		return nil, fmt.Errorf("expected a JobSet but got a %T", obj)
+	}
 
+	var allErrs []error
+	// Validate that replicatedJobs listed in success policy are part of this JobSet.
+	validReplicatedJobs := replicatedJobNamesFromSpec(js)
+
+	// Ensure that a provided subdomain is a valid DNS name
+	if js.Spec.Network != nil && js.Spec.Network.Subdomain != "" {
+
+		// This can return 1 or 2 errors, validating max length and format
+		for _, errMessage := range validation.IsDNS1123Subdomain(js.Spec.Network.Subdomain) {
+			allErrs = append(allErrs, errors.New(errMessage))
+		}
+
+		// Since subdomain name is also used as service name, it must adhere to RFC 1035 as well.
+		for _, errMessage := range validation.IsDNS1035Label(js.Spec.Network.Subdomain) {
+			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
+				errMessage = subdomainTooLongErrMsg
+			}
+			allErrs = append(allErrs, errors.New(errMessage))
+		}
+	}
+
+	// Validate the managedBy field used for multi-kueue support.
+	if js.Spec.ManagedBy != nil {
+		manager := *js.Spec.ManagedBy
+		fieldPath := field.NewPath("spec", "managedBy")
+		for _, err := range validation.IsDomainPrefixedPath(fieldPath, manager) {
+			allErrs = append(allErrs, err)
+		}
+		if len(manager) > maxManagedByLength {
+			allErrs = append(allErrs, field.TooLongMaxLength(fieldPath, manager, maxManagedByLength))
+		}
+	}
+
+	// Validate each replicatedJob.
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		var parallelism int32 = 1
+		if rjob.Template.Spec.Parallelism != nil {
+			parallelism = *rjob.Template.Spec.Parallelism
+		}
+		if int64(parallelism)*int64(rjob.Replicas) > math.MaxInt32 {
+			allErrs = append(allErrs, fmt.Errorf("the product of replicas and parallelism must not exceed %d for replicatedJob '%s'", math.MaxInt32, rjob.Name))
+		}
+
+		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
+		// Use the largest job index as it will have the longest name.
+		longestJobName := placement.GenJobName(js.Name, rjob.Name, int(rjob.Replicas-1))
+		for _, errMessage := range validation.IsDNS1035Label(longestJobName) {
+			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
+				errMessage = jobNameTooLongErrorMsg
+			}
+			allErrs = append(allErrs, errors.New(errMessage))
+		}
+		// Check that the generated pod names for the replicated job is DNS 1035 compliant.
+		isIndexedJob := rjob.Template.Spec.CompletionMode != nil && *rjob.Template.Spec.CompletionMode == batchv1.IndexedCompletion
+		if isIndexedJob && rjob.Template.Spec.Completions != nil {
+			maxJobIndex := strconv.Itoa(int(rjob.Replicas - 1))
+			maxPodIndex := strconv.Itoa(int(*rjob.Template.Spec.Completions - 1))
+			// Add 5 char suffix to the deterministic part of the pod name to validate the full pod name is compliant.
+			longestPodName := placement.GenPodName(js.Name, rjob.Name, maxJobIndex, maxPodIndex) + "-abcde"
+			for _, errMessage := range validation.IsDNS1035Label(longestPodName) {
+				if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
+					errMessage = podNameTooLongErrorMsg
+				}
+				allErrs = append(allErrs, errors.New(errMessage))
+			}
+		}
+	}
+
+	// Validate the success policy's target replicated jobs are valid.
+	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
+		if !collections.Contains(validReplicatedJobs, rjobName) {
+			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
+		}
+	}
+
+	// Validate failure policy
+	if js.Spec.FailurePolicy != nil {
+		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, validReplicatedJobs)
+		allErrs = append(allErrs, failurePolicyErrors...)
+	}
+
+	// Validate coordinator, if set.
+	if js.Spec.Coordinator != nil {
+		allErrs = append(allErrs, validateCoordinator(js))
+	}
+	return nil, errors.Join(allErrs...)
+}
+
+// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
+func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.Object) (admission.Warnings, error) {
+	js, ok := newObj.(*jobset.JobSet)
+	if !ok {
+		return nil, fmt.Errorf("expected a JobSet but got a %T", newObj)
+	}
+	oldJS, ok := old.(*jobset.JobSet)
+	if !ok {
+		return nil, fmt.Errorf("expected a JobSet from old object but got a %T", old)
+	}
+	mungedSpec := js.Spec.DeepCopy()
+
+	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
+	// This is needed for integration with Kueue/DWS.
+	if ptr.Deref(oldJS.Spec.Suspend, false) || ptr.Deref(js.Spec.Suspend, false) {
+		for index := range js.Spec.ReplicatedJobs {
+			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
+
+			// Pod Scheduling Gates can be updated for batch/v1 Job: https://github.com/kubernetes/kubernetes/blob/ceb58a4dbc671b9d0a2de6d73a1616bc0c299863/pkg/apis/batch/validation/validation.go#L662
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates
+		}
+	}
+
+	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
+	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
+	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
+	return nil, errs.ToAggregate()
+}
+
+// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
+func (j *jobSetWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	return nil, nil
+}
+
+// Failure policy constants.
+const (
+	minRuleNameLength = 1
+	maxRuleNameLength = 128
+	ruleNameFmt       = "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$"
+)
+
+// ruleNameRegexp is the regular expression that failure policy rules must match.
 var ruleNameRegexp = regexp.MustCompile(ruleNameFmt)
 
 // validateFailurePolicy performs validation for jobset failure policies and returns all errors detected.
@@ -207,139 +344,55 @@ func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, validReplicatedJ
 	return allErrs
 }
 
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	js, ok := obj.(*jobset.JobSet)
-	if !ok {
-		return nil, fmt.Errorf("expected a JobSet but got a %T", obj)
+// validateCoordinator validates the following:
+// 1. coordinator replicatedJob is a valid replicatedJob in the JobSet spec.
+// 2. coordinator jobIndex is a valid index for the replicatedJob.
+// 3. coordinator podIndex is a valid pod index for the job.
+func validateCoordinator(js *jobset.JobSet) error {
+	// Validate replicatedJob.
+	replicatedJob := replicatedJobByName(js, js.Spec.Coordinator.ReplicatedJob)
+	if replicatedJob == nil {
+		return fmt.Errorf("coordinator replicatedJob %s does not exist", js.Spec.Coordinator.ReplicatedJob)
 	}
 
-	var allErrs []error
-	// Validate that replicatedJobs listed in success policy are part of this JobSet.
-	validReplicatedJobs := replicatedJobNamesFromSpec(js)
-
-	// Ensure that a provided subdomain is a valid DNS name
-	if js.Spec.Network != nil && js.Spec.Network.Subdomain != "" {
-
-		// This can return 1 or 2 errors, validating max length and format
-		for _, errMessage := range validation.IsDNS1123Subdomain(js.Spec.Network.Subdomain) {
-			allErrs = append(allErrs, fmt.Errorf(errMessage))
-		}
-
-		// Since subdomain name is also used as service name, it must adhere to RFC 1035 as well.
-		for _, errMessage := range validation.IsDNS1035Label(js.Spec.Network.Subdomain) {
-			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
-				errMessage = subdomainTooLongErrMsg
-			}
-			allErrs = append(allErrs, fmt.Errorf(errMessage))
-		}
+	// Validate Job index.
+	if js.Spec.Coordinator.JobIndex < 0 || js.Spec.Coordinator.JobIndex >= int(replicatedJob.Replicas) {
+		return fmt.Errorf("coordinator job index %d is invalid for replicatedJob %s", js.Spec.Coordinator.JobIndex, replicatedJob.Name)
 	}
 
-	// Validate the managedBy field used for multi-kueue support.
-	if js.Spec.ManagedBy != nil {
-		manager := *js.Spec.ManagedBy
-		fieldPath := field.NewPath("spec", "managedBy")
-		for _, err := range validation.IsDomainPrefixedPath(fieldPath, manager) {
-			allErrs = append(allErrs, err)
-		}
-		if len(manager) > maxManagedByLength {
-			allErrs = append(allErrs, field.TooLongMaxLength(fieldPath, manager, maxManagedByLength))
-		}
+	// Validate job is using indexed completion mode.
+	if replicatedJob.Template.Spec.CompletionMode == nil || *replicatedJob.Template.Spec.CompletionMode != batchv1.IndexedCompletion {
+		return fmt.Errorf("job for coordinator pod must be indexed completion mode")
 	}
 
-	// Validate each replicatedJob.
+	// Validate Pod index.
+	if js.Spec.Coordinator.PodIndex < 0 || js.Spec.Coordinator.PodIndex >= int(*replicatedJob.Template.Spec.Completions) {
+		return fmt.Errorf("coordinator pod index %d is invalid for replicatedJob %s job index %d", js.Spec.Coordinator.PodIndex, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex)
+	}
+	return nil
+}
+
+// replicatedJobByName fetches the replicatedJob spec from the JobSet by name.
+// Returns nil if no replicatedJob with the given name exists.
+func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.ReplicatedJob {
 	for _, rjob := range js.Spec.ReplicatedJobs {
-		var parallelism int32 = 1
-		if rjob.Template.Spec.Parallelism != nil {
-			parallelism = *rjob.Template.Spec.Parallelism
-		}
-		if int64(parallelism)*int64(rjob.Replicas) > math.MaxInt32 {
-			allErrs = append(allErrs, fmt.Errorf("the product of replicas and parallelism must not exceed %d for replicatedJob '%s'", math.MaxInt32, rjob.Name))
-		}
-
-		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
-		// Use the largest job index as it will have the longest name.
-		longestJobName := placement.GenJobName(js.Name, rjob.Name, int(rjob.Replicas-1))
-		for _, errMessage := range validation.IsDNS1035Label(longestJobName) {
-			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
-				errMessage = jobNameTooLongErrorMsg
-			}
-			allErrs = append(allErrs, fmt.Errorf(errMessage))
-		}
-		// Check that the generated pod names for the replicated job is DNS 1035 compliant.
-		isIndexedJob := rjob.Template.Spec.CompletionMode != nil && *rjob.Template.Spec.CompletionMode == batchv1.IndexedCompletion
-		if isIndexedJob && rjob.Template.Spec.Completions != nil {
-			maxJobIndex := strconv.Itoa(int(rjob.Replicas - 1))
-			maxPodIndex := strconv.Itoa(int(*rjob.Template.Spec.Completions - 1))
-			// Add 5 char suffix to the deterministic part of the pod name to validate the full pod name is compliant.
-			longestPodName := placement.GenPodName(js.Name, rjob.Name, maxJobIndex, maxPodIndex) + "-abcde"
-			for _, errMessage := range validation.IsDNS1035Label(longestPodName) {
-				if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
-					errMessage = podNameTooLongErrorMsg
-				}
-				allErrs = append(allErrs, fmt.Errorf(errMessage))
-			}
+		if rjob.Name == replicatedJob {
+			return &rjob
 		}
 	}
-
-	// Validate the success policy's target replicated jobs are valid.
-	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
-		if !collections.Contains(validReplicatedJobs, rjobName) {
-			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
-		}
-	}
-
-	// Validate failure policy
-	if js.Spec.FailurePolicy != nil {
-		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, validReplicatedJobs)
-		allErrs = append(allErrs, failurePolicyErrors...)
-	}
-	return nil, errors.Join(allErrs...)
+	return nil
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.Object) (admission.Warnings, error) {
-	js, ok := newObj.(*jobset.JobSet)
-	if !ok {
-		return nil, fmt.Errorf("expected a JobSet but got a %T", newObj)
-	}
-	oldJS, ok := old.(*jobset.JobSet)
-	if !ok {
-		return nil, fmt.Errorf("expected a JobSet from old object but got a %T", old)
-	}
-	mungedSpec := js.Spec.DeepCopy()
-
-	// Allow pod template to be mutated for suspended JobSets.
-	// This is needed for integration with Kueue/DWS.
-	if ptr.Deref(oldJS.Spec.Suspend, false) {
-		for index := range js.Spec.ReplicatedJobs {
-			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
-		}
-	}
-
-	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
-	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
-	return nil, errs.ToAggregate()
-}
-
-// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	return nil, nil
-}
-
-func completionModePtr(mode batchv1.CompletionMode) *batchv1.CompletionMode {
-	return &mode
-}
-
+// replicatedJobNamesFromSpec parses the JobSet spec and returns a list of
+// the replicatedJob names.
 func replicatedJobNamesFromSpec(js *jobset.JobSet) []string {
 	names := []string{}
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		names = append(names, rjob.Name)
 	}
 	return names
+}
+
+func completionModePtr(mode batchv1.CompletionMode) *batchv1.CompletionMode {
+	return &mode
 }

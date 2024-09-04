@@ -372,6 +372,11 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateJobSet: func(js *jobset.JobSet) {
 				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Annotations["new"] = "annotation"
+				js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.SchedulingGates = []corev1.PodSchedulingGate{
+					{
+						Name: "example.com/gate",
+					},
+				}
 			},
 		}),
 		ginkgo.Entry("updating pod template in running jobset is not allowed", &testCase{

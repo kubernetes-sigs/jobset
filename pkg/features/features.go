@@ -51,8 +51,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	// Example: {Default: true, PreRelease: featuregate.Beta},
 }
 
-func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) func() {
-	return featuregatetesting.SetFeatureGateDuringTest(tb, utilfeature.DefaultFeatureGate, f, value)
+func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {
+	featuregatetesting.SetFeatureGateDuringTest(tb, utilfeature.DefaultFeatureGate, f, value)
 }
 
 // Enabled is helper for `utilfeature.DefaultFeatureGate.Enabled()`

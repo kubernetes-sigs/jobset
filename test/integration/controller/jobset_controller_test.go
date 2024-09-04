@@ -116,9 +116,9 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 }) // end of Describe
 
 var _ = ginkgo.Describe("JobSet controller", func() {
-	// update contains the mutations to perform on the jobs/jobset and the
+	// step contains the mutations to perform on the jobs/jobset and the
 	// checks to perform afterwards.
-	type update struct {
+	type step struct {
 		jobSetUpdateFn       func(*jobset.JobSet)
 		jobUpdateFn          func(*batchv1.JobList)
 		checkJobCreation     func(*jobset.JobSet)
@@ -129,7 +129,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 	type testCase struct {
 		makeJobSet        func(*corev1.Namespace) *testing.JobSetWrapper
 		skipCreationCheck bool
-		updates           []*update
+		steps             []*step
 	}
 
 	var podTemplateUpdates = &updatePodTemplateOpts{
@@ -174,7 +174,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			}
 
 			// Perform a series of updates to jobset resources and check resulting jobset state after each update.
-			for _, up := range tc.updates {
+			for _, up := range tc.steps {
 				var jobSet jobset.JobSet
 				gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobSet)).To(gomega.Succeed())
 
@@ -210,7 +210,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("jobset should succeed after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn:          completeAllJobs,
 					checkJobSetCondition: testutil.JobSetCompleted,
@@ -231,7 +231,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("jobset should not succeed if any job is not completed", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						ginkgo.By("completing all but 1 job")
@@ -265,7 +265,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						TargetReplicatedJobs: []string{},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					// Complete all the jobs in one replicated job, then ensure the JobSet is still active.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
@@ -297,7 +297,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						TargetReplicatedJobs: []string{"replicated-job-b"},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					// Jobset has 2 replicated jobs, but only 1 is selected in the success policy.
 					// Complete all the jobs in the other replicated job and ensure the jobset is still active.
@@ -341,7 +341,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						TargetReplicatedJobs: []string{"replicated-job-b"},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						ginkgo.By("completing 1 of 3 jobs in replicated-job-b")
@@ -362,7 +362,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						TargetReplicatedJobs: []string{}, // applies to all replicatedJobs
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						ginkgo.By("completing a job")
@@ -374,7 +374,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("[failure policy] jobset with no failure policy should fail if any jobs fail", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
@@ -385,7 +385,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("jobset with DNS hostnames enabled should created 1 headless service per job and succeed when all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -397,7 +397,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("succeeds from first run", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -409,7 +409,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("fails from first run, no restarts", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -428,7 +428,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						MaxRestarts: 1,
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJob(&jobList.Items[0])
@@ -463,7 +463,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
@@ -491,7 +491,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
@@ -530,7 +530,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
@@ -562,7 +562,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
@@ -636,7 +636,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failFirstMatchingJobWithOptions(jobList, "replicated-job-b", &failJobOptions{reason: ptr.To(batchv1.JobReasonFailedIndexes)})
@@ -665,7 +665,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failFirstMatchingJobWithOptions(jobList, "replicated-job-b", &failJobOptions{reason: ptr.To(batchv1.JobReasonBackoffLimitExceeded)})
@@ -706,7 +706,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failFirstMatchingJobWithOptions(jobList, "replicated-job-a", &failJobOptions{reason: ptr.To(batchv1.JobReasonMaxFailedIndexesExceeded)})
@@ -740,7 +740,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failFirstMatchingJobWithOptions(jobList, "replicated-job-a", &failJobOptions{reason: ptr.To(batchv1.JobReasonMaxFailedIndexesExceeded)})
@@ -781,7 +781,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						},
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						failFirstMatchingJobWithOptions(jobList, "replicated-job-a", &failJobOptions{reason: ptr.To(batchv1.JobReasonMaxFailedIndexesExceeded)})
@@ -860,7 +860,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						MaxRestarts: 1,
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						completeJob(&jobList.Items[0])
@@ -885,7 +885,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				return testJobSet(ns).
 					Suspend(true)
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						ginkgo.By("checking all jobs are suspended")
@@ -914,7 +914,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(true)
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						ginkgo.By("checking all jobs are suspended")
@@ -977,7 +977,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(false)
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						ginkgo.By("checking all jobs are not suspended")
@@ -1000,7 +1000,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns)
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: checkExpectedServices,
 				},
@@ -1018,7 +1018,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("update replicatedJobsStatuses after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*update{
+			steps: []*step{
 				{
 					jobUpdateFn:          completeAllJobs,
 					checkJobSetCondition: testutil.JobSetCompleted,
@@ -1037,7 +1037,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(false)
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						ginkgo.By("checking all jobs are not suspended")
@@ -1065,7 +1065,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						TargetReplicatedJobs: []string{}, // applies to all replicatedJobs
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				// Complete a job, and ensure JobSet completes based on 'any' success policy.
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
@@ -1092,7 +1092,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("active jobs are deleted after jobset fails", &testCase{
 			makeJobSet: testJobSet,
-			updates: []*update{
+			steps: []*step{
 				// Fail a job to trigger jobset failure.
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
@@ -1120,7 +1120,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).SetGenerateName("name-prefix").EnableDNSHostnames(true)
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						gomega.Eventually(func() error {
@@ -1137,7 +1137,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						StartupPolicyOrder: jobset.InOrder,
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -1161,7 +1161,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						StartupPolicyOrder: jobset.AnyOrder,
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -1185,7 +1185,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						StartupPolicyOrder: jobset.AnyOrder,
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -1234,7 +1234,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						StartupPolicyOrder: jobset.InOrder,
 					})
 			},
-			updates: []*update{
+			steps: []*step{
 				// Ensure replicated job statuses report all child jobs are suspended.
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
@@ -1324,7 +1324,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					})
 			},
 			skipCreationCheck: true,
-			updates: []*update{
+			steps: []*step{
 				{
 					// First update
 					// Replicated-Job-A should be created.
@@ -1414,7 +1414,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					})
 			},
 			skipCreationCheck: true,
-			updates: []*update{
+			steps: []*step{
 				{
 					checkJobCreation: func(js *jobset.JobSet) {
 						expectedStarts := 1
@@ -1540,6 +1540,25 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetState: func(js *jobset.JobSet) {
 						ginkgo.By("checking all jobs are recreated")
 						gomega.Eventually(checkJobsRecreated, timeout, interval).WithArguments(js, 1).Should(gomega.Equal(true))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("jobset with coordinator set should have annotation and label set on all jobs", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Coordinator(&jobset.Coordinator{
+					ReplicatedJob: "replicated-job-a",
+					JobIndex:      0,
+					PodIndex:      0,
+				})
+			},
+			steps: []*step{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(func() (bool, error) {
+							expectedCoordinator := fmt.Sprintf("%s-%s-%d-%d.%s", "test-js", "replicated-job-a", 0, 0, "test-js")
+							return checkCoordinator(js, expectedCoordinator)
+						}, timeout, interval).Should(gomega.BeTrue())
 					},
 				},
 			},
@@ -2116,6 +2135,30 @@ func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.Repl
 		sort.Slice(newJs.Status.ReplicatedJobsStatus, compareNames)
 		return newJs.Status.ReplicatedJobsStatus, nil
 	}, timeout, interval).Should(gomega.Equal(expectedStatus))
+}
+
+// checkCoordinator verifies that all child Jobs of a JobSet have the label and annotation:
+// jobset.sigs.k8s.io/coordinator=<expectedCoordinator>
+// Returns boolean value indicating if the check passed or not.
+func checkCoordinator(js *jobset.JobSet, expectedCoordinator string) (bool, error) {
+	var jobList batchv1.JobList
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+		return false, err
+	}
+	// Check we have the right number of jobs.
+	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
+		return false, nil
+	}
+	// Check all the jobs have the coordinator label and annotation.
+	for _, job := range jobList.Items {
+		if job.Labels[jobset.CoordinatorKey] != expectedCoordinator {
+			return false, nil
+		}
+		if job.Annotations[jobset.CoordinatorKey] != expectedCoordinator {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // 2 replicated jobs:

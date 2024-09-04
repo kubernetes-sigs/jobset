@@ -15,19 +15,20 @@ limitations under the License.
 package v1alpha2
 
 import (
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// JobSetStatusApplyConfiguration represents an declarative configuration of the JobSetStatus type for use
+// JobSetStatusApplyConfiguration represents a declarative configuration of the JobSetStatus type for use
 // with apply.
 type JobSetStatusApplyConfiguration struct {
-	Conditions              []v1.Condition                          `json:"conditions,omitempty"`
+	Conditions              []v1.ConditionApplyConfiguration        `json:"conditions,omitempty"`
 	Restarts                *int32                                  `json:"restarts,omitempty"`
 	RestartsCountTowardsMax *int32                                  `json:"restartsCountTowardsMax,omitempty"`
+	TerminalState           *string                                 `json:"terminalState,omitempty"`
 	ReplicatedJobsStatus    []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
 }
 
-// JobSetStatusApplyConfiguration constructs an declarative configuration of the JobSetStatus type for use with
+// JobSetStatusApplyConfiguration constructs a declarative configuration of the JobSetStatus type for use with
 // apply.
 func JobSetStatus() *JobSetStatusApplyConfiguration {
 	return &JobSetStatusApplyConfiguration{}
@@ -36,9 +37,12 @@ func JobSetStatus() *JobSetStatusApplyConfiguration {
 // WithConditions adds the given value to the Conditions field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Conditions field.
-func (b *JobSetStatusApplyConfiguration) WithConditions(values ...v1.Condition) *JobSetStatusApplyConfiguration {
+func (b *JobSetStatusApplyConfiguration) WithConditions(values ...*v1.ConditionApplyConfiguration) *JobSetStatusApplyConfiguration {
 	for i := range values {
-		b.Conditions = append(b.Conditions, values[i])
+		if values[i] == nil {
+			panic("nil value passed to WithConditions")
+		}
+		b.Conditions = append(b.Conditions, *values[i])
 	}
 	return b
 }
@@ -56,6 +60,14 @@ func (b *JobSetStatusApplyConfiguration) WithRestarts(value int32) *JobSetStatus
 // If called multiple times, the RestartsCountTowardsMax field is set to the value of the last call.
 func (b *JobSetStatusApplyConfiguration) WithRestartsCountTowardsMax(value int32) *JobSetStatusApplyConfiguration {
 	b.RestartsCountTowardsMax = &value
+	return b
+}
+
+// WithTerminalState sets the TerminalState field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TerminalState field is set to the value of the last call.
+func (b *JobSetStatusApplyConfiguration) WithTerminalState(value string) *JobSetStatusApplyConfiguration {
+	b.TerminalState = &value
 	return b
 }
 

@@ -42,6 +42,10 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                 kind = '0', 
                 metadata = None, 
                 spec = jobset.models.jobset_v1alpha2_job_set_spec.JobsetV1alpha2JobSetSpec(
+                    coordinator = jobset.models.jobset_v1alpha2_coordinator.JobsetV1alpha2Coordinator(
+                        job_index = 56, 
+                        pod_index = 56, 
+                        replicated_job = '0', ), 
                     failure_policy = jobset.models.jobset_v1alpha2_failure_policy.JobsetV1alpha2FailurePolicy(
                         max_restarts = 56, 
                         rules = [
@@ -86,7 +90,8 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             suspended = 56, )
                         ], 
                     restarts = 56, 
-                    restarts_count_towards_max = 56, )
+                    restarts_count_towards_max = 56, 
+                    terminal_state = '0', )
             )
         else :
             return JobsetV1alpha2JobSet(

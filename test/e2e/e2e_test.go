@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/util/testing"
@@ -112,7 +113,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 			// Create JobSet.
 			testFinalizer := "fake.example.com/blockDeletion"
 			ginkgo.By("creating jobset with ttl seconds after finished")
-			js := sleepTestJobSet(ns).Finalizers([]string{testFinalizer}).TTLSecondsAfterFinished(5).Obj()
+			js := sleepTestJobSet(ns, 20).Finalizers([]string{testFinalizer}).TTLSecondsAfterFinished(5).Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
@@ -128,6 +129,72 @@ var _ = ginkgo.Describe("JobSet", func() {
 			// Check jobset is cleaned up after ttl seconds.
 			ginkgo.By("checking jobset is cleaned up after ttl seconds")
 			util.JobSetDeleted(ctx, k8sClient, js, timeout)
+		})
+	})
+
+	// This test is added to test the JobSet transitions as Kueue would when:
+	// doing: resume in ResourceFlavor1 -> suspend -> resume in ResourceFlavor2.
+	// In particular, Kueue updates the PodTemplate on suspending and resuming
+	// the JobSet.
+	ginkgo.When("JobSet is suspended and resumed", func() {
+
+		ginkgo.It("should allow to resume JobSet after updating PodTemplate", func() {
+			ctx := context.Background()
+			js := sleepTestJobSet(ns, 1).Obj()
+			jsKey := types.NamespacedName{Name: js.Name, Namespace: js.Namespace}
+
+			ginkgo.By("Create a suspended JobSet", func() {
+				js.Spec.Suspend = ptr.To(true)
+				gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Unsuspend the JobSet setting nodeSelectors that prevent pods from being scheduled", func() {
+				gomega.Eventually(func() error {
+					gomega.Expect(k8sClient.Get(ctx, jsKey, js)).Should(gomega.Succeed())
+					js.Spec.Suspend = ptr.To(false)
+					podTemplate := &js.Spec.ReplicatedJobs[0].Template.Spec.Template
+					if podTemplate.Spec.NodeSelector == nil {
+						podTemplate.Spec.NodeSelector = make(map[string]string)
+					}
+					podTemplate.Spec.NodeSelector["kubernetes.io/os"] = "non-existing-os"
+					return k8sClient.Update(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Await for all Jobs to be active", func() {
+				// In this step the Pods remain Pending due to the nodeSelector
+				// which does not match any nodes. Still, JobSet considers as
+				// active any Jobs which have at least one Pending or Running Pod.
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jsKey, js)).Should(gomega.Succeed())
+					if js.Status.ReplicatedJobsStatus == nil {
+						return 0
+					}
+					return js.Status.ReplicatedJobsStatus[0].Active
+				}, timeout, interval).Should(gomega.Equal(js.Spec.ReplicatedJobs[0].Replicas))
+			})
+
+			ginkgo.By("Suspend the JobSet updating the PodTemplate properties", func() {
+				gomega.Eventually(func() error {
+					gomega.Expect(k8sClient.Get(ctx, jsKey, js)).Should(gomega.Succeed())
+					js.Spec.Suspend = ptr.To(true)
+					podTemplate := &js.Spec.ReplicatedJobs[0].Template.Spec.Template
+					podTemplate.Spec.NodeSelector["kubernetes.io/os"] = "linux"
+					return k8sClient.Update(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Unsuspending the JobSet again with PodTemplate allowing completion", func() {
+				gomega.Eventually(func() error {
+					gomega.Expect(k8sClient.Get(ctx, jsKey, js)).Should(gomega.Succeed())
+					js.Spec.Suspend = ptr.To(false)
+					return k8sClient.Update(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Await for the JobSet to complete successfully", func() {
+				util.JobSetCompleted(ctx, k8sClient, js, timeout)
+			})
 		})
 	})
 
@@ -225,7 +292,7 @@ func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 			Obj())
 }
 
-func sleepTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
+func sleepTestJobSet(ns *corev1.Namespace, durationSeconds int32) *testing.JobSetWrapper {
 	jsName := "js"
 	rjobName := "rjob"
 	replicas := 4
@@ -239,7 +306,7 @@ func sleepTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 							Name:    "sleep-test-container",
 							Image:   "bash:latest",
 							Command: []string{"bash", "-c"},
-							Args:    []string{"sleep 20"},
+							Args:    []string{fmt.Sprintf("sleep %d", durationSeconds)},
 						},
 					},
 				}).Obj()).

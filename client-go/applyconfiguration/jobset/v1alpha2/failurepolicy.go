@@ -14,14 +14,14 @@ limitations under the License.
 
 package v1alpha2
 
-// FailurePolicyApplyConfiguration represents an declarative configuration of the FailurePolicy type for use
+// FailurePolicyApplyConfiguration represents a declarative configuration of the FailurePolicy type for use
 // with apply.
 type FailurePolicyApplyConfiguration struct {
 	MaxRestarts *int32                                `json:"maxRestarts,omitempty"`
 	Rules       []FailurePolicyRuleApplyConfiguration `json:"rules,omitempty"`
 }
 
-// FailurePolicyApplyConfiguration constructs an declarative configuration of the FailurePolicy type for use with
+// FailurePolicyApplyConfiguration constructs a declarative configuration of the FailurePolicy type for use with
 // apply.
 func FailurePolicy() *FailurePolicyApplyConfiguration {
 	return &FailurePolicyApplyConfiguration{}

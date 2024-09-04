@@ -18,7 +18,7 @@ import (
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
-// FailurePolicyRuleApplyConfiguration represents an declarative configuration of the FailurePolicyRule type for use
+// FailurePolicyRuleApplyConfiguration represents a declarative configuration of the FailurePolicyRule type for use
 // with apply.
 type FailurePolicyRuleApplyConfiguration struct {
 	Name                 *string                       `json:"name,omitempty"`
@@ -27,7 +27,7 @@ type FailurePolicyRuleApplyConfiguration struct {
 	TargetReplicatedJobs []string                      `json:"targetReplicatedJobs,omitempty"`
 }
 
-// FailurePolicyRuleApplyConfiguration constructs an declarative configuration of the FailurePolicyRule type for use with
+// FailurePolicyRuleApplyConfiguration constructs a declarative configuration of the FailurePolicyRule type for use with
 // apply.
 func FailurePolicyRule() *FailurePolicyRuleApplyConfiguration {
 	return &FailurePolicyRuleApplyConfiguration{}

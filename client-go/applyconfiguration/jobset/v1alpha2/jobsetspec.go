@@ -14,7 +14,7 @@ limitations under the License.
 
 package v1alpha2
 
-// JobSetSpecApplyConfiguration represents an declarative configuration of the JobSetSpec type for use
+// JobSetSpecApplyConfiguration represents a declarative configuration of the JobSetSpec type for use
 // with apply.
 type JobSetSpecApplyConfiguration struct {
 	ReplicatedJobs          []ReplicatedJobApplyConfiguration `json:"replicatedJobs,omitempty"`
@@ -23,11 +23,12 @@ type JobSetSpecApplyConfiguration struct {
 	FailurePolicy           *FailurePolicyApplyConfiguration  `json:"failurePolicy,omitempty"`
 	StartupPolicy           *StartupPolicyApplyConfiguration  `json:"startupPolicy,omitempty"`
 	Suspend                 *bool                             `json:"suspend,omitempty"`
+	Coordinator             *CoordinatorApplyConfiguration    `json:"coordinator,omitempty"`
 	ManagedBy               *string                           `json:"managedBy,omitempty"`
 	TTLSecondsAfterFinished *int32                            `json:"ttlSecondsAfterFinished,omitempty"`
 }
 
-// JobSetSpecApplyConfiguration constructs an declarative configuration of the JobSetSpec type for use with
+// JobSetSpecApplyConfiguration constructs a declarative configuration of the JobSetSpec type for use with
 // apply.
 func JobSetSpec() *JobSetSpecApplyConfiguration {
 	return &JobSetSpecApplyConfiguration{}
@@ -83,6 +84,14 @@ func (b *JobSetSpecApplyConfiguration) WithStartupPolicy(value *StartupPolicyApp
 // If called multiple times, the Suspend field is set to the value of the last call.
 func (b *JobSetSpecApplyConfiguration) WithSuspend(value bool) *JobSetSpecApplyConfiguration {
 	b.Suspend = &value
+	return b
+}
+
+// WithCoordinator sets the Coordinator field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Coordinator field is set to the value of the last call.
+func (b *JobSetSpecApplyConfiguration) WithCoordinator(value *CoordinatorApplyConfiguration) *JobSetSpecApplyConfiguration {
+	b.Coordinator = value
 	return b
 }
 
