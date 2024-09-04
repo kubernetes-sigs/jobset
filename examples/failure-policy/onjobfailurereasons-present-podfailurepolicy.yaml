@@ -6,6 +6,9 @@ spec:
   failurePolicy:
     maxRestarts: 3
     rules:
+      # The JobSet will restart an unlimited number of times
+      # when the leader job fails with a failure reason matching
+      # the pod failure policy.
       - action: RestartJobSetAndIgnoreMaxRestarts 
         targetReplicatedJobs:
         - leader

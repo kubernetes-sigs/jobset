@@ -6,6 +6,7 @@ spec:
   failurePolicy:
     maxRestarts: 3
     rules:
+      # The JobSet will fail immediately when the leader job fails.
       - action: FailJobSet
         targetReplicatedJobs:
         - leader

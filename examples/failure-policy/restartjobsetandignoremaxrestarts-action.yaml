@@ -7,6 +7,8 @@ spec:
   failurePolicy:
     maxRestarts: 3
     rules:
+      # The JobSet will restart an unlimited number of times
+      # when the leader job fails.
       - action: RestartJobSetAndIgnoreMaxRestarts
         targetReplicatedJobs:
         - leader
