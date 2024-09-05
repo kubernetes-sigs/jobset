@@ -42,10 +42,10 @@ efficiently and improve ML training goodput.
   - ✔️ Unit Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-unit-main).
   - ✔️ Integration Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-integration-main)
   - ✔️ E2E Tests for Kubernetes
-    [1.27](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-27),
     [1.28](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-28),
     [1.29](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-29),
-    [1.30](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-30)
+    [1.30](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-30),
+    [1.31](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-31)
     on Kind.
 - ✔️ Monitoring via [metrics](https://jobset.sigs.k8s.io/docs/reference/metrics).
 - ✔️ Security: RBAC based accessibility.
