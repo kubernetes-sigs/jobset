@@ -124,7 +124,7 @@ ci-lint: golangci-lint
 	$(GOLANGCI_LINT) run --timeout 15m0s
 
 .PHONY: test
-test: manifests fmt vet envtest gotestsum
+test: manifests fmt vet envtest gotestsum test-python-sdk
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GOTESTSUM) --junitfile $(ARTIFACTS)/junit.xml -- ./pkg/... ./api/... -coverprofile  $(ARTIFACTS)/cover.out
 
 .PHONY: test-python-sdk
