@@ -34,8 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	configapi "sigs.k8s.io/jobset/api/config/v1alpha1"
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -50,6 +48,7 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+	flagsSet = make(map[string]bool)
 )
 
 func init() {
@@ -79,14 +78,18 @@ func main() {
 	flag.StringVar(&featureGates, "feature-gates", "", "A set of key=value pairs that describe feature gates for alpha/experimental features.")
 	flag.StringVar(&configFile, "config", "",
 		"The controller will load its initial configuration from this file. "+
-			"Once configured, flags other than feature-gates will not take effect"+
-			"Omit this flag to use the default configuration values. ")
+			"Command-line flags will override any configurations set in this file. "+
+			"Omit this flag to use the default configuration values.")
 
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+
+	flag.Visit(func(f *flag.Flag) {
+		flagsSet[f.Name] = true
+	})
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
@@ -100,42 +103,29 @@ func main() {
 	var options manager.Options
 
 	kubeConfig := ctrl.GetConfigOrDie()
-	if configFile == "" {
-		options = ctrl.Options{
-			Scheme: scheme,
-			Metrics: server.Options{
-				BindAddress: metricsAddr,
-			},
-			WebhookServer: webhook.NewServer(
-				webhook.Options{
-					Port: 9443,
-				}),
-			HealthProbeBindAddress: probeAddr,
-			LeaderElection:         enableLeaderElection,
-			LeaderElectionID:       "6d4f6a47.x-k8s.io",
-			// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-			// when the Manager ends. This requires the binary to immediately end when the
-			// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-			// speeds up voluntary leader transitions as the new leader don't have to wait
-			// LeaseDuration time first.
-			//
-			// In the default scaffold provided, the program ends immediately after
-			// the manager stops, so would be fine to enable this option. However,
-			// if you are doing or is intended to do any operation such as perform cleanups
-			// after the manager stops then its usage might be unsafe.
-			// LeaderElectionReleaseOnCancel: true,
-		}
+
+	options, cfg, err := apply(configFile)
+	if err != nil {
+		setupLog.Error(err, "Unable to load the configuration")
+		os.Exit(1)
+	}
+	kubeConfig.QPS = *cfg.ClientConnection.QPS
+	kubeConfig.Burst = int(*cfg.ClientConnection.Burst)
+
+	if flagsSet["metrics-bind-address"] {
+		options.Metrics.BindAddress = metricsAddr
+	}
+	if flagsSet["health-probe-bind-address"] {
+		options.HealthProbeBindAddress = probeAddr
+	}
+	if flagsSet["leader-elect"] {
+		options.LeaderElection = enableLeaderElection
+	}
+	if flagsSet["kube-api-qps"] {
 		kubeConfig.QPS = float32(qps)
+	}
+	if flagsSet["kube-api-burst"] {
 		kubeConfig.Burst = burst
-	} else {
-		opts, cfg, err := apply(configFile)
-		if err != nil {
-			setupLog.Error(err, "Unable to load the configuration")
-			os.Exit(1)
-		}
-		options = opts
-		kubeConfig.QPS = *cfg.ClientConnection.QPS
-		kubeConfig.Burst = int(*cfg.ClientConnection.Burst)
 	}
 
 	mgr, err := ctrl.NewManager(kubeConfig, options)

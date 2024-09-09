@@ -28,6 +28,8 @@ func fromFile(path string, scheme *runtime.Scheme, cfg *configapi.Configuration)
 	return runtime.DecodeInto(codecs.UniversalDecoder(), content, cfg)
 }
 
+// addTo applies the configuration from cfg to the controller-runtime Options o.
+// It only sets values in o if they are not already set and are present in cfg.
 func addTo(o *ctrl.Options, cfg *configapi.Configuration) {
 	addLeaderElectionTo(o, cfg)
 
@@ -55,7 +57,6 @@ func addTo(o *ctrl.Options, cfg *configapi.Configuration) {
 		if cfg.Webhook.Host != "" {
 			wo.Host = cfg.Webhook.Host
 		}
-
 		if cfg.Webhook.CertDir != "" {
 			wo.CertDir = cfg.Webhook.CertDir
 		}

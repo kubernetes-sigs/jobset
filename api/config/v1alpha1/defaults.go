@@ -37,8 +37,8 @@ const (
 	DefaultLeaderElectionRenewDeadline         = 10 * time.Second
 	DefaultLeaderElectionRetryPeriod           = 2 * time.Second
 	DefaultResourceLock                        = "leases"
-	DefaultClientConnectionQPS         float32 = 20.0
-	DefaultClientConnectionBurst       int32   = 30
+	DefaultClientConnectionQPS         float32 = 500
+	DefaultClientConnectionBurst       int32   = 500
 )
 
 func getOperatorNamespace() string {
