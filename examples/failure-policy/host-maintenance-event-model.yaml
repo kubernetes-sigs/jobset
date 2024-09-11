@@ -47,6 +47,9 @@ spec:
                   echo "$i"
                   sleep 1
                 done
+        # This failure policy is triggered when a node undergoes host maintenace.
+        # In such a case, the pods are evicted and the job will fail with a condition
+        # of type DisruptionTarget.
         podFailurePolicy:
           rules:
             - action: FailJob
