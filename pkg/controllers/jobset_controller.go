@@ -728,6 +728,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	labels[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
+	labels[jobset.GlobalJobReplicasKey] = globalJobReplicas(js)
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 	labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
@@ -738,6 +739,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
+	annotations[jobset.GlobalJobReplicasKey] = globalJobReplicas(js)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 	annotations[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
@@ -1062,4 +1064,13 @@ func globalJobIndex(js *jobset.JobSet, replicatedJobName string, jobIdx int) str
 		currTotalJobs += int(rjob.Replicas)
 	}
 	return ""
+}
+
+// globalJobReplicas calculates the total number of replicas across all replicated jobs in a JobSet.
+func globalJobReplicas(js *jobset.JobSet) string {
+	currTotalReplicas := 0
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		currTotalReplicas += int(rjob.Replicas)
+	}
+	return strconv.Itoa(currTotalReplicas)
 }
