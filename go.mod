@@ -10,12 +10,12 @@ require (
 	github.com/prometheus/client_golang v1.20.3
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
-	k8s.io/api v0.31.0
-	k8s.io/apimachinery v0.31.0
-	k8s.io/apiserver v0.31.0
-	k8s.io/client-go v0.31.0
-	k8s.io/code-generator v0.31.0
-	k8s.io/component-base v0.31.0
+	k8s.io/api v0.31.1
+	k8s.io/apimachinery v0.31.1
+	k8s.io/apiserver v0.31.1
+	k8s.io/client-go v0.31.1
+	k8s.io/code-generator v0.31.1
+	k8s.io/component-base v0.31.1
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f
