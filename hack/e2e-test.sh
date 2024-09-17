@@ -18,7 +18,7 @@ function cleanup {
 function startup {
     if [ $USE_EXISTING_CLUSTER == 'false' ] 
     then 
-        $KIND create cluster --name $KIND_CLUSTER_NAME --image $E2E_KIND_VERSION --wait 1m
+        $KIND create cluster --name $KIND_CLUSTER_NAME --image $E2E_KIND_VERSION --config "hack/kind-cluster.yaml" --wait 1m
         kubectl get nodes > $ARTIFACTS/kind-nodes.log || true
         kubectl describe pods -n kube-system > $ARTIFACTS/kube-system-pods.log || true
     fi
