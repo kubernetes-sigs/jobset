@@ -692,6 +692,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			// full JobSet spec to calculate a unique ID for each Job.
 			for _, expectedJob := range tc.want {
 				addJobGlobalIndex(t, tc.js, expectedJob)
+				addGlobalReplicas(t, tc.js, expectedJob)
 			}
 
 			// Now get the actual output of constructJobsFromTemplate, and diff the results.
@@ -726,6 +727,18 @@ func addJobGlobalIndex(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 	// Job template spec label/annotation
 	job.Spec.Template.Labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjobName, jobIdx)
 	job.Spec.Template.Annotations[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjobName, jobIdx)
+}
+
+func addGlobalReplicas(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
+	t.Helper()
+
+	// Job label/annotation
+	job.Labels[jobset.GlobalReplicasKey] = globalReplicas(js)
+	job.Annotations[jobset.GlobalReplicasKey] = globalReplicas(js)
+
+	// Job template spec label/annotation
+	job.Spec.Template.Labels[jobset.GlobalReplicasKey] = globalReplicas(js)
+	job.Spec.Template.Annotations[jobset.GlobalReplicasKey] = globalReplicas(js)
 }
 
 func TestUpdateConditions(t *testing.T) {
@@ -1467,6 +1480,60 @@ func TestGlobalJobIndex(t *testing.T) {
 			actualJobGlobalIndex := globalJobIndex(tc.jobSet, tc.replicatedJob, tc.jobIdx)
 			if diff := cmp.Diff(tc.expectedJobGlobalIndex, actualJobGlobalIndex); diff != "" {
 				t.Errorf("unexpected global job index (-want/+got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestGlobalReplicas(t *testing.T) {
+	tests := []struct {
+		name                   string
+		jobSet                 *jobset.JobSet
+		expectedGlobalReplicas string
+	}{
+		{
+			name: "empty jobset",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{},
+			},
+			expectedGlobalReplicas: "0",
+		},
+		{
+			name: "single replicated job",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Replicas: 3,
+						},
+					},
+				},
+			},
+			expectedGlobalReplicas: "3",
+		},
+		{
+			name: "multiple replicated jobs",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Replicas: 2,
+						},
+						{
+							Replicas: 5,
+						},
+					},
+				},
+			},
+			expectedGlobalReplicas: "7",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actualGlobalReplicas := globalReplicas(tc.jobSet)
+			if diff := cmp.Diff(tc.expectedGlobalReplicas, actualGlobalReplicas); diff != "" {
+				t.Errorf("unexpected global replicas (-want/+got): %s", diff)
 			}
 		})
 	}

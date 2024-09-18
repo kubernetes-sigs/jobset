@@ -22,6 +22,10 @@ import (
 const (
 	JobSetNameKey         string = "jobset.sigs.k8s.io/jobset-name"
 	ReplicatedJobReplicas string = "jobset.sigs.k8s.io/replicatedjob-replicas"
+	// GlobalReplicasKey is a label/annotation set to the total number of replicatedJob replicas.
+	// For each JobSet, this value will be equal to the sum of `replicas`, where `replicas`
+	// is equal to jobset.spec.replicatedJobs[*].replicas.
+	GlobalReplicasKey string = "jobset.sigs.k8s.io/global-replicas"
 	// ReplicatedJobNameKey is used to index into a Jobs labels and retrieve the name of the parent ReplicatedJob
 	ReplicatedJobNameKey string = "jobset.sigs.k8s.io/replicatedjob-name"
 	// JobIndexKey is a label/annotation set to the index of the Job replica within its parent replicatedJob.
