@@ -1,0 +1,74 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: onjobfailurereasons-podfailurepolicy-example
+spec:
+  failurePolicy:
+    maxRestarts: 3
+    rules:
+      # The JobSet will restart an unlimited number of times
+      # when the leader job fails with a failure reason matching
+      # the pod failure policy.
+      - action: RestartJobSetAndIgnoreMaxRestarts 
+        targetReplicatedJobs:
+        - leader
+        onJobFailureReasons:
+        - PodFailurePolicy
+  replicatedJobs:
+  - name: leader
+    replicas: 1
+    template:
+      spec:
+        # Set backoff limit to 0 so job will immediately fail if any pod fails.
+        backoffLimit: 0
+        completions: 2
+        parallelism: 2
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: leader
+              image: bash:latest
+              command:
+              - bash
+              - -xc
+              - |
+                echo "JOB_COMPLETION_INDEX=$JOB_COMPLETION_INDEX"
+                if [[ "$JOB_COMPLETION_INDEX" == "0" ]]; then
+                  for i in $(seq 10 -1 1)
+                  do
+                    echo "Sleeping in $i"
+                    sleep 1
+                  done
+                  exit 1
+                fi
+                for i in $(seq 1 1000)
+                do
+                  echo "$i"
+                  sleep 1
+                done
+        podFailurePolicy:
+          rules:
+            - action: FailJob
+              onPodConditions: []
+              onExitCodes:
+                containerName: leader
+                operator: In
+                values: [1] 
+  - name: workers
+    replicas: 1
+    template:
+      spec:
+        backoffLimit: 0
+        completions: 2
+        parallelism: 2
+        template:
+          spec:
+            containers:
+            - name: worker
+              image: bash:latest
+              command:
+              - bash
+              - -xc
+              - |
+                sleep 1000
