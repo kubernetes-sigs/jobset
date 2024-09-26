@@ -26,6 +26,7 @@ tags, and then generate with `hack/update-toc.sh`.
   - [User Stories (Optional)](#user-stories-optional)
     - [Story 1](#story-1)
     - [Story 2](#story-2)
+    - [Story 3](#story-3)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Design Details](#design-details)
   - [API Details](#api-details)
@@ -37,8 +38,11 @@ tags, and then generate with `hack/update-toc.sh`.
   - [Graduation Criteria](#graduation-criteria)
 - [Implementation History](#implementation-history)
 - [Drawbacks](#drawbacks)
+  - [Manage quota for Job sequence](#manage-quota-for-job-sequence)
+  - [Support complex DAGs with JobSet](#support-complex-dags-with-jobset)
 - [Alternatives](#alternatives)
-<!-- /toc -->
+  - [Add ReplicatedJobsStatus parameter into the StartupPolicy API](#add-replicatedjobsstatus-parameter-into-the-startuppolicy-api)
+  <!-- /toc -->
 
 ## Summary
 
@@ -50,8 +54,8 @@ allows to run sequence of ReplicatedJobs within a single JobSet.
 Currently, JobSet supports the StartupPolicy API which allows to create Jobs in order after the
 first Job is in ready status. This can be useful when driver should be ready before workers.
 However, sometime high performance computing and machine learning users want to run sequence of
-succeeded ReplicatedJobs within JobSet. For example, it is common to run pre-processing,
-distributed fine-tuning, post-processing for LLM fine-tuning use-cases.
+ReplicatedJobs within JobSet. For example, it is common to run pre-processing,
+distributed fine-tuning, post-processing for LLM fine-tuning.
 
 ### Goals
 
@@ -84,7 +88,10 @@ metadata:
 spec:
   executionPolicy:
     executionPolicyOrder: InOrder
-    replicatedJobsStatus: Succeeded
+    rules:
+      - targetReplicatedJobs:
+          - Initializer
+        replicatedJobsStatus: Succeeded
   replicatedJobs:
     - name: Initializer
       template:
@@ -138,6 +145,105 @@ spec:
 
 #### Story 2
 
+As a user, I want to fine-tune my LLM using MPI and DeepSpeed. I have the first
+ReplicatedJob for pre-trained model and dataset initialization, the second ReplicatedJob for MPI launch
+and the third ReplicatedJob for distributed fine-tuning.
+
+The example of JobSet looks as follows:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: deepspeed-mpi
+spec:
+  executionPolicy:
+    executionPolicyOrder: InOrder
+    rules:
+      - targetReplicatedJobs:
+          - Initializer
+        replicatedJobsStatus: Succeeded
+      - targetReplicatedJobs:
+          - Launcher
+        replicatedJobsStatus: Ready
+  replicatedJobs:
+    - name: Initializer
+      template:
+        spec:
+          template:
+            spec:
+              containers:
+                - name: model-initializer
+                  image: docker.io/kubeflow/model-initializer
+                  volumeMounts:
+                    - mountPath: /workspace/pre-trained-model
+                      name: model-initializer
+                - name: dataset-initializer
+                  image: docker.io/kubeflow/dataset-initializer
+                  volumeMounts:
+                    - mountPath: /workspace/dataset
+                      name: dataset-initializer
+              volumes:
+                - name: dataset-initializer
+                  persistentVolumeClaim:
+                    claimName: dataset-initializer
+                - name: model-initializer
+                  persistentVolumeClaim:
+                    claimName: model-initializer
+    - name: Launcher
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          template:
+            spec:
+              containers:
+                - name: launcher
+                  image: docker.io/kubeflow/mpi-launcher
+                  resources:
+                    limits:
+                      nvidia.com/gpu: 5
+                  volumeMounts:
+                    - mountPath: /workspace/dataset
+                      name: dataset-initializer
+                    - mountPath: /workspace/pre-trained-model
+                      name: model-initializer
+              volumes:
+                - name: dataset-initializer
+                  persistentVolumeClaim:
+                    claimName: dataset-initializer
+                - name: model-initializer
+                  persistentVolumeClaim:
+                    claimName: model-initializer
+    - name: Node
+      template:
+        spec:
+          parallelism: 3
+          completions: 3
+          template:
+            spec:
+              containers:
+                - name: trainer
+                  image: docker.io/kubeflow/deepspeed-trainer
+                  resources:
+                    limits:
+                      nvidia.com/gpu: 5
+                  volumeMounts:
+                    - mountPath: /workspace/dataset
+                      name: dataset-initializer
+                    - mountPath: /workspace/pre-trained-model
+                      name: model-initializer
+              volumes:
+                - name: dataset-initializer
+                  persistentVolumeClaim:
+                    claimName: dataset-initializer
+                - name: model-initializer
+                  persistentVolumeClaim:
+                    claimName: model-initializer
+```
+
+#### Story 3
+
 TODO: Add HPC use-case with Job sequence
 
 ### Risks and Mitigations
@@ -154,16 +260,15 @@ type JobSetSpec struct {
 	ExecutionPolicy *ExecutionPolicy `json:"executionPolicy,omitempty"`
 }
 
-
 type ExecutionPolicyOption string
 
 const (
-  // This is the default settings.
-  // AnyOrder means that Jobs will be started in any order.
+	// This is the default settings.
+	// AnyOrder means that Jobs will be started in any order.
 	AnyOrder ExecutionPolicyOption = "AnyOrder"
 
-  // InOrder starts the ReplicatedJobs in order that they are listed. Jobs within a ReplicatedJob
-  // will still start in any order.
+	// InOrder starts the ReplicatedJobs in order that they are listed. Jobs within a ReplicatedJob
+	// will still start in any order.
 	InOrder ExecutionPolicyOption = "InOrder"
 )
 
@@ -171,20 +276,29 @@ type ExecutionPolicy struct {
 	// Order in which Jobs will be created.
 	ExecutionPolicyOrder ExecutionPolicyOption `json:"executionPolicyOrder"`
 
-	// After all replicated Jobs reach this status, the JobSet will create the next replicated Jobs.
+	// After all ReplicatedJobs reach this status, the JobSet will create the next ReplicatedJobs.
+	ExecutionPolicyRule []ExecutionPolicyRule `json:"rules"`
+}
+
+// ExecutionPolicyRule represents the execution policy rule for Job sequence.
+type ExecutionPolicyRule struct {
+
+	// Names of the replicated Jobs that applied the status.
+	TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
+
+	// Status in which the next replicated Jobs will be created.
 	ReplicatedJobsStatus ReplicatedJobsStatusOption `json:"replicatedJobsStatus"`
 }
 
 type ReplicatedJobsStatusOption string
 
-// For Ready status the startupPolicy API can be used.
 // TODO: What statuses do we want to support in the first version ?
 const (
-	ReadyStatus ReplicatedJobsStatusOption = "Succeeded"
+	ReadyStatus ReplicatedJobsStatusOption = "Ready"
+
+	SucceededStatus ReplicatedJobsStatusOption = "Succeeded"
 
 	FailedStatus ReplicatedJobsStatusOption = "Failed"
-
-	ActiveStatus ReplicatedJobsStatusOption = "Active"
 )
 ```
 
@@ -195,7 +309,11 @@ Open Questions:
 1. How we should calculate quota for JobSet with execution policy ?
 2. Integration with Kueue. Related KEP to support Argo Workflow in Kueue: https://github.com/kubernetes-sigs/kueue/pull/2976
 
-The JobSet operator will control the creation of replicated Jobs based on their status.
+The JobSet operator will control the creation of ReplicatedJobs based on their status. When
+desired replicated Jobs reach the status defined in replicatedJobsStatus, the controller creates
+the next set of replicated Jobs.
+
+If JobSet is suspended the all ReplicatedJobs will be suspended and the Job sequence starts again.
 
 ### Defaulting/Validation
 
@@ -245,14 +363,21 @@ milestones with these graduation criteria:
 
 ## Drawbacks
 
-<!--
-Why should this KEP _not_ be implemented?
--->
+### Manage quota for Job sequence
+
+It is hard to manage quota for sequence of Job within single JobSet. Usually, users don't want to
+lock resources (e.g. GPUs/TPUs) when the first Job is running.
+
+### Support complex DAGs with JobSet
+
+If users want to create complex DAG workflows, they should not use JobSet for such purpose.
 
 ## Alternatives
 
-<!--
-What other approaches did you consider, and why did you rule them out? These do
-not need to be as detailed as the proposal, but should include enough
-information to express the idea and why it was not acceptable.
--->
+### Add ReplicatedJobsStatus parameter into the StartupPolicy API
+
+Currently, when StartupPolicy is set to InOrder, the controller waits until replicatedJobs be in
+Ready status before creating the next replicatedJobs.
+
+We can re-use add the `ExecutionPolicyRule` parameter into `StartupPolicy` to give user an ability
+to specify the required Job status before creating the next ReplicatedJobs.
