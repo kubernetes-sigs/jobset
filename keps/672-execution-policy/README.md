@@ -244,7 +244,13 @@ spec:
 
 #### Story 3
 
-TODO: Add HPC use-case with Job sequence
+As an HPC user, I want to run a set of simulations with MPI that complete successfully
+(or some percentage) before using the data for a next step analysis.
+
+As an HPC user I want to scale up my simulation job only after a small set have completed
+successfully. For that case, I could imagine essentially the same replicatedJob done twice,
+just with a larger size. If the outcome of the first isn't success you wouldn't launch
+the larger bulk of work.
 
 ### Risks and Mitigations
 
@@ -286,7 +292,7 @@ type ExecutionPolicyRule struct {
 	// Names of the replicated Jobs that applied the status.
 	TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
 
-	// Status in which the next replicated Jobs will be created.
+	// Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
 	ReplicatedJobsStatus ReplicatedJobsStatusOption `json:"replicatedJobsStatus"`
 }
 
