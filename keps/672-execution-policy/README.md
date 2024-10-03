@@ -31,6 +31,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Design Details](#design-details)
   - [API Details](#api-details)
   - [Implementation](#implementation)
+  - [Quota Management](#quota-management)
   - [Defaulting/Validation](#defaultingvalidation)
   - [Test Plan](#test-plan)
     - [Unit Tests](#unit-tests)
@@ -41,7 +42,7 @@ tags, and then generate with `hack/update-toc.sh`.
   - [Manage quota for Job sequence](#manage-quota-for-job-sequence)
   - [Support complex DAGs with JobSet](#support-complex-dags-with-jobset)
 - [Alternatives](#alternatives)
-  - [Add ReplicatedJobsStatus parameter into the StartupPolicy API](#add-replicatedjobsstatus-parameter-into-the-startuppolicy-api)
+  - [Add ExecutionPolicyRule parameter into the StartupPolicy API](#add-executionpolicyrule-parameter-into-the-startuppolicy-api)
   <!-- /toc -->
 
 ## Summary
