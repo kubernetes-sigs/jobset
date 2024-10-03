@@ -325,7 +325,9 @@ If JobSet is suspended the all ReplicatedJobs will be suspended and the Job sequ
 
 - ExecutionPolicy is immutable.
 - ExecutionPolicyOrder of `AnyOrder` is default setting.
-- StartupPolicy should be empty if ExecutionPolicy is set
+- StartupPolicy should be equal to `AnyOrder` when ExecutionPolicy is used.
+  - The StartupPolicy API will be deprecated over the next few JobSet releases, since
+    ExecutionPolicy can be used with Ready status of ReplicatedJobs.
 
 ### Test Plan
 
