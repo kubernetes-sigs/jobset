@@ -90,10 +90,10 @@ spec:
     executionPolicyOrder: InOrder
     rules:
       - targetReplicatedJobs:
-          - Initializer
+          - initializer
         replicatedJobsStatus: Succeeded
   replicatedJobs:
-    - name: Initializer
+    - name: initializer
       template:
         spec:
           template:
@@ -116,7 +116,7 @@ spec:
                 - name: model-initializer
                   persistentVolumeClaim:
                     claimName: model-initializer
-    - name: Node
+    - name: trainer-node
       template:
         spec:
           parallelism: 3
@@ -161,13 +161,13 @@ spec:
     executionPolicyOrder: InOrder
     rules:
       - targetReplicatedJobs:
-          - Initializer
+          - initializer
         replicatedJobsStatus: Succeeded
       - targetReplicatedJobs:
-          - Launcher
+          - launcher
         replicatedJobsStatus: Ready
   replicatedJobs:
-    - name: Initializer
+    - name: initializer
       template:
         spec:
           template:
@@ -190,7 +190,7 @@ spec:
                 - name: model-initializer
                   persistentVolumeClaim:
                     claimName: model-initializer
-    - name: Launcher
+    - name: launcher
       template:
         spec:
           parallelism: 1
@@ -215,7 +215,7 @@ spec:
                 - name: model-initializer
                   persistentVolumeClaim:
                     claimName: model-initializer
-    - name: Node
+    - name: trainer-node
       template:
         spec:
           parallelism: 3
@@ -310,16 +310,25 @@ const (
 
 ### Implementation
 
-Open Questions:
-
-1. How we should calculate quota for JobSet with execution policy ?
-2. Integration with Kueue. Related KEP to support Argo Workflow in Kueue: https://github.com/kubernetes-sigs/kueue/pull/2976
-
 The JobSet operator will control the creation of ReplicatedJobs based on their status. When
 desired replicated Jobs reach the status defined in replicatedJobsStatus, the controller creates
 the next set of replicated Jobs.
 
 If JobSet is suspended the all ReplicatedJobs will be suspended and the Job sequence starts again.
+
+### Quota Management
+
+In the initial implementation of the ExecutionPolicy the resource quota will be calculated as
+sum of all ReplicatedJobs resources. Which means JobSet will be admitted by
+[Kueue](https://github.com/kubernetes-sigs/kueue) only when all resources are available for
+every ReplicatedJob within JobSet.
+
+That allows us to leverage the existing integration between Kueue and JobSet while using the
+ExecutionPolicy API.
+
+In the future versions we will discuss potential partial admission of JobSet by Kueue. For example,
+when compute resources are available for the first ReplicatedJob the JobSet can be dispatched by
+Kueue.
 
 ### Defaulting/Validation
 
@@ -327,7 +336,7 @@ If JobSet is suspended the all ReplicatedJobs will be suspended and the Job sequ
 - ExecutionPolicyOrder of `AnyOrder` is default setting.
 - StartupPolicy should be equal to `AnyOrder` when ExecutionPolicy is used.
   - The StartupPolicy API will be deprecated over the next few JobSet releases, since
-    ExecutionPolicy can be used with Ready status of ReplicatedJobs.
+    ExecutionPolicy can be used with ready status of ReplicatedJobs.
 
 ### Test Plan
 
@@ -382,7 +391,7 @@ If users want to create complex DAG workflows, they should not use JobSet for su
 
 ## Alternatives
 
-### Add ReplicatedJobsStatus parameter into the StartupPolicy API
+### Add ExecutionPolicyRule parameter into the StartupPolicy API
 
 Currently, when StartupPolicy is set to InOrder, the controller waits until replicatedJobs be in
 Ready status before creating the next replicatedJobs.
