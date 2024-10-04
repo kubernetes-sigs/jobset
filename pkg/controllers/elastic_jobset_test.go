@@ -26,12 +26,12 @@ import (
 func TestJobsToDeleteDownScale(t *testing.T) {
 
 	tests := []struct {
-		name                 string
-		replicatedJobs       []jobset.ReplicatedJob
-		replicatedJobStatus  []jobset.ReplicatedJobStatus
-		jobs                 []batchv1.Job
-		expectedJobsToDelete int32
-		gotError             error
+		name                        string
+		replicatedJobs              []jobset.ReplicatedJob
+		replicatedJobStatus         []jobset.ReplicatedJobStatus
+		jobs                        []batchv1.Job
+		expectedJobsThatWereDeleted []batchv1.Job
+		gotError                    error
 	}{
 		{
 			name: "no elastic downscale",
@@ -118,7 +118,16 @@ func TestJobsToDeleteDownScale(t *testing.T) {
 					},
 				},
 			},
-			expectedJobsToDelete: 1,
+			expectedJobsThatWereDeleted: []batchv1.Job{
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Labels: map[string]string{
+							jobset.ReplicatedJobNameKey: "test",
+							jobset.JobIndexKey:          "1",
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "elastic downscale is needed for second replicated job",
@@ -165,22 +174,6 @@ func TestJobsToDeleteDownScale(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Labels: map[string]string{
 							jobset.ReplicatedJobNameKey: "test-2",
-							jobset.JobIndexKey:          "0",
-						},
-					},
-				},
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Labels: map[string]string{
-							jobset.ReplicatedJobNameKey: "test-2",
-							jobset.JobIndexKey:          "1",
-						},
-					},
-				},
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Labels: map[string]string{
-							jobset.ReplicatedJobNameKey: "test-2",
 							jobset.JobIndexKey:          "2",
 						},
 					},
@@ -193,19 +186,66 @@ func TestJobsToDeleteDownScale(t *testing.T) {
 						},
 					},
 				},
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Labels: map[string]string{
+							jobset.ReplicatedJobNameKey: "test-2",
+							jobset.JobIndexKey:          "0",
+						},
+					},
+				},
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Labels: map[string]string{
+							jobset.ReplicatedJobNameKey: "test-2",
+							jobset.JobIndexKey:          "1",
+						},
+					},
+				},
 			},
-			expectedJobsToDelete: 2,
+			expectedJobsThatWereDeleted: []batchv1.Job{
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Labels: map[string]string{
+							jobset.ReplicatedJobNameKey: "test-2",
+							jobset.JobIndexKey:          "3",
+						},
+					},
+				},
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Labels: map[string]string{
+							jobset.ReplicatedJobNameKey: "test-2",
+							jobset.JobIndexKey:          "2",
+						},
+					},
+				},
+			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := jobsToDeleteDownScale(tc.replicatedJobs, tc.replicatedJobStatus, tc.jobs)
+			actual, err := jobsToDeleteForDownScale(tc.replicatedJobs, tc.replicatedJobStatus, tc.jobs)
 			if diff := cmp.Diff(tc.gotError, err); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}
-			if diff := cmp.Diff(tc.expectedJobsToDelete, int32(len(actual))); diff != "" {
-				t.Errorf("unexpected finished value (+got/-want): %s", diff)
+			if len(actual) != len(tc.expectedJobsThatWereDeleted) {
+				t.Errorf("unexpected length mismatch for deleted jobs: got: %d want: %d", len(actual), len(tc.expectedJobsThatWereDeleted))
+			}
+			if tc.expectedJobsThatWereDeleted != nil {
+				for i := range actual {
+					actualReplicatedJobName := actual[i].ObjectMeta.Labels[jobset.ReplicatedJobNameKey]
+					actualJobIndexKey := actual[i].ObjectMeta.Labels[jobset.JobIndexKey]
+					expectedReplicatedJobName := tc.expectedJobsThatWereDeleted[i].ObjectMeta.Labels[jobset.ReplicatedJobNameKey]
+					expectedJobIndexKey := tc.expectedJobsThatWereDeleted[i].ObjectMeta.Labels[jobset.JobIndexKey]
+					if diff := cmp.Diff(actualReplicatedJobName, expectedReplicatedJobName); diff != "" {
+						t.Errorf("unexpected replicated job name (+got/-want): %s", diff)
+					}
+					if diff := cmp.Diff(actualJobIndexKey, expectedJobIndexKey); diff != "" {
+						t.Errorf("unexpected job index (+got/-want): %s", diff)
+					}
+				}
 			}
 		})
 	}

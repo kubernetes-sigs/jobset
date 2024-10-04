@@ -536,7 +536,7 @@ func (r *JobSetReconciler) downscaleElasticJobs(ctx context.Context, js *jobset.
 		return err
 	}
 
-	jobsToDelete, err := jobsToDeleteDownScale(js.Spec.ReplicatedJobs, replicatedJobStatus, childJobList.Items)
+	jobsToDelete, err := jobsToDeleteForDownScale(js.Spec.ReplicatedJobs, replicatedJobStatus, childJobList.Items)
 	if err != nil {
 		return err
 	}
