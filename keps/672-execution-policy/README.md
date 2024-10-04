@@ -396,3 +396,22 @@ Ready status before creating the next replicatedJobs.
 
 We can re-use add the `ExecutionPolicyRule` parameter into `StartupPolicy` to give user an ability
 to specify the required Job status before creating the next ReplicatedJobs.
+
+### Using workflow engine to execute sequence of jobs
+
+Instead of implementing the ExecutionPolicy feature in JobSet, users can leverage existing workflow
+engines like Argo Workflow or Tekton Pipeline to execute it.
+
+While workflow engines are a good option for orchestrating Directed Acyclic Graphs (DAGs),
+users may want to include the initialization phase as part of their training jobs. This is
+particularly important in LLMs fine-tuning use cases, where every training job involves downloading
+and distributing pre-trained models and datasets across all training nodes before starting
+distributed fine-tuning.
+
+For such use-cases users can consider the pre-trained model and dataset download, along with
+distributed fine-tuning as integral parts of the ML training step within the broader
+AI/ML lifecycle, which contains data preparation, training, tuning, evaluation, and serving stages.
+
+Thus, providing users the option to initialize ML assets as part of a single JobSet make sense.
+However, for complex data preparation tasks, such as those using engines like Spark, users should
+consider to decouple them from the JobSet used for training/fine-tuning.
