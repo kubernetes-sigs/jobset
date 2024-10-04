@@ -17,7 +17,6 @@ tags, and then generate with `hack/update-toc.sh`.
 -->
 
 <!-- toc -->
-
 - [Summary](#summary)
 - [Motivation](#motivation)
   - [Goals](#goals)
@@ -43,7 +42,8 @@ tags, and then generate with `hack/update-toc.sh`.
   - [Support complex DAGs with JobSet](#support-complex-dags-with-jobset)
 - [Alternatives](#alternatives)
   - [Add ExecutionPolicyRule parameter into the StartupPolicy API](#add-executionpolicyrule-parameter-into-the-startuppolicy-api)
-  <!-- /toc -->
+  - [Using workflow engine to execute sequence of jobs](#using-workflow-engine-to-execute-sequence-of-jobs)
+<!-- /toc -->
 
 ## Summary
 
@@ -350,9 +350,13 @@ We will create a new file called execution_policy for the functionality.
 
 #### Integration tests
 
-- Having 2 Jobs running in sequence with Succeeded condition.
-- Suspend JobSet with execution policy being set.
-- Restart the failed Job when execution policy is set in JobSet.
+- Using "ready" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
+- Using "succeeded" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
+- Validate that if the first ReplicatedJob fails, the second ReplicatedJob does not execute.
+- Ensure that when ExecutionPolicy and FailurePolicy sets together, the JobSet will restart
+  the job sequence from the beginning in case of failure.
+- Validate the JobSet controller restart in the middle of the ReplicatedJobs execution when
+  ExecutionPolicy is set.
 
 ### Graduation Criteria
 
