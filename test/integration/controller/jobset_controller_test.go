@@ -1563,6 +1563,56 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("elastic replicated jobs; upscale", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns)
+			},
+			steps: []*step{
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						setReplicasReplicatedJob(js, "replicated-job-a", 4)
+					},
+				},
+				{
+					checkJobCreation: func(js *jobset.JobSet) {
+						// replicated-job-a has 4 replicacs and replicated-job-b has 3 replicas
+						numJobsCreated := 7
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(numJobsCreated))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("elastic replicated jobs; upscale and then downscale", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns)
+			},
+			steps: []*step{
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						setReplicasReplicatedJob(js, "replicated-job-a", 4)
+					},
+				},
+				{
+					checkJobCreation: func(js *jobset.JobSet) {
+						// replicated-job-a has 4 replicacs and replicated-job-b has 3 replicas
+						numJobsCreated := 7
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(numJobsCreated))
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						setReplicasReplicatedJob(js, "replicated-job-a", 1)
+					},
+				},
+				{
+					checkJobCreation: func(js *jobset.JobSet) {
+						// replicated-job-a has 1 replica and replicated-job-b has 1 replica
+						numJobsCreated := 2
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(numJobsCreated))
+					},
+				},
+			},
+		}),
 	) // end of DescribeTable
 
 	ginkgo.When("A JobSet is managed by another controller", ginkgo.Ordered, func() {
@@ -1960,6 +2010,21 @@ func updatePodTemplates(js *jobset.JobSet, opts *updatePodTemplateOpts) {
 
 			// Update tolerations.
 			podTemplate.Spec.Tolerations = opts.tolerations
+		}
+		return k8sClient.Update(ctx, &jsGet)
+	}, timeout, interval).Should(gomega.Succeed())
+}
+
+func setReplicasReplicatedJob(js *jobset.JobSet, replicatedJobName string, replicas int32) {
+	gomega.Eventually(func() error {
+		var jsGet jobset.JobSet
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jsGet); err != nil {
+			return err
+		}
+		for i, val := range jsGet.Spec.ReplicatedJobs {
+			if val.Name == replicatedJobName {
+				jsGet.Spec.ReplicatedJobs[i].Replicas = replicas
+			}
 		}
 		return k8sClient.Update(ctx, &jsGet)
 	}, timeout, interval).Should(gomega.Succeed())

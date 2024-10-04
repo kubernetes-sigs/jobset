@@ -234,6 +234,23 @@ func JobSetDeleted(ctx context.Context, k8sClient client.Client, js *jobset.JobS
 	}, timeout, interval).Should(gomega.Equal(true))
 }
 
+func UpdateReplicas(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, replicatedJobIndex, replicas int32, timeout time.Duration) {
+	ginkgo.By("updating replicated job replicas")
+	gomega.Eventually(func() (bool, error) {
+		// We get the latest version of the jobset before removing the finalizer.
+		var fresh jobset.JobSet
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &fresh); err != nil {
+			return false, err
+		}
+		fresh.Spec.ReplicatedJobs[replicatedJobIndex].Replicas = replicas
+		if err := k8sClient.Update(ctx, &fresh); err != nil {
+			return false, err
+		}
+		return true, nil
+	}, timeout, interval).Should(gomega.Equal(true))
+
+}
+
 // RemoveJobSetFinalizer removes the provided finalizer from the jobset and updates it.
 func RemoveJobSetFinalizer(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, finalizer string, timeout time.Duration) {
 	ginkgo.By("removing jobset finalizers")
