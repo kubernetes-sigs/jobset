@@ -92,7 +92,7 @@ spec:
     rules:
       - targetReplicatedJobs:
           - initializer
-        replicatedJobsStatus: Succeeded
+        waitForReplicatedJobsStatus: Succeeded
   replicatedJobs:
     - name: initializer
       template:
@@ -163,10 +163,10 @@ spec:
     rules:
       - targetReplicatedJobs:
           - initializer
-        replicatedJobsStatus: Succeeded
+        waitForReplicatedJobsStatus: Succeeded
       - targetReplicatedJobs:
           - launcher
-        replicatedJobsStatus: Ready
+        waitForReplicatedJobsStatus: Ready
   replicatedJobs:
     - name: initializer
       template:
@@ -245,8 +245,8 @@ spec:
 
 #### Story 3
 
-As an HPC user, I want to run a set of simulations with MPI that complete successfully
-(or some percentage) before using the data for a next step analysis.
+As an HPC user, I want to run a set of simulations with MPI that complete successfully before
+using the data for a next step analysis.
 
 As an HPC user I want to scale up my simulation job only after a small set have completed
 successfully. For that case, I could imagine essentially the same replicatedJob done twice,
@@ -294,26 +294,23 @@ type ExecutionPolicyRule struct {
 	TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
 
 	// Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
-	ReplicatedJobsStatus ReplicatedJobsStatusOption `json:"replicatedJobsStatus"`
+	WaitForReplicatedJobsStatus ReplicatedJobsStatusOption `json:"waitForReplicatedJobsStatus"`
 }
 
 type ReplicatedJobsStatusOption string
 
-// TODO: What statuses do we want to support in the first version ?
 const (
 	ReadyStatus ReplicatedJobsStatusOption = "Ready"
 
 	SucceededStatus ReplicatedJobsStatusOption = "Succeeded"
-
-	FailedStatus ReplicatedJobsStatusOption = "Failed"
 )
 ```
 
 ### Implementation
 
 The JobSet operator will control the creation of ReplicatedJobs based on their status. When
-desired replicated Jobs reach the status defined in replicatedJobsStatus, the controller creates
-the next set of replicated Jobs.
+desired replicated Jobs reach the status defined in the waitForReplicatedJobsStatus, the
+controller creates the next set of replicated Jobs.
 
 If JobSet is suspended the all ReplicatedJobs will be suspended and the Job sequence starts again.
 
