@@ -47,7 +47,8 @@ echo "Generating Python SDK for JobSet..."
 # Defaults the container engine to docker
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
 # Checking if docker / podman is installed
-if ! { [ $(command -v docker &> /dev/null) ] && [ $(command -v podman &> /dev/null) ] }; then
+# shellcheck disable=SC2046
+if ! [ $(command -v docker &> /dev/null) ] && [ $(command -v podman &> /dev/null) ]; then
   # Install docker
   echo "Both Podman and Docker is not installed"
   echo "Installing Docker now (Version 17.03.0)"
@@ -56,7 +57,7 @@ if ! { [ $(command -v docker &> /dev/null) ] && [ $(command -v podman &> /dev/nu
   tar xzvf docker-17.03.0-ce.tgz
   echo "Starting dockerd"
   ./docker/dockerd &
-elif [ `command -v podman &> /dev/null` ]; then
+elif [ $(command -v podman &> /dev/null) ]; then
   echo "Found that Podman is installed, using that now"
   CONTAINER_ENGINE="podman"
 fi
