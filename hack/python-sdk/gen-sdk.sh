@@ -46,9 +46,14 @@ echo "Generating Python SDK for JobSet..."
 
 # Defaults the container engine to docker
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
+
+DOCKER_EXIST=$(command -v docker)
+PODMAN_EXIST=$(command -v podman)
+
+echo DOCKER_EXIST
+echo PODMAN_EXIST
 # Checking if docker / podman is installed
-# shellcheck disable=SC2046
-if ! [ $(command -v docker &> /dev/null) ] && [ $(command -v podman &> /dev/null) ]; then
+if ! [ "$DOCKER_EXIST" ] && ! [ "$PODMAN_EXIST" ]; then
   # Install docker
   echo "Both Podman and Docker is not installed"
   echo "Installing Docker now (Version 17.03.0)"
@@ -57,18 +62,18 @@ if ! [ $(command -v docker &> /dev/null) ] && [ $(command -v podman &> /dev/null
   tar xzvf docker-17.03.0-ce.tgz
   echo "Starting dockerd"
   ./docker/dockerd &
-elif [ $(command -v podman &> /dev/null) ]; then
-  echo "Found that Podman is installed, using that now"
+elif ! [ "$DOCKER_EXIST" ] && [ "$PODMAN_EXIST" ]; then
+  echo "Found Podman, switching to Podman"
   CONTAINER_ENGINE="podman"
 fi
 
 # Install the sdk using docker
 ${CONTAINER_ENGINE} run --rm \
-  -v docker.io/"${repo_root}":/local openapitools/openapi-generator-cli generate \
-  -i /local/${SWAGGER_CODEGEN_FILE} \
+  -v "${repo_root}":/local docker.io/openapitools/openapi-generator-cli generate \
+  -i /local/"${SWAGGER_CODEGEN_FILE}" \
   -g python \
   -o /local/"${SDK_OUTPUT_PATH}" \
-  -c ${SWAGGER_CODEGEN_FILE}
+  -c local/"${SWAGGER_CODEGEN_FILE}"
 
 echo "Running post-generation script ..."
 "${repo_root}"/hack/python-sdk/post_gen.py
