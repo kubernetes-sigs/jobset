@@ -75,6 +75,11 @@ ${CONTAINER_ENGINE} run --rm \
   -o /local/"${SDK_OUTPUT_PATH}" \
   -c local/"${SWAGGER_CODEGEN_FILE}"
 
+if [ -d "docker-17.03.0-ce.tgz" ]; then
+  echo "Removing docker install folder"
+  rm -r docker-17.03.0-ce.tgz
+fi
+
 echo "Running post-generation script ..."
 "${repo_root}"/hack/python-sdk/post_gen.py
 
