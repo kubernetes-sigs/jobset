@@ -17,6 +17,7 @@ tags, and then generate with `hack/update-toc.sh`.
 -->
 
 <!-- toc -->
+
 - [Summary](#summary)
 - [Motivation](#motivation)
   - [Goals](#goals)
@@ -43,7 +44,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Alternatives](#alternatives)
   - [Add ExecutionPolicyRule parameter into the StartupPolicy API](#add-executionpolicyrule-parameter-into-the-startuppolicy-api)
   - [Using workflow engine to execute sequence of jobs](#using-workflow-engine-to-execute-sequence-of-jobs)
-<!-- /toc -->
+  <!-- /toc -->
 
 ## Summary
 
@@ -264,45 +265,49 @@ The goal is to only focus on Job sequence to cover model training/HPC use-cases.
 
 ```golang
 type JobSetSpec struct {
-	ExecutionPolicy *ExecutionPolicy `json:"executionPolicy,omitempty"`
+ ExecutionPolicy *ExecutionPolicy `json:"executionPolicy,omitempty"`
 }
 
 type ExecutionPolicyOption string
 
 const (
-	// This is the default settings.
-	// AnyOrder means that Jobs will be started in any order.
-	AnyOrder ExecutionPolicyOption = "AnyOrder"
+ // This is the default settings.
+ // AnyOrder means that Jobs will be started in any order.
+ AnyOrder ExecutionPolicyOption = "AnyOrder"
 
-	// InOrder starts the ReplicatedJobs in order that they are listed. Jobs within a ReplicatedJob
-	// will still start in any order.
-	InOrder ExecutionPolicyOption = "InOrder"
+ // InOrder starts the ReplicatedJobs in order that they are listed. Jobs within a ReplicatedJob
+ // will still start in any order.
+ InOrder ExecutionPolicyOption = "InOrder"
 )
 
 type ExecutionPolicy struct {
-	// Order in which Jobs will be created.
-	ExecutionPolicyOrder ExecutionPolicyOption `json:"executionPolicyOrder"`
+ // Order in which Jobs will be created.
+ ExecutionPolicyOrder ExecutionPolicyOption `json:"executionPolicyOrder"`
 
-	// After all ReplicatedJobs reach this status, the JobSet will create the next ReplicatedJobs.
-	ExecutionPolicyRule []ExecutionPolicyRule `json:"rules"`
+ // After all ReplicatedJobs reach this status, the JobSet will create the next ReplicatedJobs.
+ ExecutionPolicyRule []ExecutionPolicyRule `json:"rules"`
 }
 
 // ExecutionPolicyRule represents the execution policy rule for Job sequence.
 type ExecutionPolicyRule struct {
 
-	// Names of the replicated Jobs that applied the status.
-	TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
+ // Names of the replicated Jobs that applied the status.
+ TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
 
-	// Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
-	WaitForReplicatedJobsStatus ReplicatedJobsStatusOption `json:"waitForReplicatedJobsStatus"`
+ // Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
+ WaitForReplicatedJobsStatus ReplicatedJobsStatusOption `json:"waitForReplicatedJobsStatus"`
 }
 
 type ReplicatedJobsStatusOption string
 
 const (
-	ReadyStatus ReplicatedJobsStatusOption = "Ready"
+ // Ready status means the Ready counter equals the number of child Jobs.
+ // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].ready
+ ReadyStatus ReplicatedJobsStatusOption = "Ready"
 
-	SucceededStatus ReplicatedJobsStatusOption = "Succeeded"
+ // Succeeded status means the Ready counter equals the number of child Jobs.
+ // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
+ SucceededStatus ReplicatedJobsStatusOption = "Succeeded"
 )
 ```
 
@@ -313,6 +318,9 @@ desired replicated Jobs reach the status defined in the waitForReplicatedJobsSta
 controller creates the next set of replicated Jobs.
 
 If JobSet is suspended the all ReplicatedJobs will be suspended and the Job sequence starts again.
+
+When the JobSet is restarted after failure, the Job sequence starts again. User controls how many
+times Job can be restarted via backOffLimit parameter.
 
 ### Quota Management
 
