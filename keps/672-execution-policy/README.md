@@ -305,7 +305,7 @@ const (
  // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].ready
  ReadyStatus ReplicatedJobsStatusOption = "Ready"
 
- // Succeeded status means the Ready counter equals the number of child Jobs.
+ // Succeeded status means the Succeeded counter equals the number of child Jobs.
  // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
  SucceededStatus ReplicatedJobsStatusOption = "Succeeded"
 )
