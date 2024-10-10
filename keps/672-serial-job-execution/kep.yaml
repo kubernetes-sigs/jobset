@@ -1,4 +1,4 @@
-title: Support Succeeded Condition for StartupPolicy
+title: Serial Job Execution with StartupPolicy API
 kep-number: 672
 authors:
   - "@andreyvelich"

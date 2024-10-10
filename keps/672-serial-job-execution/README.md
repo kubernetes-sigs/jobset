@@ -1,4 +1,4 @@
-# KEP-672: Support Succeeded Condition for StartupPolicy
+# KEP-672: Serial Job Execution with StartupPolicy API
 
 <!--
 This is the title of your KEP. Keep it short, simple, and descriptive. A good
@@ -62,7 +62,7 @@ distributed fine-tuning, post-processing for LLM fine-tuning.
 
 ### Goals
 
-- Add support for Succeeded condition for the StartupPolicy API.
+- Add support for serial Job execution for the StartupPolicy API.
 
 ### Non-Goals
 
