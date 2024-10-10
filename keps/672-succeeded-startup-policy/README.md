@@ -1,4 +1,4 @@
-# KEP-672: Execution Policy
+# KEP-672: Support Succeeded Condition for StartupPolicy
 
 <!--
 This is the title of your KEP. Keep it short, simple, and descriptive. A good
@@ -33,6 +33,7 @@ tags, and then generate with `hack/update-toc.sh`.
   - [Implementation](#implementation)
   - [Quota Management](#quota-management)
   - [Defaulting/Validation](#defaultingvalidation)
+  - [User Experience](#user-experience)
   - [Test Plan](#test-plan)
     - [Unit Tests](#unit-tests)
     - [Integration tests](#integration-tests)
@@ -42,14 +43,14 @@ tags, and then generate with `hack/update-toc.sh`.
   - [Manage quota for Job sequence](#manage-quota-for-job-sequence)
   - [Support complex DAGs with JobSet](#support-complex-dags-with-jobset)
 - [Alternatives](#alternatives)
-  - [Add ExecutionPolicyRule parameter into the StartupPolicy API](#add-executionpolicyrule-parameter-into-the-startuppolicy-api)
   - [Using workflow engine to execute sequence of jobs](#using-workflow-engine-to-execute-sequence-of-jobs)
   <!-- /toc -->
 
 ## Summary
 
-This KEP outlines the proposal to add the ExecutionPolicy API into JobSet. The ExecutionPolicy API
-allows to run sequence of ReplicatedJobs within a single JobSet.
+This KEP outlines the proposal to expand the scope of the StartupPolicy API for JobSet. The
+StartupPolicy API should support to run sequence of ReplicatedJobs after they reach Ready or
+Succeeded status.
 
 ## Motivation
 
@@ -61,7 +62,7 @@ distributed fine-tuning, post-processing for LLM fine-tuning.
 
 ### Goals
 
-- Add the ExecutionPolicy API for JobSet
+- Add support for Succeeded condition for the StartupPolicy API.
 
 ### Non-Goals
 
@@ -88,8 +89,8 @@ kind: JobSet
 metadata:
   name: fine-tune-llm
 spec:
-  executionPolicy:
-    executionPolicyOrder: InOrder
+  startupPolicy:
+    startupPolicyOrder: InOrder
     rules:
       - targetReplicatedJobs:
           - initializer
@@ -159,8 +160,8 @@ kind: JobSet
 metadata:
   name: deepspeed-mpi
 spec:
-  executionPolicy:
-    executionPolicyOrder: InOrder
+  startupPolicy:
+    startupPolicyOrder: InOrder
     rules:
       - targetReplicatedJobs:
           - initializer
@@ -265,37 +266,27 @@ The goal is to only focus on Job sequence to cover model training/HPC use-cases.
 
 ```golang
 type JobSetSpec struct {
- ExecutionPolicy *ExecutionPolicy `json:"executionPolicy,omitempty"`
+ StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
 }
 
-type ExecutionPolicyOption string
+type StartupPolicyOrderOption string
 
 const (
  // This is the default settings.
  // AnyOrder means that Jobs will be started in any order.
- AnyOrder ExecutionPolicyOption = "AnyOrder"
+ AnyOrder StartupPolicyOrderOption = "AnyOrder"
 
  // InOrder starts the ReplicatedJobs in order that they are listed. Jobs within a ReplicatedJob
  // will still start in any order.
- InOrder ExecutionPolicyOption = "InOrder"
+ InOrder StartupPolicyOrderOption = "InOrder"
 )
 
-type ExecutionPolicy struct {
+type StartupPolicy struct {
  // Order in which Jobs will be created.
- ExecutionPolicyOrder ExecutionPolicyOption `json:"executionPolicyOrder"`
+ StartupPolicyOrder StartupPolicyOrderOption `json:"startupPolicyOrder"`
 
  // After all ReplicatedJobs reach this status, the JobSet will create the next ReplicatedJobs.
- ExecutionPolicyRule []ExecutionPolicyRule `json:"rules"`
-}
-
-// ExecutionPolicyRule represents the execution policy rule for Job sequence.
-type ExecutionPolicyRule struct {
-
- // Names of the replicated Jobs that applied the status.
- TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
-
- // Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
- WaitForReplicatedJobsStatus ReplicatedJobsStatusOption `json:"waitForReplicatedJobsStatus"`
+ StartupPolicyRule []StartupPolicyRule `json:"rules"`
 }
 
 type ReplicatedJobsStatusOption string
@@ -309,6 +300,17 @@ const (
  // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
  SucceededStatus ReplicatedJobsStatusOption = "Succeeded"
 )
+
+// StartupPolicyRule represents the startup policy rule for Job sequence.
+type StartupPolicyRule struct {
+
+ // Names of the replicated Jobs that applied the status.
+ TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
+
+ // Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
+ WaitForReplicatedJobsStatus ReplicatedJobsStatusOption `json:"waitForReplicatedJobsStatus"`
+}
+
 ```
 
 ### Implementation
@@ -324,13 +326,13 @@ times Job can be restarted via backOffLimit parameter.
 
 ### Quota Management
 
-In the initial implementation of the ExecutionPolicy the resource quota will be calculated as
+In the initial implementation of the StartupPolicy the resource quota will be calculated as
 sum of all ReplicatedJobs resources. Which means JobSet will be admitted by
 [Kueue](https://github.com/kubernetes-sigs/kueue) only when all resources are available for
 every ReplicatedJob within JobSet.
 
 That allows us to leverage the existing integration between Kueue and JobSet while using the
-ExecutionPolicy API.
+expanded version of StartupPolicy API.
 
 In the future versions we will discuss potential partial admission of JobSet by Kueue. For example,
 when compute resources are available for the first ReplicatedJob the JobSet can be dispatched by
@@ -338,11 +340,36 @@ Kueue.
 
 ### Defaulting/Validation
 
-- ExecutionPolicy is immutable.
-- ExecutionPolicyOrder of `AnyOrder` is default setting.
-- StartupPolicy should be equal to `AnyOrder` when ExecutionPolicy is used.
-  - The StartupPolicy API will be deprecated over the next few JobSet releases, since
-    ExecutionPolicy can be used with ready status of ReplicatedJobs.
+- StartupPolicy is immutable.
+- StartupPolicyOrderOption of `AnyOrder` is the default setting.
+- For backward compatibility the default value for ReplicatedJobsStatusOption is Ready when
+  StartupPolicy API is used.
+
+### User Experience
+
+We will keep the existing conditions when `InOrder` StartupPolicy is used.
+
+The following condition will be added to JobSet when ReplicatedJobs are being created:
+
+```golang
+metav1.Condition{
+   Type:    "StartupPolicyInProgress",
+   Status:  metav1.ConditionStatus(corev1.ConditionFalse),
+   Reason:  "InOrderStartupPolicyInProgress",
+   Message: "in order startup policy is in progress",
+  })
+```
+
+The following condition will be added to JobSet when all ReplicatedJobs have started:
+
+```golang
+metav1.Condition{
+   Type:    "StartupPolicyCompleted",
+   Status:  metav1.ConditionStatus(corev1.ConditionFalse),
+   Reason:  "InOrderStartupPolicyCompleted",
+   Message: "in order startup policy has completed",
+  })
+```
 
 ### Test Plan
 
@@ -354,17 +381,17 @@ to implement this enhancement.
 
 - `controllers`: `01/19/2024` - `30.2%`
 
-We will create a new file called execution_policy for the functionality.
+We will add this functionality to the startup_policy API for the functionality.
 
 #### Integration tests
 
 - Using "ready" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
 - Using "succeeded" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
 - Validate that if the first ReplicatedJob fails, the second ReplicatedJob does not execute.
-- Ensure that when ExecutionPolicy and FailurePolicy sets together, the JobSet will restart
+- Ensure that when StartupPolicy and FailurePolicy sets together, the JobSet will restart
   the job sequence from the beginning in case of failure.
 - Validate the JobSet controller restart in the middle of the ReplicatedJobs execution when
-  ExecutionPolicy is set.
+  StartupPolicy is set.
 
 ### Graduation Criteria
 
@@ -401,17 +428,9 @@ If users want to create complex DAG workflows, they should not use JobSet for su
 
 ## Alternatives
 
-### Add ExecutionPolicyRule parameter into the StartupPolicy API
-
-Currently, when StartupPolicy is set to InOrder, the controller waits until replicatedJobs be in
-Ready status before creating the next replicatedJobs.
-
-We can re-use add the `ExecutionPolicyRule` parameter into `StartupPolicy` to give user an ability
-to specify the required Job status before creating the next ReplicatedJobs.
-
 ### Using workflow engine to execute sequence of jobs
 
-Instead of implementing the ExecutionPolicy feature in JobSet, users can leverage existing workflow
+Instead of supported Succeeded condition in StartupPolicy, users can leverage the existing workflow
 engines like Argo Workflow or Tekton Pipeline to execute it.
 
 While workflow engines are a good option for orchestrating Directed Acyclic Graphs (DAGs),
