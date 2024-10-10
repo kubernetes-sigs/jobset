@@ -67,18 +67,13 @@ elif ! [ "$DOCKER_EXIST" ] && [ "$PODMAN_EXIST" ]; then
   CONTAINER_ENGINE="podman"
 fi
 
-# Install the sdk using docker
-${CONTAINER_ENGINE} run --rm \
+# Install the sdk using docker, using the user that is running the container engine so that files can still be removed
+${CONTAINER_ENGINE} run --user $(id -u):$(id -g) --rm \
   -v "${repo_root}":/local docker.io/openapitools/openapi-generator-cli generate \
   -i /local/"${SWAGGER_CODEGEN_FILE}" \
   -g python \
   -o /local/"${SDK_OUTPUT_PATH}" \
-  -c local/"${SWAGGER_CODEGEN_FILE}"
-
-if [ -d "docker-17.03.0-ce.tgz" ]; then
-  echo "Removing docker install folder"
-  rm -r docker-17.03.0-ce.tgz
-fi
+  -c local/"${SWAGGER_CODEGEN_CONF}"
 
 echo "Running post-generation script ..."
 "${repo_root}"/hack/python-sdk/post_gen.py
@@ -86,4 +81,10 @@ echo "Running post-generation script ..."
 echo "JobSet Python SDK is generated successfully to folder ${SDK_OUTPUT_PATH}/."
 
 # Remove setup.py
-rm ${SDK_OUTPUT_PATH}/setup.py
+rm "${SDK_OUTPUT_PATH}"/setup.py
+
+# Clean up
+if [ -d "docker-17.03.0-ce.tgz" ]; then
+  echo "Removing docker install folder"
+  rm -r docker-17.03.0-ce.tgz
+fi
