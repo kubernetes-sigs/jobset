@@ -44,6 +44,7 @@ tags, and then generate with `hack/update-toc.sh`.
   - [Support complex DAGs with JobSet](#support-complex-dags-with-jobset)
 - [Alternatives](#alternatives)
   - [Using workflow engine to execute sequence of jobs](#using-workflow-engine-to-execute-sequence-of-jobs)
+  - [Add the WaitForStatus API under ReplicatedJob](#add-the-waitforstatus-api-under-replicatedjob)
   <!-- /toc -->
 
 ## Summary
@@ -278,17 +279,17 @@ type JobSetSpec struct {
 type StartupPolicyOrderOption string
 
 const (
- // This is the default settings.
  // AnyOrder means that Jobs will be started in any order.
- AnyOrder StartupPolicyOrderOption = "AnyOrder"
+ AnyOrder WaitForReplicatedJobsStatusOption = "AnyOrder"
 
  // InOrder starts the ReplicatedJobs in order that they are listed. Jobs within a ReplicatedJob
  // will still start in any order.
- InOrder StartupPolicyOrderOption = "InOrder"
+ InOrder WaitForReplicatedJobsStatusOption = "InOrder"
 )
 
 type StartupPolicy struct {
  // Order in which Jobs will be created.
+ // Defaults to AnyOrder.
  StartupPolicyOrder StartupPolicyOrderOption `json:"startupPolicyOrder"`
 
  // After all ReplicatedJobs reach this status, the JobSet will create the next ReplicatedJobs.
@@ -315,7 +316,7 @@ type StartupPolicyRule struct {
 
  // Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
  // Defaults to Ready.
- WaitForReplicatedJobsStatus ReplicatedJobsStatusOption `json:"waitForReplicatedJobsStatus"`
+ WaitForReplicatedJobsStatus WaitForReplicatedJobsStatusOption `json:"waitForReplicatedJobsStatus"`
 }
 
 ```
@@ -455,3 +456,32 @@ AI/ML lifecycle, which contains data preparation, training, tuning, evaluation, 
 Thus, providing users the option to initialize ML assets as part of a single JobSet make sense.
 However, for complex data preparation tasks, such as those using engines like Spark, users should
 consider to decouple them from the JobSet used for training/fine-tuning.
+
+### Add the WaitForStatus API under ReplicatedJob
+
+Since every ReplicatedJob name must be present in the TargetReplicatedJobs list, alternatively
+we can add the WaitForReplicatedJobsStatus option under the ReplicatedJob API:
+
+```golang
+type JobSetSpec struct {
+  StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
+
+  ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
+}
+
+type StartupPolicy struct {
+  // Order in which Jobs will be created.
+  StartupPolicyOrder StartupPolicyOrderOption `json:"startupPolicyOrder"`
+}
+
+
+type ReplicatedJob struct {
+  // Name is the name of the entry and will be used as a suffix.
+  Name string `json:"name"`
+
+  // Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
+  WaitForStatus WaitForStatusOption `json:"waitForStatus,omitempty"`
+}
+```
+
+However, it makes the StartupPolicy API inconsistent with the FailurePolicy and SuccessPolicy APIs.
