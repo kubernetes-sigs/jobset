@@ -70,6 +70,7 @@ distributed fine-tuning, post-processing for LLM fine-tuning.
   - Users should consider to use Argo Workflows or Tekton Pipelines for such use-cases.
 - Allowing for a percentage of Jobs in a ReplicatedJob to be ready to consider the
   whole ReplicatedJob to ready.
+- Support any other JobSet status other than Succeeded and Ready.
 
 ## Proposal
 
@@ -260,6 +261,11 @@ the larger bulk of work.
 This API will not allow to describe DAGs to avoid workflow manager features in JobSet.
 The goal is to only focus on Job sequence to cover model training/HPC use-cases.
 
+As described in the [quota management](#quota-management) section, currently Kueue will enqueue the
+whole JobSet even when `startupPolicy: InOrder` is set. Thus, it will lock all ReplicatedJobs
+resources (GPU, CPU, TPU) even if they are executed in the sequence. We can mitigate that risk
+by enqueue each group of ReplicatedJobs separately with Kueue.
+
 ## Design Details
 
 ### API Details
@@ -335,9 +341,9 @@ every ReplicatedJob within JobSet.
 That allows us to leverage the existing integration between Kueue and JobSet while using the
 expanded version of StartupPolicy API.
 
-In the future versions we will discuss potential partial admission of JobSet by Kueue. For example,
-when compute resources are available for the first ReplicatedJob the JobSet can be dispatched by
-Kueue.
+In the future versions we will discuss how Kueue can enqueue group of ReplicatedJobs separately
+and admit them. For example, when compute resources are available for the first ReplicatedJob
+the JobSet can be dispatched by Kueue.
 
 ### Defaulting/Validation
 
@@ -345,6 +351,8 @@ Kueue.
 - StartupPolicyOrderOption of `AnyOrder` is the default setting.
 - For backward compatibility the default value for ReplicatedJobsStatusOption is Ready when
   StartupPolicy API is used.
+- All ReplicatedJob names except the last one in the list must present in the targetReplicatedJobs,
+  and their names must be unique in the targetReplicatedJobs.
 
 ### User Experience
 
