@@ -308,6 +308,7 @@ type StartupPolicyRule struct {
  TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
 
  // Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
+ // Defaults to Ready.
  WaitForReplicatedJobsStatus ReplicatedJobsStatusOption `json:"waitForReplicatedJobsStatus"`
 }
 
