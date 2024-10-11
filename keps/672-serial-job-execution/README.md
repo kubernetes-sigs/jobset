@@ -352,8 +352,33 @@ the JobSet can be dispatched by Kueue.
 - StartupPolicyOrderOption of `AnyOrder` is the default setting.
 - For backward compatibility the default value for ReplicatedJobsStatusOption is Ready when
   StartupPolicy API is used.
-- All ReplicatedJob names except the last one in the list must present in the targetReplicatedJobs,
-  and their names must be unique in the targetReplicatedJobs.
+- All ReplicatedJob names except the last one must present in the targetReplicatedJobs,
+  and their names must be unique.
+
+Since the default value for status is Ready, the default list for targetReplicatedJobs looks as
+follows:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: startup-policy
+spec:
+  startupPolicy:
+    startupPolicyOrder: InOrder
+    rules:
+      - targetReplicatedJobs:
+          - job-1
+          - job-2
+        waitForReplicatedJobsStatus: Ready
+  replicatedJobs:
+    - name: job-1
+      ...
+    - name: job-2
+      ...
+    - name: job-3
+      ...
+```
 
 ### User Experience
 
