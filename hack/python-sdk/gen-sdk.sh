@@ -43,29 +43,8 @@ rm -rf "${SDK_OUTPUT_PATH}"/docs/V1*.md "${SDK_OUTPUT_PATH}"/jobset/models "${SD
 
 echo "Generating Python SDK for JobSet..."
 
-
 # Defaults the container engine to docker
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
-
-DOCKER_EXIST=$(command -v docker)
-PODMAN_EXIST=$(command -v podman)
-
-echo DOCKER_EXIST
-echo PODMAN_EXIST
-# Checking if docker / podman is installed
-if ! [ "$DOCKER_EXIST" ] && ! [ "$PODMAN_EXIST" ]; then
-  # Install docker
-  echo "Both Podman and Docker is not installed"
-  echo "Installing Docker now (Version 17.03.0)"
-  # Defaulting to 17.03.0
-  wget https://download.docker.com/linux/static/stable/x86_64/docker-17.03.0-ce.tgz
-  tar xzvf docker-17.03.0-ce.tgz
-  echo "Starting dockerd"
-  ./docker/dockerd &
-elif ! [ "$DOCKER_EXIST" ] && [ "$PODMAN_EXIST" ]; then
-  echo "Found Podman, switching to Podman"
-  CONTAINER_ENGINE="podman"
-fi
 
 # Install the sdk using docker, using the user that is running the container engine so that files can still be removed
 ${CONTAINER_ENGINE} run --user $(id -u):$(id -g) --rm \
