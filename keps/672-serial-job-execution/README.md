@@ -57,7 +57,7 @@ Succeeded status.
 
 Currently, JobSet supports the StartupPolicy API which allows to create Jobs in order after the
 first Job is in ready status. This can be useful when driver should be ready before workers.
-However, sometime high performance computing and machine learning users want to run sequence of
+However, sometimes high performance computing and machine learning users want to run sequence of
 ReplicatedJobs within JobSet. For example, it is common to run pre-processing,
 distributed fine-tuning, post-processing for LLM fine-tuning.
 
