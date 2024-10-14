@@ -93,7 +93,7 @@ metadata:
 spec:
   startupPolicy:
     startupPolicyOrder: InOrder
-    rules:
+    inOrderStartupRules:
       - targetReplicatedJobs:
           - initializer
         waitForReplicatedJobsStatus: Succeeded
@@ -164,7 +164,7 @@ metadata:
 spec:
   startupPolicy:
     startupPolicyOrder: InOrder
-    rules:
+    inOrderStartupRules:
       - targetReplicatedJobs:
           - initializer
         waitForReplicatedJobsStatus: Succeeded
@@ -293,7 +293,7 @@ type StartupPolicy struct {
  StartupPolicyOrder StartupPolicyOrderOption `json:"startupPolicyOrder"`
 
  // After all ReplicatedJobs reach this status, the JobSet will create the next ReplicatedJobs.
- StartupPolicyRule []StartupPolicyRule `json:"rules"`
+ InOrderStartupRule []InOrderStartupRule `json:"inOrderStartupRules"`
 }
 
 type ReplicatedJobsStatusOption string
@@ -308,8 +308,8 @@ const (
  SucceededStatus ReplicatedJobsStatusOption = "Succeeded"
 )
 
-// StartupPolicyRule represents the startup policy rule for Job sequence.
-type StartupPolicyRule struct {
+// InOrderStartupRule represents the startup policy rule for Job sequence.
+type InOrderStartupRule struct {
 
  // Names of the replicated Jobs that applied the status.
  TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
@@ -366,7 +366,7 @@ metadata:
 spec:
   startupPolicy:
     startupPolicyOrder: InOrder
-    rules:
+    inOrderStartupRules:
       - targetReplicatedJobs:
           - job-1
           - job-2
