@@ -94,9 +94,9 @@ spec:
   startupPolicy:
     startupPolicyOrder: InOrder
     inOrderStartupRules:
-      - targetReplicatedJobs:
-          - initializer
-        waitForReplicatedJobsStatus: Succeeded
+      replicatedJobsWaitForSucceededStatus:
+        - initializer
+      replicatedJobsWaitForReadyStatus: []
   replicatedJobs:
     - name: initializer
       template:
@@ -165,12 +165,10 @@ spec:
   startupPolicy:
     startupPolicyOrder: InOrder
     inOrderStartupRules:
-      - targetReplicatedJobs:
-          - initializer
-        waitForReplicatedJobsStatus: Succeeded
-      - targetReplicatedJobs:
-          - launcher
-        waitForReplicatedJobsStatus: Ready
+      replicatedJobsWaitForSucceededStatus:
+        - initializer
+      replicatedJobsWaitForReadyStatus:
+        - launcher
   replicatedJobs:
     - name: initializer
       template:
@@ -293,32 +291,21 @@ type StartupPolicy struct {
  StartupPolicyOrder StartupPolicyOrderOption `json:"startupPolicyOrder"`
 
  // After all ReplicatedJobs reach this status, the JobSet will create the next ReplicatedJobs.
- InOrderStartupRule []InOrderStartupRule `json:"inOrderStartupRules"`
+ InOrderStartupRules InOrderStartupRules `json:"inOrderStartupRules,omitempty"`
 }
 
-type ReplicatedJobsStatusOption string
-
-const (
- // Ready status means the Ready counter equals the number of child Jobs.
- // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].ready
- ReadyStatus ReplicatedJobsStatusOption = "Ready"
-
+// InOrderStartupRules represents the startup policy rules for Job sequence.
+type InOrderStartupRules struct {
+ // Names of the ReplicatedJobs that need to be in Succeeded status.
  // Succeeded status means the Succeeded counter equals the number of child Jobs.
  // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
- SucceededStatus ReplicatedJobsStatusOption = "Succeeded"
-)
+ ReplicatedJobsWaitForSucceededStatus []string `json:"replicatedJobsWaitForSucceededStatus,omitempty"`
 
-// InOrderStartupRule represents the startup policy rule for Job sequence.
-type InOrderStartupRule struct {
-
- // Names of the replicated Jobs that applied the status.
- TargetReplicatedJobs []string `json:"targetReplicatedJobs"`
-
- // Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
- // Defaults to Ready.
- WaitForReplicatedJobsStatus WaitForReplicatedJobsStatusOption `json:"waitForReplicatedJobsStatus"`
+ // Names of the ReplicatedJobs that need to be in Ready status.
+ // Ready status means the Ready counter equals the number of child Jobs.
+ // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].ready
+ ReplicatedJobsWaitForReadyStatus []string `json:"replicatedJobsWaitForReadyStatus,omitempty"`
 }
-
 ```
 
 ### Implementation
@@ -352,10 +339,10 @@ the JobSet can be dispatched by Kueue.
 - StartupPolicyOrderOption of `AnyOrder` is the default setting.
 - For backward compatibility the default value for ReplicatedJobsStatusOption is Ready when
   StartupPolicy API is used.
-- All ReplicatedJob names except the last one must present in the targetReplicatedJobs,
-  and their names must be unique.
+- All ReplicatedJob names except the last one must present in
+  the InOrderStartupRules and their names must be unique.
 
-Since the default value for status is Ready, the default list for targetReplicatedJobs looks as
+Since the default value for status is Ready, the default list for the inOrderStartupRules looks as
 follows:
 
 ```yaml
@@ -367,10 +354,10 @@ spec:
   startupPolicy:
     startupPolicyOrder: InOrder
     inOrderStartupRules:
-      - targetReplicatedJobs:
+      replicatedJobsWaitForReadyStatus:
           - job-1
           - job-2
-        waitForReplicatedJobsStatus: Ready
+      replicatedJobsWaitForSucceededStatus: []
   replicatedJobs:
     - name: job-1
       ...
@@ -484,7 +471,7 @@ consider to decouple them from the JobSet used for training/fine-tuning.
 
 ### Add the WaitForStatus API under ReplicatedJob
 
-Since every ReplicatedJob name must be present in the TargetReplicatedJobs list, alternatively
+Since every ReplicatedJob name must be present in the InOrderStartupRules, alternatively
 we can add the WaitForReplicatedJobsStatus option under the ReplicatedJob API:
 
 ```golang
