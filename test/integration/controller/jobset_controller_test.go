@@ -545,6 +545,40 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("[failure policy] jobs are restarted individually with Recreate strategy.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						/*
+							Rules: []jobset.FailurePolicyRule{
+								{
+									Action:              jobset.RestartJobSet,
+									OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+								},
+								{
+									Action:              jobset.FailJobSet,
+									OnJobFailureReasons: []string{},
+								},
+							},
+						*/
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
+			},
+		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).

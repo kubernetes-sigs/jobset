@@ -307,12 +307,28 @@ type FailurePolicy struct {
 	// A restart is achieved by recreating all active child jobs.
 	MaxRestarts int32 `json:"maxRestarts,omitempty"`
 
+	// RestartStrategy defines the strategy to use when restarting the JobSet.
+	// Defaults to Recreate.
+	// +optional
+	RestartStrategy JobSetRestartStrategy `json:"restartStrategy,omitempty"`
+
 	// List of failure policy rules for this JobSet.
 	// For a given Job failure, the rules will be evaluated in order,
 	// and only the first matching rule will be executed.
 	// If no matching rule is found, the RestartJobSet action is applied.
 	Rules []FailurePolicyRule `json:"rules,omitempty"`
 }
+
+type JobSetRestartStrategy string
+
+const (
+	// Recreate Jobs on a Job-by-Job basis.
+	Recreate JobSetRestartStrategy = "Recreate"
+
+	// BlockingRecreate ensures that all Jobs (and Pods) from a previous iteration are deleted before
+	// creating new Jobs.
+	BlockingRecreate JobSetRestartStrategy = "BlockingRecreate"
+)
 
 type SuccessPolicy struct {
 	// Operator determines either All or Any of the selected jobs should succeed to consider the JobSet successful
