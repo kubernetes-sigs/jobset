@@ -549,19 +549,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
-						MaxRestarts: 1,
-						/*
-							Rules: []jobset.FailurePolicyRule{
-								{
-									Action:              jobset.RestartJobSet,
-									OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
-								},
-								{
-									Action:              jobset.FailJobSet,
-									OnJobFailureReasons: []string{},
-								},
-							},
-						*/
+						MaxRestarts:     1,
+						RestartStrategy: jobset.Recreate,
 					})
 			},
 			steps: []*step{
@@ -574,11 +563,26 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetRestarts(js, 1)
-						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js)-1)
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking 3/4 jobs were recreated")
+						exp := map[int]int{
+							0: 1,
+							1: testutil.NumExpectedJobs(js) - 1,
+						}
+						gomega.Eventually(testutil.NumJobsByRestartAttempt, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(exp))
 					},
 				},
 			},
 		}),
+		// TODO(nstogner): Add test case for BlockingRecreate!!!
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
