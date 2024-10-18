@@ -617,95 +617,7 @@ func TestJobSetDefaulting(t *testing.T) {
 		},
 	}
 
-	failurePolicyTests := []jobSetDefaultingTestCase{
-		{
-			name: "failure policy is defaulted when it is defined but empty",
-			js: &jobset.JobSet{
-				Spec: jobset.JobSetSpec{
-					SuccessPolicy: defaultSuccessPolicy,
-					Network:       defaultNetwork,
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
-								},
-							},
-						},
-					},
-					FailurePolicy: &jobset.FailurePolicy{},
-				},
-			},
-			want: &jobset.JobSet{
-				Spec: jobset.JobSetSpec{
-					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
-					Network:       defaultNetwork,
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
-								},
-							},
-						},
-					},
-					FailurePolicy: &jobset.FailurePolicy{
-						RestartStrategy: jobset.Recreate,
-					},
-				},
-			},
-		},
-		{
-			name: "failure policy fields are preserved when no defaulting is needed",
-			js: &jobset.JobSet{
-				Spec: jobset.JobSetSpec{
-					SuccessPolicy: defaultSuccessPolicy,
-					Network:       defaultNetwork,
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
-								},
-							},
-						},
-					},
-					FailurePolicy: &jobset.FailurePolicy{
-						RestartStrategy: jobset.BlockingRecreate,
-						Rules: []jobset.FailurePolicyRule{
-							{Name: "myRule"},
-						},
-					},
-				},
-			},
-			want: &jobset.JobSet{
-				Spec: jobset.JobSetSpec{
-					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
-					Network:       defaultNetwork,
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
-								},
-							},
-						},
-					},
-					FailurePolicy: &jobset.FailurePolicy{
-						RestartStrategy: jobset.BlockingRecreate,
-						Rules: []jobset.FailurePolicyRule{
-							{Name: "myRule"},
-						},
-					},
-				},
-			},
-		},
+	failurePolicyRuleNameTests := []jobSetDefaultingTestCase{
 		{
 			name: "failure policy rule name is defaulted when: there is one rule and it does not have a name",
 			js: &jobset.JobSet{
@@ -723,8 +635,7 @@ func TestJobSetDefaulting(t *testing.T) {
 						},
 					},
 					FailurePolicy: &jobset.FailurePolicy{
-						RestartStrategy: jobset.Recreate,
-						Rules:           make([]jobset.FailurePolicyRule, 1),
+						Rules: make([]jobset.FailurePolicyRule, 1),
 					},
 				},
 			},
@@ -744,7 +655,6 @@ func TestJobSetDefaulting(t *testing.T) {
 						},
 					},
 					FailurePolicy: &jobset.FailurePolicy{
-						RestartStrategy: jobset.Recreate,
 						Rules: []jobset.FailurePolicyRule{
 							{Name: "failurePolicyRule0"},
 						},
@@ -769,7 +679,6 @@ func TestJobSetDefaulting(t *testing.T) {
 						},
 					},
 					FailurePolicy: &jobset.FailurePolicy{
-						RestartStrategy: jobset.Recreate,
 						Rules: []jobset.FailurePolicyRule{
 							{Name: "ruleWithAName"},
 							{},
@@ -793,7 +702,6 @@ func TestJobSetDefaulting(t *testing.T) {
 						},
 					},
 					FailurePolicy: &jobset.FailurePolicy{
-						RestartStrategy: jobset.Recreate,
 						Rules: []jobset.FailurePolicyRule{
 							{Name: "ruleWithAName"},
 							{Name: "failurePolicyRule1"},
@@ -813,7 +721,7 @@ func TestJobSetDefaulting(t *testing.T) {
 		startupPolicyTests,
 		startupPolicyTests,
 		managedByTests,
-		failurePolicyTests,
+		failurePolicyRuleNameTests,
 	}
 	var testCases []jobSetDefaultingTestCase
 	for _, testGroup := range testGroups {

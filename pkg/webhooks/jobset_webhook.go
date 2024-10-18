@@ -138,9 +138,6 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 
 	// Apply the default failure policy rule name policy.
 	if js.Spec.FailurePolicy != nil {
-		if js.Spec.FailurePolicy.RestartStrategy == "" {
-			js.Spec.FailurePolicy.RestartStrategy = jobset.Recreate
-		}
 		for i := range js.Spec.FailurePolicy.Rules {
 			rule := &js.Spec.FailurePolicy.Rules[i]
 			if len(rule.Name) == 0 {

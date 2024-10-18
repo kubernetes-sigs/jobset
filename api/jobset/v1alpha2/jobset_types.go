@@ -310,6 +310,7 @@ type FailurePolicy struct {
 	// RestartStrategy defines the strategy to use when restarting the JobSet.
 	// Defaults to Recreate.
 	// +optional
+	// +kubebuilder:default=Recreate
 	RestartStrategy JobSetRestartStrategy `json:"restartStrategy,omitempty"`
 
 	// List of failure policy rules for this JobSet.
