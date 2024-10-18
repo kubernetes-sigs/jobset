@@ -94,9 +94,9 @@ spec:
   startupPolicy:
     startupPolicyOrder: InOrder
     inOrderStartupRules:
-      replicatedJobsWaitForSucceededStatus:
+      replicatedJobsWaitingOnSucceededStatus:
         - initializer
-      replicatedJobsWaitForReadyStatus: []
+      replicatedJobsWaitingOnReadyStatus: []
   replicatedJobs:
     - name: initializer
       template:
@@ -165,9 +165,9 @@ spec:
   startupPolicy:
     startupPolicyOrder: InOrder
     inOrderStartupRules:
-      replicatedJobsWaitForSucceededStatus:
+      replicatedJobsWaitingOnSucceededStatus:
         - initializer
-      replicatedJobsWaitForReadyStatus:
+      replicatedJobsWaitingOnReadyStatus:
         - launcher
   replicatedJobs:
     - name: initializer
@@ -299,12 +299,12 @@ type InOrderStartupRules struct {
  // Names of the ReplicatedJobs that need to be in Succeeded status.
  // Succeeded status means the Succeeded counter equals the number of child Jobs.
  // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
- ReplicatedJobsWaitForSucceededStatus []string `json:"replicatedJobsWaitForSucceededStatus,omitempty"`
+ ReplicatedJobsWaitingOnSucceededStatus []string `json:"replicatedJobsWaitingOnSucceededStatus,omitempty"`
 
  // Names of the ReplicatedJobs that need to be in Ready status.
  // Ready status means the Ready counter equals the number of child Jobs.
  // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].ready
- ReplicatedJobsWaitForReadyStatus []string `json:"replicatedJobsWaitForReadyStatus,omitempty"`
+ ReplicatedJobsWaitingOnReadyStatus []string `json:"replicatedJobsWaitingOnReadyStatus,omitempty"`
 }
 ```
 
@@ -354,10 +354,10 @@ spec:
   startupPolicy:
     startupPolicyOrder: InOrder
     inOrderStartupRules:
-      replicatedJobsWaitForReadyStatus:
+      replicatedJobsWaitingOnReadyStatus:
           - job-1
           - job-2
-      replicatedJobsWaitForSucceededStatus: []
+      replicatedJobsWaitingOnSucceededStatus: []
   replicatedJobs:
     - name: job-1
       ...
