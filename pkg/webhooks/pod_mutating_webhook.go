@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/constants"
 )
 
 // +kubebuilder:webhook:path=/mutate--v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create,versions=v1,name=mpod.kb.io,sideEffects=None,admissionReviewVersions=v1
@@ -82,6 +83,9 @@ func (p *podWebhook) Default(ctx context.Context, obj runtime.Object) error {
 // scheduled on.
 func (p *podWebhook) patchPod(ctx context.Context, pod *corev1.Pod) error {
 	log := ctrl.LoggerFrom(ctx)
+	if pod.Spec.Priority != nil {
+		pod.Labels[constants.PriorityKey] = fmt.Sprint(*pod.Spec.Priority)
+	}
 	if pod.Annotations[batchv1.JobCompletionIndexAnnotation] == "0" {
 		log.V(3).Info(fmt.Sprintf("pod webhook: setting exclusive affinities for pod: %s", pod.Name))
 		setExclusiveAffinities(pod)
@@ -127,6 +131,11 @@ func setExclusiveAffinities(pod *corev1.Pod) {
 					Key:      jobset.JobKey,
 					Operator: metav1.LabelSelectorOpNotIn,
 					Values:   []string{pod.Labels[jobset.JobKey]},
+				},
+				{
+					Key:      constants.PriorityKey,
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{pod.Labels[constants.PriorityKey]},
 				},
 			}},
 			TopologyKey:       pod.Annotations[jobset.ExclusiveKey],
