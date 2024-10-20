@@ -28,7 +28,7 @@ const (
 	// the JobSet is currently on.
 	RestartsKey = "jobset.sigs.k8s.io/restart-attempt"
 
-	// PriorityKey is a label key to record the pod priority. This is needed to enfroce exclusive placement
+	// PriorityKey is a label key to record the pod priority. This is needed to enforce exclusive placement
 	// only among jobs within the same priority.
 	PriorityKey = "jobset.sigs.k8s.io/priority"
 
