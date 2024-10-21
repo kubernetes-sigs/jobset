@@ -42,6 +42,7 @@ const (
 	// job placement per topology group (defined as the label value).
 	// If set at the ReplicatedJob level, all child jobs from the target ReplicatedJobs will be scheduled
 	// using exclusive job placement per topology group.
+	// Exclusive placement is enforced within a priority level.
 	ExclusiveKey string = "alpha.jobset.sigs.k8s.io/exclusive-topology"
 	// NodeSelectorStrategyKey is an annotation that acts as a flag, the value does not matter.
 	// If set, the JobSet controller will automatically inject nodeSelectors for the JobSetNameKey label to
