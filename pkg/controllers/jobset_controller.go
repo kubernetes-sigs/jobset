@@ -640,8 +640,8 @@ func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ow
 	var jobs []*batchv1.Job
 	// If the JobSet is using the BlockingRecreate failure policy, we should not create any new jobs until
 	// all the jobs slated for deletion (i.e. from the last restart index) have been deleted.
-	if len(ownedJobs.previous) > 0 &&
-		js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.BlockingRecreate {
+	useBlockingRecreate := js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.BlockingRecreate
+	if len(ownedJobs.previous) > 0 && useBlockingRecreate {
 		return jobs
 	}
 
