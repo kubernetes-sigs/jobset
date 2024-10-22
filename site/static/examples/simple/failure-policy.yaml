@@ -1,10 +1,13 @@
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
-  name: max-restarts
+  name: failure-policy
 spec:
-  # On failure, restart all jobs up to 3 times.
   failurePolicy:
+    # Wait for all Jobs to be fully deleted before recreating any.
+    # Defaults to "Recreate" which restarts Jobs individually.
+    restartPolicy: BlockingRecreate
+    # On failure, restart all jobs up to 3 times.
     maxRestarts: 3
   replicatedJobs:
   - name: leader
