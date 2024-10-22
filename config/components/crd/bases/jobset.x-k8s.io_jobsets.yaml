@@ -102,6 +102,9 @@ spec:
                     description: |-
                       RestartStrategy defines the strategy to use when restarting the JobSet.
                       Defaults to Recreate.
+                    enum:
+                    - Recreate
+                    - BlockingRecreate
                     type: string
                   rules:
                     description: |-

@@ -320,6 +320,7 @@ type FailurePolicy struct {
 	Rules []FailurePolicyRule `json:"rules,omitempty"`
 }
 
+// +kubebuilder:validation:Enum=Recreate;BlockingRecreate
 type JobSetRestartStrategy string
 
 const (
