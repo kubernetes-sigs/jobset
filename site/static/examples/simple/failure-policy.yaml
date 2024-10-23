@@ -6,7 +6,7 @@ spec:
   failurePolicy:
     # Wait for all Jobs to be fully deleted before recreating any.
     # Defaults to "Recreate" which restarts Jobs individually.
-    restartPolicy: BlockingRecreate
+    restartStrategy: BlockingRecreate
     # On failure, restart all jobs up to 3 times.
     maxRestarts: 3
   replicatedJobs:
