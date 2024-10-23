@@ -63,8 +63,9 @@ type childJobs struct {
 	successful []*batchv1.Job
 	failed     []*batchv1.Job
 
-	// Jobs marked for deletion are mutually exclusive with the set of jobs in active, successful, and failed.
-	delete []*batchv1.Job
+	// Jobs from a previous restart (marked for deletion) are mutually exclusive
+	// with the set of jobs in active, successful, and failed.
+	previous []*batchv1.Job
 }
 
 // statusUpdateOpts tracks if a JobSet status update should be performed at the end of the reconciliation
@@ -169,8 +170,8 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, nil
 	}
 
-	// Delete any jobs marked for deletion.
-	if err := r.deleteJobs(ctx, ownedJobs.delete); err != nil {
+	// Delete all jobs from a previous restart that are marked for deletion.
+	if err := r.deleteJobs(ctx, ownedJobs.previous); err != nil {
 		log.Error(err, "deleting jobs")
 		return ctrl.Result{}, err
 	}
@@ -281,11 +282,11 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		jobRestarts, err := strconv.Atoi(job.Labels[constants.RestartsKey])
 		if err != nil {
 			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", constants.RestartsKey))
-			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
+			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			return nil, err
 		}
 		if int32(jobRestarts) < js.Status.Restarts {
-			ownedJobs.delete = append(ownedJobs.delete, &childJobList.Items[i])
+			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			continue
 		}
 
@@ -637,6 +638,13 @@ func executeSuccessPolicy(js *jobset.JobSet, ownedJobs *childJobs, updateStatusO
 
 func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ownedJobs *childJobs) []*batchv1.Job {
 	var jobs []*batchv1.Job
+	// If the JobSet is using the BlockingRecreate failure policy, we should not create any new jobs until
+	// all the jobs slated for deletion (i.e. from the last restart index) have been deleted.
+	useBlockingRecreate := js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.BlockingRecreate
+	if len(ownedJobs.previous) > 0 && useBlockingRecreate {
+		return jobs
+	}
+
 	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
 		jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 		if create := shouldCreateJob(jobName, ownedJobs); !create {
@@ -700,7 +708,7 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 	// TODO: maybe we can use a job map here so we can do O(1) lookups
 	// to check if the job already exists, rather than a linear scan
 	// through all the jobs owned by the jobset.
-	for _, job := range collections.Concat(ownedJobs.active, ownedJobs.successful, ownedJobs.failed, ownedJobs.delete) {
+	for _, job := range collections.Concat(ownedJobs.active, ownedJobs.successful, ownedJobs.failed, ownedJobs.previous) {
 		if jobName == job.Name {
 			return false
 		}

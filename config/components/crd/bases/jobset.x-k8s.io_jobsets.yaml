@@ -97,6 +97,15 @@ spec:
                       A restart is achieved by recreating all active child jobs.
                     format: int32
                     type: integer
+                  restartStrategy:
+                    default: Recreate
+                    description: |-
+                      RestartStrategy defines the strategy to use when restarting the JobSet.
+                      Defaults to Recreate.
+                    enum:
+                    - Recreate
+                    - BlockingRecreate
+                    type: string
                   rules:
                     description: |-
                       List of failure policy rules for this JobSet.

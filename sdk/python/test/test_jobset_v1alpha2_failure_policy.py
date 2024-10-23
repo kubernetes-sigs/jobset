@@ -39,6 +39,7 @@ class TestJobsetV1alpha2FailurePolicy(unittest.TestCase):
         if include_optional :
             return JobsetV1alpha2FailurePolicy(
                 max_restarts = 56, 
+                restart_strategy = '0', 
                 rules = [
                     jobset.models.jobset_v1alpha2_failure_policy_rule.JobsetV1alpha2FailurePolicyRule(
                         action = '0', 

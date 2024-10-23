@@ -23,7 +23,7 @@ Here we have some simple examples demonstrating core JobSet features.
 Success Policy allows one to specify when to mark a JobSet as success.  
 This example showcases an example of using the success policy to mark the JobSet as successful if the worker replicated job completes.
 
-- [Failure Policy with Max Restarts](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/max-restarts.yaml) demonstrates an example of utilizing `failurePolicy`. Failure Policy allows one to control how many restarts a JobSet can do before declaring the JobSet as failed.
+- [Failure Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/failure-policy.yaml) demonstrates an example of utilizing `failurePolicy`. Failure Policy allows one to control how many restarts a JobSet can do before declaring the JobSet as failed. The strategy used when restarting can also be specified (i.e. whether to first delete all Jobs, or recreate on a one-by-one basis).
 
 - [Exclusive Job Placement](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/exclusive-placement.yaml) demonstrates how you can configure a JobSet to have a 1:1 mapping between each child Job and a particular topology domain, such as a datacenter rack or zone. This means that all the pods belonging to a child job will be colocated in the same topology domain, while pods from other jobs will not be allowed to run within this domain. This gives the child job exclusive access to computer resources in this domain.
 

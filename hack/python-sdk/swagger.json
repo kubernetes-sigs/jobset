@@ -39,6 +39,10 @@
           "type": "integer",
           "format": "int32"
         },
+        "restartStrategy": {
+          "description": "RestartStrategy defines the strategy to use when restarting the JobSet. Defaults to Recreate.",
+          "type": "string"
+        },
         "rules": {
           "description": "List of failure policy rules for this JobSet. For a given Job failure, the rules will be evaluated in order, and only the first matching rule will be executed. If no matching rule is found, the RestartJobSet action is applied.",
           "type": "array",

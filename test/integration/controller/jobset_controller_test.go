@@ -545,6 +545,115 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("[failure policy] jobs are restarted individually with Recreate strategy.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts:     1,
+						RestartStrategy: jobset.Recreate,
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js)-1)
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking 3/4 jobs were recreated")
+						gomega.Eventually(testutil.NumJobsByRestartAttempt, timeout, interval).
+							WithArguments(ctx, k8sClient, js).
+							Should(gomega.Equal(map[int]int{
+								0: 1,
+								1: testutil.NumExpectedJobs(js) - 1,
+							}))
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						removeForegroundDeletionFinalizers(js, 1)
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking that all jobs were recreated")
+						gomega.Eventually(testutil.NumJobsByRestartAttempt, timeout, interval).
+							WithArguments(ctx, k8sClient, js).
+							Should(gomega.Equal(map[int]int{
+								// All 4 Jobs should exist on attempt index 1.
+								1: 4,
+							}))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobs are recreated after all Jobs are deleted with BlockingRecreate strategy.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts:     1,
+						RestartStrategy: jobset.BlockingRecreate,
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js)-1)
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking 0/4 jobs were recreated since one job still needs to be finalized")
+						gomega.Eventually(testutil.NumJobsByRestartAttempt, timeout, interval).
+							WithArguments(ctx, k8sClient, js).
+							Should(gomega.Equal(map[int]int{
+								// One Job should should still exist on attempt index 0.
+								0: 1,
+							}))
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						ginkgo.By("removing foreground deletion finalizer from the last job")
+						removeForegroundDeletionFinalizers(js, 1)
+					},
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking that all jobs were recreated")
+						gomega.Eventually(testutil.NumJobsByRestartAttempt, timeout, interval).
+							WithArguments(ctx, k8sClient, js).
+							Should(gomega.Equal(map[int]int{
+								// All 4 Jobs should exist on attempt index 1.
+								1: 4,
+							}))
+					},
+				},
+			},
+		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
@@ -1842,9 +1951,12 @@ func removeForegroundDeletionFinalizers(js *jobset.JobSet, expectedFinalizers in
 					return false, err
 				}
 				expectedFinalizers -= 1
+				if expectedFinalizers == 0 {
+					return true, nil
+				}
 			}
 		}
-		return expectedFinalizers == 0, nil
+		return false, nil
 	}, timeout, interval).Should(gomega.Equal(true))
 }
 

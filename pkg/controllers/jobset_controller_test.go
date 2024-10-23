@@ -260,7 +260,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Replicas(2).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
-				delete: []*batchv1.Job{
+				previous: []*batchv1.Job{
 					testutils.MakeJob("test-jobset-replicated-job-0", ns).Obj(),
 				},
 			},
@@ -274,6 +274,23 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobIdx:            1}).
 					Suspend(false).Obj(),
 			},
+		},
+		{
+			name: "job creation blocked until all previous jobs no longer exist",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				FailurePolicy(&jobset.FailurePolicy{
+					RestartStrategy: jobset.BlockingRecreate,
+				}).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(2).
+					Obj()).Obj(),
+			ownedJobs: &childJobs{
+				previous: []*batchv1.Job{
+					testutils.MakeJob("test-jobset-replicated-job-0", ns).Obj(),
+				},
+			},
+			want: nil,
 		},
 		{
 			name: "multiple replicated jobs",

@@ -51,6 +51,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 replicated_job = '0', ), 
                             failure_policy = jobset.models.jobset_v1alpha2_failure_policy.JobsetV1alpha2FailurePolicy(
                                 max_restarts = 56, 
+                                restart_strategy = '0', 
                                 rules = [
                                     jobset.models.jobset_v1alpha2_failure_policy_rule.JobsetV1alpha2FailurePolicyRule(
                                         action = '0', 
@@ -113,6 +114,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 replicated_job = '0', ), 
                             failure_policy = jobset.models.jobset_v1alpha2_failure_policy.JobsetV1alpha2FailurePolicy(
                                 max_restarts = 56, 
+                                restart_strategy = '0', 
                                 rules = [
                                     jobset.models.jobset_v1alpha2_failure_policy_rule.JobsetV1alpha2FailurePolicyRule(
                                         action = '0', 

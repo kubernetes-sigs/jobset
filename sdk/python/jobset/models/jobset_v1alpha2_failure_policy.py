@@ -34,26 +34,31 @@ class JobsetV1alpha2FailurePolicy(object):
     """
     openapi_types = {
         'max_restarts': 'int',
+        'restart_strategy': 'str',
         'rules': 'list[JobsetV1alpha2FailurePolicyRule]'
     }
 
     attribute_map = {
         'max_restarts': 'maxRestarts',
+        'restart_strategy': 'restartStrategy',
         'rules': 'rules'
     }
 
-    def __init__(self, max_restarts=None, rules=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, max_restarts=None, restart_strategy=None, rules=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2FailurePolicy - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
         self._max_restarts = None
+        self._restart_strategy = None
         self._rules = None
         self.discriminator = None
 
         if max_restarts is not None:
             self.max_restarts = max_restarts
+        if restart_strategy is not None:
+            self.restart_strategy = restart_strategy
         if rules is not None:
             self.rules = rules
 
@@ -79,6 +84,29 @@ class JobsetV1alpha2FailurePolicy(object):
         """
 
         self._max_restarts = max_restarts
+
+    @property
+    def restart_strategy(self):
+        """Gets the restart_strategy of this JobsetV1alpha2FailurePolicy.  # noqa: E501
+
+        RestartStrategy defines the strategy to use when restarting the JobSet. Defaults to Recreate.  # noqa: E501
+
+        :return: The restart_strategy of this JobsetV1alpha2FailurePolicy.  # noqa: E501
+        :rtype: str
+        """
+        return self._restart_strategy
+
+    @restart_strategy.setter
+    def restart_strategy(self, restart_strategy):
+        """Sets the restart_strategy of this JobsetV1alpha2FailurePolicy.
+
+        RestartStrategy defines the strategy to use when restarting the JobSet. Defaults to Recreate.  # noqa: E501
+
+        :param restart_strategy: The restart_strategy of this JobsetV1alpha2FailurePolicy.  # noqa: E501
+        :type: str
+        """
+
+        self._restart_strategy = restart_strategy
 
     @property
     def rules(self):

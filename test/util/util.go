@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -32,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/constants"
 )
 
 const interval = time.Millisecond * 250
@@ -50,6 +52,26 @@ func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (i
 		return -1, err
 	}
 	return len(jobList.Items), nil
+}
+
+func NumJobsByRestartAttempt(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (map[int]int, error) {
+	var jobList batchv1.JobList
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+		return nil, err
+	}
+	res := make(map[int]int)
+	for _, job := range jobList.Items {
+		restartAttempt, ok := job.Labels[constants.RestartsKey]
+		if !ok {
+			return nil, fmt.Errorf("job %s/%s does not have a restart attempt label", job.Namespace, job.Name)
+		}
+		attempt, err := strconv.Atoi(restartAttempt)
+		if err != nil {
+			return nil, fmt.Errorf("job %s/%s has an invalid restart attempt label: %v", job.Namespace, job.Name, err)
+		}
+		res[attempt]++
+	}
+	return res, nil
 }
 
 func JobSetCompleted(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
