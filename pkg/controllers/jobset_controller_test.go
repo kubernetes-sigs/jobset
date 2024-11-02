@@ -815,7 +815,7 @@ func TestUpdateConditions(t *testing.T) {
 						Type:    string(jobset.JobSetSuspended),
 						Reason:  constants.JobSetSuspendedReason,
 						Message: constants.JobSetSuspendedMessage,
-						Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+						Status:  metav1.ConditionTrue,
 					},
 				}).
 				Obj(),
@@ -835,7 +835,7 @@ func TestUpdateConditions(t *testing.T) {
 						Type:    string(jobset.JobSetCompleted),
 						Reason:  constants.AllJobsCompletedReason,
 						Message: constants.AllJobsCompletedMessage,
-						Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+						Status:  metav1.ConditionTrue,
 					},
 				}).Obj(),
 			opts:           makeCompletedConditionsOpts(),
