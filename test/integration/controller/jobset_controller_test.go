@@ -18,6 +18,7 @@ package controllertest
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -36,7 +37,6 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
 	"sigs.k8s.io/jobset/pkg/controllers"
-	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	testutil "sigs.k8s.io/jobset/test/util"
 )
@@ -1944,7 +1944,7 @@ func removeForegroundDeletionFinalizers(js *jobset.JobSet, expectedFinalizers in
 		gomega.Eventually(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
 
 		for _, job := range jobList.Items {
-			idx := collections.IndexOf(job.Finalizers, metav1.FinalizerDeleteDependents)
+			idx := slices.Index(job.Finalizers, metav1.FinalizerDeleteDependents)
 			if idx != -1 {
 				job.Finalizers = append(job.Finalizers[:idx], job.Finalizers[idx+1:]...)
 				if err := k8sClient.Update(ctx, &job); err != nil {
@@ -2126,7 +2126,7 @@ func checkPodTemplateUpdates(js *jobset.JobSet, podTemplateUpdates *updatePodTem
 
 		// Check tolerations were updated.
 		for _, toleration := range podTemplateUpdates.tolerations {
-			if !collections.Contains(job.Spec.Template.Spec.Tolerations, toleration) {
+			if !slices.Contains(job.Spec.Template.Spec.Tolerations, toleration) {
 				return false, fmt.Errorf("missing toleration %v", toleration)
 			}
 		}

@@ -14,23 +14,23 @@ limitations under the License.
 package controllers
 
 import (
+	"slices"
+
 	batchv1 "k8s.io/api/batch/v1"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
-
-	"sigs.k8s.io/jobset/pkg/util/collections"
 )
 
 // jobMatchesSuccessPolicy returns a boolean value indicating if the Job is part of a
 // ReplicatedJob that matches the JobSet's success policy.
 func jobMatchesSuccessPolicy(js *jobset.JobSet, job *batchv1.Job) bool {
-	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || collections.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
+	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || slices.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
 }
 
 // replicatedJobMatchesSuccessPolicy returns a boolean value indicating if the ReplicatedJob
 // matches the JobSet's success policy.
 func replicatedJobMatchesSuccessPolicy(js *jobset.JobSet, rjob *jobset.ReplicatedJob) bool {
-	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || collections.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, rjob.Name)
+	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || slices.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, rjob.Name)
 }
 
 // replicatedJobMatchesSuccessPolicy returns the number of jobs in the given slice `jobs`
