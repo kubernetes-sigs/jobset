@@ -19,6 +19,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -659,8 +661,8 @@ func constructJobsFromTemplate(js *jobset.JobSet, rjob *jobset.ReplicatedJob, ow
 func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) *batchv1.Job {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      collections.CloneMap(rjob.Template.Labels),
-			Annotations: collections.CloneMap(rjob.Template.Annotations),
+			Labels:      maps.Clone(rjob.Template.Labels),
+			Annotations: maps.Clone(rjob.Template.Annotations),
 			Name:        placement.GenJobName(js.Name, rjob.Name, jobIdx),
 			Namespace:   js.Namespace,
 		},
@@ -708,7 +710,7 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 	// TODO: maybe we can use a job map here so we can do O(1) lookups
 	// to check if the job already exists, rather than a linear scan
 	// through all the jobs owned by the jobset.
-	for _, job := range collections.Concat(ownedJobs.active, ownedJobs.successful, ownedJobs.failed, ownedJobs.previous) {
+	for _, job := range slices.Concat(ownedJobs.active, ownedJobs.successful, ownedJobs.failed, ownedJobs.previous) {
 		if jobName == job.Name {
 			return false
 		}
@@ -731,7 +733,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 
 	// Set labels on the object.
-	labels := collections.CloneMap(obj.GetLabels())
+	labels := make(map[string]string)
 	labels[jobset.JobSetNameKey] = js.Name
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	labels[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
@@ -741,8 +743,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 	labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
 
-	// Set annotations on the object.
-	annotations := collections.CloneMap(obj.GetAnnotations())
+	annotations := make(map[string]string)
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))

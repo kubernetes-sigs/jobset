@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -35,7 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -228,7 +228,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 
 	// Validate the success policy's target replicated jobs are valid.
 	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
-		if !collections.Contains(validReplicatedJobs, rjobName) {
+		if !slices.Contains(validReplicatedJobs, rjobName) {
 			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
 		}
 	}
@@ -320,14 +320,14 @@ func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, validReplicatedJ
 
 		// Validate the rules target replicated jobs are valid
 		for _, rjobName := range rule.TargetReplicatedJobs {
-			if !collections.Contains(validReplicatedJobs, rjobName) {
+			if !slices.Contains(validReplicatedJobs, rjobName) {
 				allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' in failure policy does not appear in .spec.ReplicatedJobs", rjobName))
 			}
 		}
 
 		// Validate the rules on job failure reasons are valid
 		for _, failureReason := range rule.OnJobFailureReasons {
-			if !collections.Contains(validOnJobFailureReasons, failureReason) {
+			if !slices.Contains(validOnJobFailureReasons, failureReason) {
 				allErrs = append(allErrs, fmt.Errorf("invalid job failure reason '%s' in failure policy is not a recognized job failure reason", failureReason))
 			}
 		}
