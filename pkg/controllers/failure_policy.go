@@ -247,7 +247,7 @@ func makeFailedConditionOpts(reason, msg string) *conditionOpts {
 	return &conditionOpts{
 		condition: &metav1.Condition{
 			Type:    string(jobset.JobSetFailed),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Status:  metav1.ConditionTrue,
 			Reason:  reason,
 			Message: msg,
 		},
