@@ -981,7 +981,7 @@ func makeCompletedConditionsOpts() *conditionOpts {
 		eventType: corev1.EventTypeNormal,
 		condition: &metav1.Condition{
 			Type:    string(jobset.JobSetCompleted),
-			Status:  metav1.ConditionStatus(corev1.ConditionTrue),
+			Status:  metav1.ConditionTrue,
 			Reason:  constants.AllJobsCompletedReason,
 			Message: constants.AllJobsCompletedMessage,
 		},
@@ -994,7 +994,7 @@ func makeSuspendedConditionOpts() *conditionOpts {
 		eventType: corev1.EventTypeNormal,
 		condition: &metav1.Condition{
 			Type:               string(jobset.JobSetSuspended),
-			Status:             metav1.ConditionStatus(corev1.ConditionTrue),
+			Status:             metav1.ConditionTrue,
 			LastTransitionTime: metav1.Now(),
 			Reason:             constants.JobSetSuspendedReason,
 			Message:            constants.JobSetSuspendedMessage,
@@ -1008,7 +1008,7 @@ func makeResumedConditionOpts() *conditionOpts {
 		eventType: corev1.EventTypeNormal,
 		condition: &metav1.Condition{
 			Type:               string(jobset.JobSetSuspended),
-			Status:             metav1.ConditionStatus(corev1.ConditionFalse),
+			Status:             metav1.ConditionFalse,
 			LastTransitionTime: metav1.Now(),
 			Reason:             constants.JobSetResumedReason,
 			Message:            constants.JobSetResumedMessage,
