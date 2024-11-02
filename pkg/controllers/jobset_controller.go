@@ -335,7 +335,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 
 	// Calculate jobsReady for each Replicated Job
 	for _, job := range jobs.active {
-		if job.Labels == nil || (job.Labels != nil && job.Labels[jobset.ReplicatedJobNameKey] == "") {
+		if job.Labels == nil || job.Labels[jobset.ReplicatedJobNameKey] == "" {
 			log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label, can't update status", job.Name))
 			continue
 		}
