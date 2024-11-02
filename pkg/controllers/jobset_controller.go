@@ -733,10 +733,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 
 	// Set labels on the object.
-	labels := maps.Clone(obj.GetLabels())
-	if labels == nil {
-		labels = make(map[string]string)
-	}
+	labels := make(map[string]string)
 	labels[jobset.JobSetNameKey] = js.Name
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	labels[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
@@ -746,11 +743,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 	labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
 
-	// Set annotations on the object.
-	annotations := maps.Clone(obj.GetAnnotations())
-	if annotations == nil {
-		annotations = make(map[string]string)
-	}
+	annotations := make(map[string]string)
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
