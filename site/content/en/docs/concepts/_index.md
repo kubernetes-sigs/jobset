@@ -125,6 +125,51 @@ NAME              TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
 pytorch-workers   ClusterIP   None         <none>        <none>    25m
 ```
 
+### Coordinator
+
+A specific pod can be assigned as coordinator using `spec.coordinator`. If defined, a `jobset.sigs.k8s.io/coordinator`
+annotation and label with the the stable network endpoint of the coordinator pod will be added to all Jobs and pods in the JobSet.
+This label can be useful by other pods. For example:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: pytorch
+spec:
+  coordinator:
+    replicatedJob: leader
+    jobIndex: 0
+    podIndex: 0
+  replicatedJobs:
+    - name: leader
+      replicas: 1
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          ...
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          parallelism: 8
+          completions: 8
+          template:
+            spec:
+              containers:
+              - name: worker
+                env:
+                - name: LEADER_ADDRESS
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: "metadata.labels['jobset.sigs.k8s.io/coordinator']"
+            ...
+```
+
+WARNING: if using Kueue with JobSet, ensure Kueue version v0.9.0+ is installed. Prior versions are built using a JobSet api definition that does
+not have the coordinator field: https://github.com/kubernetes-sigs/jobset/issues/701.
+
 ### Exclusive Job to topology placement
 
 The JobSet annotation `alpha.jobset.sigs.k8s.io/exclusive-topology` defines 1:1 job to topology placement. 
