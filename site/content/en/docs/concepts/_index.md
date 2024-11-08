@@ -127,9 +127,10 @@ pytorch-workers   ClusterIP   None         <none>        <none>    25m
 
 ### Coordinator
 
-A specific pod can be assigned as coordinator using `spec.coordinator`. If defined, a `jobset.sigs.k8s.io/coordinator`
-annotation and label with the the stable network endpoint of the coordinator pod will be added to all Jobs and pods in the JobSet.
-This label can be useful by other pods. For example:
+A specific pod can be assigned as coordinator using `spec.coordinator`. If
+defined, a `jobset.sigs.k8s.io/coordinator` annotation and label with the stable
+network endpoint of the coordinator Pod will be added to all Jobs and Pods in
+the JobSet. This label can be useful by other Pods. For example:
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -167,8 +168,12 @@ spec:
             ...
 ```
 
-WARNING: if using Kueue with JobSet, ensure Kueue version v0.9.0+ is installed. Prior versions are built using a JobSet api definition that does
-not have the coordinator field: https://github.com/kubernetes-sigs/jobset/issues/701.
+All Jobs and Pods in the JobSet will have a
+`jobset.sigs.k8s.io/coordinator=pytorch-leader-0-0.pytorch` label and annotation.
+
+WARNING: if using Kueue with JobSet, ensure Kueue version v0.9.0+ is installed.
+Prior versions are built using a JobSet api definition that does not have the
+coordinator field: https://github.com/kubernetes-sigs/jobset/issues/701.
 
 ### Exclusive Job to topology placement
 
