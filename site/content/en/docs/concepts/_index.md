@@ -154,3 +154,54 @@ A JobSet failure is counted when ANY of its child Jobs fail. `spec.failurePolicy
 to automatically restart the JobSet. A restart is done by recreating all child jobs.
 
 A JobSet is terminally failed when the number of failures reaches `spec.failurePolicy.maxRestarts`
+
+## Coordinator
+
+A specific pod can be assigned as coordinator using `spec.coordinator`. If
+defined, a `jobset.sigs.k8s.io/coordinator` annotation and label with the stable
+network endpoint of the coordinator Pod will be added to all Jobs and Pods in
+the JobSet. This label can be useful by other Pods. For example:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: pytorch
+spec:
+  coordinator:
+    replicatedJob: leader
+    jobIndex: 0
+    podIndex: 0
+  replicatedJobs:
+    - name: leader
+      replicas: 1
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          ...
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          parallelism: 8
+          completions: 8
+          template:
+            spec:
+              containers:
+              - name: worker
+                env:
+                - name: LEADER_ADDRESS
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: "metadata.labels['jobset.sigs.k8s.io/coordinator']"
+            ...
+```
+
+All Jobs and Pods in the JobSet will have a
+`jobset.sigs.k8s.io/coordinator=pytorch-leader-0-0.pytorch` label and annotation.
+
+WARNING: if using Kueue with JobSet, ensure Kueue version v0.8.3+ or v0.9.0+ is
+installed. Prior versions are built using a JobSet api definition that does not
+have the coordinator field:
+https://github.com/kubernetes-sigs/kueue/issues/3495.
