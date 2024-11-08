@@ -201,6 +201,7 @@ spec:
 All Jobs and Pods in the JobSet will have a
 `jobset.sigs.k8s.io/coordinator=pytorch-leader-0-0.pytorch` label and annotation.
 
-WARNING: if using Kueue with JobSet, ensure Kueue version v0.9.0+ is installed.
-Prior versions are built using a JobSet api definition that does not have the
-coordinator field: https://github.com/kubernetes-sigs/jobset/issues/701.
+WARNING: if using Kueue with JobSet, ensure Kueue version v0.8.3+ or v0.9.0+ is
+installed. Prior versions are built using a JobSet api definition that does not
+have the coordinator field:
+https://github.com/kubernetes-sigs/kueue/issues/3495.
