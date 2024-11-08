@@ -125,7 +125,37 @@ NAME              TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
 pytorch-workers   ClusterIP   None         <none>        <none>    25m
 ```
 
-### Coordinator
+### Exclusive Job to topology placement
+
+The JobSet annotation `alpha.jobset.sigs.k8s.io/exclusive-topology` defines 1:1 job to topology placement. 
+For example, consider the case where the nodes are assigned a rack label. To optimize for network
+performance, we want to assign each job exclusively to one rack. This can be done as follows:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: pytorch
+  annotations:
+    alpha.jobset.sigs.k8s.io/exclusive-topology: rack
+spec:
+  replicatedJobs:
+    - name: workers
+      template:
+        spec:
+          ...
+```
+
+## JobSet termination
+
+A JobSet is marked as successful when ALL the Jobs it created completes successfully. 
+
+A JobSet failure is counted when ANY of its child Jobs fail. `spec.failurePolicy.maxRestarts` defines how many times  
+to automatically restart the JobSet. A restart is done by recreating all child jobs.
+
+A JobSet is terminally failed when the number of failures reaches `spec.failurePolicy.maxRestarts`
+
+## Coordinator
 
 A specific pod can be assigned as coordinator using `spec.coordinator`. If
 defined, a `jobset.sigs.k8s.io/coordinator` annotation and label with the stable
@@ -174,33 +204,3 @@ All Jobs and Pods in the JobSet will have a
 WARNING: if using Kueue with JobSet, ensure Kueue version v0.9.0+ is installed.
 Prior versions are built using a JobSet api definition that does not have the
 coordinator field: https://github.com/kubernetes-sigs/jobset/issues/701.
-
-### Exclusive Job to topology placement
-
-The JobSet annotation `alpha.jobset.sigs.k8s.io/exclusive-topology` defines 1:1 job to topology placement. 
-For example, consider the case where the nodes are assigned a rack label. To optimize for network
-performance, we want to assign each job exclusively to one rack. This can be done as follows:
-
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: pytorch
-  annotations:
-    alpha.jobset.sigs.k8s.io/exclusive-topology: rack
-spec:
-  replicatedJobs:
-    - name: workers
-      template:
-        spec:
-          ...
-```
-
-## JobSet termination
-
-A JobSet is marked as successful when ALL the Jobs it created completes successfully. 
-
-A JobSet failure is counted when ANY of its child Jobs fail. `spec.failurePolicy.maxRestarts` defines how many times  
-to automatically restart the JobSet. A restart is done by recreating all child jobs.
-
-A JobSet is terminally failed when the number of failures reaches `spec.failurePolicy.maxRestarts`
