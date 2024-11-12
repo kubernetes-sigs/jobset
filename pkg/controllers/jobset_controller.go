@@ -480,6 +480,10 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 			job.Spec.Template.Spec.Tolerations,
 			replicatedJobPodTemplate.Spec.Tolerations,
 		)
+		job.Spec.Template.Spec.SchedulingGates = collections.MergeSlices(
+			job.Spec.Template.Spec.SchedulingGates,
+			replicatedJobPodTemplate.Spec.SchedulingGates,
+		)
 	} else {
 		log.Error(nil, "job missing ReplicatedJobName label")
 	}
