@@ -21,7 +21,7 @@ set -o nounset
 set -o pipefail
 set -x
 
-repo_root="$(dirname "${BASH_SOURCE}")/../.."
+repo_root="$(pwd)"
 
 SWAGGER_JAR_URL="https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/4.3.1/openapi-generator-cli-4.3.1.jar"
 SWAGGER_CODEGEN_JAR="${repo_root}/hack/python-sdk/openapi-generator-cli.jar"
