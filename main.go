@@ -135,7 +135,7 @@ func main() {
 	}
 
 	certsReady := make(chan struct{})
-	if err = cert.CertsManager(mgr, certsReady); err != nil {
+	if err = cert.CertsManager(mgr, cfg, certsReady); err != nil {
 		setupLog.Error(err, "unable to setup cert rotation")
 		os.Exit(1)
 	}
