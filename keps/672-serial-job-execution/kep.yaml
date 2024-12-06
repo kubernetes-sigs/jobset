@@ -1,4 +1,4 @@
-title: Serial Job Execution with StartupPolicy API
+title: Serial Job Execution with DependsOn API
 kep-number: 672
 authors:
   - "@andreyvelich"
