@@ -1,4 +1,4 @@
-# KEP-672: Serial Job Execution with StartupPolicy API
+# KEP-672: Serial Job Execution with DependsOn API
 
 <!--
 This is the title of your KEP. Keep it short, simple, and descriptive. A good
@@ -49,9 +49,9 @@ tags, and then generate with `hack/update-toc.sh`.
 
 ## Summary
 
-This KEP outlines the proposal to expand the scope of the StartupPolicy API for JobSet. The
-StartupPolicy API should support to run sequence of ReplicatedJobs after they reach Ready or
-Succeeded status.
+This KEP outlines the proposal to support serial Job execution within JobSet using the DependsOn
+API. The JobSet should support to run sequence of ReplicatedJobs after they reach Ready or
+Complete status.
 
 ## Motivation
 
@@ -63,7 +63,7 @@ distributed fine-tuning, post-processing for LLM fine-tuning.
 
 ### Goals
 
-- Add support for serial Job execution for the StartupPolicy API.
+- Add support for serial Job execution using the DependsOn API.
 
 ### Non-Goals
 
@@ -71,7 +71,9 @@ distributed fine-tuning, post-processing for LLM fine-tuning.
   - Users should consider to use Argo Workflows or Tekton Pipelines for such use-cases.
 - Allowing for a percentage of Jobs in a ReplicatedJob to be ready to consider the
   whole ReplicatedJob to ready.
-- Support any other JobSet status other than Succeeded and Ready.
+- Support any other ReplicatedJob status other than Complete and Ready.
+- Allow Job to depends on multiple previous ReplicatedJob. We will support this in the next
+  iteration of this API.
 
 ## Proposal
 
@@ -91,12 +93,6 @@ kind: JobSet
 metadata:
   name: fine-tune-llm
 spec:
-  startupPolicy:
-    startupPolicyOrder: InOrder
-    inOrderStartupRules:
-      replicatedJobsWaitingOnSucceededStatus:
-        - initializer
-      replicatedJobsWaitingOnReadyStatus: []
   replicatedJobs:
     - name: initializer
       template:
@@ -122,6 +118,9 @@ spec:
                   persistentVolumeClaim:
                     claimName: model-initializer
     - name: trainer-node
+      dependsOn:
+        - name: initializer
+          status: Complete
       template:
         spec:
           parallelism: 3
@@ -162,13 +161,6 @@ kind: JobSet
 metadata:
   name: deepspeed-mpi
 spec:
-  startupPolicy:
-    startupPolicyOrder: InOrder
-    inOrderStartupRules:
-      replicatedJobsWaitingOnSucceededStatus:
-        - initializer
-      replicatedJobsWaitingOnReadyStatus:
-        - launcher
   replicatedJobs:
     - name: initializer
       template:
@@ -194,6 +186,9 @@ spec:
                   persistentVolumeClaim:
                     claimName: model-initializer
     - name: launcher
+      dependsOn:
+        - name: initializer
+          status: Complete
       template:
         spec:
           parallelism: 1
@@ -219,6 +214,9 @@ spec:
                   persistentVolumeClaim:
                     claimName: model-initializer
     - name: trainer-node
+      dependsOn:
+        - name: launcher
+          status: Ready
       template:
         spec:
           parallelism: 3
@@ -255,14 +253,52 @@ successfully. For that case, I could imagine essentially the same replicatedJob 
 just with a larger size. If the outcome of the first isn't success you wouldn't launch
 the larger bulk of work.
 
+#### Story 4
+
+As a user, I want to fine-tune my LLM using TensorFlow using two Parameter Servers. I have the first
+ReplicatedJob for pre-trained model and dataset initialization, the second and third ReplicatedJob
+to start parameter servers and the fourth ReplicatedJob for distributed fine-tuning.
+
+> [!NOTE]
+> This use-case won't be supported in the initial implementation of DependsOn API, since Job can
+> depends on only the single previous ReplicatedJob. However, in the future we consider to support it.
+
+![JobSet](./jobset-serial-execution.png)
+
+The example of JobSet looks as follows:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: tensorflow-distributed
+spec:
+  replicatedJobs:
+    - name: initializer
+    - name: ps-a
+      dependsOn:
+        - name: initializer
+          status: Completed
+    - name: ps-b
+      dependsOn:
+        - name: initializer
+          status: Completed
+    - name: trainer-node
+      dependsOn:
+        - name: ps-a
+          status: Ready
+        - name: ps-b
+          status: Ready
+```
+
 ### Risks and Mitigations
 
 This API will not allow to describe DAGs to avoid workflow manager features in JobSet.
 The goal is to only focus on Job sequence to cover model training/HPC use-cases.
 
 As described in the [quota management](#quota-management) section, currently Kueue will enqueue the
-whole JobSet even when `startupPolicy: InOrder` is set. Thus, it will lock all ReplicatedJobs
-resources (GPU, CPU, TPU) even if they are executed in the sequence. We can mitigate that risk
+whole JobSet even when `DependsOn` is set. Thus, it will lock all ReplicatedJobs resources
+(GPU, CPU, TPU) even if they are executed in the sequence. We can mitigate that risk
 by enqueue each group of ReplicatedJobs separately with Kueue.
 
 ## Design Details
@@ -270,49 +306,47 @@ by enqueue each group of ReplicatedJobs separately with Kueue.
 ### API Details
 
 ```golang
-type JobSetSpec struct {
- StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
+
+type ReplicatedJob struct {
+ // Name of the ReplicatedJob.
+ Name string `json:"name"`
+
+ // Wait for the previous ReplicatedJob status.
+ DependsOn []DependsOn `json:"dependsOn,omitempty"`
 }
 
-type StartupPolicyOrderOption string
+type DependsOn struct {
+ // Name of the previous ReplicatedJob that ReplicatedJob depends on.
+ Name string `json:"name"`
+
+ // Status of the previous Job. We only accept Ready or Complete status.
+ Status DependsOnStatus `json:"status"`
+}
+
+type DependsOnStatus string
 
 const (
- // AnyOrder means that Jobs will be started in any order.
- AnyOrder WaitForReplicatedJobsStatusOption = "AnyOrder"
-
- // InOrder starts the ReplicatedJobs in order that they are listed. Jobs within a ReplicatedJob
- // will still start in any order.
- InOrder WaitForReplicatedJobsStatusOption = "InOrder"
-)
-
-type StartupPolicy struct {
- // Order in which Jobs will be created.
- // Defaults to AnyOrder.
- StartupPolicyOrder StartupPolicyOrderOption `json:"startupPolicyOrder"`
-
- // After all ReplicatedJobs reach this status, the JobSet will create the next ReplicatedJobs.
- InOrderStartupRules InOrderStartupRules `json:"inOrderStartupRules,omitempty"`
-}
-
-// InOrderStartupRules represents the startup policy rules for Job sequence.
-type InOrderStartupRules struct {
- // Names of the ReplicatedJobs that need to be in Succeeded status.
- // Succeeded status means the Succeeded counter equals the number of child Jobs.
- // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
- ReplicatedJobsWaitingOnSucceededStatus []string `json:"replicatedJobsWaitingOnSucceededStatus,omitempty"`
-
- // Names of the ReplicatedJobs that need to be in Ready status.
  // Ready status means the Ready counter equals the number of child Jobs.
  // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].ready
- ReplicatedJobsWaitingOnReadyStatus []string `json:"replicatedJobsWaitingOnReadyStatus,omitempty"`
-}
+ ReadyStatus DependsOnStatus = "Ready"
+
+ // Complete status means the Succeeded counter equals the number of child Jobs.
+ // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
+ CompleteStatus DependsOnStatus = "Complete"
+)
 ```
 
 ### Implementation
 
-The JobSet operator will control the creation of ReplicatedJobs based on their status. When
-desired replicated Jobs reach the status defined in the waitForReplicatedJobsStatus, the
-controller creates the next set of replicated Jobs.
+The JobSet operator will control the creation of ReplicatedJobs based on their DependsOn
+configuration.
+
+In the DependsOn API, user can only reference the **single** ReplicatedJob that previously
+defined in the `.spec.replicatedJobs` list.
+
+If ReplicatedJob has the DependsOn configuration, controller will check the counter of
+Ready or Complete Jobs in the referenced ReplicatedJob. When the counter of Jobs is equal to
+referenced ReplicatedJob's replica count, the controller will create the ReplicatedJob.
 
 If JobSet is suspended the all ReplicatedJobs will be suspended and the Job sequence starts again.
 
@@ -321,77 +355,50 @@ times Job can be restarted via backOffLimit parameter.
 
 ### Quota Management
 
-In the initial implementation of the StartupPolicy the resource quota will be calculated as
+In the initial implementation of the DependsOn API the resource quota will be calculated as
 sum of all ReplicatedJobs resources. Which means JobSet will be admitted by
 [Kueue](https://github.com/kubernetes-sigs/kueue) only when all resources are available for
 every ReplicatedJob within JobSet.
 
 That allows us to leverage the existing integration between Kueue and JobSet while using the
-expanded version of StartupPolicy API.
+DependsOn API.
 
 In the future versions we will discuss how Kueue can enqueue group of ReplicatedJobs separately
 and admit them. For example, when compute resources are available for the first ReplicatedJob
 the JobSet can be dispatched by Kueue.
 
-### Defaulting/Validation
+### Deprecation of StartupPolicy
 
-- StartupPolicy is immutable.
-- StartupPolicyOrderOption of `AnyOrder` is the default setting.
-- For backward compatibility the default value for ReplicatedJobsStatusOption is Ready when
-  StartupPolicy API is used.
-- All ReplicatedJob names except the last one must present in
-  the InOrderStartupRules and their names must be unique.
+Since the new DependsOn API covers use-cases for the `startupPolicy: InOrder`, we will deprecate the
+StartupPolicy API in the future version of JobSet. Before deprecation, we will make
+StartupPolicy and DependsOn API mutually exclusive. Which means, user can use only
+StartupPolicy or DependsOn API.
 
-Since the default value for status is Ready, the default list for the inOrderStartupRules looks as
-follows:
+User should configure JobSet as follows to use the existing functionality of StartupPolicy:
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
-  name: startup-policy
+  name: mpi-job
 spec:
-  startupPolicy:
-    startupPolicyOrder: InOrder
-    inOrderStartupRules:
-      replicatedJobsWaitingOnReadyStatus:
-          - job-1
-          - job-2
-      replicatedJobsWaitingOnSucceededStatus: []
   replicatedJobs:
-    - name: job-1
-      ...
-    - name: job-2
-      ...
-    - name: job-3
-      ...
+    - name: launcher
+    - name: trainer-node
+      dependsOn:
+        - name: launcher
+          status: Ready
 ```
 
-### User Experience
+### Defaulting/Validation
 
-We will keep the existing conditions when `InOrder` StartupPolicy is used.
-
-The following condition will be added to JobSet when ReplicatedJobs are being created:
-
-```golang
-metav1.Condition{
-   Type:    "StartupPolicyInProgress",
-   Status:  metav1.ConditionStatus(corev1.ConditionFalse),
-   Reason:  "InOrderStartupPolicyInProgress",
-   Message: "in order startup policy is in progress",
-  })
-```
-
-The following condition will be added to JobSet when all ReplicatedJobs have started:
-
-```golang
-metav1.Condition{
-   Type:    "StartupPolicyCompleted",
-   Status:  metav1.ConditionStatus(corev1.ConditionFalse),
-   Reason:  "InOrderStartupPolicyCompleted",
-   Message: "in order startup policy has completed",
-  })
-```
+- DependsOn API is immutable.
+- Length of DependsOn list is equal to 1.
+- Ensure that `replicatedJobs[n].dependsOn[0].name` is equal to the the previously defined
+  ReplicatedJob's name (e.g. `n-1` from the list).
+- If DependsOn is set, `name` and `status` must be configured.
+- The first ReplicatedJob (e.g `n=0` in the list) can't contain DependsOn API.
+- Make DependsOn and StartupPolicy mutually exclusive.
 
 ### Test Plan
 
@@ -408,12 +415,12 @@ We will add this functionality to the startup_policy API for the functionality.
 #### Integration tests
 
 - Using "ready" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
-- Using "succeeded" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
+- Using "complete" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
 - Validate that if the first ReplicatedJob fails, the second ReplicatedJob does not execute.
-- Ensure that when StartupPolicy and FailurePolicy sets together, the JobSet will restart
+- Ensure that when DependsOn and FailurePolicy sets together, the JobSet will restart
   the job sequence from the beginning in case of failure.
 - Validate the JobSet controller restart in the middle of the ReplicatedJobs execution when
-  StartupPolicy is set.
+  DependsOn is set.
 
 ### Graduation Criteria
 
@@ -452,7 +459,7 @@ If users want to create complex DAG workflows, they should not use JobSet for su
 
 ### Using workflow engine to execute sequence of jobs
 
-Instead of supported Succeeded condition in StartupPolicy, users can leverage the existing workflow
+Instead of supported DependsOn API, users can leverage the existing workflow
 engines like Argo Workflow or Tekton Pipeline to execute it.
 
 While workflow engines are a good option for orchestrating Directed Acyclic Graphs (DAGs),
@@ -471,29 +478,21 @@ consider to decouple them from the JobSet used for training/fine-tuning.
 
 ### Add the WaitForStatus API under ReplicatedJob
 
-Since every ReplicatedJob name must be present in the InOrderStartupRules, alternatively
-we can add the WaitForReplicatedJobsStatus option under the ReplicatedJob API:
+We can add the WaitForReplicatedJobsStatus option under the ReplicatedJob API:
 
 ```golang
-type JobSetSpec struct {
-  StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
-
-  ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
-}
-
-type StartupPolicy struct {
-  // Order in which Jobs will be created.
-  StartupPolicyOrder StartupPolicyOrderOption `json:"startupPolicyOrder"`
-}
-
-
 type ReplicatedJob struct {
   // Name is the name of the entry and will be used as a suffix.
   Name string `json:"name"`
 
   // Status the target ReplicatedJobs must reach before subsequent ReplicatedJobs begin executing.
-  WaitForStatus WaitForStatusOption `json:"waitForStatus,omitempty"`
+  WaitForStatusBeforeContinuing WaitForStatusBeforeContinuing `json:"WaitForStatusBeforeContinuing,omitempty"`
 }
 ```
 
-However, it makes the StartupPolicy API inconsistent with the FailurePolicy and SuccessPolicy APIs.
+However this API is simpler, we can’t support more advanced use-cases when two ReplicatedJobs
+need to start in parallel. For example, two parameter servers need to be Ready before we
+start the Trainer.
+
+Additional alternatives are discussed in
+[this document](https://docs.google.com/document/d/1_xZ4UJ6FwJ8sG3i7XnBi1kG4mglNzxji94fweNH4YnE/edit?tab=t.0).
