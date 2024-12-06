@@ -260,8 +260,9 @@ ReplicatedJob for pre-trained model and dataset initialization, the second and t
 to start parameter servers and the fourth ReplicatedJob for distributed fine-tuning.
 
 > [!NOTE]
-> This use-case won't be supported in the initial implementation of DependsOn API, since Job can
-> depends on only the single previous ReplicatedJob. However, in the future we consider to support it.
+> This use-case won't be supported in the initial implementation of the DependsOn API, since
+> ReplicatedJob cannot depend on more than one other ReplicatedJob. However, we plan to consider
+> adding support for this functionality in the future.
 
 ![JobSet](./jobset-serial-execution.png)
 
