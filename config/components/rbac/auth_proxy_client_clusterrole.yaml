@@ -4,7 +4,6 @@ metadata:
   labels:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: metrics-reader
-    app.kubernetes.io/component: kube-rbac-proxy
     app.kubernetes.io/created-by: jobset
     app.kubernetes.io/part-of: jobset
     app.kubernetes.io/managed-by: kustomize
