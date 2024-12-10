@@ -58,7 +58,7 @@ efficiently and improve ML training goodput.
 To install the latest release of JobSet in your cluster, run the following command:
 
 ```shell
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.7.1/manifests.yaml
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.7.2/manifests.yaml
 ```
 
 The controller runs in the `jobset-system` namespace.
