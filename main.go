@@ -116,18 +116,32 @@ func main() {
 
 	if flagsSet["metrics-bind-address"] {
 		options.Metrics.BindAddress = metricsAddr
+	} else {
+		options.Metrics.BindAddress = cfg.Metrics.BindAddress
 	}
+
 	if flagsSet["health-probe-bind-address"] {
 		options.HealthProbeBindAddress = probeAddr
+	} else {
+		options.HealthProbeBindAddress = cfg.Health.HealthProbeBindAddress
 	}
+
 	if flagsSet["leader-elect"] {
 		options.LeaderElection = enableLeaderElection
+	} else {
+		options.LeaderElection = *cfg.LeaderElection.LeaderElect
 	}
+
 	if flagsSet["kube-api-qps"] {
 		kubeConfig.QPS = float32(qps)
+	} else {
+		kubeConfig.QPS = *cfg.ClientConnection.QPS
 	}
+
 	if flagsSet["kube-api-burst"] {
 		kubeConfig.Burst = burst
+	} else {
+		kubeConfig.Burst = int(*cfg.ClientConnection.Burst)
 	}
 	// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
 	// More info:
