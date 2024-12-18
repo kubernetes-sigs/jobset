@@ -45,20 +45,9 @@ echo "Generating Python SDK for JobSet..."
 
 # Defaults the container engine to docker
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
-USERLEVEL="--user $(id -u):$(id -g)"
-
-# Checking the path of podman, silencing the errors
-#which podman &> /dev/null
-
-## Checking the exit status of which command, 0 means that command exit successfully
-#if [[ $? -eq 0 ]]; then
-#  echo "Podman is found, changing over to podman"
-#  CONTAINER_ENGINE=podman
-#  USERLEVEL=""
-#fi
 
 # Install the sdk using docker, using the user that is running the container engine so that files can still be removed
-${CONTAINER_ENGINE} run $USERLEVEL --rm \
+${CONTAINER_ENGINE} run --user $(id -u):$(id -g) --rm \
   -v "${repo_root}":/local docker.io/openapitools/openapi-generator-cli generate \
   -i /local/"${SWAGGER_CODEGEN_FILE}" \
   -g python \
