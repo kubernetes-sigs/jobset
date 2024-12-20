@@ -4,6 +4,7 @@
 .travis.yml
 README.md
 docs/JobsetV1alpha2Coordinator.md
+docs/JobsetV1alpha2DependsOn.md
 docs/JobsetV1alpha2FailurePolicy.md
 docs/JobsetV1alpha2FailurePolicyRule.md
 docs/JobsetV1alpha2JobSet.md
@@ -24,6 +25,7 @@ jobset/configuration.py
 jobset/exceptions.py
 jobset/models/__init__.py
 jobset/models/jobset_v1alpha2_coordinator.py
+jobset/models/jobset_v1alpha2_depends_on.py
 jobset/models/jobset_v1alpha2_failure_policy.py
 jobset/models/jobset_v1alpha2_failure_policy_rule.py
 jobset/models/jobset_v1alpha2_job_set.py
@@ -44,6 +46,7 @@ setup.py
 test-requirements.txt
 test/__init__.py
 test/test_jobset_v1alpha2_coordinator.py
+test/test_jobset_v1alpha2_depends_on.py
 test/test_jobset_v1alpha2_failure_policy.py
 test/test_jobset_v1alpha2_failure_policy_rule.py
 test/test_jobset_v1alpha2_job_set.py

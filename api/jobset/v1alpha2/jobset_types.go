@@ -230,7 +230,37 @@ type ReplicatedJob struct {
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
 	Replicas int32 `json:"replicas,omitempty"`
+
+	// DependsOn is an optional list that specifies the preceding ReplicatedJobs upon which
+	// the current ReplicatedJob depends. If specified, the ReplicatedJob will be created
+	// only after the referenced ReplicatedJobs reach their desired state.
+	// The Order of ReplicatedJobs is defined by their enumeration in the slice.
+	// Note, that the first ReplicatedJob in the slice cannot use the DependsOn API.
+	// TODO (andreyvelich): Currently, only a single item is supported in the DependsOn list.
+	// This API is mutually exclusive with the StartupPolicy API.
+	DependsOn []DependsOn `json:"dependsOn,omitempty"`
 }
+
+// DependsOn defines the dependency on the previous ReplicatedJob status.
+type DependsOn struct {
+	// Name of the previous ReplicatedJob.
+	Name string `json:"name"`
+
+	// Status defines the condition for the ReplicatedJob. Only Ready or Complete status can be set.
+	Status DependsOnStatus `json:"status"`
+}
+
+type DependsOnStatus string
+
+const (
+	// Ready status means the Ready counter equals the number of child Jobs.
+	// .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].ready
+	ReadyStatus DependsOnStatus = "Ready"
+
+	// Complete status means the Succeeded counter equals the number of child Jobs.
+	// .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
+	CompleteStatus DependsOnStatus = "Complete"
+)
 
 type Network struct {
 	// EnableDNSHostnames allows pods to be reached via their hostnames.
