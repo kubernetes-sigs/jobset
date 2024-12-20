@@ -15,13 +15,13 @@ limitations under the License.
 package v1alpha2
 
 import (
-	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobsetv1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
 // StartupPolicyApplyConfiguration represents a declarative configuration of the StartupPolicy type for use
 // with apply.
 type StartupPolicyApplyConfiguration struct {
-	StartupPolicyOrder *v1alpha2.StartupPolicyOptions `json:"startupPolicyOrder,omitempty"`
+	StartupPolicyOrder *jobsetv1alpha2.StartupPolicyOptions `json:"startupPolicyOrder,omitempty"`
 }
 
 // StartupPolicyApplyConfiguration constructs a declarative configuration of the StartupPolicy type for use with
@@ -33,7 +33,7 @@ func StartupPolicy() *StartupPolicyApplyConfiguration {
 // WithStartupPolicyOrder sets the StartupPolicyOrder field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the StartupPolicyOrder field is set to the value of the last call.
-func (b *StartupPolicyApplyConfiguration) WithStartupPolicyOrder(value v1alpha2.StartupPolicyOptions) *StartupPolicyApplyConfiguration {
+func (b *StartupPolicyApplyConfiguration) WithStartupPolicyOrder(value jobsetv1alpha2.StartupPolicyOptions) *StartupPolicyApplyConfiguration {
 	b.StartupPolicyOrder = &value
 	return b
 }
