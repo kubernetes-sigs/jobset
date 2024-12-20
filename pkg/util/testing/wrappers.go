@@ -270,6 +270,14 @@ func (j *JobTemplateWrapper) PodSpec(podSpec corev1.PodSpec) *JobTemplateWrapper
 // SetAnnotations sets the annotations on the Job template.
 func (j *JobTemplateWrapper) SetAnnotations(annotations map[string]string) *JobTemplateWrapper {
 	j.Annotations = annotations
+	j.Spec.Template.SetAnnotations(annotations)
+	return j
+}
+
+// SetLabels sets the labels on the Job template.
+func (j *JobTemplateWrapper) SetLabels(labels map[string]string) *JobTemplateWrapper {
+	j.Labels = labels
+	j.Spec.Template.SetLabels(labels)
 	return j
 }
 

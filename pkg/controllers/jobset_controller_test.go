@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"testing"
@@ -131,6 +132,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		replicatedJobName   = "replicated-job"
 		jobName             = "test-job"
 		ns                  = "default"
+		annotations         = map[string]string{"foo": "bar"}
+		labels              = map[string]string{"foo": "bar"}
 		topologyDomain      = "test-topology-domain"
 		coordinatorKeyValue = map[string]string{
 			jobset.CoordinatorKey: fmt.Sprintf("%s-%s-%d-%d.%s", jobSetName, replicatedJobName, 0, 0, jobSetName),
@@ -178,6 +181,41 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicatedJobName: replicatedJobName,
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
+					replicas:          2,
+					jobIdx:            1}).
+					Suspend(false).Obj(),
+			},
+		},
+		{
+			name: "all jobs/pods created with labels and annotations",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(annotations).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).
+						SetLabels(labels).
+						SetAnnotations(annotations).
+						Obj()).
+					Replicas(2).
+					Obj()).Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					labels:            labels,
+					annotations:       annotations,
+					replicas:          2,
+					jobIdx:            0}).
+					Suspend(false).Obj(),
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-1",
+					ns:                ns,
+					labels:            labels,
+					annotations:       annotations,
 					replicas:          2,
 					jobIdx:            1}).
 					Suspend(false).Obj(),
@@ -338,16 +376,24 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "exclusive placement for a ReplicatedJob",
 			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(annotations).
 				// Replicated Job A has exclusive placement annotation.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
 					Job(testutils.MakeJobTemplate(jobName, ns).
-						SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain}).
+						SetLabels(labels).
+						SetAnnotations(map[string]string{
+							jobset.ExclusiveKey: topologyDomain,
+							"foo":               "bar",
+						}).
 						Obj()).
 					Replicas(1).
 					Obj()).
 				// Replicated Job B has no exclusive placement annotation.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
-					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).
+						SetLabels(labels).
+						SetAnnotations(annotations).
+						Obj()).
 					Replicas(1).
 					Obj()).
 				Obj(),
@@ -358,15 +404,22 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicatedJobName: replicatedJobName + "-A",
 					jobName:           "test-jobset-replicated-job-A-0",
 					ns:                ns,
-					replicas:          1,
-					jobIdx:            0,
-					topology:          topologyDomain}).
+					labels:            labels,
+					annotations: map[string]string{
+						jobset.ExclusiveKey: topologyDomain,
+						"foo":               "bar",
+					},
+					replicas: 1,
+					jobIdx:   0,
+					topology: topologyDomain}).
 					Suspend(false).Obj(),
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName + "-B",
 					jobName:           "test-jobset-replicated-job-B-0",
 					ns:                ns,
+					labels:            labels,
+					annotations:       annotations,
 					replicas:          1,
 					jobIdx:            0}).
 					Suspend(false).Obj(),
@@ -426,15 +479,21 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "exclusive placement for entire JobSet",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain}).
+				SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain, "foo": "bar"}).
 				// Replicated Job A has.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
-					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).
+						SetLabels(labels).
+						SetAnnotations(annotations).
+						Obj()).
 					Replicas(1).
 					Obj()).
 				// Replicated Job B.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
-					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).
+						SetLabels(labels).
+						SetAnnotations(annotations).
+						Obj()).
 					Replicas(1).
 					Obj()).
 				Obj(),
@@ -445,6 +504,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicatedJobName: replicatedJobName + "-A",
 					jobName:           "test-jobset-replicated-job-A-0",
 					ns:                ns,
+					labels:            labels,
+					annotations:       annotations,
 					replicas:          1,
 					jobIdx:            0,
 					topology:          topologyDomain}).
@@ -454,6 +515,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicatedJobName: replicatedJobName + "-B",
 					jobName:           "test-jobset-replicated-job-B-0",
 					ns:                ns,
+					labels:            labels,
+					annotations:       annotations,
 					replicas:          1,
 					jobIdx:            0,
 					topology:          topologyDomain}).
@@ -1251,6 +1314,8 @@ type makeJobArgs struct {
 	replicatedJobName    string
 	jobName              string
 	ns                   string
+	labels               map[string]string
+	annotations          map[string]string
 	replicas             int
 	jobIdx               int
 	restarts             int
@@ -1268,6 +1333,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
+	maps.Copy(labels, args.labels)
 	annotations := map[string]string{
 		jobset.JobSetNameKey:         args.jobSetName,
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
@@ -1276,6 +1342,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
+	maps.Copy(annotations, args.annotations)
 	// Only set exclusive key if we are using exclusive placement per topology.
 	if args.topology != "" {
 		annotations[jobset.ExclusiveKey] = args.topology
