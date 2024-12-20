@@ -128,17 +128,17 @@ func TestIsJobFinished(t *testing.T) {
 
 func TestConstructJobsFromTemplate(t *testing.T) {
 	var (
-		jobSetName          = "test-jobset"
-		replicatedJobName   = "replicated-job"
-		jobName             = "test-job"
-		ns                  = "default"
-		annotations         = map[string]string{
-			"foo": "bar",
-			"foo1": "bar"
+		jobSetName        = "test-jobset"
+		replicatedJobName = "replicated-job"
+		jobName           = "test-job"
+		ns                = "default"
+		annotations       = map[string]string{
+			"foo":  "bar",
+			"foo1": "bar",
 		}
-		labels              = map[string]string{
-			"foo": "bar",
-			"foo1": "bar"
+		labels = map[string]string{
+			"foo":  "bar",
+			"foo1": "bar",
 		}
 		topologyDomain      = "test-topology-domain"
 		coordinatorKeyValue = map[string]string{
@@ -470,7 +470,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "exclusive placement for entire JobSet",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain).
+				SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain}).
 				// Replicated Job A has.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
