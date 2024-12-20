@@ -391,8 +391,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Obj()).
 				// Replicated Job B has no exclusive placement annotation.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
-					Job(testutils.MakeJobTemplate(jobName, ns).
-						Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
 					Obj()).
 				Obj(),
@@ -403,9 +402,9 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicatedJobName: replicatedJobName + "-A",
 					jobName:           "test-jobset-replicated-job-A-0",
 					ns:                ns,
-					replicas: 1,
-					jobIdx:   0,
-					topology: topologyDomain}).
+					replicas:          1,
+					jobIdx:            0,
+					topology:          topologyDomain}).
 					Suspend(false).Obj(),
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
