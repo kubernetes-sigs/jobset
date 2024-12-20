@@ -470,7 +470,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "exclusive placement for entire JobSet",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain, "foo": "bar"}).
+				SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain).
 				// Replicated Job A has.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
