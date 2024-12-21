@@ -1336,7 +1336,6 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
-
 	// Only set exclusive key if we are using exclusive placement per topology.
 	if args.topology != "" {
 		annotations[jobset.ExclusiveKey] = args.topology
