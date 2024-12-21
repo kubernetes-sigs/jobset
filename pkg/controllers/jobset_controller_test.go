@@ -145,8 +145,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			"pod-annotation-key2":  "pod-annotation-value2",
 		}
 		podLabels = map[string]string{
-			"hello":  "world",
-			"hello1": "world",
+                         "pod-label-key1":  "pod-label-value1",
+			"pod-label-key2":  "pod-label-value2",
 		}
 		topologyDomain      = "test-topology-domain"
 		coordinatorKeyValue = map[string]string{
