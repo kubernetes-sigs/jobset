@@ -133,8 +133,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		jobName           = "test-job"
 		ns                = "default"
 		jobAnnotations    = map[string]string{
-			"foo":  "bar",
-			"foo1": "bar",
+			"job-annotation-key1":  "job-annotation-value1",
+			"job-annotation-key2":  "job-annotation-value2",
 		}
 		jobLabels = map[string]string{
 			"foo":  "bar",
