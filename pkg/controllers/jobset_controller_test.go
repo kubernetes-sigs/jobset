@@ -1365,9 +1365,13 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	maps.Copy(args.podAnnotations, annotations)
 
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
+		JobLabels(labels).
 		JobLabels(args.jobLabels).
+		JobAnnotations(annotations).
 		JobAnnotations(args.jobAnnotations).
+		PodLabels(labels).
 		PodLabels(args.podLabels).
+		PodAnnotations(annotations)
 		PodAnnotations(args.podAnnotations)
 	return jobWrapper
 }
