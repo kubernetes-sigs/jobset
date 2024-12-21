@@ -1347,22 +1347,6 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		}
 	}
 
-	if args.jobLabels == nil {
-		args.jobLabels = make(map[string]string)
-	}
-	if args.podLabels == nil {
-		args.podLabels = make(map[string]string)
-	}
-	if args.jobAnnotations == nil {
-		args.jobAnnotations = make(map[string]string)
-	}
-	if args.podAnnotations == nil {
-		args.podAnnotations = make(map[string]string)
-	}
-	maps.Copy(args.jobLabels, labels)
-	maps.Copy(args.podLabels, labels)
-	maps.Copy(args.jobAnnotations, annotations)
-	maps.Copy(args.podAnnotations, annotations)
 
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
 		JobLabels(labels).
