@@ -137,8 +137,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			"job-annotation-key2":  "job-annotation-value2",
 		}
 		jobLabels = map[string]string{
-			"foo":  "bar",
-			"foo1": "bar",
+                         "job-label-key1":  "job-label-value1",
+			"job-label-key2":  "job-label-value2",
 		}
 		podAnnotations = map[string]string{
 			"hello":  "world",
