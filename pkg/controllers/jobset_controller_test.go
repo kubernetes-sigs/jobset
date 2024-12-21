@@ -132,20 +132,20 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		jobName           = "test-job"
 		ns                = "default"
 		jobAnnotations    = map[string]string{
-			"job-annotation-key1":  "job-annotation-value1",
-			"job-annotation-key2":  "job-annotation-value2",
+			"job-annotation-key1": "job-annotation-value1",
+			"job-annotation-key2": "job-annotation-value2",
 		}
 		jobLabels = map[string]string{
-                         "job-label-key1":  "job-label-value1",
-			"job-label-key2":  "job-label-value2",
+                         "job-label-key1": "job-label-value1",
+			"job-label-key2": "job-label-value2",
 		}
 		podAnnotations = map[string]string{
-			"pod-annotation-key1":  "pod-annotation-value1",
-			"pod-annotation-key2":  "pod-annotation-value2",
+			"pod-annotation-key1": "pod-annotation-value1",
+			"pod-annotation-key2": "pod-annotation-value2",
 		}
 		podLabels = map[string]string{
-                         "pod-label-key1":  "pod-label-value1",
-			"pod-label-key2":  "pod-label-value2",
+                         "pod-label-key1": "pod-label-value1",
+			"pod-label-key2": "pod-label-value2",
 		}
 		topologyDomain      = "test-topology-domain"
 		coordinatorKeyValue = map[string]string{
