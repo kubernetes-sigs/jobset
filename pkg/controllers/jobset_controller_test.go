@@ -1345,8 +1345,6 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 			annotations[jobset.NodeSelectorStrategyKey] = "true"
 		}
 	}
-
-
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
 		JobLabels(labels).
 		JobLabels(args.jobLabels).
