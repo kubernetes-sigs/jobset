@@ -1355,7 +1355,6 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		PodLabels(labels).
 		PodLabels(args.podLabels).
 		PodAnnotations(args.podAnnotations).
-
 		PodAnnotations(annotations)
 	return jobWrapper
 }
