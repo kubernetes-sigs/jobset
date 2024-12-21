@@ -132,13 +132,21 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		replicatedJobName = "replicated-job"
 		jobName           = "test-job"
 		ns                = "default"
-		annotations       = map[string]string{
+		jobAnnotations    = map[string]string{
 			"foo":  "bar",
 			"foo1": "bar",
 		}
-		labels = map[string]string{
+		jobLabels = map[string]string{
 			"foo":  "bar",
 			"foo1": "bar",
+		}
+		podAnnotations = map[string]string{
+			"hello":  "world",
+			"hello1": "world",
+		}
+		podLabels = map[string]string{
+			"hello":  "world",
+			"hello1": "world",
 		}
 		topologyDomain      = "test-topology-domain"
 		coordinatorKeyValue = map[string]string{
@@ -195,11 +203,12 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 		{
 			name: "all jobs/pods created with labels and annotations",
 			js: testutils.MakeJobSet(jobSetName, ns).
-				SetAnnotations(annotations).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).
-						SetLabels(labels).
-						SetAnnotations(annotations).
+						SetLabels(jobLabels).
+						SetPodLabels(podLabels).
+						SetAnnotations(jobAnnotations).
+						SetPodAnnotations(podAnnotations).
 						Obj()).
 					Replicas(2).
 					Obj()).Obj(),
@@ -210,8 +219,10 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicatedJobName: replicatedJobName,
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
-					labels:            labels,
-					annotations:       annotations,
+					jobLabels:         jobLabels,
+					jobAnnotations:    jobAnnotations,
+					podLabels:         podLabels,
+					podAnnotations:    podAnnotations,
 					replicas:          2,
 					jobIdx:            0}).
 					Suspend(false).Obj(),
@@ -220,8 +231,10 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicatedJobName: replicatedJobName,
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
-					labels:            labels,
-					annotations:       annotations,
+					jobLabels:         jobLabels,
+					jobAnnotations:    jobAnnotations,
+					podLabels:         podLabels,
+					podAnnotations:    podAnnotations,
 					replicas:          2,
 					jobIdx:            1}).
 					Suspend(false).Obj(),
@@ -1295,8 +1308,10 @@ type makeJobArgs struct {
 	replicatedJobName    string
 	jobName              string
 	ns                   string
-	labels               map[string]string
-	annotations          map[string]string
+	jobLabels            map[string]string
+	jobAnnotations       map[string]string
+	podLabels            map[string]string
+	podAnnotations       map[string]string
 	replicas             int
 	jobIdx               int
 	restarts             int
@@ -1314,7 +1329,6 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
-	maps.Copy(labels, args.labels)
 	annotations := map[string]string{
 		jobset.JobSetNameKey:         args.jobSetName,
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
@@ -1323,7 +1337,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
-	maps.Copy(annotations, args.annotations)
+
 	// Only set exclusive key if we are using exclusive placement per topology.
 	if args.topology != "" {
 		annotations[jobset.ExclusiveKey] = args.topology
@@ -1332,11 +1346,29 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 			annotations[jobset.NodeSelectorStrategyKey] = "true"
 		}
 	}
+
+	if args.jobLabels == nil {
+		args.jobLabels = make(map[string]string)
+	}
+	if args.podLabels == nil {
+		args.podLabels = make(map[string]string)
+	}
+	if args.jobAnnotations == nil {
+		args.jobAnnotations = make(map[string]string)
+	}
+	if args.podAnnotations == nil {
+		args.podAnnotations = make(map[string]string)
+	}
+	maps.Copy(args.jobLabels, labels)
+	maps.Copy(args.podLabels, labels)
+	maps.Copy(args.jobAnnotations, annotations)
+	maps.Copy(args.podAnnotations, annotations)
+
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
-		JobLabels(labels).
-		JobAnnotations(annotations).
-		PodLabels(labels).
-		PodAnnotations(annotations)
+		JobLabels(args.jobLabels).
+		JobAnnotations(args.jobAnnotations).
+		PodLabels(args.podLabels).
+		PodAnnotations(args.podAnnotations)
 	return jobWrapper
 }
 
