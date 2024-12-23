@@ -15,14 +15,14 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"context"
+	context "context"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	gentype "k8s.io/client-go/gentype"
-	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
-	jobsetv1alpha2 "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1alpha2"
+	jobsetv1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	applyconfigurationjobsetv1alpha2 "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1alpha2"
 	scheme "sigs.k8s.io/jobset/client-go/clientset/versioned/scheme"
 )
 
@@ -34,36 +34,37 @@ type JobSetsGetter interface {
 
 // JobSetInterface has methods to work with JobSet resources.
 type JobSetInterface interface {
-	Create(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.CreateOptions) (*v1alpha2.JobSet, error)
-	Update(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.UpdateOptions) (*v1alpha2.JobSet, error)
+	Create(ctx context.Context, jobSet *jobsetv1alpha2.JobSet, opts v1.CreateOptions) (*jobsetv1alpha2.JobSet, error)
+	Update(ctx context.Context, jobSet *jobsetv1alpha2.JobSet, opts v1.UpdateOptions) (*jobsetv1alpha2.JobSet, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, jobSet *v1alpha2.JobSet, opts v1.UpdateOptions) (*v1alpha2.JobSet, error)
+	UpdateStatus(ctx context.Context, jobSet *jobsetv1alpha2.JobSet, opts v1.UpdateOptions) (*jobsetv1alpha2.JobSet, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha2.JobSet, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha2.JobSetList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*jobsetv1alpha2.JobSet, error)
+	List(ctx context.Context, opts v1.ListOptions) (*jobsetv1alpha2.JobSetList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha2.JobSet, err error)
-	Apply(ctx context.Context, jobSet *jobsetv1alpha2.JobSetApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha2.JobSet, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *jobsetv1alpha2.JobSet, err error)
+	Apply(ctx context.Context, jobSet *applyconfigurationjobsetv1alpha2.JobSetApplyConfiguration, opts v1.ApplyOptions) (result *jobsetv1alpha2.JobSet, err error)
 	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
-	ApplyStatus(ctx context.Context, jobSet *jobsetv1alpha2.JobSetApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha2.JobSet, err error)
+	ApplyStatus(ctx context.Context, jobSet *applyconfigurationjobsetv1alpha2.JobSetApplyConfiguration, opts v1.ApplyOptions) (result *jobsetv1alpha2.JobSet, err error)
 	JobSetExpansion
 }
 
 // jobSets implements JobSetInterface
 type jobSets struct {
-	*gentype.ClientWithListAndApply[*v1alpha2.JobSet, *v1alpha2.JobSetList, *jobsetv1alpha2.JobSetApplyConfiguration]
+	*gentype.ClientWithListAndApply[*jobsetv1alpha2.JobSet, *jobsetv1alpha2.JobSetList, *applyconfigurationjobsetv1alpha2.JobSetApplyConfiguration]
 }
 
 // newJobSets returns a JobSets
 func newJobSets(c *JobsetV1alpha2Client, namespace string) *jobSets {
 	return &jobSets{
-		gentype.NewClientWithListAndApply[*v1alpha2.JobSet, *v1alpha2.JobSetList, *jobsetv1alpha2.JobSetApplyConfiguration](
+		gentype.NewClientWithListAndApply[*jobsetv1alpha2.JobSet, *jobsetv1alpha2.JobSetList, *applyconfigurationjobsetv1alpha2.JobSetApplyConfiguration](
 			"jobsets",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1alpha2.JobSet { return &v1alpha2.JobSet{} },
-			func() *v1alpha2.JobSetList { return &v1alpha2.JobSetList{} }),
+			func() *jobsetv1alpha2.JobSet { return &jobsetv1alpha2.JobSet{} },
+			func() *jobsetv1alpha2.JobSetList { return &jobsetv1alpha2.JobSetList{} },
+		),
 	}
 }

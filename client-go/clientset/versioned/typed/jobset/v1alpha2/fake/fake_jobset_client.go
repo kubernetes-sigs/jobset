@@ -25,7 +25,7 @@ type FakeJobsetV1alpha2 struct {
 }
 
 func (c *FakeJobsetV1alpha2) JobSets(namespace string) v1alpha2.JobSetInterface {
-	return &FakeJobSets{c, namespace}
+	return newFakeJobSets(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

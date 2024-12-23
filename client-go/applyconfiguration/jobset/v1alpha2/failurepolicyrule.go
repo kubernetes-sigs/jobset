@@ -15,16 +15,16 @@ limitations under the License.
 package v1alpha2
 
 import (
-	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobsetv1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
 // FailurePolicyRuleApplyConfiguration represents a declarative configuration of the FailurePolicyRule type for use
 // with apply.
 type FailurePolicyRuleApplyConfiguration struct {
-	Name                 *string                       `json:"name,omitempty"`
-	Action               *v1alpha2.FailurePolicyAction `json:"action,omitempty"`
-	OnJobFailureReasons  []string                      `json:"onJobFailureReasons,omitempty"`
-	TargetReplicatedJobs []string                      `json:"targetReplicatedJobs,omitempty"`
+	Name                 *string                             `json:"name,omitempty"`
+	Action               *jobsetv1alpha2.FailurePolicyAction `json:"action,omitempty"`
+	OnJobFailureReasons  []string                            `json:"onJobFailureReasons,omitempty"`
+	TargetReplicatedJobs []string                            `json:"targetReplicatedJobs,omitempty"`
 }
 
 // FailurePolicyRuleApplyConfiguration constructs a declarative configuration of the FailurePolicyRule type for use with
@@ -44,7 +44,7 @@ func (b *FailurePolicyRuleApplyConfiguration) WithName(value string) *FailurePol
 // WithAction sets the Action field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Action field is set to the value of the last call.
-func (b *FailurePolicyRuleApplyConfiguration) WithAction(value v1alpha2.FailurePolicyAction) *FailurePolicyRuleApplyConfiguration {
+func (b *FailurePolicyRuleApplyConfiguration) WithAction(value jobsetv1alpha2.FailurePolicyAction) *FailurePolicyRuleApplyConfiguration {
 	b.Action = &value
 	return b
 }
