@@ -57,19 +57,19 @@ func TestReplicatedJobStarted(t *testing.T) {
 	tests := []struct {
 		name                string
 		replicas            int32
-		replicatedJobStatus jobset.ReplicatedJobStatus
+		replicatedJobStatus *jobset.ReplicatedJobStatus
 		expected            bool
 	}{
 		{
 			name:                "replicas 1; no replicatedJobStatus",
 			replicas:            1,
-			replicatedJobStatus: jobset.ReplicatedJobStatus{},
+			replicatedJobStatus: &jobset.ReplicatedJobStatus{},
 			expected:            false,
 		},
 		{
 			name:     "replicas 4; replicatedJobStatus all ready",
 			replicas: 4,
-			replicatedJobStatus: jobset.ReplicatedJobStatus{
+			replicatedJobStatus: &jobset.ReplicatedJobStatus{
 				Name:      "test",
 				Ready:     4,
 				Succeeded: 0,
@@ -82,7 +82,7 @@ func TestReplicatedJobStarted(t *testing.T) {
 		{
 			name:     "replicas 4; replicatedJobStatus mix of ready, failed and succeded",
 			replicas: 4,
-			replicatedJobStatus: jobset.ReplicatedJobStatus{
+			replicatedJobStatus: &jobset.ReplicatedJobStatus{
 				Name:      "test",
 				Ready:     2,
 				Succeeded: 1,
@@ -95,7 +95,7 @@ func TestReplicatedJobStarted(t *testing.T) {
 		{
 			name:     "replicas 4; replicatedJobStatus all active",
 			replicas: 4,
-			replicatedJobStatus: jobset.ReplicatedJobStatus{
+			replicatedJobStatus: &jobset.ReplicatedJobStatus{
 				Name:      "test",
 				Ready:     0,
 				Succeeded: 0,
