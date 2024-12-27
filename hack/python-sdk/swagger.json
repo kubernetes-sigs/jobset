@@ -197,7 +197,7 @@
           "x-kubernetes-list-type": "map"
         },
         "startupPolicy": {
-          "description": "StartupPolicy, if set, configures in what order jobs must be started",
+          "description": "StartupPolicy, if set, configures in what order jobs must be started Deprecated: StartupPolicy is deprecated, please use the DependsOn API.",
           "$ref": "#/definitions/jobset.v1alpha2.StartupPolicy"
         },
         "successPolicy": {
@@ -288,7 +288,11 @@
           "items": {
             "default": {},
             "$ref": "#/definitions/jobset.v1alpha2.DependsOn"
-          }
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
         },
         "name": {
           "description": "Name is the name of the entry and will be used as a suffix for the Job name.",

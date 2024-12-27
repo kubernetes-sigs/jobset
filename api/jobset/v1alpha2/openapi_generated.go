@@ -358,7 +358,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 					},
 					"startupPolicy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "StartupPolicy, if set, configures in what order jobs must be started",
+							Description: "StartupPolicy, if set, configures in what order jobs must be started Deprecated: StartupPolicy is deprecated, please use the DependsOn API.",
 							Ref:         ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.StartupPolicy"),
 						},
 					},
@@ -538,6 +538,14 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref common.ReferenceCallbac
 						},
 					},
 					"dependsOn": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
 							Description: "DependsOn is an optional list that specifies the preceding ReplicatedJobs upon which the current ReplicatedJob depends. If specified, the ReplicatedJob will be created only after the referenced ReplicatedJobs reach their desired state. The Order of ReplicatedJobs is defined by their enumeration in the slice. Note, that the first ReplicatedJob in the slice cannot use the DependsOn API. This API is mutually exclusive with the StartupPolicy API.",
 							Type:        []string{"array"},
