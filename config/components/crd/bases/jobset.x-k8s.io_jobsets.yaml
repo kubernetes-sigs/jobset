@@ -9010,8 +9010,9 @@ spec:
                 - name
                 x-kubernetes-list-type: map
               startupPolicy:
-                description: StartupPolicy, if set, configures in what order jobs
-                  must be started
+                description: |-
+                  StartupPolicy, if set, configures in what order jobs must be started
+                  Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
                 properties:
                   startupPolicyOrder:
                     description: |-
@@ -9076,7 +9077,7 @@ spec:
             x-kubernetes-validations:
             - message: StartupPolicy and DependsOn APIs are mutually exclusive
               rule: '!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder
-                == ''InOrder'' && self.replicatedJobs.all(x, has(x.dependsOn)))'
+                == ''InOrder'' && self.replicatedJobs.exists(x, has(x.dependsOn)))'
             - message: DependsOn can't be set for the first ReplicatedJob
               rule: '!(has(self.replicatedJobs[0].dependsOn))'
           status:

@@ -79,7 +79,7 @@ const (
 )
 
 // JobSetSpec defines the desired state of JobSet
-// +kubebuilder:validation:XValidation:rule="!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder == 'InOrder' && self.replicatedJobs.all(x, has(x.dependsOn)))",message="StartupPolicy and DependsOn APIs are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder == 'InOrder' && self.replicatedJobs.exists(x, has(x.dependsOn)))",message="StartupPolicy and DependsOn APIs are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!(has(self.replicatedJobs[0].dependsOn))",message="DependsOn can't be set for the first ReplicatedJob"
 type JobSetSpec struct {
 	// ReplicatedJobs is the group of jobs that will form the set.
