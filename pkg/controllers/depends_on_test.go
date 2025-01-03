@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
