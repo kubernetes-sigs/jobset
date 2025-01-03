@@ -216,6 +216,12 @@ func (r *ReplicatedJobWrapper) Subdomain(subdomain string) *ReplicatedJobWrapper
 	return r
 }
 
+// DependsOn sets the value of the ReplicatedJob.DependsOn.
+func (r *ReplicatedJobWrapper) DependsOn(dependsOn []jobset.DependsOn) *ReplicatedJobWrapper {
+	r.ReplicatedJob.DependsOn = dependsOn
+	return r
+}
+
 // Obj returns the inner ReplicatedJob.
 func (r *ReplicatedJobWrapper) Obj() jobset.ReplicatedJob {
 	return r.ReplicatedJob

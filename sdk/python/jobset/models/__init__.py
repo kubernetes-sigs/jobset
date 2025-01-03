@@ -18,6 +18,7 @@ from kubernetes.client import *
 
 # import models into model package
 from jobset.models.jobset_v1alpha2_coordinator import JobsetV1alpha2Coordinator
+from jobset.models.jobset_v1alpha2_depends_on import JobsetV1alpha2DependsOn
 from jobset.models.jobset_v1alpha2_failure_policy import JobsetV1alpha2FailurePolicy
 from jobset.models.jobset_v1alpha2_failure_policy_rule import JobsetV1alpha2FailurePolicyRule
 from jobset.models.jobset_v1alpha2_job_set import JobsetV1alpha2JobSet

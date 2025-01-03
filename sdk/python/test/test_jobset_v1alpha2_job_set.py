@@ -67,6 +67,11 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                         subdomain = '0', ), 
                     replicated_jobs = [
                         jobset.models.jobset_v1alpha2_replicated_job.JobsetV1alpha2ReplicatedJob(
+                            depends_on = [
+                                jobset.models.jobset_v1alpha2_depends_on.JobsetV1alpha2DependsOn(
+                                    name = '0', 
+                                    status = '0', )
+                                ], 
                             name = '0', 
                             replicas = 56, 
                             template = V1JobTemplateSpec(), )

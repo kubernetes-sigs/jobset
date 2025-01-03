@@ -33,32 +33,60 @@ class JobsetV1alpha2ReplicatedJob(object):
                             and the value is json key in definition.
     """
     openapi_types = {
+        'depends_on': 'list[JobsetV1alpha2DependsOn]',
         'name': 'str',
         'replicas': 'int',
         'template': 'V1JobTemplateSpec'
     }
 
     attribute_map = {
+        'depends_on': 'dependsOn',
         'name': 'name',
         'replicas': 'replicas',
         'template': 'template'
     }
 
-    def __init__(self, name='', replicas=None, template=None, local_vars_configuration=None):  # noqa: E501
+    def __init__(self, depends_on=None, name='', replicas=None, template=None, local_vars_configuration=None):  # noqa: E501
         """JobsetV1alpha2ReplicatedJob - a model defined in OpenAPI"""  # noqa: E501
         if local_vars_configuration is None:
             local_vars_configuration = Configuration()
         self.local_vars_configuration = local_vars_configuration
 
+        self._depends_on = None
         self._name = None
         self._replicas = None
         self._template = None
         self.discriminator = None
 
+        if depends_on is not None:
+            self.depends_on = depends_on
         self.name = name
         if replicas is not None:
             self.replicas = replicas
         self.template = template
+
+    @property
+    def depends_on(self):
+        """Gets the depends_on of this JobsetV1alpha2ReplicatedJob.  # noqa: E501
+
+        DependsOn is an optional list that specifies the preceding ReplicatedJobs upon which the current ReplicatedJob depends. If specified, the ReplicatedJob will be created only after the referenced ReplicatedJobs reach their desired state. The Order of ReplicatedJobs is defined by their enumeration in the slice. Note, that the first ReplicatedJob in the slice cannot use the DependsOn API. This API is mutually exclusive with the StartupPolicy API.  # noqa: E501
+
+        :return: The depends_on of this JobsetV1alpha2ReplicatedJob.  # noqa: E501
+        :rtype: list[JobsetV1alpha2DependsOn]
+        """
+        return self._depends_on
+
+    @depends_on.setter
+    def depends_on(self, depends_on):
+        """Sets the depends_on of this JobsetV1alpha2ReplicatedJob.
+
+        DependsOn is an optional list that specifies the preceding ReplicatedJobs upon which the current ReplicatedJob depends. If specified, the ReplicatedJob will be created only after the referenced ReplicatedJobs reach their desired state. The Order of ReplicatedJobs is defined by their enumeration in the slice. Note, that the first ReplicatedJob in the slice cannot use the DependsOn API. This API is mutually exclusive with the StartupPolicy API.  # noqa: E501
+
+        :param depends_on: The depends_on of this JobsetV1alpha2ReplicatedJob.  # noqa: E501
+        :type: list[JobsetV1alpha2DependsOn]
+        """
+
+        self._depends_on = depends_on
 
     @property
     def name(self):

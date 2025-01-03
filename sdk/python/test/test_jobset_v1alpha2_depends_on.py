@@ -18,11 +18,11 @@ import unittest
 import datetime
 
 import jobset
-from jobset.models.jobset_v1alpha2_replicated_job import JobsetV1alpha2ReplicatedJob  # noqa: E501
+from jobset.models.jobset_v1alpha2_depends_on import JobsetV1alpha2DependsOn  # noqa: E501
 from jobset.rest import ApiException
 
-class TestJobsetV1alpha2ReplicatedJob(unittest.TestCase):
-    """JobsetV1alpha2ReplicatedJob unit test stubs"""
+class TestJobsetV1alpha2DependsOn(unittest.TestCase):
+    """JobsetV1alpha2DependsOn unit test stubs"""
 
     def setUp(self):
         pass
@@ -31,30 +31,24 @@ class TestJobsetV1alpha2ReplicatedJob(unittest.TestCase):
         pass
 
     def make_instance(self, include_optional):
-        """Test JobsetV1alpha2ReplicatedJob
+        """Test JobsetV1alpha2DependsOn
             include_option is a boolean, when False only required
             params are included, when True both required and
             optional params are included """
-        # model = jobset.models.jobset_v1alpha2_replicated_job.JobsetV1alpha2ReplicatedJob()  # noqa: E501
+        # model = jobset.models.jobset_v1alpha2_depends_on.JobsetV1alpha2DependsOn()  # noqa: E501
         if include_optional :
-            return JobsetV1alpha2ReplicatedJob(
-                depends_on = [
-                    jobset.models.jobset_v1alpha2_depends_on.JobsetV1alpha2DependsOn(
-                        name = '0', 
-                        status = '0', )
-                    ], 
+            return JobsetV1alpha2DependsOn(
                 name = '0', 
-                replicas = 56, 
-                template = V1JobTemplateSpec()
+                status = '0'
             )
         else :
-            return JobsetV1alpha2ReplicatedJob(
+            return JobsetV1alpha2DependsOn(
                 name = '0',
-                template = V1JobTemplateSpec(),
+                status = '0',
         )
 
-    def testJobsetV1alpha2ReplicatedJob(self):
-        """Test JobsetV1alpha2ReplicatedJob"""
+    def testJobsetV1alpha2DependsOn(self):
+        """Test JobsetV1alpha2DependsOn"""
         inst_req_only = self.make_instance(include_optional=False)
         inst_req_and_optional = self.make_instance(include_optional=True)
 
