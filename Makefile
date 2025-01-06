@@ -90,7 +90,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 		paths="./pkg/..."
 
 .PHONY: generate
-generate: controller-gen code-generator openapi-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.
+generate: manifests controller-gen code-generator openapi-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 	./hack/update-codegen.sh $(GO_CMD) $(PROJECT_DIR)/bin
 	./hack/python-sdk/gen-sdk.sh
