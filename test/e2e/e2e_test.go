@@ -270,6 +270,74 @@ var _ = ginkgo.Describe("JobSet", func() {
 		})
 	})
 
+	// This test runs JobSet with the DependsOn API.
+	ginkgo.When("DependsOn is enabled on JobSet", func() {
+		// Replicated-Job-B is created once Replicated-Job-A is complete.
+		ginkgo.It("job-b depends on job-a completion", func() {
+			ctx := context.Background()
+
+			numReplicas := 1
+			sleepSeconds := 10
+			jobA := "job-a"
+			jobB := "job-b"
+
+			// Every ReplicatedJob runs 1 container to sleep for 10 seconds.
+			rJobA := dependsOnTestReplicatedJob(ns, jobA, numReplicas, sleepSeconds, nil)
+			rJobB := dependsOnTestReplicatedJob(ns, jobB, numReplicas, sleepSeconds,
+				[]jobset.DependsOn{
+					{
+						Name:   jobA,
+						Status: jobset.CompleteStatus,
+					},
+				})
+
+			jobSet := dependsOnTestJobSet(ns, []jobset.ReplicatedJob{rJobA, rJobB})
+			jobSetKey := types.NamespacedName{Name: jobSet.Name, Namespace: jobSet.Namespace}
+
+			ginkgo.By("Create a JobSet with DependsOn", func() {
+				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Wait for JobA to be in Ready status", func() {
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
+						if rJobStatus.Name == jobA {
+							return rJobStatus.Ready
+						}
+					}
+					return 0
+				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
+			})
+
+			ginkgo.By("Verify that only JobA is created", func() {
+				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
+					Should(gomega.Equal(numReplicas))
+			})
+
+			ginkgo.By("Wait for JobA to be in Completed status", func() {
+				gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
+						if rJobStatus.Name == jobA {
+							return rJobStatus.Succeeded
+						}
+					}
+					return 0
+				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
+			})
+
+			ginkgo.By("Verify that JobA and JobB is created", func() {
+				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
+					Should(gomega.Equal(util.NumExpectedJobs(jobSet)))
+			})
+
+			ginkgo.By("Wait for JobSet to be Completed", func() {
+				util.JobSetCompleted(ctx, k8sClient, jobSet, timeout)
+			})
+		})
+	})
 }) // end of Describe
 
 // getPingCommand returns ping command for 4 hostnames
@@ -384,4 +452,30 @@ func sleepTestJobSet(ns *corev1.Namespace, durationSeconds int32) *testing.JobSe
 				}).Obj()).
 			Replicas(int32(replicas)).
 			Obj())
+}
+
+func dependsOnTestJobSet(ns *corev1.Namespace, rJobs []jobset.ReplicatedJob) *jobset.JobSet {
+	jobSet := testing.MakeJobSet("depends-on", ns.Name).Obj()
+	jobSet.Spec.ReplicatedJobs = rJobs
+
+	return jobSet
+}
+
+func dependsOnTestReplicatedJob(ns *corev1.Namespace, jobName string, numReplicas, sleepSeconds int, dependsOn []jobset.DependsOn) jobset.ReplicatedJob {
+	return testing.MakeReplicatedJob(jobName).
+		Job(testing.MakeJobTemplate("job", ns.Name).
+			PodSpec(corev1.PodSpec{
+				RestartPolicy: "Never",
+				Containers: []corev1.Container{
+					{
+						Name:    "sleep-test-container",
+						Image:   "bash:latest",
+						Command: []string{"bash", "-c"},
+						Args:    []string{fmt.Sprintf("sleep %d", sleepSeconds)},
+					},
+				},
+			}).Obj()).
+		Replicas(int32(numReplicas)).
+		DependsOn(dependsOn).
+		Obj()
 }
