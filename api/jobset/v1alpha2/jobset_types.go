@@ -239,7 +239,7 @@ type ReplicatedJob struct {
 	// only after the referenced ReplicatedJobs reach their desired state.
 	// The Order of ReplicatedJobs is defined by their enumeration in the slice.
 	// Note, that the first ReplicatedJob in the slice cannot use the DependsOn API.
-	// TODO (andreyvelich): Currently, only a single item is supported in the DependsOn list.
+	// Currently, only a single item is supported in the DependsOn list.
 	// This API is mutually exclusive with the StartupPolicy API.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	// +kubebuilder:validation:MaxItems=1
@@ -262,12 +262,10 @@ type DependsOn struct {
 type DependsOnStatus string
 
 const (
-	// Ready status means the Ready counter equals the number of child Jobs.
-	// .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].ready
+	// Ready status means the Ready + Succeeded + Failed counter equals the number of child Jobs.
 	ReadyStatus DependsOnStatus = "Ready"
 
 	// Complete status means the Succeeded counter equals the number of child Jobs.
-	// .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
 	CompleteStatus DependsOnStatus = "Complete"
 )
 

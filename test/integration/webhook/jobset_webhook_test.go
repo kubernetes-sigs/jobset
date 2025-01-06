@@ -417,7 +417,32 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: true,
 		}),
-		ginkgo.Entry("DependsOn and StartupPolicy can't be set together", &testCase{
+		ginkgo.Entry("DependsOn and StartupPolicy: AnyOrder can be set together", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("depends-on", ns.Name).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.AnyOrder,
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-1").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-2").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						DependsOn([]jobset.DependsOn{
+							{
+								Name:   "rjob-1",
+								Status: jobset.ReadyStatus,
+							},
+						}).
+						Obj())
+			},
+			jobSetCreationShouldFail: false,
+		}),
+		ginkgo.Entry("DependsOn and StartupPolicy: InOrder can't be set together", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("depends-on", ns.Name).
 					StartupPolicy(&jobset.StartupPolicy{
