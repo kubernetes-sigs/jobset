@@ -1489,7 +1489,7 @@ func TestValidateCreate(t *testing.T) {
 
 	dependsOnTests := []validationTestCase{
 		{
-			name: "dependsOn is valid",
+			name: "DependsOn is valid since job-2 depends on job-1 and job-3 depends on job-1",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
@@ -1540,7 +1540,58 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(),
 		},
 		{
-			name: "job-2 depends on job-3",
+			name: "DependsOn is valid since job-2 depends on job-1 and job-3 depends on job-2",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "job-1",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+						{
+							Name: "job-2",
+							DependsOn: []jobset.DependsOn{
+								{
+									Name:   "job-1",
+									Status: "Complete",
+								},
+							},
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+						{
+							Name: "job-3",
+							DependsOn: []jobset.DependsOn{
+								{
+									Name:   "job-2",
+									Status: "Complete",
+								},
+							},
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "DependsOn is invalid since job-2 depends on job-3",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
