@@ -15,24 +15,24 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"context"
+	context "context"
 	time "time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
-	jobsetv1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	apijobsetv1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	versioned "sigs.k8s.io/jobset/client-go/clientset/versioned"
 	internalinterfaces "sigs.k8s.io/jobset/client-go/informers/externalversions/internalinterfaces"
-	v1alpha2 "sigs.k8s.io/jobset/client-go/listers/jobset/v1alpha2"
+	jobsetv1alpha2 "sigs.k8s.io/jobset/client-go/listers/jobset/v1alpha2"
 )
 
 // JobSetInformer provides access to a shared informer and lister for
 // JobSets.
 type JobSetInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha2.JobSetLister
+	Lister() jobsetv1alpha2.JobSetLister
 }
 
 type jobSetInformer struct {
@@ -67,7 +67,7 @@ func NewFilteredJobSetInformer(client versioned.Interface, namespace string, res
 				return client.JobsetV1alpha2().JobSets(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&jobsetv1alpha2.JobSet{},
+		&apijobsetv1alpha2.JobSet{},
 		resyncPeriod,
 		indexers,
 	)
@@ -78,9 +78,9 @@ func (f *jobSetInformer) defaultInformer(client versioned.Interface, resyncPerio
 }
 
 func (f *jobSetInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&jobsetv1alpha2.JobSet{}, f.defaultInformer)
+	return f.factory.InformerFor(&apijobsetv1alpha2.JobSet{}, f.defaultInformer)
 }
 
-func (f *jobSetInformer) Lister() v1alpha2.JobSetLister {
-	return v1alpha2.NewJobSetLister(f.Informer().GetIndexer())
+func (f *jobSetInformer) Lister() jobsetv1alpha2.JobSetLister {
+	return jobsetv1alpha2.NewJobSetLister(f.Informer().GetIndexer())
 }

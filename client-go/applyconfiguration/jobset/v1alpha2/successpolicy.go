@@ -15,14 +15,14 @@ limitations under the License.
 package v1alpha2
 
 import (
-	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobsetv1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
 // SuccessPolicyApplyConfiguration represents a declarative configuration of the SuccessPolicy type for use
 // with apply.
 type SuccessPolicyApplyConfiguration struct {
-	Operator             *v1alpha2.Operator `json:"operator,omitempty"`
-	TargetReplicatedJobs []string           `json:"targetReplicatedJobs,omitempty"`
+	Operator             *jobsetv1alpha2.Operator `json:"operator,omitempty"`
+	TargetReplicatedJobs []string                 `json:"targetReplicatedJobs,omitempty"`
 }
 
 // SuccessPolicyApplyConfiguration constructs a declarative configuration of the SuccessPolicy type for use with
@@ -34,7 +34,7 @@ func SuccessPolicy() *SuccessPolicyApplyConfiguration {
 // WithOperator sets the Operator field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Operator field is set to the value of the last call.
-func (b *SuccessPolicyApplyConfiguration) WithOperator(value v1alpha2.Operator) *SuccessPolicyApplyConfiguration {
+func (b *SuccessPolicyApplyConfiguration) WithOperator(value jobsetv1alpha2.Operator) *SuccessPolicyApplyConfiguration {
 	b.Operator = &value
 	return b
 }
