@@ -127,10 +127,26 @@ func TestIsJobFinished(t *testing.T) {
 
 func TestConstructJobsFromTemplate(t *testing.T) {
 	var (
-		jobSetName          = "test-jobset"
-		replicatedJobName   = "replicated-job"
-		jobName             = "test-job"
-		ns                  = "default"
+		jobSetName        = "test-jobset"
+		replicatedJobName = "replicated-job"
+		jobName           = "test-job"
+		ns                = "default"
+		jobAnnotations    = map[string]string{
+			"job-annotation-key1": "job-annotation-value1",
+			"job-annotation-key2": "job-annotation-value2",
+		}
+		jobLabels = map[string]string{
+			"job-label-key1": "job-label-value1",
+			"job-label-key2": "job-label-value2",
+		}
+		podAnnotations = map[string]string{
+			"pod-annotation-key1": "pod-annotation-value1",
+			"pod-annotation-key2": "pod-annotation-value2",
+		}
+		podLabels = map[string]string{
+			"pod-label-key1": "pod-label-value1",
+			"pod-label-key2": "pod-label-value2",
+		}
 		topologyDomain      = "test-topology-domain"
 		coordinatorKeyValue = map[string]string{
 			jobset.CoordinatorKey: fmt.Sprintf("%s-%s-%d-%d.%s", jobSetName, replicatedJobName, 0, 0, jobSetName),
@@ -178,6 +194,46 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					replicatedJobName: replicatedJobName,
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
+					replicas:          2,
+					jobIdx:            1}).
+					Suspend(false).Obj(),
+			},
+		},
+		{
+			name: "all jobs/pods created with labels and annotations",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).
+						SetLabels(jobLabels).
+						SetPodLabels(podLabels).
+						SetAnnotations(jobAnnotations).
+						SetPodAnnotations(podAnnotations).
+						Obj()).
+					Replicas(2).
+					Obj()).Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					jobLabels:         jobLabels,
+					jobAnnotations:    jobAnnotations,
+					podLabels:         podLabels,
+					podAnnotations:    podAnnotations,
+					replicas:          2,
+					jobIdx:            0}).
+					Suspend(false).Obj(),
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-jobset-replicated-job-1",
+					ns:                ns,
+					jobLabels:         jobLabels,
+					jobAnnotations:    jobAnnotations,
+					podLabels:         podLabels,
+					podAnnotations:    podAnnotations,
 					replicas:          2,
 					jobIdx:            1}).
 					Suspend(false).Obj(),
@@ -1251,6 +1307,10 @@ type makeJobArgs struct {
 	replicatedJobName    string
 	jobName              string
 	ns                   string
+	jobLabels            map[string]string
+	jobAnnotations       map[string]string
+	podLabels            map[string]string
+	podAnnotations       map[string]string
 	replicas             int
 	jobIdx               int
 	restarts             int
@@ -1286,8 +1346,12 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	}
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).
 		JobLabels(labels).
+		JobLabels(args.jobLabels).
 		JobAnnotations(annotations).
+		JobAnnotations(args.jobAnnotations).
 		PodLabels(labels).
+		PodLabels(args.podLabels).
+		PodAnnotations(args.podAnnotations).
 		PodAnnotations(annotations)
 	return jobWrapper
 }
