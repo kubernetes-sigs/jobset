@@ -136,7 +136,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			"job-annotation-key2": "job-annotation-value2",
 		}
 		jobLabels = map[string]string{
-                         "job-label-key1": "job-label-value1",
+			"job-label-key1": "job-label-value1",
 			"job-label-key2": "job-label-value2",
 		}
 		podAnnotations = map[string]string{
@@ -144,7 +144,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			"pod-annotation-key2": "pod-annotation-value2",
 		}
 		podLabels = map[string]string{
-                        "pod-label-key1": "pod-label-value1",
+			"pod-label-key1": "pod-label-value1",
 			"pod-label-key2": "pod-label-value2",
 		}
 		topologyDomain      = "test-topology-domain"
