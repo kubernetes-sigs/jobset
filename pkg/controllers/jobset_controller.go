@@ -258,9 +258,7 @@ func (r *JobSetReconciler) updateJobSetStatus(ctx context.Context, js *jobset.Jo
 	if updateStatusOpts.shouldUpdate {
 		// Make single API call to persist the JobSet status update.
 		if err := r.Status().Update(ctx, js); err != nil {
-			if apierrors.IsConflict(err) {
-				log.Error(err, "updating jobset status hit conflict error")
-			} else {
+			if !apierrors.IsConflict(err) {
 				log.Error(err, "updating jobset status")
 			}
 			return err
