@@ -16,6 +16,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -43,6 +44,13 @@ var (
 	ctx       context.Context
 )
 
+func getNamespace() string {
+	namespace := os.Getenv("NAMESPACE")
+	if namespace == "" {
+		namespace = "jobset-system"
+	}
+	return namespace
+}
 func TestAPIs(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t,
@@ -67,7 +75,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 func jobSetReadyForTesting(k8sClient client.Client) {
 	ginkgo.By("waiting for resources to be ready for testing")
-	deploymentKey := types.NamespacedName{Namespace: "jobset-system", Name: "jobset-controller-manager"}
+	deploymentKey := types.NamespacedName{Namespace: getNamespace(), Name: "jobset-controller-manager"}
 	deployment := &appsv1.Deployment{}
 	pods := &corev1.PodList{}
 	gomega.Eventually(func(g gomega.Gomega) error {
