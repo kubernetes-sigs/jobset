@@ -30,6 +30,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -125,8 +126,11 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return result, err
 	}
 
+	if err := r.updateJobSetStatus(ctx, &js, &updateStatusOpts); apierrors.IsConflict(err) {
+		return ctrl.Result{Requeue: true}, nil
+	}
 	// At the end of this Reconcile attempt, do one API call to persist all the JobSet status changes.
-	return ctrl.Result{RequeueAfter: result.RequeueAfter}, r.updateJobSetStatus(ctx, &js, &updateStatusOpts)
+	return ctrl.Result{RequeueAfter: result.RequeueAfter}, err
 }
 
 // reconcile is the internal method containing the core JobSet reconciliation logic.
@@ -254,7 +258,9 @@ func (r *JobSetReconciler) updateJobSetStatus(ctx context.Context, js *jobset.Jo
 	if updateStatusOpts.shouldUpdate {
 		// Make single API call to persist the JobSet status update.
 		if err := r.Status().Update(ctx, js); err != nil {
-			log.Error(err, "updating jobset status")
+			if !apierrors.IsConflict(err) {
+				log.Error(err, "updating jobset status")
+			}
 			return err
 		}
 		// If the status update was successful, emit any enqueued events.
