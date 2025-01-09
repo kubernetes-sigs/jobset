@@ -8,7 +8,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
-func TestIsDependsOnJobReachedStatus(t *testing.T) {
+func TestDependencyReachedStatus(t *testing.T) {
 	tests := []struct {
 		name                 string
 		dependsOnJob         jobset.DependsOn
@@ -19,7 +19,7 @@ func TestIsDependsOnJobReachedStatus(t *testing.T) {
 		{
 			name: "status for ReplicatedJob is nil",
 			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.CompleteStatus,
+				Name: "initializer", Status: jobset.DependencyComplete,
 			},
 			dependsOnJobReplicas: 1,
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
@@ -37,7 +37,7 @@ func TestIsDependsOnJobReachedStatus(t *testing.T) {
 		{
 			name: "depends on ReplicatedJob reaches complete status",
 			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.CompleteStatus,
+				Name: "initializer", Status: jobset.DependencyComplete,
 			},
 			dependsOnJobReplicas: 2,
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
@@ -55,7 +55,7 @@ func TestIsDependsOnJobReachedStatus(t *testing.T) {
 		{
 			name: "depends on ReplicatedJob doesn't reach complete status",
 			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.CompleteStatus,
+				Name: "initializer", Status: jobset.DependencyComplete,
 			},
 			dependsOnJobReplicas: 2,
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
@@ -73,7 +73,7 @@ func TestIsDependsOnJobReachedStatus(t *testing.T) {
 		{
 			name: "depends on ReplicatedJob reaches ready status",
 			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.ReadyStatus,
+				Name: "initializer", Status: jobset.DependencyReady,
 			},
 			dependsOnJobReplicas: 3,
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
@@ -91,7 +91,7 @@ func TestIsDependsOnJobReachedStatus(t *testing.T) {
 		{
 			name: "depends on ReplicatedJob doesn't reach ready status",
 			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.ReadyStatus,
+				Name: "initializer", Status: jobset.DependencyReady,
 			},
 			dependsOnJobReplicas: 3,
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
@@ -109,7 +109,7 @@ func TestIsDependsOnJobReachedStatus(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := isDependsOnJobReachedStatus(tc.dependsOnJob, tc.dependsOnJobReplicas, tc.rJobsStatuses)
+			actual := dependencyReachedStatus(tc.dependsOnJob, tc.dependsOnJobReplicas, tc.rJobsStatuses)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}

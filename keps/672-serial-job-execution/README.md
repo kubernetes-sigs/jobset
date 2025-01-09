@@ -330,11 +330,11 @@ type DependsOnStatus string
 const (
  // Ready status means the Ready counter equals the number of child Jobs.
  // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].ready
- ReadyStatus DependsOnStatus = "Ready"
+ DependencyReady DependsOnStatus = "Ready"
 
  // Complete status means the Succeeded counter equals the number of child Jobs.
  // .spec.replicatedJobs["name==<JOB_NAME>"].replicas == .status.replicatedJobsStatus.name["name==<JOB_NAME>"].succeeded
- CompleteStatus DependsOnStatus = "Complete"
+ DependencyComplete DependsOnStatus = "Complete"
 )
 ```
 

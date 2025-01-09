@@ -1686,7 +1686,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						DependsOn([]jobset.DependsOn{
 							{
 								Name:   "rjob-a",
-								Status: jobset.ReadyStatus,
+								Status: jobset.DependencyReady,
 							},
 						}).
 						Obj())
@@ -1766,7 +1766,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						DependsOn([]jobset.DependsOn{
 							{
 								Name:   "rjob-a",
-								Status: jobset.CompleteStatus,
+								Status: jobset.DependencyComplete,
 							},
 						}).
 						Obj()).
@@ -1776,7 +1776,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						DependsOn([]jobset.DependsOn{
 							{
 								Name:   "rjob-b",
-								Status: jobset.ReadyStatus,
+								Status: jobset.DependencyReady,
 							},
 						}).
 						Obj())
@@ -1889,7 +1889,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						DependsOn([]jobset.DependsOn{
 							{
 								Name:   "rjob-a",
-								Status: jobset.ReadyStatus,
+								Status: jobset.DependencyReady,
 							},
 						}).
 						Obj()).

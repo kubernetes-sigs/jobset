@@ -262,11 +262,13 @@ type DependsOn struct {
 type DependsOnStatus string
 
 const (
-	// Ready status means the Ready + Succeeded + Failed counter equals the number of child Jobs.
-	ReadyStatus DependsOnStatus = "Ready"
+	// DependencyReady means the Ready + Succeeded + Failed counter
+	// equals the number of child Jobs of the dependant ReplicatedJob.
+	DependencyReady DependsOnStatus = "Ready"
 
-	// Complete status means the Succeeded counter equals the number of child Jobs.
-	CompleteStatus DependsOnStatus = "Complete"
+	// DependencyComplete means the Succeeded counter
+	// equals the number of child Jobs of the dependant ReplicatedJob.
+	DependencyComplete DependsOnStatus = "Complete"
 )
 
 type Network struct {

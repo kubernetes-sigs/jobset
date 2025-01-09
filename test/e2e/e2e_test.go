@@ -287,7 +287,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 				[]jobset.DependsOn{
 					{
 						Name:   jobA,
-						Status: jobset.CompleteStatus,
+						Status: jobset.DependencyComplete,
 					},
 				})
 

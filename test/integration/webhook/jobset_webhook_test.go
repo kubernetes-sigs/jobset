@@ -435,7 +435,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						DependsOn([]jobset.DependsOn{
 							{
 								Name:   "rjob-1",
-								Status: jobset.ReadyStatus,
+								Status: jobset.DependencyReady,
 							},
 						}).
 						Obj())
@@ -460,7 +460,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						DependsOn([]jobset.DependsOn{
 							{
 								Name:   "rjob-1",
-								Status: jobset.ReadyStatus,
+								Status: jobset.DependencyReady,
 							},
 						}).
 						Obj())
@@ -477,7 +477,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						DependsOn([]jobset.DependsOn{
 							{
 								Name:   "rjob-1",
-								Status: jobset.ReadyStatus,
+								Status: jobset.DependencyReady,
 							},
 						}).
 						Obj())
@@ -504,11 +504,11 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						DependsOn([]jobset.DependsOn{
 							{
 								Name:   "rjob-1",
-								Status: jobset.CompleteStatus,
+								Status: jobset.DependencyComplete,
 							},
 							{
 								Name:   "rjob-2",
-								Status: jobset.CompleteStatus,
+								Status: jobset.DependencyComplete,
 							},
 						}).
 						Obj())
@@ -553,13 +553,13 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						DependsOn([]jobset.DependsOn{
 							{
 								Name:   "rjob-1",
-								Status: jobset.ReadyStatus,
+								Status: jobset.DependencyReady,
 							},
 						}).
 						Obj())
 			},
 			updateJobSet: func(js *jobset.JobSet) {
-				js.Spec.ReplicatedJobs[1].DependsOn[0] = jobset.DependsOn{Name: "rjob-1", Status: jobset.CompleteStatus}
+				js.Spec.ReplicatedJobs[1].DependsOn[0] = jobset.DependsOn{Name: "rjob-1", Status: jobset.DependencyComplete}
 			},
 			updateShouldFail: true,
 		}),
