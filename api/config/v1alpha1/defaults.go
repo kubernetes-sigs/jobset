@@ -17,8 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"os"
-	"strings"
 	"time"
 
 	configv1alpha1 "k8s.io/component-base/config/v1alpha1"
@@ -26,7 +24,6 @@ import (
 )
 
 const (
-	DefaultNamespace                           = "jobset-system"
 	DefaultWebhookServiceName                  = "jobset-webhook-service"
 	DefaultWebhookSecretName                   = "jobset-webhook-server-cert"
 	DefaultWebhookPort                         = 9443
@@ -41,22 +38,10 @@ const (
 	DefaultClientConnectionBurst       int32   = 500
 )
 
-func getOperatorNamespace() string {
-	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
-			return ns
-		}
-	}
-	return DefaultNamespace
-}
-
 // SetDefaults_Configuration sets default values for ComponentConfig.
 //
 //nolint:revive // format required by generated code for defaulting
 func SetDefaults_Configuration(cfg *Configuration) {
-	if cfg.Namespace == nil {
-		cfg.Namespace = ptr.To(getOperatorNamespace())
-	}
 	if cfg.Webhook.Port == nil {
 		cfg.Webhook.Port = ptr.To(DefaultWebhookPort)
 	}

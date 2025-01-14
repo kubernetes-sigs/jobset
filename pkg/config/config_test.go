@@ -237,7 +237,6 @@ webhook:
 			name:       "default config",
 			configFile: "",
 			wantConfiguration: configapi.Configuration{
-				Namespace:              ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: enableDefaultInternalCertManagement,
 				ClientConnection:       defaultClientConnection,
 			},
@@ -276,7 +275,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace:              ptr.To("jobset-tenant-a"),
 				InternalCertManagement: enableDefaultInternalCertManagement,
 				ClientConnection:       defaultClientConnection,
 			},
@@ -290,7 +288,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace:              ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: enableDefaultInternalCertManagement,
 				ClientConnection:       defaultClientConnection,
 			},
@@ -320,7 +317,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace: ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: &configapi.InternalCertManagement{
 					Enable:             ptr.To(true),
 					WebhookServiceName: ptr.To("jobset-tenant-a-webhook-service"),
@@ -338,7 +334,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace: ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: &configapi.InternalCertManagement{
 					Enable: ptr.To(false),
 				},
@@ -354,7 +349,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace:              ptr.To("jobset-system"),
 				InternalCertManagement: enableDefaultInternalCertManagement,
 				ClientConnection:       defaultClientConnection,
 			},
@@ -384,7 +378,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace:              ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: enableDefaultInternalCertManagement,
 				ClientConnection: &configapi.ClientConnection{
 					QPS:   ptr.To[float32](50),
@@ -461,7 +454,6 @@ func TestEncode(t *testing.T) {
 			wantResult: map[string]any{
 				"apiVersion": "config.jobset.x-k8s.io/v1alpha1",
 				"kind":       "Configuration",
-				"namespace":  configapi.DefaultNamespace,
 				"webhook": map[string]any{
 					"port": int64(configapi.DefaultWebhookPort),
 				},

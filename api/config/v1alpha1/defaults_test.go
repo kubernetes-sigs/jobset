@@ -26,7 +26,6 @@ import (
 )
 
 const (
-	overwriteNamespace              = "jobset-tenant-a"
 	overwriteWebhookPort            = 9444
 	overwriteMetricBindAddress      = ":38081"
 	overwriteHealthProbeBindAddress = ":38080"
@@ -69,7 +68,6 @@ func TestSetDefaults_Configuration(t *testing.T) {
 				},
 			},
 			want: &Configuration{
-				Namespace:         ptr.To(DefaultNamespace),
 				ControllerManager: defaultCtrlManagerConfigurationSpec,
 				InternalCertManagement: &InternalCertManagement{
 					Enable: ptr.To(false),
@@ -89,7 +87,6 @@ func TestSetDefaults_Configuration(t *testing.T) {
 				},
 			},
 			want: &Configuration{
-				Namespace: ptr.To(DefaultNamespace),
 				ControllerManager: ControllerManager{
 					Webhook: ControllerWebhook{
 						Port: ptr.To(DefaultWebhookPort),
@@ -141,7 +138,6 @@ func TestSetDefaults_Configuration(t *testing.T) {
 				},
 			},
 			want: &Configuration{
-				Namespace: ptr.To(DefaultNamespace),
 				ControllerManager: ControllerManager{
 					Webhook: ControllerWebhook{
 						Port: ptr.To(overwriteWebhookPort),
@@ -179,7 +175,6 @@ func TestSetDefaults_Configuration(t *testing.T) {
 				},
 			},
 			want: &Configuration{
-				Namespace: ptr.To(DefaultNamespace),
 				ControllerManager: ControllerManager{
 					Webhook: ControllerWebhook{
 						Port: ptr.To(DefaultWebhookPort),
@@ -206,11 +201,8 @@ func TestSetDefaults_Configuration(t *testing.T) {
 			},
 		},
 		"defaulting InternalCertManagement": {
-			original: &Configuration{
-				Namespace: ptr.To(overwriteNamespace),
-			},
+			original: &Configuration{},
 			want: &Configuration{
-				Namespace:         ptr.To(overwriteNamespace),
 				ControllerManager: defaultCtrlManagerConfigurationSpec,
 				InternalCertManagement: &InternalCertManagement{
 					Enable:             ptr.To(true),
@@ -222,13 +214,11 @@ func TestSetDefaults_Configuration(t *testing.T) {
 		},
 		"should not default InternalCertManagement": {
 			original: &Configuration{
-				Namespace: ptr.To(overwriteNamespace),
 				InternalCertManagement: &InternalCertManagement{
 					Enable: ptr.To(false),
 				},
 			},
 			want: &Configuration{
-				Namespace:         ptr.To(overwriteNamespace),
 				ControllerManager: defaultCtrlManagerConfigurationSpec,
 				InternalCertManagement: &InternalCertManagement{
 					Enable: ptr.To(false),
@@ -238,7 +228,6 @@ func TestSetDefaults_Configuration(t *testing.T) {
 		},
 		"should not default values in custom ClientConnection": {
 			original: &Configuration{
-				Namespace: ptr.To(overwriteNamespace),
 				InternalCertManagement: &InternalCertManagement{
 					Enable: ptr.To(false),
 				},
@@ -248,7 +237,6 @@ func TestSetDefaults_Configuration(t *testing.T) {
 				},
 			},
 			want: &Configuration{
-				Namespace:         ptr.To(overwriteNamespace),
 				ControllerManager: defaultCtrlManagerConfigurationSpec,
 				InternalCertManagement: &InternalCertManagement{
 					Enable: ptr.To(false),
@@ -261,14 +249,12 @@ func TestSetDefaults_Configuration(t *testing.T) {
 		},
 		"should default empty custom ClientConnection": {
 			original: &Configuration{
-				Namespace: ptr.To(overwriteNamespace),
 				InternalCertManagement: &InternalCertManagement{
 					Enable: ptr.To(false),
 				},
 				ClientConnection: &ClientConnection{},
 			},
 			want: &Configuration{
-				Namespace:         ptr.To(overwriteNamespace),
 				ControllerManager: defaultCtrlManagerConfigurationSpec,
 				InternalCertManagement: &InternalCertManagement{
 					Enable: ptr.To(false),

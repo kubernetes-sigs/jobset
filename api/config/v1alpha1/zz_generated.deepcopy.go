@@ -51,11 +51,6 @@ func (in *ClientConnection) DeepCopy() *ClientConnection {
 func (in *Configuration) DeepCopyInto(out *Configuration) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	if in.Namespace != nil {
-		in, out := &in.Namespace, &out.Namespace
-		*out = new(string)
-		**out = **in
-	}
 	in.ControllerManager.DeepCopyInto(&out.ControllerManager)
 	if in.InternalCertManagement != nil {
 		in, out := &in.InternalCertManagement, &out.InternalCertManagement
