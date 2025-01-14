@@ -19,12 +19,11 @@ import (
 	cert "github.com/open-policy-agent/cert-controller/pkg/rotator"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	config "sigs.k8s.io/jobset/api/config/v1alpha1"
 )
 
 const (
-	serviceName             = "jobset-webhook-service"
-	secretName              = "jobset-webhook-server-cert"
-	secretNamespace         = "jobset-system"
 	certDir                 = "/tmp/k8s-webhook-server/serving-certs"
 	validateWebhookConfName = "jobset-validating-webhook-configuration"
 	mutatingWebhookConfName = "jobset-mutating-webhook-configuration"
@@ -32,19 +31,18 @@ const (
 	caOrg                   = "jobset"
 )
 
-// dnsName is the format of <service name>.<namespace>.svc
-var dnsName = fmt.Sprintf("%s.%s.svc", serviceName, secretNamespace)
-
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update
 //+kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=get;list;watch;update
 //+kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;update
 
 // CertsManager creates certs for webhooks.
-func CertsManager(mgr ctrl.Manager, setupFinish chan struct{}) error {
+func CertsManager(mgr ctrl.Manager, cfg config.Configuration, setupFinish chan struct{}) error {
+	// DNSName is <service name>.<namespace>.svc
+	var dnsName = fmt.Sprintf("%s.%s.svc", *cfg.InternalCertManagement.WebhookServiceName, *cfg.Namespace)
 	return cert.AddRotator(mgr, &cert.CertRotator{
 		SecretKey: types.NamespacedName{
-			Namespace: secretNamespace,
-			Name:      secretName,
+			Namespace: *cfg.Namespace,
+			Name:      *cfg.InternalCertManagement.WebhookSecretName,
 		},
 		CertDir:        certDir,
 		CAName:         caName,
