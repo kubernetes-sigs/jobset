@@ -48,29 +48,10 @@ func TestLoad(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	namespaceOverWriteConfig := filepath.Join(tmpDir, "namespace-overwrite.yaml")
-	if err := os.WriteFile(namespaceOverWriteConfig, []byte(`
-apiVersion: config.jobset.x-k8s.io/v1alpha1
-kind: Configuration
-namespace: jobset-tenant-a
-health:
-  healthProbeBindAddress: :8081
-metrics:
-  bindAddress: :8080
-leaderElection:
-  leaderElect: true
-  resourceName: 6d4f6a47.jobset.x-k8s.io
-webhook:
-  port: 9443
-`), os.FileMode(0600)); err != nil {
-		t.Fatal(err)
-	}
-
 	ctrlManagerConfigSpecOverWriteConfig := filepath.Join(tmpDir, "ctrl-manager-config-spec-overwrite.yaml")
 	if err := os.WriteFile(ctrlManagerConfigSpecOverWriteConfig, []byte(`
 apiVersion: config.jobset.x-k8s.io/v1alpha1
 kind: Configuration
-namespace: jobset-system
 health:
   healthProbeBindAddress: :38081
 metrics:
@@ -88,7 +69,6 @@ webhook:
 	if err := os.WriteFile(certOverWriteConfig, []byte(`
 apiVersion: config.jobset.x-k8s.io/v1alpha1
 kind: Configuration
-namespace: jobset-system
 health:
   healthProbeBindAddress: :8081
 metrics:
@@ -110,7 +90,6 @@ internalCertManagement:
 	if err := os.WriteFile(disableCertOverWriteConfig, []byte(`
 apiVersion: config.jobset.x-k8s.io/v1alpha1
 kind: Configuration
-namespace: jobset-system
 health:
   healthProbeBindAddress: :8081
 metrics:
@@ -130,7 +109,6 @@ internalCertManagement:
 	if err := os.WriteFile(leaderElectionDisabledConfig, []byte(`
 apiVersion: config.jobset.x-k8s.io/v1alpha1
 kind: Configuration
-namespace: jobset-system
 health:
   healthProbeBindAddress: :8081
 metrics:
@@ -147,7 +125,6 @@ webhook:
 	if err := os.WriteFile(clientConnectionConfig, []byte(`
 apiVersion: config.jobset.x-k8s.io/v1alpha1
 kind: Configuration
-namespace: jobset-system
 health:
   healthProbeBindAddress: :8081
 metrics:
@@ -168,7 +145,6 @@ clientConnection:
 	if err := os.WriteFile(invalidConfig, []byte(`
 apiVersion: config.jobset.x-k8s.io/v1alpha1
 kind: Configuration
-namespaces: jobset-system
 invalidField: invalidValue
 health:
   healthProbeBindAddress: :8081
@@ -237,7 +213,6 @@ webhook:
 			name:       "default config",
 			configFile: "",
 			wantConfiguration: configapi.Configuration{
-				Namespace:              ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: enableDefaultInternalCertManagement,
 				ClientConnection:       defaultClientConnection,
 			},
@@ -269,20 +244,6 @@ webhook:
 			},
 		},
 		{
-			name:       "namespace overwrite config",
-			configFile: namespaceOverWriteConfig,
-			wantConfiguration: configapi.Configuration{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: configapi.GroupVersion.String(),
-					Kind:       "Configuration",
-				},
-				Namespace:              ptr.To("jobset-tenant-a"),
-				InternalCertManagement: enableDefaultInternalCertManagement,
-				ClientConnection:       defaultClientConnection,
-			},
-			wantOptions: defaultControlOptions,
-		},
-		{
 			name:       "ControllerManagerConfigurationSpec overwrite config",
 			configFile: ctrlManagerConfigSpecOverWriteConfig,
 			wantConfiguration: configapi.Configuration{
@@ -290,7 +251,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace:              ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: enableDefaultInternalCertManagement,
 				ClientConnection:       defaultClientConnection,
 			},
@@ -320,7 +280,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace: ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: &configapi.InternalCertManagement{
 					Enable:             ptr.To(true),
 					WebhookServiceName: ptr.To("jobset-tenant-a-webhook-service"),
@@ -338,7 +297,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace: ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: &configapi.InternalCertManagement{
 					Enable: ptr.To(false),
 				},
@@ -354,7 +312,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace:              ptr.To("jobset-system"),
 				InternalCertManagement: enableDefaultInternalCertManagement,
 				ClientConnection:       defaultClientConnection,
 			},
@@ -384,7 +341,6 @@ webhook:
 					APIVersion: configapi.GroupVersion.String(),
 					Kind:       "Configuration",
 				},
-				Namespace:              ptr.To(configapi.DefaultNamespace),
 				InternalCertManagement: enableDefaultInternalCertManagement,
 				ClientConnection: &configapi.ClientConnection{
 					QPS:   ptr.To[float32](50),
@@ -398,7 +354,6 @@ webhook:
 			configFile: invalidConfig,
 			wantError: runtime.NewStrictDecodingError([]error{
 				errors.New("unknown field \"invalidField\""),
-				errors.New("unknown field \"namespaces\""),
 			}),
 		},
 	}
@@ -461,7 +416,6 @@ func TestEncode(t *testing.T) {
 			wantResult: map[string]any{
 				"apiVersion": "config.jobset.x-k8s.io/v1alpha1",
 				"kind":       "Configuration",
-				"namespace":  configapi.DefaultNamespace,
 				"webhook": map[string]any{
 					"port": int64(configapi.DefaultWebhookPort),
 				},

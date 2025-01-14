@@ -15,6 +15,8 @@ package cert
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	cert "github.com/open-policy-agent/cert-controller/pkg/rotator"
 	"k8s.io/apimachinery/pkg/types"
@@ -24,6 +26,7 @@ import (
 )
 
 const (
+	defaultNamespace        = "jobset-system"
 	certDir                 = "/tmp/k8s-webhook-server/serving-certs"
 	validateWebhookConfName = "jobset-validating-webhook-configuration"
 	mutatingWebhookConfName = "jobset-mutating-webhook-configuration"
@@ -31,17 +34,29 @@ const (
 	caOrg                   = "jobset"
 )
 
+func getOperatorNamespace() string {
+	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
+			return ns
+		}
+	}
+	return defaultNamespace
+}
+
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update
 //+kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=get;list;watch;update
 //+kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;update
 
 // CertsManager creates certs for webhooks.
 func CertsManager(mgr ctrl.Manager, cfg config.Configuration, setupFinish chan struct{}) error {
+	// Webhook and controller must be deployed in the same namespace.
+	namespace := getOperatorNamespace()
+
 	// DNSName is <service name>.<namespace>.svc
-	var dnsName = fmt.Sprintf("%s.%s.svc", *cfg.InternalCertManagement.WebhookServiceName, *cfg.Namespace)
+	var dnsName = fmt.Sprintf("%s.%s.svc", *cfg.InternalCertManagement.WebhookServiceName, namespace)
 	return cert.AddRotator(mgr, &cert.CertRotator{
 		SecretKey: types.NamespacedName{
-			Namespace: *cfg.Namespace,
+			Namespace: namespace,
 			Name:      *cfg.InternalCertManagement.WebhookSecretName,
 		},
 		CertDir:        certDir,
