@@ -33,15 +33,6 @@ Here we have some simple examples demonstrating core JobSet features.
   the correct sequence. This is important for implementing the leader-worker paradigm in distributed
   ML training, where workers need to register with the leader immediately after spawning.
 
-  The `DependsOn` API has these rules:
-
-  - The first ReplicatedJob in the sequence cannot include a `DependsOn` configuration.
-
-  - Each ReplicatedJob can depend on only **one other** ReplicatedJob.
-
-  - A ReplicatedJob can depend only on the Ready of Complete status of previously defined
-    ReplicatedJob in the sequence.
-
 - [Startup Policy (DEPRECATED)](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/startup-policy/startup-driver-ready.yaml) demonstrates how we can define a startup order for ReplicatedJobs in order to ensure a "leader"
   pod is running before the "workers" are created. **Note:** Startup Policy is deprecated, please use the DependsOn API.
 
