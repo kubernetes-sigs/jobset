@@ -115,10 +115,8 @@ func main() {
 	kubeConfig.QPS = *cfg.ClientConnection.QPS
 	kubeConfig.Burst = int(*cfg.ClientConnection.Burst)
 
-	if flagsSet["metrics-bind-address"] {
-		options.Metrics.BindAddress = metricsAddr
-	} else {
-		options.Metrics.BindAddress = cfg.Metrics.BindAddress
+	if !flagsSet["metrics-bind-address"] {
+		metricsAddr = cfg.Metrics.BindAddress
 	}
 
 	if flagsSet["health-probe-bind-address"] {
