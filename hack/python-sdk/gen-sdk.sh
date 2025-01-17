@@ -23,8 +23,6 @@ set -x
 
 repo_root="$(pwd)"
 
-SWAGGER_JAR_URL="https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/4.3.1/openapi-generator-cli-4.3.1.jar"
-SWAGGER_CODEGEN_JAR="${repo_root}/hack/python-sdk/openapi-generator-cli.jar"
 SWAGGER_CODEGEN_CONF="${repo_root}/hack/python-sdk/swagger_config.json"
 SDK_OUTPUT_PATH="${repo_root}/sdk/python"
 VERSION=0.1.4
@@ -37,18 +35,6 @@ fi
 echo "Generating OpenAPI specification ..."
 echo "./hack/update-codegen.sh already help us generate openapi specs ..."
 
-if [[ ! -f "$SWAGGER_CODEGEN_JAR" ]]; then
-  echo "Downloading the swagger-codegen JAR package ..."
-  wget -O "${SWAGGER_CODEGEN_JAR}" ${SWAGGER_JAR_URL}
-fi
-
-if [ -z `which java` ]; then
-  apt-get update -y
-  # TODO: update this fallback (remove it) when openjdk-11 completely deprecated
-  echo "Installing OpenJDK 11 with fallback to OpenJDK 17"
-  apt-get install -y openjdk-11-jdk || apt-get install -y openjdk-17-jdk
-fi
-
 echo "Generating swagger file ..."
 go run "${repo_root}"/hack/swagger/main.go ${VERSION} >"${SWAGGER_CODEGEN_FILE}"
 
@@ -56,7 +42,17 @@ echo "Removing previously generated files ..."
 rm -rf "${SDK_OUTPUT_PATH}"/docs/V1*.md "${SDK_OUTPUT_PATH}"/jobset/models "${SDK_OUTPUT_PATH}"/test/test_*.py
 
 echo "Generating Python SDK for JobSet..."
-java -jar "${SWAGGER_CODEGEN_JAR}" generate -i ${SWAGGER_CODEGEN_FILE} -g python -o "${SDK_OUTPUT_PATH}" -c "${SWAGGER_CODEGEN_CONF}"
+
+# Defaults the container engine to docker
+CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
+
+# Install the sdk using docker, using the user that is running the container engine so that files can still be removed
+${CONTAINER_ENGINE} run --user $(id -u):$(id -g) --rm \
+  -v "${repo_root}":/local docker.io/openapitools/openapi-generator-cli generate \
+  -i /local/hack/python-sdk/swagger.json \
+  -g python \
+  -o /local/sdk/python \
+  -c local/hack/python-sdk/swagger_config.json
 
 echo "Running post-generation script ..."
 "${repo_root}"/hack/python-sdk/post_gen.py
@@ -64,4 +60,4 @@ echo "Running post-generation script ..."
 echo "JobSet Python SDK is generated successfully to folder ${SDK_OUTPUT_PATH}/."
 
 # Remove setup.py
-rm ${SDK_OUTPUT_PATH}/setup.py
+rm "${SDK_OUTPUT_PATH}"/setup.py
