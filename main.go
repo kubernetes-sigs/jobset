@@ -135,9 +135,13 @@ func main() {
 	}
 
 	certsReady := make(chan struct{})
-	if err = cert.CertsManager(mgr, cfg, certsReady); err != nil {
-		setupLog.Error(err, "unable to setup cert rotation")
-		os.Exit(1)
+	if cfg.InternalCertManagement != nil && *cfg.InternalCertManagement.Enable {
+		if err = cert.CertsManager(mgr, cfg, certsReady); err != nil {
+			setupLog.Error(err, "Unable to set up cert rotation")
+			os.Exit(1)
+		}
+	} else {
+		close(certsReady)
 	}
 
 	ctx := ctrl.SetupSignalHandler()
