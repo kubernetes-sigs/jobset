@@ -1,0 +1,15 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+The JobSet controller is now deployed in your cluster.
+
+To verify that the controller is running, you can use:
+
+  kubectl get deployment {{ include "jobset.fullname" . }}-controller-manager
+
+{{- if .Values.metrics.enabled }}
+To access the metrics endpoint:
+
+  kubectl port-forward svc/{{ include "jobset.fullname" . }}-metrics-service {{ .Values.metrics.service.port }}:{{ .Values.metrics.service.port }}
+{{- end }}
