@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "jobset.fullname" . }}-controller-manager
+  labels:
+    {{- include "jobset.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "jobset.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "jobset.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      serviceAccountName: {{ include "jobset.serviceAccountName" . }}
+      containers:
+        - name: manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- if .Values.leaderElection.enabled }}
+            - --leader-elect
+            - --leader-election-id={{ .Values.leaderElection.resourceName }}
+            {{- end }}
+          ports:
+            - containerPort: {{ .Values.manager.healthProbe.port }}
+              name: health
+              protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - containerPort: {{ .Values.metrics.service.port }}
+              name: metrics
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.webhook.enabled }}
+            - containerPort: {{ .Values.webhook.port }}
+              name: webhook
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.manager.healthProbe.livenessPath }}
+              port: {{ .Values.manager.healthProbe.port }}
+            initialDelaySeconds: {{ .Values.manager.healthProbe.livenessInitialDelay }}
+            timeoutSeconds: {{ .Values.manager.healthProbe.livenessTimeout }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.manager.healthProbe.readinessPath }}
+              port: {{ .Values.manager.healthProbe.port }}
+            initialDelaySeconds: {{ .Values.manager.healthProbe.readinessInitialDelay }}
+            timeoutSeconds: {{ .Values.manager.healthProbe.readinessTimeout }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.webhook.enabled }}
+          volumeMounts:
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+          {{- end }}
+      {{- if .Values.webhook.enabled }}
+      volumes:
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: {{ include "jobset.fullname" . }}-webhook-cert
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
