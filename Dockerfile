@@ -6,7 +6,6 @@ FROM --platform=${BUILDPLATFORM} ${BUILDER_IMAGE} AS builder
 ARG TARGETARCH
 
 WORKDIR /workspace
-
 COPY . .
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command
