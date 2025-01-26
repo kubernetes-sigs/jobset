@@ -134,7 +134,7 @@ test-python-sdk:
 
 .PHONY: verify
 verify: vet fmt-verify ci-lint manifests generate toc-verify generate-apiref
-	git --no-pager diff --exit-code config api client-go
+	git --no-pager diff --exit-code config api client-go sdk
 	
 
 ##@ Build
