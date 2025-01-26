@@ -6,8 +6,10 @@ FROM --platform=${BUILDPLATFORM} ${BUILDER_IMAGE} AS builder
 ARG TARGETARCH
 
 WORKDIR /workspace
-
+# cache deps before building so that we don't need to re-download as much
+# and so that source changes don't invalidate our downloaded layer
 COPY . .
+RUN go mod download
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command
 # was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
