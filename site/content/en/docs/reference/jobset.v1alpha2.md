@@ -110,6 +110,14 @@ the coordinator pod.</p>
 A restart is achieved by recreating all active child jobs.</p>
 </td>
 </tr>
+<tr><td><code>restartStrategy</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-JobSetRestartStrategy"><code>JobSetRestartStrategy</code></a>
+</td>
+<td>
+   <p>RestartStrategy defines the strategy to use when restarting the JobSet.
+Defaults to Recreate.</p>
+</td>
+</tr>
 <tr><td><code>rules</code> <B>[Required]</B><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-FailurePolicyRule"><code>[]FailurePolicyRule</code></a>
 </td>
@@ -192,6 +200,18 @@ An empty list will apply to all replicatedJobs.</p>
 </tr>
 </tbody>
 </table>
+
+## `JobSetRestartStrategy`     {#jobset-x-k8s-io-v1alpha2-JobSetRestartStrategy}
+    
+(Alias of `string`)
+
+**Appears in:**
+
+- [FailurePolicy](#jobset-x-k8s-io-v1alpha2-FailurePolicy)
+
+
+
+
 
 ## `JobSetSpec`     {#jobset-x-k8s-io-v1alpha2-JobSetSpec}
     
@@ -317,7 +337,7 @@ the JobSet becomes eligible to be deleted immediately after it finishes.</p>
     
   
 <tr><td><code>conditions</code><br/>
-<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#condition-v1-meta"><code>[]k8s.io/apimachinery/pkg/apis/meta/v1.Condition</code></a>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#condition-v1-meta"><code>[]k8s.io/apimachinery/pkg/apis/meta/v1.Condition</code></a>
 </td>
 <td>
    <span class="text-muted">No description provided.</span></td>
@@ -434,7 +454,7 @@ for the Job name.</p>
 </td>
 </tr>
 <tr><td><code>template</code> <B>[Required]</B><br/>
-<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#jobtemplatespec-v1-batch"><code>k8s.io/api/batch/v1.JobTemplateSpec</code></a>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#jobtemplatespec-v1-batch"><code>k8s.io/api/batch/v1.JobTemplateSpec</code></a>
 </td>
 <td>
    <p>Template defines the template of the Job that will be created.</p>
