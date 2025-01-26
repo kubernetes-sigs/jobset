@@ -191,11 +191,11 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		}
 	}
 
-	// Map where key is ReplicatedJob name and value is ReplicatedJob index.
-	replicatedJobNames := map[string]int{}
+	// Map where key is ReplicatedJob name.
+	replicatedJobNames := map[string]bool{}
 
 	// Validate each replicatedJob.
-	for rIdx, rJob := range js.Spec.ReplicatedJobs {
+	for _, rJob := range js.Spec.ReplicatedJobs {
 		var parallelism int32 = 1
 		if rJob.Template.Spec.Parallelism != nil {
 			parallelism = *rJob.Template.Spec.Parallelism
@@ -227,11 +227,11 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 				allErrs = append(allErrs, errors.New(errMessage))
 			}
 		}
-		replicatedJobNames[rJob.Name] = rIdx
+		replicatedJobNames[rJob.Name] = true
 		// Check that DependsOn references the previous ReplicatedJob.
-		if rIdx > 0 && rJob.DependsOn != nil {
-			dependsOnIdx, ok := replicatedJobNames[rJob.DependsOn[0].Name]
-			if !ok || rIdx <= dependsOnIdx {
+		if rJob.DependsOn != nil {
+			_, ok := replicatedJobNames[rJob.DependsOn[0].Name]
+			if !ok {
 				allErrs = append(allErrs, fmt.Errorf("replicatedJob: %s cannot depend on replicatedJob: %s", rJob.Name, rJob.DependsOn[0].Name))
 			}
 		}
