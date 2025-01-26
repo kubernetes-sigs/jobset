@@ -1,27 +1,89 @@
+[tool.poetry]
+name = "jobset"
+version = "0.1.4"
+description = "JobSet SDK"
+authors = ["OpenAPI Generator Community <team@openapitools.org>"]
+license = "NoLicense"
+readme = "README.md"
+repository = "https://github.com/GIT_USER_ID/GIT_REPO_ID"
+keywords = ["OpenAPI", "OpenAPI-Generator", "JobSet SDK"]
+include = ["jobset/py.typed"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+
+urllib3 = ">= 1.25.3, < 3.0.0"
+python-dateutil = ">= 2.8.2"
+pydantic = ">= 2"
+typing-extensions = ">= 4.7.1"
+
+[tool.poetry.dev-dependencies]
+pytest = ">= 7.2.1"
+pytest-cov = ">= 2.8.1"
+tox = ">= 3.9.0"
+flake8 = ">= 4.0.0"
+types-python-dateutil = ">= 2.8.19.14"
+mypy = ">= 1.5"
+
+
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[project]
-name = "jobset"
-version = "0.2.0"
-authors = [
-    {name = "Kubernetes"},
-]
-description = "JobSet represents distributed jobs for ML/AI/HPC applications"
-requires-python = ">=3.7"
-readme = "README.md"
-license = {text = "Apache"}
-dependencies = [
-    "certifi >= 14.05.14",
-    "six >= 1.10", 
-    "python_dateutil >= 2.5.3",
-    "setuptools >= 21.0.0",
-    "urllib3 >= 1.15.1",
-    "kubernetes",
-]
-[project.optional-dependencies]
-test = ["pytest>=6.2.5", "pytest-cov>=2.8.1", "pytest-randomly==3.16.0"]
+[tool.pylint.'MESSAGES CONTROL']
+extension-pkg-whitelist = "pydantic"
 
-[tool.setuptools]
-packages = ["jobset", "jobset.api", "jobset.models"]
+[tool.mypy]
+files = [
+  "jobset",
+  #"test",  # auto-generated tests
+  "tests", # hand-written tests
+]
+# TODO: enable "strict" once all these individual checks are passing
+# strict = true
+
+# List from: https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+## Getting these passing should be easy
+strict_equality = true
+extra_checks = true
+
+## Strongly recommend enabling this one as soon as you can
+check_untyped_defs = true
+
+## These shouldn't be too much additional work, but may be tricky to
+## get passing if you use a lot of untyped libraries
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+disallow_any_generics = true
+
+### These next few are various gradations of forcing use of type annotations
+#disallow_untyped_calls = true
+#disallow_incomplete_defs = true
+#disallow_untyped_defs = true
+#
+### This one isn't too hard to get passing, but return on investment is lower
+#no_implicit_reexport = true
+#
+### This one can be tricky to get passing if you use a lot of untyped libraries
+#warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = [
+  "jobset.configuration",
+]
+warn_unused_ignores = true
+strict_equality = true
+extra_checks = true
+check_untyped_defs = true
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+disallow_any_generics = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+no_implicit_reexport = true
+warn_return_any = true
