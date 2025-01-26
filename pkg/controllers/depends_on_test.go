@@ -6,22 +6,46 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
 func TestDependencyReachedStatus(t *testing.T) {
+	rJobInitializer := "initializer"
+	rJobTrainer := "trainer-node"
+
 	tests := []struct {
-		name                 string
-		dependsOnJob         jobset.DependsOn
-		dependsOnJobReplicas int32
-		rJobsStatuses        []jobset.ReplicatedJobStatus
-		expected             bool
+		name          string
+		rJob          jobset.ReplicatedJob
+		rJobReplicas  map[string]int32
+		rJobsStatuses []jobset.ReplicatedJobStatus
+		expected      bool
 	}{
 		{
-			name: "status for ReplicatedJob is nil",
-			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.DependencyComplete,
+			name: "ReplicatedJob doesn't have any dependencies",
+			rJob: testutils.MakeReplicatedJob(rJobInitializer).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobInitializer: 1,
 			},
-			dependsOnJobReplicas: 1,
+			rJobsStatuses: []jobset.ReplicatedJobStatus{},
+			expected:      true,
+		},
+		{
+			name: "status for ReplicatedJob is nil",
+			rJob: testutils.MakeReplicatedJob(rJobTrainer).
+				DependsOn(
+					[]jobset.DependsOn{
+						{
+							Name:   rJobInitializer,
+							Status: jobset.DependencyComplete,
+						},
+					},
+				).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobInitializer: 1,
+				rJobTrainer:     1,
+			},
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
 					Name:      "invalid",
@@ -36,13 +60,23 @@ func TestDependencyReachedStatus(t *testing.T) {
 		},
 		{
 			name: "depends on ReplicatedJob reaches complete status",
-			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.DependencyComplete,
+			rJob: testutils.MakeReplicatedJob(rJobTrainer).
+				DependsOn(
+					[]jobset.DependsOn{
+						{
+							Name:   rJobInitializer,
+							Status: jobset.DependencyComplete,
+						},
+					},
+				).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobInitializer: 2,
+				rJobTrainer:     1,
 			},
-			dependsOnJobReplicas: 2,
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
-					Name:      "initializer",
+					Name:      rJobInitializer,
 					Ready:     0,
 					Succeeded: 2,
 					Failed:    0,
@@ -54,13 +88,23 @@ func TestDependencyReachedStatus(t *testing.T) {
 		},
 		{
 			name: "depends on ReplicatedJob doesn't reach complete status",
-			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.DependencyComplete,
+			rJob: testutils.MakeReplicatedJob(rJobTrainer).
+				DependsOn(
+					[]jobset.DependsOn{
+						{
+							Name:   rJobInitializer,
+							Status: jobset.DependencyComplete,
+						},
+					},
+				).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobInitializer: 2,
+				rJobTrainer:     1,
 			},
-			dependsOnJobReplicas: 2,
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
-					Name:      "initializer",
+					Name:      rJobInitializer,
 					Ready:     1,
 					Succeeded: 1,
 					Failed:    0,
@@ -72,13 +116,23 @@ func TestDependencyReachedStatus(t *testing.T) {
 		},
 		{
 			name: "depends on ReplicatedJob reaches ready status",
-			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.DependencyReady,
+			rJob: testutils.MakeReplicatedJob(rJobTrainer).
+				DependsOn(
+					[]jobset.DependsOn{
+						{
+							Name:   rJobInitializer,
+							Status: jobset.DependencyReady,
+						},
+					},
+				).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobInitializer: 3,
+				rJobTrainer:     1,
 			},
-			dependsOnJobReplicas: 3,
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
-					Name:      "initializer",
+					Name:      rJobInitializer,
 					Ready:     1,
 					Succeeded: 1,
 					Failed:    1,
@@ -90,13 +144,23 @@ func TestDependencyReachedStatus(t *testing.T) {
 		},
 		{
 			name: "depends on ReplicatedJob doesn't reach ready status",
-			dependsOnJob: jobset.DependsOn{
-				Name: "initializer", Status: jobset.DependencyReady,
+			rJob: testutils.MakeReplicatedJob(rJobTrainer).
+				DependsOn(
+					[]jobset.DependsOn{
+						{
+							Name:   rJobInitializer,
+							Status: jobset.DependencyReady,
+						},
+					},
+				).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobInitializer: 3,
+				rJobTrainer:     1,
 			},
-			dependsOnJobReplicas: 3,
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
-					Name:      "initializer",
+					Name:      rJobInitializer,
 					Ready:     2,
 					Succeeded: 0,
 					Failed:    0,
@@ -109,7 +173,7 @@ func TestDependencyReachedStatus(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := dependencyReachedStatus(tc.dependsOnJob, tc.dependsOnJobReplicas, tc.rJobsStatuses)
+			actual := dependencyReachedStatus(tc.rJob, tc.rJobReplicas, tc.rJobsStatuses)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}

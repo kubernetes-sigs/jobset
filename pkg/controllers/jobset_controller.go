@@ -429,8 +429,8 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 
 		rJobsReplicas[replicatedJob.Name] = replicatedJob.Replicas
 
-		// For depends on, the Job is created only after the dependent ReplicatedJob reaches the status.
-		if replicatedJob.DependsOn != nil && !dependencyReachedStatus(replicatedJob.DependsOn[0], rJobsReplicas[replicatedJob.DependsOn[0].Name], replicatedJobStatuses) {
+		// For depends on, the ReplicatedJob is created only after the previous ReplicatedJob reached the status.
+		if !dependencyReachedStatus(replicatedJob, rJobsReplicas, replicatedJobStatuses) {
 			continue
 		}
 
@@ -523,8 +523,8 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 
 		rJobsReplicas[replicatedJob.Name] = replicatedJob.Replicas
 
-		// For depends on, the Job is created only after the previous replicatedJob reached the status.
-		if replicatedJob.DependsOn != nil && !dependencyReachedStatus(replicatedJob.DependsOn[0], rJobsReplicas[replicatedJob.DependsOn[0].Name], replicatedJobStatuses) {
+		// For depends on, the ReplicatedJob is created only after the previous ReplicatedJob reached the status.
+		if !dependencyReachedStatus(replicatedJob, rJobsReplicas, replicatedJobStatuses) {
 			continue
 		}
 
