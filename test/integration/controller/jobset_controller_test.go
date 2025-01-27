@@ -2223,8 +2223,6 @@ func completeJob(job *batchv1.Job) {
 
 // mark all jobs that match replicatedJobName as ready
 func readyReplicatedJob(jobList *batchv1.JobList, replicatedJobName string) {
-	fmt.Println("Here-----------------")
-	fmt.Println(replicatedJobName)
 	for _, job := range jobList.Items {
 		replicatedJobNameFromLabel := job.Labels[jobset.ReplicatedJobNameKey]
 		if replicatedJobNameFromLabel == replicatedJobName {
