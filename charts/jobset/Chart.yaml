@@ -1,0 +1,12 @@
+apiVersion: v2
+name: jobset
+description: A Helm chart for JobSet Controller
+type: application
+version: 0.1.0
+appVersion: "0.7.2"
+keywords:
+  - kubernetes
+  - jobset
+  - batch
+maintainers:
+  - name: Kubernetes SIG Batch

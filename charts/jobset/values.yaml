@@ -1,0 +1,96 @@
+replicaCount: 1
+
+crds:
+  enabled: true
+  install: true
+
+image:
+  repository: jobset-controller
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - "ALL"
+
+resources:
+  limits:
+    cpu: 2
+    memory: 512Mi
+  requests:
+    cpu: 500m
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+rbac:
+  create: true
+  createAggregateRoles: true
+
+webhook:
+  enabled: true
+  port: 9443
+  service:
+    type: ClusterIP
+    port: 443
+  certManager:
+    enabled: true
+    issuerGroup: cert-manager.io
+    issuerKind: Issuer
+    issuerName: jobset-selfsigned-issuer
+  mutatingWebhook:
+    failurePolicy: Fail
+    timeoutSeconds: 10
+  validatingWebhook:
+    failurePolicy: Fail
+    timeoutSeconds: 10
+
+metrics:
+  enabled: true
+  service:
+    port: 8443
+    type: ClusterIP
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+leaderElection:
+  enabled: true
+  resourceName: jobset-leader-election
+
+certManager:
+  enabled: true
+  certificate:
+    duration: 8760h # 1 year
+    renewBefore: 720h # 30 days
+
+manager:
+  healthProbe:
+    port: 8081
+    livenessPath: /healthz
+    readinessPath: /readyz
+    livenessInitialDelay: 15
+    livenessTimeout: 30
+    readinessInitialDelay: 5
+    readinessTimeout: 30
