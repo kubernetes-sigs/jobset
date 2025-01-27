@@ -21,9 +21,10 @@ import (
 // ReplicatedJobApplyConfiguration represents a declarative configuration of the ReplicatedJob type for use
 // with apply.
 type ReplicatedJobApplyConfiguration struct {
-	Name     *string             `json:"name,omitempty"`
-	Template *v1.JobTemplateSpec `json:"template,omitempty"`
-	Replicas *int32              `json:"replicas,omitempty"`
+	Name      *string                       `json:"name,omitempty"`
+	Template  *v1.JobTemplateSpec           `json:"template,omitempty"`
+	Replicas  *int32                        `json:"replicas,omitempty"`
+	DependsOn []DependsOnApplyConfiguration `json:"dependsOn,omitempty"`
 }
 
 // ReplicatedJobApplyConfiguration constructs a declarative configuration of the ReplicatedJob type for use with
@@ -53,5 +54,18 @@ func (b *ReplicatedJobApplyConfiguration) WithTemplate(value v1.JobTemplateSpec)
 // If called multiple times, the Replicas field is set to the value of the last call.
 func (b *ReplicatedJobApplyConfiguration) WithReplicas(value int32) *ReplicatedJobApplyConfiguration {
 	b.Replicas = &value
+	return b
+}
+
+// WithDependsOn adds the given value to the DependsOn field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the DependsOn field.
+func (b *ReplicatedJobApplyConfiguration) WithDependsOn(values ...*DependsOnApplyConfiguration) *ReplicatedJobApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithDependsOn")
+		}
+		b.DependsOn = append(b.DependsOn, *values[i])
+	}
 	return b
 }

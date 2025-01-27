@@ -1,0 +1,60 @@
+# This example creates three ReplicatedJobs.
+# The launcher ReplicatedJob waits until the initializer ReplicatedJob is Complete.
+# After that, the worker ReplicatedJob waits until the launcher ReplicatedJob is Ready.
+# Launcher ReplicatedJob will be in Ready status once StartupProbe is finished.
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: depends-on
+spec:
+  replicatedJobs:
+    - name: initializer
+      template:
+        spec:
+          template:
+            spec:
+              containers:
+                - name: initializer
+                  image: busybox
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "echo 'initializer runs for 10 seconds' && sleep 10"
+    - name: launcher
+      dependsOn:
+        - name: initializer
+          status: Complete
+      template:
+        spec:
+          template:
+            spec:
+              containers:
+                - name: launcher
+                  image: busybox
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "echo 'launcher runs for 20 seconds' && sleep 20"
+                  startupProbe:
+                    exec:
+                      command:
+                        - echo
+                        - "started"
+                    initialDelaySeconds: 5
+    - name: worker
+      dependsOn:
+        - name: launcher
+          status: Ready
+      template:
+        spec:
+          parallelism: 4
+          completions: 4
+          template:
+            spec:
+              containers:
+                - name: worker
+                  image: busybox
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "echo 'worker runs for 20 seconds' && sleep 20"

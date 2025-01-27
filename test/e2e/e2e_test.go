@@ -270,6 +270,144 @@ var _ = ginkgo.Describe("JobSet", func() {
 		})
 	})
 
+	// This test runs JobSet with the DependsOn API.
+	ginkgo.When("DependsOn is enabled on JobSet", func() {
+		// This test shows that when a JobSet is used with the Kubeflow Trainer LLM Runtime.
+		// The initializer Job should be completed before trainer node Job is started.
+		ginkgo.It("trainer-node Job depends on initializer Job completion", func() {
+			ctx := context.Background()
+
+			numReplicas := 1
+			initializerJob := "initializer"
+			trainerJob := "trainer-node"
+
+			// Every ReplicatedJob runs 1 container to sleep for 10 seconds.
+			rJobInitializer := dependsOnTestReplicatedJob(ns, initializerJob, numReplicas, nil, nil)
+			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicas, nil,
+				[]jobset.DependsOn{
+					{
+						Name:   initializerJob,
+						Status: jobset.DependencyComplete,
+					},
+				})
+
+			jobSet := dependsOnTestJobSet(ns, []jobset.ReplicatedJob{rJobInitializer, rJobTrainer})
+			jobSetKey := types.NamespacedName{Name: jobSet.Name, Namespace: jobSet.Namespace}
+
+			ginkgo.By("Create a JobSet with DependsOn", func() {
+				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Wait for Initializer to be in Ready status", func() {
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
+						if rJobStatus.Name == initializerJob {
+							return rJobStatus.Ready
+						}
+					}
+					return 0
+				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
+			})
+
+			// We need to ensure that the E2E test reaches this check within 10 seconds of
+			// the JobSet being created, as the Initializer has a 10-second sleep timer.
+			// Otherwise, it will cause this check to fail.
+			ginkgo.By("Verify that only Initializer is created", func() {
+				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
+					Should(gomega.Equal(numReplicas))
+			})
+
+			ginkgo.By("Wait for Initializer to be in Completed status", func() {
+				gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
+						if rJobStatus.Name == initializerJob {
+							return rJobStatus.Succeeded
+						}
+					}
+					return 0
+				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
+			})
+
+			ginkgo.By("Verify that Initializer and Trainer Job is created", func() {
+				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
+					Should(gomega.Equal(util.NumExpectedJobs(jobSet)))
+			})
+
+			ginkgo.By("Wait for JobSet to be Completed", func() {
+				util.JobSetCompleted(ctx, k8sClient, jobSet, timeout)
+			})
+		})
+		// This test shows that when a JobSet is used with the Kubeflow Trainer MPI Runtime.
+		// The launcher Job should be ready before trainer node Job is started.
+		ginkgo.It("trainer-node Job depends on launcher Job ready status", func() {
+			ctx := context.Background()
+
+			numReplicasLauncher := 1
+			numReplicasTrainer := 5
+			launcherJob := "launcher"
+			trainerJob := "trainer-node"
+
+			// Launcher has startupProbe to sleep for 5 seconds.
+			rJobLauncher := dependsOnTestReplicatedJob(ns, launcherJob, numReplicasLauncher,
+				&corev1.Probe{
+					ProbeHandler: corev1.ProbeHandler{
+						Exec: &corev1.ExecAction{
+							Command: []string{"echo", "started"},
+						},
+					},
+					InitialDelaySeconds: 5,
+				},
+				nil)
+
+			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicasTrainer, nil,
+				[]jobset.DependsOn{
+					{
+						Name:   launcherJob,
+						Status: jobset.DependencyReady,
+					},
+				})
+
+			jobSet := dependsOnTestJobSet(ns, []jobset.ReplicatedJob{rJobLauncher, rJobTrainer})
+			jobSetKey := types.NamespacedName{Name: jobSet.Name, Namespace: jobSet.Namespace}
+
+			ginkgo.By("Create a JobSet with DependsOn", func() {
+				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
+			})
+
+			// We need to ensure that the E2E test reaches this check within 10 seconds of
+			// the JobSet being created, as the Launcher has a 10-second sleep timer.
+			// Otherwise, it will cause this check to fail.
+			ginkgo.By("Verify that only Launcher is created", func() {
+				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
+					Should(gomega.Equal(numReplicasLauncher))
+			})
+
+			ginkgo.By("Wait for Launcher to be in Ready status", func() {
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
+						if rJobStatus.Name == launcherJob {
+							return rJobStatus.Ready
+						}
+					}
+					return 0
+				}, timeout, interval).Should(gomega.Equal(int32(numReplicasLauncher)))
+			})
+
+			// Launcher + Trainer has 6 replicas in total.
+			ginkgo.By("Verify that Launcher and Trainer Job is created", func() {
+				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
+					Should(gomega.Equal(util.NumExpectedJobs(jobSet)))
+			})
+
+			ginkgo.By("Wait for JobSet to be Completed", func() {
+				util.JobSetCompleted(ctx, k8sClient, jobSet, timeout)
+			})
+		})
+	})
 }) // end of Describe
 
 // getPingCommand returns ping command for 4 hostnames
@@ -384,4 +522,31 @@ func sleepTestJobSet(ns *corev1.Namespace, durationSeconds int32) *testing.JobSe
 				}).Obj()).
 			Replicas(int32(replicas)).
 			Obj())
+}
+
+func dependsOnTestJobSet(ns *corev1.Namespace, rJobs []jobset.ReplicatedJob) *jobset.JobSet {
+	jobSet := testing.MakeJobSet("depends-on", ns.Name).Obj()
+	jobSet.Spec.ReplicatedJobs = rJobs
+
+	return jobSet
+}
+
+func dependsOnTestReplicatedJob(ns *corev1.Namespace, jobName string, numReplicas int, startupProbe *corev1.Probe, dependsOn []jobset.DependsOn) jobset.ReplicatedJob {
+	return testing.MakeReplicatedJob(jobName).
+		Job(testing.MakeJobTemplate("job", ns.Name).
+			PodSpec(corev1.PodSpec{
+				RestartPolicy: "Never",
+				Containers: []corev1.Container{
+					{
+						Name:         "sleep-test-container",
+						Image:        "bash:latest",
+						Command:      []string{"bash", "-c"},
+						Args:         []string{"sleep 10"},
+						StartupProbe: startupProbe,
+					},
+				},
+			}).Obj()).
+		Replicas(int32(numReplicas)).
+		DependsOn(dependsOn).
+		Obj()
 }

@@ -35,6 +35,11 @@ class TestJobsetV1alpha2ReplicatedJob(unittest.TestCase):
         model = JobsetV1alpha2ReplicatedJob()
         if include_optional:
             return JobsetV1alpha2ReplicatedJob(
+                depends_on = [
+                    jobset.models.jobset_v1alpha2_depends_on.JobsetV1alpha2DependsOn(
+                        name = '', 
+                        status = '', )
+                    ],
                 name = '',
                 replicas = 56,
                 template = V1JobTemplateSpec()

@@ -24,7 +24,7 @@ import (
 // replicatedJobsStarted returns a boolean value indicating if all replicatedJob
 // replicas (jobs) have started, regardless of whether they are active, succeeded,
 // or failed.
-func allReplicasStarted(replicas int32, rjJobStatus jobset.ReplicatedJobStatus) bool {
+func allReplicasStarted(replicas int32, rjJobStatus *jobset.ReplicatedJobStatus) bool {
 	return replicas == rjJobStatus.Failed+rjJobStatus.Ready+rjJobStatus.Succeeded
 }
 

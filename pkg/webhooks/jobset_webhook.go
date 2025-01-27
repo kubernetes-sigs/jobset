@@ -191,19 +191,22 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		}
 	}
 
+	// Map where key is ReplicatedJob name.
+	replicatedJobNames := map[string]bool{}
+
 	// Validate each replicatedJob.
-	for _, rjob := range js.Spec.ReplicatedJobs {
+	for _, rJob := range js.Spec.ReplicatedJobs {
 		var parallelism int32 = 1
-		if rjob.Template.Spec.Parallelism != nil {
-			parallelism = *rjob.Template.Spec.Parallelism
+		if rJob.Template.Spec.Parallelism != nil {
+			parallelism = *rJob.Template.Spec.Parallelism
 		}
-		if int64(parallelism)*int64(rjob.Replicas) > math.MaxInt32 {
-			allErrs = append(allErrs, fmt.Errorf("the product of replicas and parallelism must not exceed %d for replicatedJob '%s'", math.MaxInt32, rjob.Name))
+		if int64(parallelism)*int64(rJob.Replicas) > math.MaxInt32 {
+			allErrs = append(allErrs, fmt.Errorf("the product of replicas and parallelism must not exceed %d for replicatedJob '%s'", math.MaxInt32, rJob.Name))
 		}
 
 		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
 		// Use the largest job index as it will have the longest name.
-		longestJobName := placement.GenJobName(js.Name, rjob.Name, int(rjob.Replicas-1))
+		longestJobName := placement.GenJobName(js.Name, rJob.Name, int(rJob.Replicas-1))
 		for _, errMessage := range validation.IsDNS1035Label(longestJobName) {
 			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 				errMessage = jobNameTooLongErrorMsg
@@ -211,17 +214,25 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 			allErrs = append(allErrs, errors.New(errMessage))
 		}
 		// Check that the generated pod names for the replicated job is DNS 1035 compliant.
-		isIndexedJob := rjob.Template.Spec.CompletionMode != nil && *rjob.Template.Spec.CompletionMode == batchv1.IndexedCompletion
-		if isIndexedJob && rjob.Template.Spec.Completions != nil {
-			maxJobIndex := strconv.Itoa(int(rjob.Replicas - 1))
-			maxPodIndex := strconv.Itoa(int(*rjob.Template.Spec.Completions - 1))
+		isIndexedJob := rJob.Template.Spec.CompletionMode != nil && *rJob.Template.Spec.CompletionMode == batchv1.IndexedCompletion
+		if isIndexedJob && rJob.Template.Spec.Completions != nil {
+			maxJobIndex := strconv.Itoa(int(rJob.Replicas - 1))
+			maxPodIndex := strconv.Itoa(int(*rJob.Template.Spec.Completions - 1))
 			// Add 5 char suffix to the deterministic part of the pod name to validate the full pod name is compliant.
-			longestPodName := placement.GenPodName(js.Name, rjob.Name, maxJobIndex, maxPodIndex) + "-abcde"
+			longestPodName := placement.GenPodName(js.Name, rJob.Name, maxJobIndex, maxPodIndex) + "-abcde"
 			for _, errMessage := range validation.IsDNS1035Label(longestPodName) {
 				if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 					errMessage = podNameTooLongErrorMsg
 				}
 				allErrs = append(allErrs, errors.New(errMessage))
+			}
+		}
+		replicatedJobNames[rJob.Name] = true
+		// Check that DependsOn references the previous ReplicatedJob.
+		if rJob.DependsOn != nil {
+			_, ok := replicatedJobNames[rJob.DependsOn[0].Name]
+			if !ok {
+				allErrs = append(allErrs, fmt.Errorf("replicatedJob: %s cannot depend on replicatedJob: %s", rJob.Name, rJob.DependsOn[0].Name))
 			}
 		}
 	}

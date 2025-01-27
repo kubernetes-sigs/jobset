@@ -68,6 +68,7 @@ Class | Method | HTTP request | Description
 ## Documentation For Models
 
  - [JobsetV1alpha2Coordinator](docs/JobsetV1alpha2Coordinator.md)
+ - [JobsetV1alpha2DependsOn](docs/JobsetV1alpha2DependsOn.md)
  - [JobsetV1alpha2FailurePolicy](docs/JobsetV1alpha2FailurePolicy.md)
  - [JobsetV1alpha2FailurePolicyRule](docs/JobsetV1alpha2FailurePolicyRule.md)
  - [JobsetV1alpha2JobSet](docs/JobsetV1alpha2JobSet.md)

@@ -417,5 +417,151 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: true,
 		}),
+		ginkgo.Entry("DependsOn and StartupPolicy: AnyOrder can be set together", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("depends-on", ns.Name).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.AnyOrder,
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-1").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-2").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						DependsOn([]jobset.DependsOn{
+							{
+								Name:   "rjob-1",
+								Status: jobset.DependencyReady,
+							},
+						}).
+						Obj())
+			},
+			jobSetCreationShouldFail: false,
+		}),
+		ginkgo.Entry("DependsOn and StartupPolicy: InOrder can't be set together", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("depends-on", ns.Name).
+					StartupPolicy(&jobset.StartupPolicy{
+						StartupPolicyOrder: jobset.InOrder,
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-1").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-2").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						DependsOn([]jobset.DependsOn{
+							{
+								Name:   "rjob-1",
+								Status: jobset.DependencyReady,
+							},
+						}).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("DependsOn can't be set for the first ReplicatedJob", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("depends-on", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-1").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						DependsOn([]jobset.DependsOn{
+							{
+								Name:   "rjob-1",
+								Status: jobset.DependencyReady,
+							},
+						}).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("DependsOn list can't contain more than one element", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("depends-on", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-1").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-2").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-3").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						DependsOn([]jobset.DependsOn{
+							{
+								Name:   "rjob-1",
+								Status: jobset.DependencyComplete,
+							},
+							{
+								Name:   "rjob-2",
+								Status: jobset.DependencyComplete,
+							},
+						}).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("DependsOn list must contain valid ReplicatedJob status", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("depends-on", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-1").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-2").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						DependsOn([]jobset.DependsOn{
+							{
+								Name:   "rjob-1",
+								Status: "Failed",
+							},
+						}).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+
+		ginkgo.Entry("DependsOn must be immutable", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("depends-on", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-1").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-2").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						DependsOn([]jobset.DependsOn{
+							{
+								Name:   "rjob-1",
+								Status: jobset.DependencyReady,
+							},
+						}).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.ReplicatedJobs[1].DependsOn[0] = jobset.DependsOn{Name: "rjob-1", Status: jobset.DependencyComplete}
+			},
+			updateShouldFail: true,
+		}),
 	) // end of DescribeTable
 }) // end of Describe
