@@ -1695,23 +1695,15 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			steps: []*step{
 				{
 					// First check.
-					// Replicated-Job-A should be created.
-					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 1
-						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
-					},
-				},
-				{
-					// Second check.
-					// Set the Replicated-Job-A status to ready.
-					// Replicated-Job-B depends on ready status of Replicated-Job-A
-					jobUpdateFn: func(jobList *batchv1.JobList) {
-						readyReplicatedJob(jobList, "rjob-a")
-					},
 					// Replicated-Job-A must be created.
 					checkJobCreation: func(js *jobset.JobSet) {
 						expectedStarts := 1
 						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					// Set the Replicated-Job-A status to ready.
+					// Replicated-Job-B depends on ready status of Replicated-Job-A
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "rjob-a")
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -1726,15 +1718,18 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 				},
 				{
+					// Second check.
+					// Number of Jobs created must be 4.
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 4
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+				},
+				{
 					// Final check.
 					// Update the Replicated-Job-B status to ready.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						readyReplicatedJob(jobList, "rjob-b")
-					},
-					// All Jobs must be created.
-					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 4
-						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
 					},
 					// All Jobs must be in the ready status.
 					checkJobSetState: func(js *jobset.JobSet) {
@@ -1785,23 +1780,15 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			steps: []*step{
 				{
 					// First check.
-					// Replicated-Job-A should be created.
-					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 1
-						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
-					},
-				},
-				{
-					// Second check.
-					// Set the Replicated-Job-A status to complete.
-					// Replicated-Job-B depends on complete status of Replicated-Job-A
-					jobUpdateFn: func(jobList *batchv1.JobList) {
-						completeJob(&jobList.Items[0])
-					},
 					// Replicated-Job-A must be created.
 					checkJobCreation: func(js *jobset.JobSet) {
 						expectedStarts := 1
 						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					// Set the Replicated-Job-A status to complete.
+					// Replicated-Job-B depends on complete status of Replicated-Job-A
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						completeJob(&jobList.Items[0])
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -1819,15 +1806,23 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 				},
 				{
-					// Third check.
+					// Second check.
+					// Replicated-Job-A and Replicated-Job-B must be created.
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 2
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
 					// Set the Replicated-Job-B status to ready.
 					// Replicated-Job-C depends on ready status of Replicated-Job-B
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						readyReplicatedJob(jobList, "rjob-b")
 					},
-					// Replicated-Job-A and Replicated-Job-B must be created.
+				},
+				{
+					// Third check.
+					// Replicated-Job-A, Replicated-Job-B, and Replicated-Job-C must be created.
 					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 2
+						expectedStarts := 5
 						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
@@ -1850,11 +1845,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					// Final check.
 					// Complete all Jobs.
 					jobUpdateFn: completeAllJobs,
-					// Replicated-Job-A, Replicated-Job-B, and Replicated-Job-C must be created.
-					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 5
-						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
-					},
 					// All Jobs must be in the succeeded status.
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -1916,11 +1906,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						suspendJobSet(js, false)
 					},
-					// Only the Replicated-Job-A must be created.
-					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 1
-						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
-					},
 					// Only the Replicated-Job-A should be unsuspended due to DependsOn order.
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -1935,13 +1920,20 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 				},
 				{
+					// The Replicated-Job-A must be created.
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
 					// Update the Replicated-Job-A to the ready status.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						readyReplicatedJob(jobList, "rjob-a")
 					},
-					// Only the Replicated-Job-A must be created.
+				},
+				{
+					// The Replicated-Job-A and Replicated-Job-B must be created.
 					checkJobCreation: func(js *jobset.JobSet) {
-						expectedStarts := 1
+						expectedStarts := 4
 						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
 					},
 					// Replicated-Job-B must be unsuspended.
@@ -2231,6 +2223,8 @@ func completeJob(job *batchv1.Job) {
 
 // mark all jobs that match replicatedJobName as ready
 func readyReplicatedJob(jobList *batchv1.JobList, replicatedJobName string) {
+	fmt.Println("Here-----------------")
+	fmt.Println(replicatedJobName)
 	for _, job := range jobList.Items {
 		replicatedJobNameFromLabel := job.Labels[jobset.ReplicatedJobNameKey]
 		if replicatedJobNameFromLabel == replicatedJobName {

@@ -331,7 +331,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
 			})
 
-			ginkgo.By("Verify that Initializer and Trainer Node is created", func() {
+			ginkgo.By("Verify that Initializer and Trainer Job is created", func() {
 				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
 					Should(gomega.Equal(util.NumExpectedJobs(jobSet)))
 			})
@@ -398,7 +398,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 			})
 
 			// Launcher + Trainer has 6 replicas in total.
-			ginkgo.By("Verify that Launcher and Trainer Node is created", func() {
+			ginkgo.By("Verify that Launcher and Trainer Job is created", func() {
 				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
 					Should(gomega.Equal(util.NumExpectedJobs(jobSet)))
 			})
