@@ -310,6 +310,9 @@ var _ = ginkgo.Describe("JobSet", func() {
 				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
 			})
 
+			// We need to ensure that the E2E test reaches this check within 10 seconds of
+			// the JobSet being created, as the Initializer has a 10-second sleep timer.
+			// Otherwise, it will cause this check to fail.
 			ginkgo.By("Verify that only Initializer is created", func() {
 				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
 					Should(gomega.Equal(numReplicas))
@@ -374,6 +377,9 @@ var _ = ginkgo.Describe("JobSet", func() {
 				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
 			})
 
+			// We need to ensure that the E2E test reaches this check within 10 seconds of
+			// the JobSet being created, as the Launcher has a 10-second sleep timer.
+			// Otherwise, it will cause this check to fail.
 			ginkgo.By("Verify that only Launcher is created", func() {
 				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
 					Should(gomega.Equal(numReplicasLauncher))
