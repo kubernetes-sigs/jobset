@@ -44,6 +44,8 @@ import (
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/cert"
+	"sigs.k8s.io/jobset/pkg/util/useragent"
+	"sigs.k8s.io/jobset/pkg/version"
 	"sigs.k8s.io/jobset/pkg/webhooks"
 	//+kubebuilder:scaffold:imports
 )
@@ -94,6 +96,7 @@ func main() {
 		flagsSet[f.Name] = true
 	})
 
+	setupLog.Info("Initializing", "gitVersion", version.GitVersion, "gitCommit", version.GitCommit)
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	if err := utilfeature.DefaultMutableFeatureGate.Set(featureGates); err != nil {
@@ -106,6 +109,9 @@ func main() {
 	var options manager.Options
 
 	kubeConfig := ctrl.GetConfigOrDie()
+	if kubeConfig.UserAgent == "" {
+		kubeConfig.UserAgent = useragent.Default()
+	}
 
 	options, cfg, err := apply(configFile)
 	if err != nil {
