@@ -96,7 +96,6 @@ func main() {
 		flagsSet[f.Name] = true
 	})
 
-	setupLog.Info("Initializing", "gitVersion", version.GitVersion, "gitCommit", version.GitCommit)
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	if err := utilfeature.DefaultMutableFeatureGate.Set(featureGates); err != nil {
@@ -112,6 +111,7 @@ func main() {
 	if kubeConfig.UserAgent == "" {
 		kubeConfig.UserAgent = useragent.Default()
 	}
+	setupLog.Info("Initializing", "gitVersion", version.GitVersion, "gitCommit", version.GitCommit, "userAgent", kubeConfig.UserAgent)
 
 	options, cfg, err := apply(configFile)
 	if err != nil {

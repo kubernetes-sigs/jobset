@@ -29,6 +29,7 @@ IMAGE_TAG ?= $(IMAGE_REPO):$(GIT_TAG)
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 BASE_IMAGE ?= gcr.io/distroless/static:nonroot
 BUILDER_IMAGE ?= golang:$(GO_VERSION)
+CGO_ENABLED ?= 0
 
 ifdef EXTRA_TAG
 IMAGE_EXTRA_TAG ?= $(IMAGE_REPO):$(EXTRA_TAG)
@@ -55,6 +56,10 @@ USE_EXISTING_CLUSTER ?= false
 # For local testing, we should allow user to use different kind cluster name
 # Default will delete default kind cluster
 KIND_CLUSTER_NAME ?= kind
+
+version_pkg = sigs.k8s.io/jobset/pkg/version
+LD_FLAGS += -X '$(version_pkg).GitVersion=$(GIT_TAG)'
+LD_FLAGS += -X '$(version_pkg).GitCommit=$(shell git rev-parse HEAD)'
 
 .PHONY: all
 all: build
@@ -135,13 +140,13 @@ test-python-sdk:
 .PHONY: verify
 verify: vet fmt-verify ci-lint manifests generate toc-verify generate-apiref
 	git --no-pager diff --exit-code config api client-go sdk
-	
+
 
 ##@ Build
 
 .PHONY: build
-build: manifests fmt vet ## Build manager binary.
-	$(GO_CMD) build -o bin/manager main.go
+build: manifests ## Build manager binary.
+	$(GO_BUILD_ENV) $(GO_CMD) build -ldflags="$(LD_FLAGS)" -o bin/manager main.go
 
 .PHONY: run
 run: manifests fmt vet ## Run a controller from your host.
@@ -243,7 +248,7 @@ code-generator:
 openapi-gen:
 	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install k8s.io/kube-openapi/cmd/openapi-gen@latest
 	$(PROJECT_DIR)/bin/openapi-gen --go-header-file hack/boilerplate.go.txt --output-dir api/jobset/v1alpha2 --output-pkg api/jobset/v1alpha2 --output-file openapi_generated.go --alsologtostderr ./api/jobset/v1alpha2
-	
+
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
