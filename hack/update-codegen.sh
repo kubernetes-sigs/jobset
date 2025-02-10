@@ -41,6 +41,7 @@ kube::codegen::gen_helpers \
 kube::codegen::gen_client \
     --with-watch \
     --with-applyconfig \
+    --applyconfig-externals "k8s.io/api/batch/v1.JobTemplateSpec:k8s.io/client-go/applyconfigurations/batch/v1" \
     --output-dir "${REPO_ROOT}/client-go" \
     --output-pkg sigs.k8s.io/jobset/client-go \
     --boilerplate "${REPO_ROOT}/hack/boilerplate.go.txt" \
