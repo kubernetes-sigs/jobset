@@ -124,22 +124,25 @@ NAME              TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
 pytorch-workers   ClusterIP   None         <none>        <none>    25m
 ```
 
-The hostname for pod will have the following format: `<jobSetName>-<spec.replicatedJob[*].name>-<spec.replicatedJob[*].replicas[*]>-<pod-index>.<subdomain>`.  
+The hostname for pod will have the following format: `<jobSetName>-<spec.replicatedJob[*].name>-<spec.replicatedJob[*].replicas[*]>-<pod-index>`. 
+
+The FQDN for pod will have the following format: `<jobSetName>-<spec.replicatedJob[*].name>-<spec.replicatedJob[*].replicas[*]>-<pod-index>.<subdomain>`. 
 
 To list all the hostname for the pods that belong to a JobSet, you can use a command like this:
 
 ```shell
-kubectl get pods -o custom-columns=Name:.metadata.name,HOSTNAME:.spec.hostname --selector=jobset.sigs.k8s.io/jobset-name=pytorch
+kubectl get pods -o custom-columns=Name:.metadata.name,HOSTNAME:.spec.hostname,Subdomain:.spec.subdomain --selector=jobset.sigs.k8s.io/jobset-name=pytorch
+
 ```
 
 The output is similar to 
 
 ```
-Name                         HOSTNAME
-pytorch-workers-0-0-tcngx   pytorch-workers-0-0
-pytorch-workers-0-1-sbhxs   pytorch-workers-0-1
-pytorch-workers-0-2-5m6d6   pytorch-workers-0-2
-pytorch-workers-0-3-mn8c8.  pytorch-workers-0-3
+Name                         HOSTNAME                 Subdomain
+pytorch-workers-0-0-tcngx   pytorch-workers-0-0.      pytorch
+pytorch-workers-0-1-sbhxs   pytorch-workers-0-1       pytorch
+pytorch-workers-0-2-5m6d6   pytorch-workers-0-2       pytorch
+pytorch-workers-0-3-mn8c8.  pytorch-workers-0-3       pytorch
 ```
 
 ### Exclusive Job to topology placement
