@@ -96,7 +96,6 @@ spec:
             cpu: 500m
             memory: 128Mi
           limits:
-            cpu: 2
-            memory: 512Mi
+            memory: 4Gi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
