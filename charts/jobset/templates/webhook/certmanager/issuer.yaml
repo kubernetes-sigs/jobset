@@ -1,5 +1,5 @@
-{{/*
-Copyright 2025 The Kubernetes authors.
+{{- /*
+Copyright 2025 The Kubeflow authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -12,11 +12,18 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/}}
+*/ -}}
 
-Thank you for installing {{ .Chart.Name }}. The JobSet controller is now deployed in your cluster. To verify that the controller is running, you can run:
-  kubectl get deployment -n {{ .Release.Namespace }} {{ include "jobset.controller.deployment.name" . }}
-{{- if .Values.metrics.enabled }}
-To access the metrics endpoint:
-  kubectl port-forward svc/{{ include "jobset.metrics.service.name" . }} {{ .Values.metrics.service.port }}
+{{- if .Values.webhook.enable }}
+{{- if and .Values.webhook.certManager.enable (not .Values.webhook.certManager.issuerRef) }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "jobset.webhook.certManager.issuer.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jobset.webhook.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}
 {{- end }}

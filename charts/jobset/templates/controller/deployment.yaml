@@ -1,0 +1,141 @@
+{{- /*
+Copyright 2025 The Kubernetes authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/ -}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "jobset.controller.deployment.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jobset.controller.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.controller.replicas }}
+  selector:
+    matchLabels:
+      {{- include "jobset.controller.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "jobset.controller.labels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: controller
+        image: {{ include "jobset.controller.image" . }}
+        {{- with .Values.image.pullPolicy }}
+        imagePullPolicy: {{ . }}
+        {{- end }}
+        command:
+        - /manager
+        args:
+        - --zap-log-level=2
+        - --config=/controller_manager_config.yaml
+        - --metrics-bind-address=:8080
+        - --health-probe-bind-address=:8081
+        - --kube-api-qps=500
+        - --kube-api-burst=500
+        {{- if .Values.controller.leaderElection.enable }}
+        - --leader-elect
+        {{- end }}
+        {{- with .Values.controller.env }}
+        env:
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.controller.envFrom }}
+        envFrom:
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        volumeMounts:
+        - name: manager-config
+          subPath: controller_manager_config.yaml
+          mountPath: /controller_manager_config.yaml
+        {{- with .Values.controller.volumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.webhook.enable }}
+        - name: webhook-cert
+          mountPath: /tmp/k8s-webhook-server/serving-certs
+          readOnly: true
+        {{- end }}
+        ports:
+        - name: health-probe
+          containerPort: 8081
+          protocol: TCP
+        {{- if .Values.webhook.enable }}
+        - name: webhook
+          containerPort: 9443
+          protocol: TCP
+        {{- end }}
+        {{- if .Values.metrics.enable }}
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            port: 8081
+            scheme: HTTP
+            path: /healthz
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            port: 8081
+            scheme: HTTP
+            path: /readyz
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        {{- with .Values.controller.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.controller.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      volumes:
+      - name: manager-config
+        configMap:
+          name: {{ include "jobset.controller.configMap.name" . }}
+      {{- with .Values.controller.volumes }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- if .Values.webhook.enable }}
+      - name: webhook-cert
+        secret:
+          secretName: {{ include "jobset.webhook.secret.name" . }}
+          defaultMode: 420
+      {{- end }}
+      {{- with .Values.controller.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- with .Values.controller.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "jobset.controller.serviceAccount.name" . }}
