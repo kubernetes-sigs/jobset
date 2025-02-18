@@ -30,6 +30,8 @@ spec:
     metadata:
       labels:
         {{- include "jobset.controller.labels" . | nindent 8 }}
+      annotations:
+        jobset.x-k8s.io/config-hash: {{ include (print $.Template.BasePath "/controller/configmap.yaml") . | sha256sum }}
     spec:
       containers:
       - name: controller
@@ -42,13 +44,6 @@ spec:
         args:
         - --zap-log-level=2
         - --config=/controller_manager_config.yaml
-        - --metrics-bind-address=:8080
-        - --health-probe-bind-address=:8081
-        - --kube-api-qps=500
-        - --kube-api-burst=500
-        {{- if .Values.controller.leaderElection.enable }}
-        - --leader-elect
-        {{- end }}
         {{- with .Values.controller.env }}
         env:
         {{- toYaml . | nindent 8 }}

@@ -18,7 +18,7 @@ limitations under the License.
 Create the name of the jobset webhook.
 */}}
 {{- define "jobset.webhook.name" -}}
-jobset-webhook
+{{ include "jobset.fullname" . }}-webhook
 {{- end -}}
 
 {{/*

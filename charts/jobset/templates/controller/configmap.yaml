@@ -26,3 +26,11 @@ data:
 
     apiVersion: config.jobset.x-k8s.io/v1alpha1
     kind: Configuration
+    leaderElection:
+      leaderElect: {{ .Values.controller.leaderElection.enable }}
+    {{- if .Values.webhook.enable }}
+    internalCertManagement:
+      enable: {{ not .Values.webhook.certManager.enable }}
+      webhookServiceName: {{ include "jobset.webhook.service.name" . }}
+      webhookSecretName: {{ include "jobset.webhook.secret.name" . }}
+    {{- end }}
