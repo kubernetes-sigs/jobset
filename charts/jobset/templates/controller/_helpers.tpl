@@ -41,11 +41,7 @@ app.kubernetes.io/component: controller
 Create the name of the jobset controller service account.
 */}}
 {{- define "jobset.controller.serviceAccount.name" -}}
-{{- if .Values.controller.serviceAccount.create }}
-{{- default (include "jobset.controller.name" .) .Values.controller.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.controller.serviceAccount.name }}
-{{- end }}
+{{- include "jobset.controller.name" . }}
 {{- end }}
 
 

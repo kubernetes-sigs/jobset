@@ -46,8 +46,6 @@ webhooks:
     resources:
     - jobsets
   sideEffects: None
-  timeoutSeconds: {{ .Values.webhook.validate.timeoutSeconds }}
-  failurePolicy: {{ .Values.webhook.validate.failurePolicy }}
 - name: validate--v1-pod.x-k8s.io
   admissionReviewVersions:
   - v1
@@ -70,6 +68,4 @@ webhooks:
     - key: jobset.sigs.k8s.io/jobset-name
       operator: Exists
   sideEffects: None
-  timeoutSeconds: {{ .Values.webhook.mutate.timeoutSeconds }}
-  failurePolicy: {{ .Values.webhook.mutate.failurePolicy }}
 {{- end }}

@@ -31,6 +31,4 @@ spec:
       {{- include "jobset.controller.selectorLabels" . | nindent 6 }}
   endpoints:
   - port: metrics
-    interval: {{ .Values.metrics.serviceMonitor.interval }}
-    scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
 {{- end }}

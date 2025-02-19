@@ -77,27 +77,15 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | controller.affinity | object | `{}` | Affinity of the jobset controller pods. |
 | controller.tolerations | list | `[]` | Tolerations of the jobset controller pods. |
 | controller.podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Security context of the jobset controller pods. |
-| controller.serviceAccount.create | bool | `true` | Whether to create a service account for the jobset controller.  |
-| controller.serviceAccount.name | Optional | `""` | Specifies the name of the jobset controller service account. |
-| controller.serviceAccount.annotations | object | `{}` | Extra annotations of the jobset controller service account. |
-| controller.rbac.create | bool | `true` | Whether to create RBAC resources for the jobset controller. |
 | webhook.enable | bool | `true` | Whether to enable the jobset webhook. |
 | webhook.service.type | string | `"ClusterIP"` | Type of the jobset webhook service. |
 | webhook.service.port | int | `443` | Port of the jobset webhook service. |
-| webhook.mutate.timeoutSeconds | int | `10` | Timeout seconds of the jobset mutating webhook. |
-| webhook.mutate.failurePolicy | string | `"Fail"` | Failure policy of the jobset mutating webhook. |
-| webhook.validate.timeoutSeconds | int | `10` | Timeout seconds of the jobset validating webhook. |
-| webhook.validate.failurePolicy | string | `"Fail"` | Failure policy of the jobset validating webhook. |
 | webhook.certManager.enable | bool | `false` | Whether to use cert-manager to generate certificates for the jobset webhook. |
 | webhook.certManager.issuerRef | object | `{}` | The reference to the issuer. |
-| webhook.certManager.duration | string | `"8760h"` | The duration of the certificate validity. |
-| webhook.certManager.renewBefore | string | `"720h"` | The duration before the certificate expiration to renew the certificate. |
 | metrics.enable | bool | `true` | Whether to enable Prometheus metrics exporting. |
 | metrics.service.type | string | `"ClusterIP"` | Type of the Prometheus metrics service. |
 | metrics.service.port | int | `8443` | Port of the Prometheus metrics service. |
 | metrics.serviceMonitor.enable | bool | `false` | Whether to create a Prometheus service monitor. |
-| metrics.serviceMonitor.interval | string | `"30s"` | Interval at which metrics should be scraped. |
-| metrics.serviceMonitor.scrapeTimeout | string | `"10s"` | Timeout after which the scrape is ended. |
 | metrics.serviceMonitor.labels | object | `{}` | Labels for the Prometheus service monitor. |
 
 ## Maintainers

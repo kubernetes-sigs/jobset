@@ -37,8 +37,8 @@ spec:
   dnsNames:
   - {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc
   - {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
-  duration: {{ .Values.webhook.certManager.duration }}
-  renewBefore: {{ .Values.webhook.certManager.renewBefore }}
+  duration: 8760h
+  renewBefore: 720h
   usages:
   - server auth
   - client auth
