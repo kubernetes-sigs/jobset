@@ -1,0 +1,110 @@
+
+#
+# Copyright 2025 The Kubernetes authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# -- String to partially override release name.
+nameOverride: ""
+
+# -- String to fully override release name.
+fullnameOverride: ""
+
+# -- Common labels to add to the jobset resources.
+commonLabels: {}
+
+image:
+  # -- Image registry.
+  registry: registry.k8s.io
+  # -- Image repository.
+  repository: jobset/jobset
+  # -- Image tag.
+  # @default -- If not set, the chart version will be used.
+  tag: v0.7.3
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+  # -- Image pull secrets for private image registry.
+  pullSecrets: []
+  # - name: <secret-name>
+
+controller:
+  # -- Replicas of the jobset controller deployment.
+  replicas: 1
+
+  leaderElection:
+    # -- Whether to enable leader election for jobset controller.
+    enable: true
+
+  clientConnection:
+    # -- QPS is the number of queries per second allowed for K8S api server connection.
+    qps: 500
+    # --  Burst allows extra queries to accumulate when a client is exceeding its rate.
+    burst: 500
+
+  # -- Environment variables of the jobset controller container.
+  env: []
+
+  # -- Environment variable sources of the jobset controller container.
+  envFrom: []
+
+  # -- Volume mounts of the jobset controller container.
+  volumeMounts: []
+
+  # -- Resources of the jobset controller container.
+  resources:
+    requests:
+      cpu: 500m
+      memory: 128Mi
+    limits:
+      cpu: 2
+      memory: 4Gi
+
+  # -- Security context of the jobset controller container.
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+
+  # -- Volumes of the jobset controller pods.
+  volumes: []
+
+  # -- Node selector of the jobset controller pods.
+  nodeSelector: {}
+
+  # -- Affinity of the jobset controller pods.
+  affinity: {}
+
+  # -- Tolerations of the jobset controller pods.
+  tolerations: []
+
+  # -- Security context of the jobset controller pods.
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+certManager:
+  # -- Whether to use cert-manager to generate certificates for the jobset webhook.
+  enable: false
+
+  # -- The reference to the issuer.
+  # If empty, self-signed issuer will be created and used.
+  issuerRef: {}
+    # name: selfsigned
+    # kind: ClusterIssuer
+
+prometheus:
+  # -- Whether to enable Prometheus metrics exporting.
+  enable: true
