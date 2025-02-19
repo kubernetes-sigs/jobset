@@ -1,0 +1,44 @@
+{{- /*
+Copyright 2025 The Kubernetes authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/ -}}
+
+{{- if .Values.certManager.enable }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "jobset.certManager.certificate.name" . }}
+  namespace: {{ .Release.Namespace}}
+  labels:
+    {{- include "jobset.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "jobset.webhook.secret.name" . }}
+  issuerRef:
+  {{- with .Values.certManager.issuerRef }}
+    {{ toYaml . | nindent 4 }}
+  {{- else }}
+    group: cert-manager.io/v1
+    kind: Issuer
+    name: {{ include "jobset.certManager.issuer.name" . }}
+  {{- end }}
+  commonName: {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc
+  dnsNames:
+  - {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc
+  - {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  duration: 8760h
+  renewBefore: 720h
+  usages:
+  - server auth
+  - client auth
+{{- end }}

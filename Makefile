@@ -48,6 +48,7 @@ SHELL = /usr/bin/env bash -o pipefail
 INTEGRATION_TARGET ?= ./test/integration/...
 
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+JOBSET_CHART_DIR := charts/jobset
 
 E2E_TARGET ?= ./test/e2e/...
 E2E_KIND_VERSION ?= kindest/node:v1.30.0
@@ -199,21 +200,69 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
-##@ Build Dependencies
+##@ Helm
+.PHONY: helm-unittest
+helm-unittest: helm-unittest-plugin ## Run Helm chart unittests.
+	$(HELM) unittest $(JOBSET_CHART_DIR) --strict --file "tests/**/*_test.yaml"
+
+.PHONY: helm-lint
+helm-lint: ## Run Helm chart lint test.
+	docker run --rm --workdir /workspace --volume "$$(pwd):/workspace" quay.io/helmpack/chart-testing:latest ct lint --target-branch main --validate-maintainers=false
+
+.PHONY: helm-docs
+helm-docs: helm-docs-plugin ## Generates markdown documentation for helm charts from requirements and values files.
+	$(HELM_DOCS) --sort-values-order=file
+
+##@ Release
+.PHONY: artifacts
+artifacts: kustomize
+	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
+	if [ -d artifacts ]; then rm -rf artifacts; fi
+	mkdir -p artifacts
+	$(KUSTOMIZE) build config/default -o artifacts/manifests.yaml
+	$(KUSTOMIZE) build config/prometheus -o artifacts/prometheus.yaml
+	@$(call clean-manifests)
+
+GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
+.PHONY: golangci-lint
+golangci-lint: ## Download golangci-lint locally if necessary.
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.60.3
+
+GOTESTSUM = $(shell pwd)/bin/gotestsum
+.PHONY: gotestsum
+gotestsum: ## Download gotestsum locally if necessary.
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install gotest.tools/gotestsum@v1.8.2
+
+
+.PHONY: generate-apiref
+generate-apiref: genref
+	cd $(PROJECT_DIR)/hack/genref/ && $(GENREF) -o $(PROJECT_DIR)/site/content/en/docs/reference
+
+GENREF = $(PROJECT_DIR)/bin/genref
+.PHONY: genref
+genref: ## Download genref locally if necessary.
+	@GOBIN=$(PROJECT_DIR)/bin $(GO_CMD) install github.com/kubernetes-sigs/reference-docs/genref@v0.28.0
+
+##@ Dependencies
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
+## Tool Versions
+KUSTOMIZE_VERSION ?= v3.8.7
+CONTROLLER_TOOLS_VERSION ?= v0.16.2
+HELM_VERSION ?= v3.17.1
+HELM_UNITTEST_VERSION ?= 0.7.2
+HELM_DOCS_VERSION ?= v1.14.2
+
 ## Tool Binaries
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
-
-## Tool Versions
-KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.16.2
+HELM ?= $(ARTIFACTS)/helm
+HELM_DOCS ?= $(ARTIFACTS)/helm-docs
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -282,32 +331,19 @@ test-e2e-kind: manifests kustomize fmt vet envtest ginkgo kind-image-build
 prometheus:
 	kubectl apply --server-side -k config/prometheus
 
-##@ Release
-.PHONY: artifacts
-artifacts: kustomize
-	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
-	if [ -d artifacts ]; then rm -rf artifacts; fi
-	mkdir -p artifacts
-	$(KUSTOMIZE) build config/default -o artifacts/manifests.yaml
-	$(KUSTOMIZE) build config/prometheus -o artifacts/prometheus.yaml
-	@$(call clean-manifests)
+.PHONY: helm
+helm: $(HELM) ## Download helm locally if necessary.
+$(HELM): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) $(GO_CMD) install helm.sh/helm/v3/cmd/helm@$(HELM_VERSION)
 
-GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
-.PHONY: golangci-lint
-golangci-lint: ## Download golangci-lint locally if necessary.
-	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.60.3
+.PHONY: helm-unittest-plugin
+helm-unittest-plugin: helm ## Download helm unittest plugin locally if necessary.
+	if [ -z "$(shell $(HELM) plugin list | grep unittest)" ]; then \
+		echo "Installing helm unittest plugin"; \
+		$(HELM) plugin install https://github.com/helm-unittest/helm-unittest.git --version $(HELM_UNITTEST_VERSION); \
+	fi
 
-GOTESTSUM = $(shell pwd)/bin/gotestsum
-.PHONY: gotestsum
-gotestsum: ## Download gotestsum locally if necessary.
-	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install gotest.tools/gotestsum@v1.8.2
-
-
-.PHONY: generate-apiref
-generate-apiref: genref
-	cd $(PROJECT_DIR)/hack/genref/ && $(GENREF) -o $(PROJECT_DIR)/site/content/en/docs/reference
-
-GENREF = $(PROJECT_DIR)/bin/genref
-.PHONY: genref
-genref: ## Download genref locally if necessary.
-	@GOBIN=$(PROJECT_DIR)/bin $(GO_CMD) install github.com/kubernetes-sigs/reference-docs/genref@v0.28.0
+.PHONY: helm-docs-plugin
+helm-docs-plugin: $(HELM_DOCS) ## Download helm-docs plugin locally if necessary.
+$(HELM_DOCS): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) $(GO_CMD) install github.com/norwoodj/helm-docs/cmd/helm-docs@$(HELM_DOCS_VERSION)
