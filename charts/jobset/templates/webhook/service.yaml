@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */ -}}
 
-{{- if .Values.webhook.enable }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -22,12 +21,11 @@ metadata:
   labels:
     {{- include "jobset.webhook.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.webhook.service.type }}
+  type: ClusterIP
   selector:
     {{- include "jobset.selectorLabels" . | nindent 4 }}
   ports:
   - name: webhook
     protocol: TCP
-    port: {{ .Values.webhook.service.port }}
+    port: 443
     targetPort: webhook
-{{- end }}

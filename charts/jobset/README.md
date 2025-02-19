@@ -1,6 +1,6 @@
 # jobset
 
-![Version: 0.7.3](https://img.shields.io/badge/Version-0.7.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.7.3](https://img.shields.io/badge/AppVersion-0.7.3-informational?style=flat-square)
+![Version: 0.7.3](https://img.shields.io/badge/Version-0.7.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
 
 A Helm chart for deploying JobSet controller and webhook on Kubernetes.
 
@@ -62,31 +62,26 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | commonLabels | object | `{}` | Common labels to add to the jobset resources. |
 | image.registry | string | `"registry.k8s.io"` | Image registry. |
 | image.repository | string | `"jobset/jobset"` | Image repository. |
-| image.tag | string | If not set, the chart appVersion will be used. | Image tag. |
+| image.tag | string | If not set, the chart version will be used. | Image tag. |
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | image.pullSecrets | list | `[]` | Image pull secrets for private image registry. |
 | controller.replicas | int | `1` | Replicas of the jobset controller deployment. |
 | controller.leaderElection.enable | bool | `true` | Whether to enable leader election for jobset controller. |
+| controller.clientConnection.qps | int | `500` | QPS is the number of queries per second allowed for K8S api server connection. |
+| controller.clientConnection.burst | int | `500` | Burst allows extra queries to accumulate when a client is exceeding its rate. |
 | controller.env | list | `[]` | Environment variables of the jobset controller container. |
 | controller.envFrom | list | `[]` | Environment variable sources of the jobset controller container. |
 | controller.volumeMounts | list | `[]` | Volume mounts of the jobset controller container. |
-| controller.resources | object | `{"limits":{"cpu":2,"memory":"512Mi"},"requests":{"cpu":"500m","memory":"128Mi"}}` | Resources of the jobset controller container. |
+| controller.resources | object | `{"limits":{"cpu":2,"memory":"4Gi"},"requests":{"cpu":"500m","memory":"128Mi"}}` | Resources of the jobset controller container. |
 | controller.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}` | Security context of the jobset controller container. |
 | controller.volumes | list | `[]` | Volumes of the jobset controller pods. |
 | controller.nodeSelector | object | `{}` | Node selector of the jobset controller pods. |
 | controller.affinity | object | `{}` | Affinity of the jobset controller pods. |
 | controller.tolerations | list | `[]` | Tolerations of the jobset controller pods. |
 | controller.podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Security context of the jobset controller pods. |
-| webhook.enable | bool | `true` | Whether to enable the jobset webhook. |
-| webhook.service.type | string | `"ClusterIP"` | Type of the jobset webhook service. |
-| webhook.service.port | int | `443` | Port of the jobset webhook service. |
-| webhook.certManager.enable | bool | `false` | Whether to use cert-manager to generate certificates for the jobset webhook. |
-| webhook.certManager.issuerRef | object | `{}` | The reference to the issuer. |
-| metrics.enable | bool | `true` | Whether to enable Prometheus metrics exporting. |
-| metrics.service.type | string | `"ClusterIP"` | Type of the Prometheus metrics service. |
-| metrics.service.port | int | `8443` | Port of the Prometheus metrics service. |
-| metrics.serviceMonitor.enable | bool | `false` | Whether to create a Prometheus service monitor. |
-| metrics.serviceMonitor.labels | object | `{}` | Labels for the Prometheus service monitor. |
+| certManager.enable | bool | `false` | Whether to use cert-manager to generate certificates for the jobset webhook. |
+| certManager.issuerRef | object | `{}` | The reference to the issuer. If empty, self-signed issuer will be created and used. |
+| prometheus.enable | bool | `true` | Whether to enable Prometheus metrics exporting. |
 
 ## Maintainers
 

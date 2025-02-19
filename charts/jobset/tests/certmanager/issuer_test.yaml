@@ -13,27 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-apiVersion: v2
 
-name: jobset
+suite: Test cert-manager Issuer
 
-description: A Helm chart for deploying JobSet controller and webhook on Kubernetes.
+templates:
+  - certmanager/issuer.yaml
 
-type: application
+release:
+  name: jobset
+  namespace: jobset-system
 
-version: 0.7.3
-
-keywords:
-- kubernetes
-- batch
-- jobset
-
-home: https://github.com/kubernetes-sigs/jobset
-
-maintainers:
-- name: ahg-g
-  url: https://github.com/ahg-g
-- name: danielvegamyhre
-  url: https://github.com/danielvegamyhre
-- name: kannon92
-  url: https://github.com/kannon92
+tests:
+  - it: Should create cert-manager Issuer resource if `certManager.enable` is `true` and `certManager.issuerRef` is `{}`
+    set:
+      certManager:
+        enable: true
+    asserts:
+      - containsDocument:
+          apiVersion: cert-manager.io/v1
+          kind: Issuer
+          name: jobset-self-signed-issuer

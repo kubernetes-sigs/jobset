@@ -28,9 +28,10 @@ data:
     kind: Configuration
     leaderElection:
       leaderElect: {{ .Values.controller.leaderElection.enable }}
-    {{- if .Values.webhook.enable }}
+    clientConnection:
+      qps: {{ .Values.controller.clientConnection.qps }}
+      burst: {{ .Values.controller.clientConnection.burst }}
     internalCertManagement:
-      enable: {{ not .Values.webhook.certManager.enable }}
+      enable: {{ not .Values.certManager.enable }}
       webhookServiceName: {{ include "jobset.webhook.service.name" . }}
       webhookSecretName: {{ include "jobset.webhook.secret.name" . }}
-    {{- end }}

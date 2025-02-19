@@ -30,7 +30,7 @@ image:
   # -- Image repository.
   repository: jobset/jobset
   # -- Image tag.
-  # @default -- If not set, the chart appVersion will be used.
+  # @default -- If not set, the chart version will be used.
   tag: v0.7.3
   # -- Image pull policy.
   pullPolicy: IfNotPresent
@@ -45,6 +45,12 @@ controller:
   leaderElection:
     # -- Whether to enable leader election for jobset controller.
     enable: true
+
+  clientConnection:
+    # -- QPS is the number of queries per second allowed for K8S api server connection.
+    qps: 500
+    # --  Burst allows extra queries to accumulate when a client is exceeding its rate.
+    burst: 500
 
   # -- Environment variables of the jobset controller container.
   env: []
@@ -62,7 +68,7 @@ controller:
       memory: 128Mi
     limits:
       cpu: 2
-      memory: 512Mi
+      memory: 4Gi
 
   # -- Security context of the jobset controller container.
   securityContext:
@@ -89,38 +95,16 @@ controller:
     seccompProfile:
       type: RuntimeDefault
 
-webhook:
-  # -- Whether to enable the jobset webhook.
-  enable: true
-  
-  service:
-    # -- Type of the jobset webhook service.
-    type: ClusterIP
+certManager:
+  # -- Whether to use cert-manager to generate certificates for the jobset webhook.
+  enable: false
 
-    # -- Port of the jobset webhook service.
-    port: 443
+  # -- The reference to the issuer.
+  # If empty, self-signed issuer will be created and used.
+  issuerRef: {}
+    # name: selfsigned
+    # kind: ClusterIssuer
 
-  certManager:
-    # -- Whether to use cert-manager to generate certificates for the jobset webhook.
-    enable: false
-
-    # -- The reference to the issuer.
-    issuerRef: {}
-      # name: selfsigned
-      # kind: ClusterIssuer
-
-metrics:
+prometheus:
   # -- Whether to enable Prometheus metrics exporting.
   enable: true
-
-  service:
-    # -- Type of the Prometheus metrics service.
-    type: ClusterIP
-    # -- Port of the Prometheus metrics service.
-    port: 8443
-
-  serviceMonitor:
-    # -- Whether to create a Prometheus service monitor.
-    enable: false
-    # -- Labels for the Prometheus service monitor.
-    labels: {}

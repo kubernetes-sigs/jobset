@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */ -}}
 
-{{- if and .Values.metrics.enable .Values.metrics.serviceMonitor.enable }}
+{{- if .Values.prometheus.enable }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -22,9 +22,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "jobset.controller.labels" . | nindent 4 }}
-    {{- with .Values.metrics.serviceMonitor.labels }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 spec:
   selector:
     matchLabels:

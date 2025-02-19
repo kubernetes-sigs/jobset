@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */ -}}
 
-{{- if .Values.webhook.enable }}
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   name: {{ include "jobset.webhook.mutatingWebhookConfiguration.name" . }}
   labels:
     {{- include "jobset.webhook.labels" . | nindent 4 }}
-  {{- if .Values.webhook.certManager.enable }}
+  {{- if .Values.certManager.enable }}
   annotations:
     cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "jobset.webhook.secret.name" . }}
   {{- end }}
@@ -67,4 +66,3 @@ webhooks:
     - key: jobset.sigs.k8s.io/jobset-name
       operator: Exists
   sideEffects: None
-{{- end }}

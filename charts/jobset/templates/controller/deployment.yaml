@@ -59,21 +59,17 @@ spec:
         {{- with .Values.controller.volumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- if .Values.webhook.enable }}
         - name: webhook-cert
           mountPath: /tmp/k8s-webhook-server/serving-certs
           readOnly: true
-        {{- end }}
         ports:
         - name: health-probe
           containerPort: 8081
           protocol: TCP
-        {{- if .Values.webhook.enable }}
         - name: webhook
           containerPort: 9443
           protocol: TCP
-        {{- end }}
-        {{- if .Values.metrics.enable }}
+        {{- if .Values.prometheus.enable }}
         - name: metrics
           containerPort: 8080
           protocol: TCP
@@ -111,12 +107,10 @@ spec:
       {{- with .Values.controller.volumes }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
-      {{- if .Values.webhook.enable }}
       - name: webhook-cert
         secret:
           secretName: {{ include "jobset.webhook.secret.name" . }}
           defaultMode: 420
-      {{- end }}
       {{- with .Values.controller.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

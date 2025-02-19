@@ -14,24 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */ -}}
 
-{{- if .Values.webhook.enable }}
-{{- if .Values.webhook.certManager.enable }}
+{{- if .Values.certManager.enable }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ include "jobset.webhook.certManager.certificate.name" . }}
+  name: {{ include "jobset.certManager.certificate.name" . }}
   namespace: {{ .Release.Namespace}}
   labels:
-    {{- include "jobset.webhook.labels" . | nindent 4 }}
+    {{- include "jobset.labels" . | nindent 4 }}
 spec:
   secretName: {{ include "jobset.webhook.secret.name" . }}
   issuerRef:
-  {{- with .Values.webhook.certManager.issuerRef }}
+  {{- with .Values.certManager.issuerRef }}
     {{ toYaml . | nindent 4 }}
   {{- else }}
     group: cert-manager.io/v1
     kind: Issuer
-    name: {{ include "jobset.webhook.certManager.issuer.name" . }}
+    name: {{ include "jobset.certManager.issuer.name" . }}
   {{- end }}
   commonName: {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc
   dnsNames:
@@ -42,5 +41,4 @@ spec:
   usages:
   - server auth
   - client auth
-{{- end }}
 {{- end }}

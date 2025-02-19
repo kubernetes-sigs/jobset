@@ -50,7 +50,7 @@ Common labels of the jobset resources.
 {{- define "jobset.labels" -}}
 helm.sh/chart: {{ include "jobset.chart" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- with .Chart.AppVersion }}
+{{- with .Chart.Version }}
 app.kubernetes.io/version: {{ . | quote }}
 {{- end }}
 {{- with .Values.commonLabels }}
@@ -71,5 +71,5 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Create the name of jobset image.
 */}}
 {{- define "jobset.image" -}}
-{{ printf "%s/%s:%s" .Values.image.registry .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) }}
+{{ printf "%s/%s:%s" .Values.image.registry .Values.image.repository (.Values.image.tag | default .Chart.Version) }}
 {{- end -}}

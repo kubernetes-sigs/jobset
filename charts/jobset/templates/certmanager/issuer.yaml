@@ -1,5 +1,5 @@
 {{- /*
-Copyright 2025 The Kubernetes authors.
+Copyright 2025 The Kubeflow authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */ -}}
 
-{{/*
-Create the name of the jobset webhook certificate issuer.
-*/}}
-{{- define "jobset.webhook.certManager.issuer.name" -}}
-{{ include "jobset.webhook.name" . }}-self-signed-issuer
-{{- end -}}
-
-
-{{/*
-Create the name of the jobset webhook certificate.
-*/}}
-{{- define "jobset.webhook.certManager.certificate.name" -}}
-{{ include "jobset.webhook.name" . }}-cert
-{{- end -}}
+{{- if and .Values.certManager.enable (not .Values.certManager.issuerRef) }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "jobset.certManager.issuer.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jobset.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}

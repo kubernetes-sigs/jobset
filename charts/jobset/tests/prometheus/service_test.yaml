@@ -13,27 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-apiVersion: v2
 
-name: jobset
+suite: Test Prometheus Service
 
-description: A Helm chart for deploying JobSet controller and webhook on Kubernetes.
+templates:
+  - prometheus/service.yaml
 
-type: application
+release:
+  name: jobset
+  namespace: jobset-system
 
-version: 0.7.3
-
-keywords:
-- kubernetes
-- batch
-- jobset
-
-home: https://github.com/kubernetes-sigs/jobset
-
-maintainers:
-- name: ahg-g
-  url: https://github.com/ahg-g
-- name: danielvegamyhre
-  url: https://github.com/danielvegamyhre
-- name: kannon92
-  url: https://github.com/kannon92
+tests:
+  - it: Should create Prometheus Service if `prometheus.enable` is `true`
+    set:
+      prometheus:
+        enable: true
+    asserts:
+      - containsDocument:
+          apiVersion: v1
+          kind: Service
+          name: jobset-metrics-service
