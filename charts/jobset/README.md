@@ -81,7 +81,7 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | controller.podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Security context of the jobset controller pods. |
 | certManager.enable | bool | `false` | Whether to use cert-manager to generate certificates for the jobset webhook. |
 | certManager.issuerRef | object | `{}` | The reference to the issuer. If empty, self-signed issuer will be created and used. |
-| prometheus.enable | bool | `true` | Whether to enable Prometheus metrics exporting. |
+| prometheus.enable | bool | `false` | Whether to enable Prometheus metrics exporting. |
 
 ## Maintainers
 

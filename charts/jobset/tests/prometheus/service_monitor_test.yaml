@@ -24,7 +24,15 @@ release:
   namespace: jobset-system
 
 tests:
+  - it: Should not create Prometheus ServiceMonitor by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
   - it: Should create Prometheus ServiceMonitor if `prometheus.enable` is `true`
+    capabilities:
+      apiVersions:
+        - monitoring.coreos.com/v1/ServiceMonitor
     set:
       prometheus:
         enable: true
@@ -33,3 +41,11 @@ tests:
           apiVersion: monitoring.coreos.com/v1
           kind: ServiceMonitor
           name: jobset-metrics-service-monitor
+
+  - it: Should fail if the cluster does not support the required API resource `monitoring.coreos.com/v1/ServiceMonitor`
+    set:
+      prometheus:
+        enable: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "The cluster does not support the required API resource `monitoring.coreos.com/v1/ServiceMonitor`."
