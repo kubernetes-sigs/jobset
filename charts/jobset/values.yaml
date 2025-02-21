@@ -107,4 +107,4 @@ certManager:
 
 prometheus:
   # -- Whether to enable Prometheus metrics exporting.
-  enable: true
+  enable: false

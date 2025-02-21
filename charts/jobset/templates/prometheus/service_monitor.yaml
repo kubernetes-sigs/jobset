@@ -15,6 +15,9 @@ limitations under the License.
 */ -}}
 
 {{- if .Values.prometheus.enable }}
+{{- if not (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor") }}
+{{- fail "The cluster does not support the required API resource `monitoring.coreos.com/v1/ServiceMonitor`." }}
+{{- end -}}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
