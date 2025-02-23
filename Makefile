@@ -20,10 +20,12 @@ PLATFORMS ?= linux/amd64,linux/arm64
 DOCKER_BUILDX_CMD ?= docker buildx
 IMAGE_BUILD_CMD ?= $(DOCKER_BUILDX_CMD) build
 IMAGE_BUILD_EXTRA_OPTS ?=
-IMAGE_REGISTRY ?= gcr.io/k8s-staging-jobset
+STAGING_IMAGE_REGISTRY := us-central1-docker.pkg.dev/k8s-staging-images
+IMAGE_REGISTRY ?= $(STAGING_IMAGE_REGISTRY)/jobset
 IMAGE_NAME := jobset
 IMAGE_REPO ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME)
 IMAGE_TAG ?= $(IMAGE_REPO):$(GIT_TAG)
+HELM_CHART_REPO := $(STAGING_IMAGE_REGISTRY)/charts
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
@@ -213,15 +215,27 @@ helm-lint: ## Run Helm chart lint test.
 helm-docs: helm-docs-plugin ## Generates markdown documentation for helm charts from requirements and values files.
 	$(HELM_DOCS) --sort-values-order=file
 
+.PHONY: helm-chart-push
+helm-chart-push: yq helm
+        EXTRA_TAG="$(EXTRA_TAG)" GIT_TAG="$(GIT_TAG)" IMAGE_REGISTRY="$(IMAGE_REGISTRY)" HELM_CHART_REPO="$(HELM_CHART_REPO)" IMAGE_REPO="$(IMAGE_REPO)" HELM="$(HELM)" YQ="$(YQ)" ./hack/push-chart.sh
+
+
 ##@ Release
 .PHONY: artifacts
-artifacts: kustomize
+artifacts: kustomize helm
 	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
 	if [ -d artifacts ]; then rm -rf artifacts; fi
 	mkdir -p artifacts
 	$(KUSTOMIZE) build config/default -o artifacts/manifests.yaml
 	$(KUSTOMIZE) build config/prometheus -o artifacts/prometheus.yaml
 	@$(call clean-manifests)
+	# Update the image tag and policy
+	$(YQ)  e  '.image.repository = "$(IMAGE_REPO)" | .image.tag = "$(GIT_TAG)" | .image.pullPolicy = "IfNotPresent"' -i charts/jobset/values.yaml
+	# create the package. TODO: consider signing it
+	$(HELM) package --version $(GIT_TAG) --app-version $(GIT_TAG) charts/jobset -d artifacts/
+	mv artifacts/jobset-$(GIT_TAG).tgz artifacts/jobset-chart-$(GIT_TAG).tgz
+	# Revert the image changes
+	$(YQ)  e  '.image.repository = "$(IMAGE_REGISTRY)/$(IMAGE_NAME)" | del(.image.tag) | .image.pullPolicy = "Always"' -i charts/jobset/values.yaml
 
 GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
 .PHONY: golangci-lint
@@ -347,3 +361,9 @@ helm-unittest-plugin: helm ## Download helm unittest plugin locally if necessary
 helm-docs-plugin: $(HELM_DOCS) ## Download helm-docs plugin locally if necessary.
 $(HELM_DOCS): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) $(GO_CMD) install github.com/norwoodj/helm-docs/cmd/helm-docs@$(HELM_DOCS_VERSION)
+
+YQ = $(PROJECT_DIR)/bin/yq
+.PHONY: yq
+yq: ## Download yq locally if necessary.
+	GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/mikefarah/yq/v4@v4.45.1
+
