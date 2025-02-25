@@ -217,7 +217,7 @@ helm-docs: helm-docs-plugin ## Generates markdown documentation for helm charts 
 
 .PHONY: helm-chart-push
 helm-chart-push: yq helm
-        EXTRA_TAG="$(EXTRA_TAG)" GIT_TAG="$(GIT_TAG)" IMAGE_REGISTRY="$(IMAGE_REGISTRY)" HELM_CHART_REPO="$(HELM_CHART_REPO)" IMAGE_REPO="$(IMAGE_REPO)" HELM="$(HELM)" YQ="$(YQ)" ./hack/push-chart.sh
+	EXTRA_TAG="$(EXTRA_TAG)" GIT_TAG="$(GIT_TAG)" IMAGE_REGISTRY="$(IMAGE_REGISTRY)" HELM_CHART_REPO="$(HELM_CHART_REPO)" IMAGE_REPO="$(IMAGE_REPO)" HELM="$(HELM)" YQ="$(YQ)" ./hack/push-chart.sh
 
 
 ##@ Release
@@ -345,10 +345,10 @@ test-e2e-kind: manifests kustomize fmt vet envtest ginkgo kind-image-build
 prometheus:
 	kubectl apply --server-side -k config/prometheus
 
+HELM = $(PROJECT_DIR)/bin/helm
 .PHONY: helm
-helm: $(HELM) ## Download helm locally if necessary.
-$(HELM): $(LOCALBIN)
-	GOBIN=$(LOCALBIN) $(GO_CMD) install helm.sh/helm/v3/cmd/helm@$(HELM_VERSION)
+helm: ## Download helm locally if necessary.
+	GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install helm.sh/helm/v3/cmd/helm@$(HELM_VERSION)
 
 .PHONY: helm-unittest-plugin
 helm-unittest-plugin: helm ## Download helm unittest plugin locally if necessary.

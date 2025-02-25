@@ -31,6 +31,8 @@ image:
   # -- Image pull secrets for private image registry.
   pullSecrets: []
   # - name: <secret-name>
+
+  tag: main
 controller:
   # -- Replicas of the jobset controller deployment.
   replicas: 1

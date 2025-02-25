@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Copyright 2024 The Kubernetes Authors.
 #
@@ -52,5 +52,5 @@ ${HELM} package --version "${chart_version}" --app-version "${chart_version}" ch
 
 # Revert the image changes
 ${YQ}  e  ".image.repository = \"${default_image_repo}\" | .image.tag = \"main\" | .image.pullPolicy = \"Always\"" -i charts/jobset/values.yaml
-
+echo "pushing chart to ${HELM_CHART_REPO}"
 ${HELM} push "bin/jobset-${chart_version}.tgz" "oci://${HELM_CHART_REPO}"
