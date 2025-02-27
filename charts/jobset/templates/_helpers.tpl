@@ -66,10 +66,3 @@ Selector labels of the jobset resources.
 app.kubernetes.io/name: {{ include "jobset.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
-
-{{/*
-Create the name of jobset image.
-*/}}
-{{- define "jobset.image" -}}
-{{ printf "%s/%s:%s" .Values.image.registry .Values.image.repository (.Values.image.tag | default .Chart.Version) }}
-{{- end -}}
