@@ -60,11 +60,10 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | nameOverride | string | `""` | String to partially override release name. |
 | fullnameOverride | string | `""` | String to fully override release name. |
 | commonLabels | object | `{}` | Common labels to add to the jobset resources. |
-| image.registry | string | `"registry.k8s.io"` | Image registry. |
-| image.repository | string | `"jobset/jobset"` | Image repository. |
-| image.tag | string | If not set, the chart version will be used. | Image tag. |
-| image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
+| image.repository | string | `"us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset"` | Image repository. |
+| image.pullPolicy | string | `"Always"` | Image pull policy. |
 | image.pullSecrets | list | `[]` | Image pull secrets for private image registry. |
+| image.tag | string | `"main"` |  |
 | controller.replicas | int | `1` | Replicas of the jobset controller deployment. |
 | controller.leaderElection.enable | bool | `true` | Whether to enable leader election for jobset controller. |
 | controller.clientConnection.qps | int | `500` | QPS is the number of queries per second allowed for K8S api server connection. |

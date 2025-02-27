@@ -235,7 +235,7 @@ artifacts: kustomize helm
 	$(HELM) package --version $(GIT_TAG) --app-version $(GIT_TAG) charts/jobset -d artifacts/
 	mv artifacts/jobset-$(GIT_TAG).tgz artifacts/jobset-chart-$(GIT_TAG).tgz
 	# Revert the image changes
-	$(YQ)  e  '.image.repository = "$(IMAGE_REGISTRY)/$(IMAGE_NAME)" | del(.image.tag) | .image.pullPolicy = "Always"' -i charts/jobset/values.yaml
+	$(YQ)  e  '.image.repository = "$(IMAGE_REGISTRY)/$(IMAGE_NAME)" | .image.tag="main" | .image.pullPolicy = "Always"' -i charts/jobset/values.yaml
 
 GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
 .PHONY: golangci-lint
