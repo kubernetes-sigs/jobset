@@ -23,7 +23,6 @@ set -x
 
 repo_root="$(pwd)"
 
-SWAGGER_CODEGEN_CONF="${repo_root}/hack/python-sdk/swagger_config.json"
 SDK_OUTPUT_PATH="${repo_root}/sdk/python"
 VERSION=0.1.4
 SWAGGER_CODEGEN_FILE="${repo_root}/hack/python-sdk/swagger.json"
@@ -48,7 +47,7 @@ CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
 
 # Install the sdk using docker, using the user that is running the container engine so that files can still be removed
 ${CONTAINER_ENGINE} run --user $(id -u):$(id -g) --rm \
-  -v "${repo_root}":/local docker.io/openapitools/openapi-generator-cli generate \
+  -v "${repo_root}":/local docker.io/openapitools/openapi-generator-cli:v7.11.0 generate \
   -i /local/hack/python-sdk/swagger.json \
   -g python \
   -o /local/sdk/python \
