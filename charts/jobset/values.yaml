@@ -22,16 +22,13 @@ fullnameOverride: ""
 # -- Common labels to add to the jobset resources.
 commonLabels: {}
 image:
-  # -- Image registry.
-  registry: registry.k8s.io
   # -- Image repository.
-  repository: us-central1-docker.pkg.dev/k8s-staging-images/jobset/
+  repository: us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset
   # -- Image pull policy.
   pullPolicy: Always
   # -- Image pull secrets for private image registry.
   pullSecrets: []
   # - name: <secret-name>
-
   tag: main
 controller:
   # -- Replicas of the jobset controller deployment.
