@@ -240,7 +240,7 @@ artifacts: kustomize helm
 GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
 .PHONY: golangci-lint
 golangci-lint: ## Download golangci-lint locally if necessary.
-	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.60.3
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.5
 
 GOTESTSUM = $(shell pwd)/bin/gotestsum
 .PHONY: gotestsum
