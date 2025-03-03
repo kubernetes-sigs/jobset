@@ -36,7 +36,13 @@ class TestJobsetV1alpha2JobSetStatus(unittest.TestCase):
         if include_optional:
             return JobsetV1alpha2JobSetStatus(
                 conditions = [
-                    None
+                    jobset.models.io/k8s/apimachinery/pkg/apis/meta/v1/condition.io.k8s.apimachinery.pkg.apis.meta.v1.Condition(
+                        last_transition_time = datetime.datetime.strptime('2013-10-20 19:20:30.00', '%Y-%m-%d %H:%M:%S.%f'), 
+                        message = '', 
+                        observed_generation = 56, 
+                        reason = '', 
+                        status = '', 
+                        type = '', )
                     ],
                 replicated_jobs_status = [
                     jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
