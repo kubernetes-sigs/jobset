@@ -52,6 +52,15 @@ VERSION={{< param "version" >}}
 kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
 ```
 
+To install a released version of JobSet in your cluster using Helm, run the following command:
+
+```shell
+helm install jobset oci://us-central1-docker.pkg.dev/k8s-staging-images/charts/jobset --version=$VERSION --create-namespace --namespace=jobset-system
+
+```
+
+For more HELM configurations options, follow the [instructions](https://github.com/kubernetes-sigs/jobset/tree/main/charts/jobset).
+
 ### Optional: Add metrics scraping for prometheus-operator
 
 If you are using [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator)
@@ -149,6 +158,12 @@ To uninstall a released version of JobSet from your cluster, run the following c
 ```shell
 VERSION={{< param "version" >}}
 kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
+```
+
+To uninstall a released version of Kueue from your cluster by Helm, run the following command:
+
+```shell
+helm uninstall jobset --namespace jobset-system
 ```
 
 <!-- <\!-- Uncomment once we have component config setup -\-> -->
