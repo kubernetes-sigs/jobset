@@ -124,7 +124,7 @@
         },
         "metadata": {
           "default": {},
-          "$ref": "#/definitions/v1.ObjectMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.32.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
         },
         "spec": {
           "default": {},
@@ -160,7 +160,7 @@
         },
         "metadata": {
           "default": {},
-          "$ref": "#/definitions/v1.ListMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.32.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
         }
       }
     },
@@ -223,7 +223,7 @@
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "#/definitions/v1.Condition"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.32.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
           },
           "x-kubernetes-list-map-keys": [
             "type"
@@ -307,7 +307,7 @@
         "template": {
           "description": "Template defines the template of the Job that will be created.",
           "default": {},
-          "$ref": "#/definitions/v1.JobTemplateSpec"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.32.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.batch.v1.JobTemplateSpec"
         }
       }
     },
