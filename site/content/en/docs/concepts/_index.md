@@ -114,7 +114,7 @@ By default, JobSet configures DNS for Pods by creating a headless service with n
 To list the headless service that belong to a JobSet, you can use a command like this:
 
 ```shell
-kubectl get services --selector=jobset.sigs.k8s.io/jobset-name=pytorch
+kubectl get svc -o jsonpath='{.items[?(@.spec.selector.jobset\.sigs\.k8s\.io/jobset-name == "pytorch")].metadata.name}' | xargs kubectl get services
 ```
 
 The output is similar to 
