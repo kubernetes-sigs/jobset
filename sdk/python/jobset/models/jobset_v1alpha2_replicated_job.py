@@ -19,6 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
+from jobset.models.io_k8s_api_batch_v1_job_template_spec import IoK8sApiBatchV1JobTemplateSpec
 from jobset.models.jobset_v1alpha2_depends_on import JobsetV1alpha2DependsOn
 from typing import Optional, Set
 from typing_extensions import Self
@@ -30,7 +31,7 @@ class JobsetV1alpha2ReplicatedJob(BaseModel):
     depends_on: Optional[List[JobsetV1alpha2DependsOn]] = Field(default=None, description="DependsOn is an optional list that specifies the preceding ReplicatedJobs upon which the current ReplicatedJob depends. If specified, the ReplicatedJob will be created only after the referenced ReplicatedJobs reach their desired state. The Order of ReplicatedJobs is defined by their enumeration in the slice. Note, that the first ReplicatedJob in the slice cannot use the DependsOn API. Currently, only a single item is supported in the DependsOn list. If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is resumed the Job sequence starts again. This API is mutually exclusive with the StartupPolicy API.", alias="dependsOn")
     name: StrictStr = Field(description="Name is the name of the entry and will be used as a suffix for the Job name.")
     replicas: Optional[StrictInt] = Field(default=None, description="Replicas is the number of jobs that will be created from this ReplicatedJob's template. Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>")
-    template: V1JobTemplateSpec
+    template: IoK8sApiBatchV1JobTemplateSpec
     __properties: ClassVar[List[str]] = ["dependsOn", "name", "replicas", "template"]
 
     model_config = ConfigDict(
@@ -97,7 +98,7 @@ class JobsetV1alpha2ReplicatedJob(BaseModel):
             "dependsOn": [JobsetV1alpha2DependsOn.from_dict(_item) for _item in obj["dependsOn"]] if obj.get("dependsOn") is not None else None,
             "name": obj.get("name") if obj.get("name") is not None else '',
             "replicas": obj.get("replicas"),
-            "template": V1JobTemplateSpec.from_dict(obj["template"]) if obj.get("template") is not None else None
+            "template": IoK8sApiBatchV1JobTemplateSpec.from_dict(obj["template"]) if obj.get("template") is not None else None
         })
         return _obj
 
