@@ -157,8 +157,16 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	if !ok {
 		return nil, fmt.Errorf("expected a JobSet but got a %T", obj)
 	}
-
 	var allErrs []error
+
+	if len(js.Spec.ReplicatedJobs) == 0 {
+		allErrs = append(allErrs, fmt.Errorf("there must be at least one replicated job in the jobset"))
+	}
+	// DependsOn cannot be set for first replicated job.
+	if len(js.Spec.ReplicatedJobs) > 0 && js.Spec.ReplicatedJobs[0].DependsOn != nil {
+		allErrs = append(allErrs, fmt.Errorf("DependsOn can't be set for the first ReplicatedJob"))
+	}
+
 	// Validate that replicatedJobs listed in success policy are part of this JobSet.
 	validReplicatedJobs := replicatedJobNamesFromSpec(js)
 
