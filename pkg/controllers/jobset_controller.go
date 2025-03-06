@@ -47,6 +47,8 @@ import (
 	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
+
+	utilaccelerator "sigs.k8s.io/jobset/pkg/util/accelerator"
 )
 
 var apiGVStr = jobset.GroupVersion.String()
@@ -719,6 +721,11 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) *ba
 	if exclusivePlacement && nodeSelectorStrategy {
 		addNamespacedJobNodeSelector(job)
 		addTaintToleration(job)
+	}
+
+	// Add TPU multi slice env variables if needed
+	if utilaccelerator.IsTpuMultiSliceJob(*job) {
+		utilaccelerator.AddTpuMultiSliceEnvVariables(job)
 	}
 
 	// if Suspend is set, then we assume all jobs will be suspended also.
