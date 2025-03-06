@@ -60,6 +60,19 @@ const (
 	// defines the .spec.coordinator field, this annotation/label will be added to store a stable
 	// network endpoint where the coordinator pod can be reached.
 	CoordinatorKey = "jobset.sigs.k8s.io/coordinator"
+
+	// GroupNameKey is a label/annotation set to the group name of the ReplicatedJob.
+	// If a ReplicatedJob is part of a group, then its child jobs and pods have this
+	// label/annotation equal to the group name
+	GroupNameKey string = "jobset.sigs.k8s.io/group-name"
+	// GroupReplicasKey is a label/annotation set to the total number of replicas in the group.
+	// If a ReplicatedJob is part of a group, then its child jobs and pods have this
+	// label/annotation equal to the total number of replicas in the group
+	GroupReplicasKey string = "jobset.sigs.k8s.io/group-replicas"
+	// JobGroupIndexKey is a label/annotation set to the index of the Job replica within its parent group.
+	// If a ReplicatedJob is part of a group, then its child jobs and pods have this
+	// label/annotation ranging from 0 to annotations[GroupReplicasKey] - 1
+	JobGroupIndexKey string = "jobset.sigs.k8s.io/job-group-index"
 )
 
 type JobSetConditionType string
