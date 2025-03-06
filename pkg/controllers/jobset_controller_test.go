@@ -177,6 +177,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					GroupName("default").
 					Replicas(2).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{},
@@ -184,6 +185,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          2,
@@ -192,6 +194,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
@@ -209,6 +212,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 						SetAnnotations(jobAnnotations).
 						SetPodAnnotations(podAnnotations).
 						Obj()).
+					GroupName("default").
 					Replicas(2).
 					Obj()).Obj(),
 			ownedJobs: &childJobs{},
@@ -216,6 +220,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					jobLabels:         jobLabels,
@@ -228,6 +233,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					jobLabels:         jobLabels,
@@ -245,6 +251,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
+					GroupName("default").
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
 				active: []*batchv1.Job{
@@ -255,6 +262,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
@@ -268,6 +276,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
+					GroupName("default").
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
 				successful: []*batchv1.Job{
@@ -278,6 +287,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
@@ -291,6 +301,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
+					GroupName("default").
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
 				failed: []*batchv1.Job{
@@ -301,6 +312,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
@@ -314,6 +326,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
+					GroupName("default").
 					Obj()).Obj(),
 			ownedJobs: &childJobs{
 				previous: []*batchv1.Job{
@@ -324,6 +337,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-1",
 					ns:                ns,
 					replicas:          2,
@@ -354,10 +368,12 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-A").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-B").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(2).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{
@@ -365,6 +381,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-B",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-B-0",
 						ns:                ns,
 						replicas:          2,
@@ -376,6 +393,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: "replicated-job-A",
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-A-0",
 					ns:                ns,
 					replicas:          1,
@@ -384,6 +402,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: "replicated-job-B",
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-B-1",
 					ns:                ns,
 					replicas:          2,
@@ -400,11 +419,13 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 						SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain}).
 						Obj()).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				// Replicated Job B has no exclusive placement annotation.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -412,6 +433,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName + "-A",
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-A-0",
 					ns:                ns,
 					replicas:          1,
@@ -421,6 +443,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName + "-B",
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-B-0",
 					ns:                ns,
 					replicas:          1,
@@ -436,14 +459,22 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).
 						SetAnnotations(map[string]string{
 							jobset.ExclusiveKey:            topologyDomain,
-							jobset.NodeSelectorStrategyKey: "true"}).
+							jobset.NodeSelectorStrategyKey: "true",
+							jobset.GroupNameKey:            "default",
+						}).
 						Obj()).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				// Replicated Job B has no exclusive placement annotation.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
-					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Job(testutils.MakeJobTemplate(jobName, ns).
+						SetAnnotations(map[string]string{
+							jobset.GroupNameKey: "default",
+						}).
+						Obj()).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -451,6 +482,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:           jobSetName,
 					replicatedJobName:    replicatedJobName + "-A",
+					groupName:            "default",
 					jobName:              "test-jobset-replicated-job-A-0",
 					ns:                   ns,
 					replicas:             1,
@@ -472,6 +504,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName + "-B",
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-B-0",
 					ns:                ns,
 					replicas:          1,
@@ -487,11 +520,13 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				// Replicated Job B.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -499,6 +534,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName + "-A",
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-A-0",
 					ns:                ns,
 					replicas:          1,
@@ -508,6 +544,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName + "-B",
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-B-0",
 					ns:                ns,
 					replicas:          1,
@@ -527,11 +564,13 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
+					//					GroupName("default").
 					Obj()).
 				// Replicated Job B.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-B").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Replicas(1).
+					//					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -589,6 +628,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Subdomain(jobSetName).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -596,6 +636,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
@@ -614,6 +655,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Subdomain(jobSetName).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -621,6 +663,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
@@ -639,6 +682,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Subdomain(jobSetName).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -646,6 +690,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
@@ -668,6 +713,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 						Obj()).
 					Subdomain(jobSetName).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -675,6 +721,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:           jobSetName,
 					replicatedJobName:    replicatedJobName,
+					groupName:            "default",
 					jobName:              "test-jobset-replicated-job-0",
 					ns:                   ns,
 					replicas:             1,
@@ -709,6 +756,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Subdomain(jobSetName).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -716,6 +764,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
@@ -740,6 +789,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
 					Subdomain(jobSetName).
 					Replicas(1).
+					GroupName("default").
 					Obj()).
 				Obj(),
 			ownedJobs: &childJobs{},
@@ -747,6 +797,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				makeJob(&makeJobArgs{
 					jobSetName:        jobSetName,
 					replicatedJobName: replicatedJobName,
+					groupName:         "default",
 					jobName:           "test-jobset-replicated-job-0",
 					ns:                ns,
 					replicas:          1,
@@ -766,6 +817,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			for _, expectedJob := range tc.want {
 				addJobGlobalIndex(t, tc.js, expectedJob)
 				addGlobalReplicas(t, tc.js, expectedJob)
+				addJobGroupIndex(t, tc.js, expectedJob)
+				addGroupReplicas(t, tc.js, expectedJob)
 			}
 
 			// Now get the actual output of constructJobsFromTemplate, and diff the results.
@@ -793,6 +846,7 @@ func addJobGlobalIndex(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 	if err != nil {
 		t.Fatalf("invalid test case: %v", err)
 	}
+
 	// Job label/annotation
 	job.Labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjobName, jobIdx)
 	job.Annotations[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjobName, jobIdx)
@@ -812,6 +866,39 @@ func addGlobalReplicas(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 	// Job template spec label/annotation
 	job.Spec.Template.Labels[jobset.GlobalReplicasKey] = globalReplicas(js)
 	job.Spec.Template.Annotations[jobset.GlobalReplicasKey] = globalReplicas(js)
+}
+
+func addJobGroupIndex(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
+	t.Helper()
+
+	rjobName := job.Annotations[jobset.ReplicatedJobNameKey]
+	groupName := job.Annotations[jobset.GroupNameKey]
+	jobIdx, err := strconv.Atoi(job.Annotations[jobset.JobIndexKey])
+	if err != nil {
+		t.Fatalf("invalid test case: %v", err)
+	}
+
+	// Job label/annotation
+	job.Labels[jobset.JobGroupIndexKey] = groupJobIndex(js, groupName, rjobName, jobIdx)
+	job.Annotations[jobset.JobGroupIndexKey] = groupJobIndex(js, groupName, rjobName, jobIdx)
+
+	// Job template spec label/annotation
+	job.Spec.Template.Labels[jobset.JobGroupIndexKey] = groupJobIndex(js, groupName, rjobName, jobIdx)
+	job.Spec.Template.Annotations[jobset.JobGroupIndexKey] = groupJobIndex(js, groupName, rjobName, jobIdx)
+}
+
+func addGroupReplicas(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
+	t.Helper()
+
+	groupName := job.Annotations[jobset.GroupNameKey]
+
+	// Job label/annotation
+	job.Labels[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
+	job.Annotations[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
+
+	// Job template
+	job.Spec.Template.Labels[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
+	job.Spec.Template.Annotations[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
 }
 
 func TestUpdateConditions(t *testing.T) {
@@ -935,6 +1022,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-1",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-1-test-job-0",
 						ns:                ns,
 						replicas:          1,
@@ -946,6 +1034,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-0",
 						ns:                ns,
 						replicas:          3,
@@ -956,6 +1045,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-1",
 						ns:                ns,
 						replicas:          3,
@@ -967,6 +1057,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-2",
 						ns:                ns,
 						replicas:          3,
@@ -978,6 +1069,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-3",
 						ns:                ns,
 						replicas:          3,
@@ -1041,6 +1133,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-0",
 						ns:                ns,
 						replicas:          3,
@@ -1079,10 +1172,12 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-0"}).Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-1",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-1-test-job-0"}).Obj(),
 				},
 			},
@@ -1115,18 +1210,22 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-0"}).Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-1",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-1-test-job-0"}).Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-1",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-1-test-job-1"}).Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-1",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-1-test-job-2"}).Obj(),
 				},
 			},
@@ -1159,6 +1258,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-1",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
 						Parallelism(5).
 						Active(1).
@@ -1166,12 +1266,14 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
 						Parallelism(5).
 						Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-1"}).
 						Parallelism(1).
 						Active(1).
@@ -1207,6 +1309,7 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-1",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
 						Parallelism(5).
 						Suspend(true).
@@ -1214,12 +1317,14 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-0"}).
 						Parallelism(5).
 						Obj(),
 					makeJob(&makeJobArgs{
 						jobSetName:        jobSetName,
 						replicatedJobName: "replicated-job-2",
+						groupName:         "default",
 						jobName:           "test-jobset-replicated-job-2-test-job-1"}).
 						Parallelism(1).
 						Suspend(true).
@@ -1305,6 +1410,7 @@ func jobWithFailedConditionAndOpts(name string, failureTime time.Time, opts *fai
 type makeJobArgs struct {
 	jobSetName           string
 	replicatedJobName    string
+	groupName            string
 	jobName              string
 	ns                   string
 	jobLabels            map[string]string
@@ -1323,6 +1429,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	labels := map[string]string{
 		jobset.JobSetNameKey:         args.jobSetName,
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
+		jobset.GroupNameKey:          args.groupName,
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
@@ -1331,6 +1438,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	annotations := map[string]string{
 		jobset.JobSetNameKey:         args.jobSetName,
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
+		jobset.GroupNameKey:          args.groupName,
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
@@ -1615,6 +1723,180 @@ func TestGlobalReplicas(t *testing.T) {
 			actualGlobalReplicas := globalReplicas(tc.jobSet)
 			if diff := cmp.Diff(tc.expectedGlobalReplicas, actualGlobalReplicas); diff != "" {
 				t.Errorf("unexpected global replicas (-want/+got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestGroupJobIndex(t *testing.T) {
+	tests := []struct {
+		name                  string
+		jobSet                *jobset.JobSet
+		groupName             string
+		replicatedJob         string
+		jobIdx                int
+		expectedGroupJobIndex string
+	}{
+		{
+			name: "single replicated job in group",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "rjob1", GroupName: "groupA", Replicas: 3},
+					},
+				},
+			},
+			groupName:             "groupA",
+			replicatedJob:         "rjob1",
+			jobIdx:                1,
+			expectedGroupJobIndex: "1",
+		},
+		{
+			name: "multiple replicated jobs in group",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "rjob1", GroupName: "groupA", Replicas: 1},
+						{Name: "rjob2", GroupName: "groupB", Replicas: 2},
+						{Name: "rjob3", GroupName: "groupA", Replicas: 3},
+					},
+				},
+			},
+			groupName:             "groupA",
+			replicatedJob:         "rjob3",
+			jobIdx:                1,
+			expectedGroupJobIndex: "2",
+		},
+		{
+			name: "replicated job not found in group",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "rjob1", GroupName: "groupA", Replicas: 2},
+						{Name: "rjob2", GroupName: "groupB", Replicas: 4},
+					},
+				},
+			},
+			groupName:             "groupA",
+			replicatedJob:         "rjob2",
+			jobIdx:                0,
+			expectedGroupJobIndex: "",
+		},
+		{
+			name: "replicated job doesn't exist",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "rjob1", GroupName: "groupA", Replicas: 2},
+						{Name: "rjob2", GroupName: "groupB", Replicas: 4},
+					},
+				},
+			},
+			groupName:             "groupA",
+			replicatedJob:         "rjob3",
+			jobIdx:                0,
+			expectedGroupJobIndex: "",
+		},
+		{
+			name: "group doesn't exit",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "rjob1", GroupName: "groupA", Replicas: 2},
+						{Name: "rjob2", GroupName: "groupB", Replicas: 4},
+					},
+				},
+			},
+			groupName:             "groupC",
+			replicatedJob:         "rjob1",
+			jobIdx:                0,
+			expectedGroupJobIndex: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actualGroupJobIndex := groupJobIndex(tc.jobSet, tc.groupName, tc.replicatedJob, tc.jobIdx)
+			if diff := cmp.Diff(tc.expectedGroupJobIndex, actualGroupJobIndex); diff != "" {
+				t.Errorf("unexpected group job index (-want/+got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestGroupReplicas(t *testing.T) {
+	tests := []struct {
+		name                  string
+		jobSet                *jobset.JobSet
+		groupName             string
+		expectedGroupReplicas string
+	}{
+		{
+			name: "empty jobset",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{},
+			},
+			groupName:             "groupA",
+			expectedGroupReplicas: "0",
+		},
+		{
+			name: "single replicated job in group",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{GroupName: "groupA", Replicas: 1},
+					},
+				},
+			},
+			groupName:             "groupA",
+			expectedGroupReplicas: "1",
+		},
+		{
+			name: "multiple replicated jobs in group",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{GroupName: "groupA", Replicas: 1},
+						{GroupName: "groupA", Replicas: 2},
+					},
+				},
+			},
+			groupName:             "groupA",
+			expectedGroupReplicas: "3",
+		},
+		{
+			name: "multiple groups, replicas in target group",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{GroupName: "groupA", Replicas: 1},
+						{GroupName: "groupB", Replicas: 2},
+					},
+				},
+			},
+			groupName:             "groupB",
+			expectedGroupReplicas: "2",
+		},
+		{
+			name: "multiple groups, no replicas in target group",
+			jobSet: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{GroupName: "groupA", Replicas: 1},
+						{GroupName: "groupB", Replicas: 2},
+					},
+				},
+			},
+			groupName:             "groupC",
+			expectedGroupReplicas: "0",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actualGroupReplicas := groupReplicas(tc.jobSet, tc.groupName)
+			if diff := cmp.Diff(tc.expectedGroupReplicas, actualGroupReplicas); diff != "" {
+				t.Errorf("unexpected group replicas (-want/+got): %s", diff)
 			}
 		})
 	}
