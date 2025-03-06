@@ -225,6 +225,11 @@ type ReplicatedJob struct {
 	// Name is the name of the entry and will be used as a suffix
 	// for the Job name.
 	Name string `json:"name"`
+
+	// GrouName defines the name of the group this ReplicatedJob belongs to. Defaults to "default"
+	// +kubebuilder:default=default
+	GroupName string `json:"groupName,omitempty"`
+
 	// Template defines the template of the Job that will be created.
 	Template batchv1.JobTemplateSpec `json:"template"`
 
