@@ -23,17 +23,6 @@ resources:
 - ../components/internalcert
 # [PROMETHEUS] To enable prometheus monitor, uncomment all sections with 'PROMETHEUS'.
 #- ../prometheus
-# [METRICS] Expose the controller manager metrics service.
-- manager_metrics_service.yaml
-
-patchesStrategicMerge:
-
-# [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in
-# crd/kustomization.yaml
-- manager_webhook_patch.yaml
-
-# Other configurations
-- manager_config_patch.yaml
 
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER'.
 # Uncomment 'CERTMANAGER' sections in crd/kustomization.yaml to enable the CA injection in the admission webhooks.
