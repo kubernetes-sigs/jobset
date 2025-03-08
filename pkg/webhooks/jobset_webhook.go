@@ -159,6 +159,10 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	}
 
 	var allErrs []error
+	// Validate that depends On can't be set for the first replicated job.
+	if len(js.Spec.ReplicatedJobs) > 0 && js.Spec.ReplicatedJobs[0].DependsOn != nil {
+		allErrs = append(allErrs, fmt.Errorf("DependsOn can't be set for the first ReplicatedJob"))
+	}
 	// Validate that replicatedJobs listed in success policy are part of this JobSet.
 	validReplicatedJobs := replicatedJobNamesFromSpec(js)
 
