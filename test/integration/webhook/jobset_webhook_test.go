@@ -563,11 +563,11 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: true,
 		}),
-		ginkgo.Entry("JobSet can create with no replicated jobs", &testCase{
+		ginkgo.Entry("JobSet cannot create with no replicated jobs", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("depends-on", ns.Name)
 			},
-			jobSetCreationShouldFail: false,
+			jobSetCreationShouldFail: true,
 		}),
 	) // end of DescribeTable
 }) // end of Describe
