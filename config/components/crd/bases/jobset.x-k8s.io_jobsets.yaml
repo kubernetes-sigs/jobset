@@ -9008,6 +9008,7 @@ spec:
                   - name
                   - template
                   type: object
+                minItems: 1
                 type: array
                 x-kubernetes-list-map-keys:
                 - name
