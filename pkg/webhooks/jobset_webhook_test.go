@@ -1677,6 +1677,43 @@ func TestValidateCreate(t *testing.T) {
 			},
 			want: errors.Join(fmt.Errorf("replicatedJob: job-2 cannot depend on replicatedJob: invalid")),
 		},
+		{
+			name: "dependsOn should not fail if there are no replicated jobs",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy:  &jobset.SuccessPolicy{},
+					ReplicatedJobs: []jobset.ReplicatedJob{},
+				},
+			},
+		},
+		{
+			name: "dependsOn cannot be set for first replicated job",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "job-1",
+							DependsOn: []jobset.DependsOn{
+								{
+									Name:   "invalid",
+									Status: "Complete",
+								},
+							},
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("DependsOn can't be set for the first ReplicatedJob")),
+		},
 	}
 
 	testGroups := [][]validationTestCase{
