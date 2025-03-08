@@ -776,6 +776,9 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	labels[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 	labels[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
+	labels[jobset.GroupNameKey] = rjob.GroupName
+	labels[jobset.GroupReplicasKey] = groupReplicas(js, rjob.GroupName)
+	labels[jobset.JobGroupIndexKey] = groupJobIndex(js, rjob.GroupName, rjob.Name, jobIdx)
 
 	annotations := make(map[string]string)
 	maps.Copy(annotations, obj.GetAnnotations())
@@ -787,6 +790,9 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
 	annotations[jobset.JobKey] = jobHashKey(js.Namespace, jobName)
 	annotations[jobset.JobGlobalIndexKey] = globalJobIndex(js, rjob.Name, jobIdx)
+	annotations[jobset.GroupNameKey] = rjob.GroupName
+	annotations[jobset.GroupReplicasKey] = groupReplicas(js, rjob.GroupName)
+	annotations[jobset.JobGroupIndexKey] = groupJobIndex(js, rjob.GroupName, rjob.Name, jobIdx)
 
 	// Apply coordinator annotation/label if a coordinator is defined in the JobSet spec.
 	if js.Spec.Coordinator != nil {
@@ -1117,4 +1123,32 @@ func globalReplicas(js *jobset.JobSet) string {
 		currGlobalReplicas += int(rjob.Replicas)
 	}
 	return strconv.Itoa(currGlobalReplicas)
+}
+
+// groupJobIndex determines the job group index for a given job. The job group index is a unique
+// index for the job within its group, with values ranging from 0 to N-1,
+// where N=total number of jobs in the group.
+func groupJobIndex(js *jobset.JobSet, groupName string, replicatedJobName string, jobIdx int) string {
+	currTotalJobs := 0
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		if rjob.GroupName == groupName {
+			if rjob.Name == replicatedJobName {
+				return strconv.Itoa(currTotalJobs + jobIdx)
+			}
+			currTotalJobs += int(rjob.Replicas)
+		}
+	}
+	return ""
+}
+
+// groupReplicas calculates the total number of replicas across all replicated jobs in a JobSet
+// that belong to the same group.
+func groupReplicas(js *jobset.JobSet, groupName string) string {
+	currGroupReplicas := 0
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		if rjob.GroupName == groupName {
+			currGroupReplicas += int(rjob.Replicas)
+		}
+	}
+	return strconv.Itoa(currGroupReplicas)
 }

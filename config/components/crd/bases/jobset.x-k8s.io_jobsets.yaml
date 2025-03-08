@@ -237,6 +237,11 @@ spec:
                       x-kubernetes-validations:
                       - message: Value is immutable
                         rule: self == oldSelf
+                    groupName:
+                      default: default
+                      description: GrouName defines the name of the group this ReplicatedJob
+                        belongs to. Defaults to "default"
+                      type: string
                     name:
                       description: |-
                         Name is the name of the entry and will be used as a suffix
