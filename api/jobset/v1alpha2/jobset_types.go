@@ -85,6 +85,7 @@ type JobSetSpec struct {
 	// +listType=map
 	// +listMapKey=name
 	// +kubebuilder:validation:MinItems:=1
+	// +required
 	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
 
 	// Network defines the networking options for the jobset.
