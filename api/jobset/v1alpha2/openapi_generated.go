@@ -525,7 +525,7 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref common.ReferenceCallbac
 					},
 					"groupName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "GrouName defines the name of the group this ReplicatedJob belongs to. Defaults to \"default\"",
+							Description: "GroupName defines the name of the group this ReplicatedJob belongs to. Defaults to \"default\"",
 							Type:        []string{"string"},
 							Format:      "",
 						},

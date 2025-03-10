@@ -295,7 +295,7 @@
           "x-kubernetes-list-type": "map"
         },
         "groupName": {
-          "description": "GrouName defines the name of the group this ReplicatedJob belongs to. Defaults to \"default\"",
+          "description": "GroupName defines the name of the group this ReplicatedJob belongs to. Defaults to \"default\"",
           "type": "string"
         },
         "name": {

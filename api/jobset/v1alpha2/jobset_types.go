@@ -239,7 +239,7 @@ type ReplicatedJob struct {
 	// for the Job name.
 	Name string `json:"name"`
 
-	// GrouName defines the name of the group this ReplicatedJob belongs to. Defaults to "default"
+	// GroupName defines the name of the group this ReplicatedJob belongs to. Defaults to "default"
 	// +kubebuilder:default=default
 	GroupName string `json:"groupName,omitempty"`
 
