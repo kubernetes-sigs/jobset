@@ -49,6 +49,10 @@ const (
 	// is longer than 63 characters.
 	dns1035MaxLengthExceededErrorMsg = "must be no more than 63 characters"
 
+	// Error message returned by JobSet validation if the group name
+	// will be longer than 63 characters.
+	groupNameTooLongErrorMsg = ".spec.replicatedJob[].groupName is too long, must be less than 63 characters"
+
 	// Error message returned by JobSet validation if the generated child jobs
 	// will be longer than 63 characters.
 	jobNameTooLongErrorMsg = "JobSet name is too long, job names generated for this JobSet will exceed 63 characters"
@@ -208,6 +212,13 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 			allErrs = append(allErrs, fmt.Errorf("the product of replicas and parallelism must not exceed %d for replicatedJob '%s'", math.MaxInt32, rJob.Name))
 		}
 
+		// Check that the group name is DNS 1035 compliant.
+		for _, errMessage := range validation.IsDNS1035Label(rJob.GroupName) {
+			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
+				errMessage = groupNameTooLongErrorMsg
+			}
+			allErrs = append(allErrs, errors.New(errMessage))
+		}
 		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
 		// Use the largest job index as it will have the longest name.
 		longestJobName := placement.GenJobName(js.Name, rJob.Name, int(rJob.Replicas-1))

@@ -523,6 +523,13 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref common.ReferenceCallbac
 							Format:      "",
 						},
 					},
+					"groupName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "GroupName defines the name of the group this ReplicatedJob belongs to. Defaults to \"default\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"template": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Template defines the template of the Job that will be created.",

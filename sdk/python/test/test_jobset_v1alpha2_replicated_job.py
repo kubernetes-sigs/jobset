@@ -40,6 +40,7 @@ class TestJobsetV1alpha2ReplicatedJob(unittest.TestCase):
                         name = '', 
                         status = '', )
                     ],
+                group_name = '',
                 name = '',
                 replicas = 56,
                 template = jobset.models.io/k8s/api/batch/v1/job_template_spec.io.k8s.api.batch.v1.JobTemplateSpec(
