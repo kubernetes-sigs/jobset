@@ -390,6 +390,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 						},
 					},
 				},
+				Required: []string{"replicatedJobs"},
 			},
 		},
 		Dependencies: []string{

@@ -36,7 +36,7 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
     failure_policy: Optional[JobsetV1alpha2FailurePolicy] = Field(default=None, alias="failurePolicy")
     managed_by: Optional[StrictStr] = Field(default=None, description="ManagedBy is used to indicate the controller or entity that manages a JobSet. The built-in JobSet controller reconciles JobSets which don't have this field at all or the field value is the reserved string `jobset.sigs.k8s.io/jobset-controller`, but skips reconciling JobSets with a custom value for this field.  The value must be a valid domain-prefixed path (e.g. acme.io/foo) - all characters before the first \"/\" must be a valid subdomain as defined by RFC 1123. All characters trailing the first \"/\" must be valid HTTP Path characters as defined by RFC 3986. The value cannot exceed 63 characters. The field is immutable.", alias="managedBy")
     network: Optional[JobsetV1alpha2Network] = None
-    replicated_jobs: Optional[List[JobsetV1alpha2ReplicatedJob]] = Field(default=None, description="ReplicatedJobs is the group of jobs that will form the set.", alias="replicatedJobs")
+    replicated_jobs: List[JobsetV1alpha2ReplicatedJob] = Field(description="ReplicatedJobs is the group of jobs that will form the set.", alias="replicatedJobs")
     startup_policy: Optional[JobsetV1alpha2StartupPolicy] = Field(default=None, alias="startupPolicy")
     success_policy: Optional[JobsetV1alpha2SuccessPolicy] = Field(default=None, alias="successPolicy")
     suspend: Optional[StrictBool] = Field(default=None, description="Suspend suspends all running child Jobs when set to true.")
