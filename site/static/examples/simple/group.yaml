@@ -1,0 +1,61 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: group-example
+spec:
+  replicatedJobs:
+  - name: rj-1
+    # Label and annotate jobs and pods with group data
+    #
+    # Group data:
+    # jobset.sigs.k8s.io/group-name=default
+    # jobset.sigs.k8s.io/group-replicas=1
+    # jobset.sigs.k8s.io/job-group-index=0
+    #
+    # Global data for reference:
+    # jobset.sigs.k8s.io/global-replicas=2
+    # jobset.sigs.k8s.io/job-global-index=0
+    #
+    # Implicitly, groupName: default
+    replicas: 1
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command:
+                - sleep
+              args:
+                - 100s
+  - name: rj-2
+    # Label and annotate jobs and pods with group data
+    #
+    # Group data:
+    # jobset.sigs.k8s.io/group-name=group-b
+    # jobset.sigs.k8s.io/group-replicas=1
+    # jobset.sigs.k8s.io/job-group-index=0
+    #
+    # Global data for reference:
+    # jobset.sigs.k8s.io/global-replicas=2
+    # jobset.sigs.k8s.io/job-global-index=1
+    groupName: group-b
+    replicas: 1
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: busybox
+              command:
+                - sleep
+              args:
+                - 100s
