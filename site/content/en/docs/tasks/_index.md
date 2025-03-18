@@ -43,6 +43,9 @@ Here we have some simple examples demonstrating core JobSet features.
 - [TTL after finished](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/ttl-after-finished.yaml)
   demonstrates how to configure a JobSet to be cleaned up automatically after a defined period of time has passed after the JobSet finishes.
 
+- [Replicated jobs grouping](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/simple/group.yaml)
+  demonstrates how to group replicated jobs to count and index the replicas job within each group with the labels/annotations `jobset.sigs.k8s.io/group-name`, `jobset.sigs.k8s.io/group-replicas` and `jobset.sigs.k8s.io/job-group-index`. This is similar to how `jobset.sigs.k8s.io/global-replicas` and `jobset.sigs.k8s.io/job-global-index` handle global replica counting and indexing
+  
 ## Tensorflow Example
 
 - [Distributed Training of a Handwritten Digit Classifier on the MNIST dataset using Tensorflow and JobSet](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/tensorflow/mnist.yaml)
