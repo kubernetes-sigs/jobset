@@ -71,7 +71,7 @@ spec:
           protocol: TCP
         {{- if .Values.prometheus.enable }}
         - name: metrics
-          containerPort: 8080
+          containerPort: 8443
           protocol: TCP
         {{- end }}
         livenessProbe:
