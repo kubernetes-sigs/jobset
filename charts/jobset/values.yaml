@@ -58,6 +58,7 @@ controller:
   # -- Security context of the jobset controller container.
   securityContext:
     allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
     capabilities:
       drop:
         - ALL
