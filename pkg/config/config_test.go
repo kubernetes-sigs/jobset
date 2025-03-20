@@ -72,7 +72,7 @@ kind: Configuration
 health:
   healthProbeBindAddress: :8081
 metrics:
-  bindAddress: :8080
+  bindAddress: :8443
 leaderElection:
   leaderElect: true
   resourceName: 6d4f6a47.jobset.x-k8s.io
@@ -93,7 +93,7 @@ kind: Configuration
 health:
   healthProbeBindAddress: :8081
 metrics:
-  bindAddress: :8080
+  bindAddress: :8443
 leaderElection:
   leaderElect: true
   resourceName: 6d4f6a47.jobset.x-k8s.io
@@ -112,7 +112,7 @@ kind: Configuration
 health:
   healthProbeBindAddress: :8081
 metrics:
-  bindAddress: :8080
+  bindAddress: :8443
 leaderElection:
   leaderElect: false
 webhook:
@@ -128,7 +128,7 @@ kind: Configuration
 health:
   healthProbeBindAddress: :8081
 metrics:
-  bindAddress: :8080
+  bindAddress: :8443
 leaderElection:
   leaderElect: true
   resourceName: 6d4f6a47.jobset.x-k8s.io
@@ -149,7 +149,7 @@ invalidField: invalidValue
 health:
   healthProbeBindAddress: :8081
 metrics:
-  bindAddress: :8080
+  bindAddress: :8443
 leaderElection:
   leaderElect: true
   resourceName: 6d4f6a47.jobset.x-k8s.io

@@ -28,7 +28,7 @@ const (
 	DefaultWebhookSecretName                   = "jobset-webhook-server-cert"
 	DefaultWebhookPort                         = 9443
 	DefaultHealthProbeBindAddress              = ":8081"
-	DefaultMetricsBindAddress                  = ":8080"
+	DefaultMetricsBindAddress                  = ":8443"
 	DefaultLeaderElectionID                    = "6d4f6a47.jobset.x-k8s.io"
 	DefaultLeaderElectionLeaseDuration         = 15 * time.Second
 	DefaultLeaderElectionRenewDeadline         = 10 * time.Second
