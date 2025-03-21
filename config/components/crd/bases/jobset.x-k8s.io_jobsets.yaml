@@ -9013,6 +9013,7 @@ spec:
                   - name
                   - template
                   type: object
+                minItems: 1
                 type: array
                 x-kubernetes-list-map-keys:
                 - name
@@ -9081,6 +9082,8 @@ spec:
                 format: int32
                 minimum: 0
                 type: integer
+            required:
+            - replicatedJobs
             type: object
             x-kubernetes-validations:
             - message: StartupPolicy and DependsOn APIs are mutually exclusive

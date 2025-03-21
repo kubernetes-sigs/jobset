@@ -97,6 +97,8 @@ type JobSetSpec struct {
 	// ReplicatedJobs is the group of jobs that will form the set.
 	// +listType=map
 	// +listMapKey=name
+	// +kubebuilder:validation:MinItems:=1
+	// +required
 	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
 
 	// Network defines the networking options for the jobset.
