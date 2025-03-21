@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobset-controller
+  namespace: jobset-system
+  labels:
+    app.kubernetes.io/managed-by: Kustomize
+    app.kubernetes.io/version: "0.7.3"
+    app.kubernetes.io/name: jobset
+    app.kubernetes.io/instance: jobset
+    app.kubernetes.io/component: controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jobset
+      app.kubernetes.io/instance: jobset
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: jobset-0.7.3
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/version: "0.7.3"
+        app.kubernetes.io/name: jobset
+        app.kubernetes.io/instance: jobset
+        app.kubernetes.io/component: controller
+      annotations:
+        jobset.x-k8s.io/config-hash: dce001eda0b7844802217531a27610b3940fc050b7999ee6a3a43956db1f726d
+    spec:
+      containers:
+        - name: controller
+          image: "us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset:main"
+          imagePullPolicy: Always
+          command:
+            - /manager
+          args:
+            - --zap-log-level=2
+            - --config=/controller_manager_config.yaml
+          volumeMounts:
+            - name: manager-config
+              subPath: controller_manager_config.yaml
+              mountPath: /controller_manager_config.yaml
+            - name: webhook-cert
+              mountPath: /tmp/k8s-webhook-server/serving-certs
+              readOnly: true
+          ports:
+            - name: health-probe
+              containerPort: 8081
+              protocol: TCP
+            - name: webhook
+              containerPort: 9443
+              protocol: TCP
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              port: 8081
+              scheme: HTTP
+              path: /healthz
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              port: 8081
+              scheme: HTTP
+              path: /readyz
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 2
+              memory: 4Gi
+            requests:
+              cpu: 500m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: manager-config
+          configMap:
+            name: jobset-controller-config
+        - name: webhook-cert
+          secret:
+            secretName: jobset-webhook-server-cert
+            defaultMode: 420
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: jobset-controller

@@ -25,7 +25,11 @@ IMAGE_REGISTRY ?= $(STAGING_IMAGE_REGISTRY)/jobset
 IMAGE_NAME := jobset
 IMAGE_REPO ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME)
 IMAGE_TAG ?= $(IMAGE_REPO):$(GIT_TAG)
+
+# Helm
 HELM_CHART_REPO := $(STAGING_IMAGE_REGISTRY)/jobset/charts
+RELEASE_NAME ?= jobset
+RELEASE_NAMESPACE ?= jobset-system
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
@@ -203,6 +207,11 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Helm
+
+.PHONY: sync-manifests
+sync-manifests: helm yq ## Sync Kustomize manifests from manifests templated by Helm chart.
+	RELEASE_NAME=$(RELEASE_NAME) RELEASE_NAMESPACE=$(RELEASE_NAMESPACE) HELM=$(HELM) YQ=$(YQ) hack/sync-manifests.sh
+
 .PHONY: helm-unittest
 helm-unittest: helm-unittest-plugin ## Run Helm chart unittests.
 	$(HELM) unittest $(JOBSET_CHART_DIR) --strict --file "tests/**/*_test.yaml"
@@ -219,8 +228,8 @@ helm-docs: helm-docs-plugin ## Generates markdown documentation for helm charts 
 helm-chart-push: yq helm
 	EXTRA_TAG="$(EXTRA_TAG)" GIT_TAG="$(GIT_TAG)" IMAGE_REGISTRY="$(IMAGE_REGISTRY)" HELM_CHART_REPO="$(HELM_CHART_REPO)" IMAGE_REPO="$(IMAGE_REPO)" HELM="$(HELM)" YQ="$(YQ)" ./hack/push-chart.sh
 
-
 ##@ Release
+
 .PHONY: artifacts
 artifacts: kustomize helm
 	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
@@ -267,16 +276,22 @@ $(LOCALBIN):
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
 CONTROLLER_TOOLS_VERSION ?= v0.17.2
+GINKGO_VERSION ?= v2.1.4
+KIND_VERSION ?= v0.23.0
 HELM_VERSION ?= v3.17.1
 HELM_UNITTEST_VERSION ?= 0.7.2
 HELM_DOCS_VERSION ?= v1.14.2
+YQ_VERSION ?= v4.45.1
 
 ## Tool Binaries
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
-HELM ?= $(ARTIFACTS)/helm
-HELM_DOCS ?= $(ARTIFACTS)/helm-docs
+GINKGO = $(LOCALBIN)/ginkgo
+KIND = $(LOCALBIN)/kind
+HELM ?= $(LOCALBIN)/helm
+HELM_DOCS ?= $(LOCALBIN)/helm-docs
+YQ ?= $(LOCALBIN)/yq
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -317,15 +332,13 @@ envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) $(GO_CMD) install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20240813183042-b901db121e1f
 
-GINKGO = $(shell pwd)/bin/ginkgo
 .PHONY: ginkgo
 ginkgo: ## Download ginkgo locally if necessary.
-	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/onsi/ginkgo/v2/ginkgo@v2.1.4
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/onsi/ginkgo/v2/ginkgo@$(GINKGO_VERSION)
 
-KIND = $(shell pwd)/bin/kind
 .PHONY: kind
 kind:
-	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install sigs.k8s.io/kind@v0.23.0
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install sigs.k8s.io/kind@$(KIND_VERSION)
 
 .PHONY: kind-image-build
 kind-image-build: PLATFORMS=linux/amd64
@@ -345,7 +358,6 @@ test-e2e-kind: manifests kustomize fmt vet envtest ginkgo kind-image-build
 prometheus:
 	kubectl apply --server-side -k config/prometheus
 
-HELM = $(PROJECT_DIR)/bin/helm
 .PHONY: helm
 helm: ## Download helm locally if necessary.
 	GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install helm.sh/helm/v3/cmd/helm@$(HELM_VERSION)
@@ -362,8 +374,6 @@ helm-docs-plugin: $(HELM_DOCS) ## Download helm-docs plugin locally if necessary
 $(HELM_DOCS): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) $(GO_CMD) install github.com/norwoodj/helm-docs/cmd/helm-docs@$(HELM_DOCS_VERSION)
 
-YQ = $(PROJECT_DIR)/bin/yq
 .PHONY: yq
 yq: ## Download yq locally if necessary.
-	GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/mikefarah/yq/v4@v4.45.1
-
+	GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/mikefarah/yq/v4@$(YQ_VERSION)
