@@ -98,7 +98,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 		paths="./pkg/..."
 
 .PHONY: generate
-generate: manifests controller-gen code-generator openapi-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.
+generate: manifests controller-gen code-generator openapi-gen helm helm-docs ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 	./hack/update-codegen.sh $(GO_CMD) $(PROJECT_DIR)/bin
 	./hack/python-sdk/gen-sdk.sh
@@ -123,6 +123,11 @@ toc-update:
 toc-verify:
 	./hack/verify-toc.sh
 
+.PHONY: helm-verify
+helm-verify: helm-unittest helm-lint
+	${HELM} template charts/jobset
+
+
 .PHONY: vet
 vet: ## Run go vet against code.
 	$(GO_CMD) vet ./...
@@ -141,8 +146,8 @@ test-python-sdk:
 	./hack/python-sdk/test-sdk.sh
 
 .PHONY: verify
-verify: vet fmt-verify ci-lint manifests generate toc-verify generate-apiref
-	git --no-pager diff --exit-code config api client-go sdk
+verify: vet fmt-verify ci-lint manifests generate helm-verify toc-verify generate-apiref
+	git --no-pager diff --exit-code config api client-go sdk charts
 
 
 ##@ Build
@@ -209,7 +214,7 @@ helm-unittest: helm-unittest-plugin ## Run Helm chart unittests.
 
 .PHONY: helm-lint
 helm-lint: ## Run Helm chart lint test.
-	docker run --rm --workdir /workspace --volume "$$(pwd):/workspace" quay.io/helmpack/chart-testing:latest ct lint --target-branch main --validate-maintainers=false
+	${HELM} lint charts/jobset
 
 .PHONY: helm-docs
 helm-docs: helm-docs-plugin ## Generates markdown documentation for helm charts from requirements and values files.
@@ -357,9 +362,9 @@ helm-unittest-plugin: helm ## Download helm unittest plugin locally if necessary
 		$(HELM) plugin install https://github.com/helm-unittest/helm-unittest.git --version $(HELM_UNITTEST_VERSION); \
 	fi
 
+HELM_DOCS= $(PROJECT_DIR)/bin/helm-docs
 .PHONY: helm-docs-plugin
-helm-docs-plugin: $(HELM_DOCS) ## Download helm-docs plugin locally if necessary.
-$(HELM_DOCS): $(LOCALBIN)
+helm-docs-plugin:
 	GOBIN=$(LOCALBIN) $(GO_CMD) install github.com/norwoodj/helm-docs/cmd/helm-docs@$(HELM_DOCS_VERSION)
 
 YQ = $(PROJECT_DIR)/bin/yq
