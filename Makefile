@@ -222,7 +222,7 @@ helm-chart-push: yq helm
 
 ##@ Release
 .PHONY: artifacts
-artifacts: kustomize helm
+artifacts: kustomize helm yq
 	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
 	if [ -d artifacts ]; then rm -rf artifacts; fi
 	mkdir -p artifacts
