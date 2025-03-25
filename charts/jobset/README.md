@@ -1,6 +1,6 @@
 # jobset
 
-![Version: 0.7.3](https://img.shields.io/badge/Version-0.7.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
+![Version: 0.8.0](https://img.shields.io/badge/Version-0.8.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
 
 A Helm chart for deploying JobSet controller and webhook on Kubernetes.
 
@@ -16,6 +16,16 @@ This Helm chart installs the JobSet controller and webhook to your Kubernetes cl
 - Kubernetes >= 1.27
 
 ## Usage
+
+### Install from registry.k8s.io
+
+You can obtain the helm chart from `registry.k8s.io`.
+
+```shell
+helm install oci://registry.k8s.io/jobset/charts/jobset --version v0.8.0
+```
+
+The version is necessary as there is not a latest tag in this repository.
 
 ### Install the chart
 
@@ -72,7 +82,7 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | controller.envFrom | list | `[]` | Environment variable sources of the jobset controller container. |
 | controller.volumeMounts | list | `[]` | Volume mounts of the jobset controller container. |
 | controller.resources | object | `{"limits":{"cpu":2,"memory":"4Gi"},"requests":{"cpu":"500m","memory":"128Mi"}}` | Resources of the jobset controller container. |
-| controller.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}` | Security context of the jobset controller container. |
+| controller.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}` | Security context of the jobset controller container. |
 | controller.volumes | list | `[]` | Volumes of the jobset controller pods. |
 | controller.nodeSelector | object | `{}` | Node selector of the jobset controller pods. |
 | controller.affinity | object | `{}` | Affinity of the jobset controller pods. |
