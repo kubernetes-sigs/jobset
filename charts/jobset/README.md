@@ -72,7 +72,7 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | controller.envFrom | list | `[]` | Environment variable sources of the jobset controller container. |
 | controller.volumeMounts | list | `[]` | Volume mounts of the jobset controller container. |
 | controller.resources | object | `{"limits":{"cpu":2,"memory":"4Gi"},"requests":{"cpu":"500m","memory":"128Mi"}}` | Resources of the jobset controller container. |
-| controller.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}` | Security context of the jobset controller container. |
+| controller.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}` | Security context of the jobset controller container. |
 | controller.volumes | list | `[]` | Volumes of the jobset controller pods. |
 | controller.nodeSelector | object | `{}` | Node selector of the jobset controller pods. |
 | controller.affinity | object | `{}` | Affinity of the jobset controller pods. |

@@ -25,11 +25,10 @@ release:
   namespace: jobset-system
 
 tests:
-  - it: Should use the specified image repository if `image.registry`, `image.repository` and `image.tag` are set
+  - it: Should use the specified image repository if `image.repository` and `image.tag` are set
     set:
       image:
-        registry: test-registry
-        repository: test-repository
+        repository: test-registry/test-repository
         tag: test-tag
     template: controller/deployment.yaml
     asserts:
