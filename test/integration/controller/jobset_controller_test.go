@@ -2212,12 +2212,21 @@ func completeAllJobs(jobList *batchv1.JobList) {
 }
 
 func completeJob(job *batchv1.Job) {
-	updateJobStatus(job, batchv1.JobStatus{
-		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
+	conditions := []batchv1.JobCondition{
+		{
 			Type:   batchv1.JobComplete,
 			Status: corev1.ConditionTrue,
-		}),
-		Succeeded: ptr.Deref(job.Spec.Parallelism, 0),
+		},
+		{
+			Type:   batchv1.JobSuccessCriteriaMet,
+			Status: corev1.ConditionTrue,
+		},
+	}
+	updateJobStatus(job, batchv1.JobStatus{
+		Conditions:     conditions,
+		Succeeded:      ptr.Deref(job.Spec.Parallelism, 0),
+		CompletionTime: ptr.To(metav1.Now()),
+		StartTime:      ptr.To(metav1.Date(2025, time.January, 1, 1, 1, 0, 0, time.Now().UTC().Location())),
 	})
 }
 
@@ -2296,11 +2305,18 @@ func failJobWithOptions(job *batchv1.Job, failJobOpts *failJobOptions) {
 		failJobOpts = &failJobOptions{}
 	}
 	updateJobStatus(job, batchv1.JobStatus{
-		Conditions: append(job.Status.Conditions, batchv1.JobCondition{
-			Type:   batchv1.JobFailed,
-			Status: corev1.ConditionTrue,
-			Reason: ptr.Deref(failJobOpts.reason, ""),
-		}),
+		Conditions: append(job.Status.Conditions,
+			batchv1.JobCondition{
+				Type:   batchv1.JobFailed,
+				Status: corev1.ConditionTrue,
+				Reason: ptr.Deref(failJobOpts.reason, ""),
+			},
+			batchv1.JobCondition{
+				Type:   batchv1.JobFailureTarget,
+				Status: corev1.ConditionTrue,
+			},
+		),
+		StartTime: ptr.To(metav1.Date(2025, time.January, 1, 1, 1, 0, 0, time.Now().UTC().Location())),
 	})
 }
 
