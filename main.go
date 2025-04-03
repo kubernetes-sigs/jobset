@@ -166,6 +166,9 @@ func main() {
 		SecureServing:  true,
 		FilterProvider: filters.WithAuthenticationAndAuthorization,
 		TLSOpts:        []func(*tls.Config){disableHTTP2},
+		CertDir:        options.Metrics.CertDir,
+		CertName:       options.Metrics.CertName,
+		KeyName:        options.Metrics.KeyName,
 	}
 	options.Metrics = metricsServerOptions
 	mgr, err := ctrl.NewManager(kubeConfig, options)
