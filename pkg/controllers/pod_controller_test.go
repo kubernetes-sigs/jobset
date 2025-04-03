@@ -325,6 +325,7 @@ func TestDeleteFollowerPods(t *testing.T) {
 
 type makePodArgs struct {
 	jobSetName        string
+	jobSetUID         string
 	replicatedJobName string
 	jobName           string
 	podName           string
@@ -337,12 +338,14 @@ type makePodArgs struct {
 func makePod(args *makePodArgs) *testutils.PodWrapper {
 	labels := map[string]string{
 		jobset.JobSetNameKey:        args.jobSetName,
+		jobset.JobSetUIDKey:         args.jobSetUID,
 		jobset.ReplicatedJobNameKey: args.replicatedJobName,
 		jobset.JobIndexKey:          strconv.Itoa(args.jobIdx),
 		jobset.JobKey:               jobHashKey(args.ns, args.jobName),
 	}
 	annotations := map[string]string{
 		jobset.JobSetNameKey: args.jobSetName,
+		jobset.JobSetUIDKey:  args.jobSetUID,
 		jobset.JobIndexKey:   strconv.Itoa(args.jobIdx),
 		jobset.JobKey:        jobHashKey(args.ns, args.jobName),
 	}
