@@ -1,0 +1,27 @@
+# Patch for Prometheus ServiceMonitor to enable secure TLS configuration
+# using certificates managed by cert-manager
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: controller-manager-metrics-monitor
+  namespace: system
+spec:
+  endpoints:
+    - path: /metrics
+      port: https
+      scheme: https
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        insecureSkipVerify: false
+        serverName: $(METRICS_SERVICE_NAME).$(METRICS_SERVICE_NAMESPACE).svc
+        ca:
+          secret:
+            name: metrics-server-cert
+            key: ca.crt
+        cert:
+          secret:
+            name: $(CLIENT_CERT_NAME)
+            key: tls.crt
+        keySecret:
+          name: $(CLIENT_CERT_NAME)
+          key: tls.key

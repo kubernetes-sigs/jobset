@@ -1,5 +1,7 @@
 resources:
 - certificate.yaml
+# [METRICS WITH CERTMANGER] To enable metrics protected with certmanager, uncomment the following line.
+#- certificate_metrics.yaml
 
 configurations:
 - kustomizeconfig.yaml
