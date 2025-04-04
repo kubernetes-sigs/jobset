@@ -28,3 +28,11 @@ Create the name of the jobset webhook certificate.
 {{- define "jobset.certManager.certificate.name" -}}
 {{ include "jobset.name" . }}-cert
 {{- end -}}
+
+
+{{/*
+Create the name of the jobset metrics certificate.
+*/}}
+{{- define "jobset.certManager.metricsCertificate.name" -}}
+{{ include "jobset.name" . }}-metrics-cert
+{{- end -}}

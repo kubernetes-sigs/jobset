@@ -62,6 +62,11 @@ spec:
         - name: webhook-cert
           mountPath: /tmp/k8s-webhook-server/serving-certs
           readOnly: true
+        {{- if and .Values.prometheus.enable .Values.certManager.enable }}
+        - mountPath: /tmp/k8s-metrics-server/serving-certs
+          name: metrics-certs
+          readOnly: true
+        {{- end }}
         ports:
         - name: health-probe
           containerPort: 8081
@@ -111,6 +116,12 @@ spec:
         secret:
           secretName: {{ include "jobset.webhook.secret.name" . }}
           defaultMode: 420
+      {{- if and .Values.prometheus.enable .Values.certManager.enable }}
+      - name: metrics-certs
+        secret:
+          defaultMode: 420
+          secretName: {{ include "jobset.metrics.secret.name" . }}
+      {{- end }}
       {{- with .Values.controller.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
