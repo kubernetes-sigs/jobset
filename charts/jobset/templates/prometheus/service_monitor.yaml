@@ -30,5 +30,27 @@ spec:
     matchLabels:
       {{- include "jobset.controller.selectorLabels" . | nindent 6 }}
   endpoints:
-  - port: metrics
+  - port: https
+    path: /metrics
+    scheme: https
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+{{- if .Values.certManager.enable }}
+    tlsConfig:
+      ca:
+        secret:
+          key: ca.crt
+          name: {{ include "jobset.metrics.secret.name" . }}
+      cert:
+        secret:
+          key: tls.crt
+          name: {{ include "jobset.metrics.secret.name" . }}
+      insecureSkipVerify: false
+      keySecret:
+        key: tls.key
+        name: {{ include "jobset.metrics.secret.name" . }}
+      serverName: {{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc
+{{- else }}
+    tlsConfig:
+      insecureSkipVerify: true
+{{- end }}
 {{- end }}
