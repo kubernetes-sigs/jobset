@@ -141,6 +141,19 @@ proposal will be implemented, this is the place to discuss them.
 -->
 
 ```yaml
+
+# Example Pod-level ResourceClaimTemplate to contrasnt with per Job
+# ResourceCLaimTemplate below.
+apiVersion: resource.k8s.io/v1beta1
+kind: ResourceClaimTemplate
+metadata:
+  name: gpu
+spec:
+  devices:
+    requests:
+    - name: gpu
+      deviceClassName: gpu.nvidia.com
+---
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
@@ -171,23 +184,23 @@ spec:
                   image: helper-image:latest
                   command: ["sleep", "infinity"]
               restartPolicy: OnFailure
-              # Example Pod-level ResourceClaimTemplate (for comparison)
-              # resourceClaimTemplates:
-              # - metadata:
-              #     name: pod-gpu-template
-              #   spec:
-              #     resourceClassName: nvidia-gpu
           resourceClaimTemplates:  # NEW: JobSet-level ResourceClaimTemplates (added inside JobSpec)
             - metadata:
                 name: imex-channel
               spec:
-                resourceClassName: imex-nvlink-domain
-                containers:
-                  - worker
+                devices:
+                  requests:
+                  - name: imex-channel
+                    deviceClassName: imex.nvidia.com
+              containers:
+                - worker # Only the 'worker' container gets the 'imex-channel' claim reference
             - metadata:
                 name: shared-data
               spec:
-                resourceClassName: shared-data-resource
+                devices:
+                  requests:
+                  - name: shared-data
+                    deviceClassName: shared-data-resource
 ```
 
 #### Behavior Changes
@@ -238,8 +251,7 @@ Go in to as much detail as necessary here.
 This might be a good place to talk about core concepts and how they relate.
 -->
 
-* The containers field within `resourceClaimTemplates` is optional. If omitted,
-the `ResourceClaim` will be made available to all containers in the Pod.
+* If `spec.replicatedJobs[].template.spec.resourceClaimTemplates[].spec.containers` is omitted, the controller should still create the ResourceClaim for the Job and associate it with the Pod (e.g., by adding it to pod.spec.resourceClaims), but it should not automatically add a reference to it in spec.containers[].resourceClaims for any container.
 
 * Pod-level `resourceClaim`s with the same name as a JobSet-templated
 claim will override the JobSet-level claim for that container, and a warning will be emitted.
@@ -371,13 +383,13 @@ JobSet's lifecycle management.
 ### Modifying CoreJob API
 
 We could add a similar feature to the core Kubernetes Job API. However, this has a
-much  barrier to entry, wider impact, and longer development cycle compared to
+much higher barrier to entry, wider impact, and longer development cycle compared to
 enhancing an out-of-tree controller like JobSet.
 
 ### PodSpec Patching
 
 Instead of the `JobSet` controller injecting resourceClaims entries into the Pod
-spec based on `resourceClaimTemplates`, we can consider an alternative approach.
+spec based on `resourceClaimTemplates[].spec.containers`, we can consider an alternative approach.
 
 ```yaml
 # Pod Template Spec Example
@@ -390,7 +402,7 @@ containers:
           resourceClaimName: imex-channel # Placeholder
 ```
 
-1. Users would define a `resourceClaim`s entry with the containr spec in the `Job`'s
+1. Users would define a `resourceClaim`s entry with the container spec in the `Job`'s
 Pod template. However, the `source.resourceClaimName` field would contain the name of the JobSet-level `ResourceClaimTemplate` as a **placeholder**.
 
 2. When creating the Job's Pods, the JobSet controller would first create the
