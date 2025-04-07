@@ -22,7 +22,7 @@ metadata:
     {{- include "jobset.webhook.labels" . | nindent 4 }}
   {{- if .Values.certManager.enable }}
   annotations:
-    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "jobset.webhook.secret.name" . }}
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "jobset.certManager.certificate.name" . }}
   {{- end }}
 webhooks:
 - name: validate-jobset-x-k8s-io-v1alpha2-jobset.x-k8s.io
