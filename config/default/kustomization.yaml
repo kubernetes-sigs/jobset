@@ -20,6 +20,7 @@ resources:
 # crd/kustomization.yaml
 - ../components/webhook
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER'. 'WEBHOOK' components are required.
+# - ../components/certmanager
 - ../components/internalcert
 # [PROMETHEUS] To enable prometheus monitor, uncomment all sections with 'PROMETHEUS'.
 #- ../prometheus
