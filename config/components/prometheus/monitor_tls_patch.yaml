@@ -1,5 +1,12 @@
 # Patch for Prometheus ServiceMonitor to enable secure TLS configuration
 # using certificates managed by cert-manager
+#
+# [PROMETHEUS WITH CERTMANAGER]
+# ${METRICS_PROMETHEUS_CLIENT_CERT_SECRET_NAME} should be replaced with a prometheus client secret.
+# The same certificate for the server ("metrics-server-cert") can potentially be also used for the client.
+# It is preferable to use prometheus client certificate if available:
+# Either by creating a secret in the jobset controller namespace
+# or by using prometheus mounted secret which can be configured via certFile and keyFile in the service_monitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -20,8 +27,8 @@ spec:
             key: ca.crt
         cert:
           secret:
-            name: $(CLIENT_CERT_NAME)
+            name: ${METRICS_PROMETHEUS_CLIENT_CERT_SECRET_NAME}
             key: tls.crt
         keySecret:
-          name: $(CLIENT_CERT_NAME)
+          name: ${METRICS_PROMETHEUS_CLIENT_CERT_SECRET_NAME}
           key: tls.key
