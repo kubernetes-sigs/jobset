@@ -27,8 +27,8 @@ spec:
   selector:
     {{- include "jobset.controller.selectorLabels" . | nindent 4 }}
   ports:
-  - name: metrics
+  - name: https
     port: 8443
-    targetPort: metrics
     protocol: TCP
+    targetPort: 8443
 {{- end }}
