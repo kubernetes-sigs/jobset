@@ -20,7 +20,7 @@ spec:
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       tlsConfig:
         insecureSkipVerify: false
-        serverName: $(METRICS_SERVICE_NAME).$(METRICS_SERVICE_NAMESPACE).svc
+        serverName: ${METRICS_SERVICE_NAME}.${METRICS_SERVICE_NAMESPACE}.svc
         ca:
           secret:
             name: metrics-server-cert
