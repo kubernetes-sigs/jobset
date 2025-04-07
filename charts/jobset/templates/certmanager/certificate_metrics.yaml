@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */ -}}
 
-{{- if and .Values.prometheus.enable .Values.certManager.enable }}
+{{- if .Values.certManager.enable }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:

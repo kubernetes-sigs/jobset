@@ -62,7 +62,7 @@ spec:
         - name: webhook-cert
           mountPath: /tmp/k8s-webhook-server/serving-certs
           readOnly: true
-        {{- if and .Values.prometheus.enable .Values.certManager.enable }}
+        {{- if .Values.certManager.enable }}
         - mountPath: /tmp/k8s-metrics-server/serving-certs
           name: metrics-certs
           readOnly: true
@@ -116,7 +116,7 @@ spec:
         secret:
           secretName: {{ include "jobset.webhook.secret.name" . }}
           defaultMode: 420
-      {{- if and .Values.prometheus.enable .Values.certManager.enable }}
+      {{- if .Values.certManager.enable }}
       - name: metrics-certs
         secret:
           defaultMode: 420

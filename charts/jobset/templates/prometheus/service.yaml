@@ -21,7 +21,7 @@ metadata:
   name: {{ include "jobset.metrics.service.name" . }}
   namespace: {{ .Release.Namespace}}
   labels:
-    {{- include "jobset.labels" . | nindent 4 }}
+    {{- include "jobset.controller.selectorLabels" . | nindent 4 }}
 spec:
   type: ClusterIP
   selector:
