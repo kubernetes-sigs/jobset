@@ -43,11 +43,11 @@ spec:
       cert:
         secret:
           key: tls.crt
-          name: {{ include "jobset.metrics.secret.name" . }}
+          name: {{ .Values.prometheus.prometheusClientCertSecretName }}
       insecureSkipVerify: false
       keySecret:
         key: tls.key
-        name: {{ include "jobset.metrics.secret.name" . }}
+        name: {{ .Values.prometheus.prometheusClientCertSecretName }}
       serverName: {{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc
 {{- else }}
     tlsConfig:

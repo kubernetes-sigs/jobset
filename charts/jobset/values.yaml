@@ -86,3 +86,11 @@ certManager:
 prometheus:
   # -- Whether to enable Prometheus metrics exporting.
   enable: false
+  # SHOULD BE CONFIGURED
+  prometheusNamespace: monitoring
+  # SHOULD BE CONFIGURED
+  # The same certificate for the server ("jobset-metrics-server-cert") can potentially be also used for the client.
+  # It is preferable to use prometheus client certificate if available:
+  # Either by creating a secret in the jobset controller namespace
+  # or by using prometheus mounted secret which can be configured via certFile and keyFile in the service_monitor.yaml
+  prometheusClientCertSecretName: "jobset-metrics-server-cert"
