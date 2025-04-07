@@ -28,7 +28,7 @@ spec:
   {{- with .Values.certManager.issuerRef }}
     {{ toYaml . | nindent 4 }}
   {{- else }}
-    group: cert-manager.io/v1
+    group: cert-manager.io
     kind: Issuer
     name: {{ include "jobset.certManager.issuer.name" . }}
   {{- end }}
