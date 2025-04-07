@@ -17,6 +17,12 @@ spec:
   dnsNames:
     - $(METRICS_SERVICE_NAME).$(METRICS_SERVICE_NAMESPACE).svc
     - $(METRICS_SERVICE_NAME).$(METRICS_SERVICE_NAMESPACE).svc.cluster.local
+  commonName: $(METRICS_SERVICE_NAME).$(METRICS_SERVICE_NAMESPACE).svc
+  duration: 8760h
+  renewBefore: 720h
+  usages:
+    - server auth
+    - client auth
   issuerRef:
     kind: Issuer
     name: selfsigned-issuer
