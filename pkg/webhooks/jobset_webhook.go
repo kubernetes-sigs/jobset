@@ -172,10 +172,10 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 
 	// Ensure that a provided subdomain is a valid DNS name
 	if js.Spec.Network != nil && js.Spec.Network.Subdomain != "" {
-
+		fieldPath := field.NewPath("spec", "network", "subdomain")
 		// This can return 1 or 2 errors, validating max length and format
 		for _, errMessage := range validation.IsDNS1123Subdomain(js.Spec.Network.Subdomain) {
-			allErrs = append(allErrs, errors.New(errMessage))
+			allErrs = append(allErrs, field.Invalid(fieldPath, js.Spec.Network.Subdomain, errMessage))
 		}
 
 		// Since subdomain name is also used as service name, it must adhere to RFC 1035 as well.
@@ -183,7 +183,8 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 				errMessage = subdomainTooLongErrMsg
 			}
-			allErrs = append(allErrs, errors.New(errMessage))
+
+			allErrs = append(allErrs, field.Invalid(fieldPath, js.Spec.Network.Subdomain, errMessage))
 		}
 	}
 
@@ -203,7 +204,8 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	replicatedJobNames := map[string]bool{}
 
 	// Validate each replicatedJob.
-	for _, rJob := range js.Spec.ReplicatedJobs {
+	for rJobIdx, rJob := range js.Spec.ReplicatedJobs {
+		fieldPath := field.NewPath("spec", "replicatedJobs").Index(rJobIdx)
 		var parallelism int32 = 1
 		if rJob.Template.Spec.Parallelism != nil {
 			parallelism = *rJob.Template.Spec.Parallelism
@@ -217,7 +219,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 				errMessage = groupNameTooLongErrorMsg
 			}
-			allErrs = append(allErrs, errors.New(errMessage))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("groupName"), rJob.GroupName, errMessage))
 		}
 		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
 		// Use the largest job index as it will have the longest name.
@@ -226,7 +228,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 				errMessage = jobNameTooLongErrorMsg
 			}
-			allErrs = append(allErrs, errors.New(errMessage))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), longestJobName, errMessage))
 		}
 		// Check that the generated pod names for the replicated job is DNS 1035 compliant.
 		isIndexedJob := rJob.Template.Spec.CompletionMode != nil && *rJob.Template.Spec.CompletionMode == batchv1.IndexedCompletion
@@ -239,7 +241,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 				if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 					errMessage = podNameTooLongErrorMsg
 				}
-				allErrs = append(allErrs, errors.New(errMessage))
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), longestJobName, errMessage))
 			}
 		}
 		replicatedJobNames[rJob.Name] = true
