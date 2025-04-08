@@ -90,6 +90,7 @@ pytorch-workers-0-3-mn8c8   1/1     Running   0          13m
 
 JobSet labels will have `jobset.x-k8s.io/` prefix. JobSet sets the following labels on both the jobs and pods:
 - `jobset.sigs.k8s.io/jobset-name`: `.metadata.name`
+- `jobset.sigs.k8s.io/jobset-uid`: `.metadata.uid`
 - `jobset.sigs.k8s.io/replicatedjob-name`: `.spec.replicatedJobs[*].name`
 - `jobset.sigs.k8s.io/replicatedjob-replicas`: `.spec.replicatedJobs[*].replicas`
 - `jobset.sigs.k8s.io/job-index`: ordinal index of a job within a `spec.replicatedJobs[*]`

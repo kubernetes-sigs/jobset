@@ -1409,6 +1409,7 @@ func jobWithFailedConditionAndOpts(name string, failureTime time.Time, opts *fai
 
 type makeJobArgs struct {
 	jobSetName           string
+	jobSetUID            string
 	replicatedJobName    string
 	groupName            string
 	jobName              string
@@ -1428,6 +1429,7 @@ type makeJobArgs struct {
 func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	labels := map[string]string{
 		jobset.JobSetNameKey:         args.jobSetName,
+		jobset.JobSetUIDKey:          args.jobSetUID,
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
 		jobset.GroupNameKey:          args.groupName,
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
@@ -1437,6 +1439,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	}
 	annotations := map[string]string{
 		jobset.JobSetNameKey:         args.jobSetName,
+		jobset.JobSetUIDKey:          args.jobSetUID,
 		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
 		jobset.GroupNameKey:          args.groupName,
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
