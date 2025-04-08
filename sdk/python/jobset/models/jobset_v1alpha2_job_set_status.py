@@ -32,7 +32,7 @@ class JobsetV1alpha2JobSetStatus(BaseModel):
     replicated_jobs_status: Optional[List[JobsetV1alpha2ReplicatedJobStatus]] = Field(default=None, description="ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.", alias="replicatedJobsStatus")
     restarts: Optional[StrictInt] = Field(default=None, description="Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).")
     restarts_count_towards_max: Optional[StrictInt] = Field(default=None, description="RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.", alias="restartsCountTowardsMax")
-    terminal_state: Optional[StrictStr] = Field(default=None, description="TerminalState the state of the JobSet when it finishes execution. It can be either Complete or Failed. Otherwise, it is empty by default.", alias="terminalState")
+    terminal_state: Optional[StrictStr] = Field(default=None, description="TerminalState the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.", alias="terminalState")
     __properties: ClassVar[List[str]] = ["conditions", "replicatedJobsStatus", "restarts", "restartsCountTowardsMax", "terminalState"]
 
     model_config = ConfigDict(
