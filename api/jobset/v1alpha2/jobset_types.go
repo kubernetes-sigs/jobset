@@ -174,7 +174,7 @@ type JobSetStatus struct {
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 
 	// TerminalState the state of the JobSet when it finishes execution.
-	// It can be either Complete or Failed. Otherwise, it is empty by default.
+	// It can be either Completed or Failed. Otherwise, it is empty by default.
 	TerminalState string `json:"terminalState,omitempty"`
 
 	// ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.

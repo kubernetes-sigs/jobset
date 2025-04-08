@@ -9211,7 +9211,7 @@ spec:
               terminalState:
                 description: |-
                   TerminalState the state of the JobSet when it finishes execution.
-                  It can be either Complete or Failed. Otherwise, it is empty by default.
+                  It can be either Completed or Failed. Otherwise, it is empty by default.
                 type: string
             type: object
         type: object
