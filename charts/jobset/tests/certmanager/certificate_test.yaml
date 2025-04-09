@@ -33,3 +33,32 @@ tests:
           apiVersion: cert-manager.io/v1
           kind: Certificate
           name: jobset-cert
+
+  - it: Should use self signed issuer if `certManager.issuerRef` is not set
+    set:
+      certManager:
+        enable: true
+        issuerRef: null
+    asserts:
+      - equal:
+          path: spec.issuerRef
+          value:
+            group: cert-manager.io
+            kind: Issuer
+            name: jobset-self-signed-issuer
+
+  - it: Should use the specified issuer if `certManager.issuerRef` is set
+    set:
+      certManager:
+        enable: true
+        issuerRef:
+          group: cert-manager.io
+          kind: Issuer
+          name: test-issuer
+    asserts:
+      - equal:
+          path: spec.issuerRef
+          value:
+            group: cert-manager.io
+            kind: Issuer
+            name: test-issuer
