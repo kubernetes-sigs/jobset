@@ -74,11 +74,9 @@ spec:
         - name: webhook
           containerPort: 9443
           protocol: TCP
-        {{- if .Values.prometheus.enable }}
         - name: metrics
           containerPort: 8443
           protocol: TCP
-        {{- end }}
         livenessProbe:
           httpGet:
             port: 8081
