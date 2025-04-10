@@ -34,3 +34,10 @@ Create the name of the jobset Prometheus service monitor.
 {{- define "jobset.metrics.serviceMonitor.name" -}}
 {{ include "jobset.metrics.name" . }}-service-monitor
 {{- end -}}
+
+{{/*
+Create the name of the jobset serving metrics TLS secret.
+*/}}
+{{- define "jobset.metrics.secret.name" -}}
+{{ include "jobset.fullname" . }}-metrics-server-cert
+{{- end -}}

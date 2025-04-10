@@ -1,3 +1,19 @@
 resources:
 - monitor.yaml
 - role.yaml
+
+# [PROMETHEUS WITH CERTMANAGER] The following patch configures the ServiceMonitor in ../prometheus
+# to securely reference certificates created and managed by cert-manager.
+# Ensure correct reference are set in the monitor_tls_patch.yaml file:
+# METRICS_SERVICE_NAME (e.g. jobset-controller-manager-metrics-service.jobset-system.svc),
+# and ${METRICS_PROMETHEUS_CLIENT_CERT_SECRET_NAME} (e.g. metrics-server-cert).
+# Additionally
+# - ensure that you uncomment the [METRICS WITH CERTMANAGER] patch under config/default/kustomization.yaml
+# to mount the "metrics-server-cert" secret in the Manager Deployment.
+# - ensure that you uncomment the [METRICS WITH CERTMANAGER] patch under config/certmanager/kustomization.yaml
+# to enable certmanager for metrics.
+# - ensure prometheus RoleBinding in ./role.yaml references a correct namespace
+#patches:
+#  - path: monitor_tls_patch.yaml
+#    target:
+#      kind: ServiceMonitor

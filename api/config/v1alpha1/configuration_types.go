@@ -83,6 +83,12 @@ type ControllerMetrics struct {
 	// It can be set to "0" to disable the metrics serving.
 	// +optional
 	BindAddress string `json:"bindAddress,omitempty"`
+
+	// CertDir is the directory that contains the server key and certificate.
+	// If not set, a self-signed certificate will be used. The server key and
+	// certificate must be named tls.key and tls.crt, respectively.
+	// +optional
+	CertDir string `json:"certDir,omitempty"`
 }
 
 // ControllerHealth defines the health configs.
