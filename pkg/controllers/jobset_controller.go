@@ -256,6 +256,7 @@ func (r *JobSetReconciler) updateJobSetStatus(ctx context.Context, js *jobset.Jo
 	log := ctrl.LoggerFrom(ctx)
 
 	if updateStatusOpts.shouldUpdate {
+		RecordJobSetTerminalState(js)
 		// Make single API call to persist the JobSet status update.
 		if err := r.Status().Update(ctx, js); err != nil {
 			if !apierrors.IsConflict(err) {
@@ -269,6 +270,25 @@ func (r *JobSetReconciler) updateJobSetStatus(ctx context.Context, js *jobset.Jo
 		}
 	}
 	return nil
+}
+
+// RecordJobSetTerminalState records the terminal state of a JobSet.
+// This function checks the terminal state of the given JobSet and records metrics for it.
+// If the terminal state is empty, no metrics are recorded.
+// Otherwise, it records whether the terminal state matches "Completed" or "Failed".
+func RecordJobSetTerminalState(jobSet *jobset.JobSet) {
+	if jobSet.Status.TerminalState == "" {
+		return
+	}
+	boolToFloat64 := func(b bool) float64 {
+		if b {
+			return 1.0
+		}
+		return 0.0
+	}
+	currentPhase := jobSet.Status.TerminalState
+	metrics.RecordJobSetTerminalState(fmt.Sprintf("%s/%s", jobSet.Namespace, jobSet.Name), jobSet.Status.TerminalState, boolToFloat64(currentPhase == string(jobset.JobSetCompleted)))
+	metrics.RecordJobSetTerminalState(fmt.Sprintf("%s/%s", jobSet.Namespace, jobSet.Name), jobSet.Status.TerminalState, boolToFloat64(currentPhase == string(jobset.JobSetFailed)))
 }
 
 // getChildJobs gets jobs owned by the JobSet then categorizes them by status (active, successful, failed).

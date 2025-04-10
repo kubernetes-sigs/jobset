@@ -28,7 +28,8 @@ Use the following metrics to monitor the health of the jobset controller:
 
 Use the following metrics to monitor the health of the jobsets created by the jobset controller:
 
-| Metric name                                 | Type | Description                                                               | Labels                                                                                            |
-|---------------------------------------------| ---- |---------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| `jobset_failed_total`                       | Counter | The total number of failed JobSets. | `jobset_name`: name of jobset      |
-| `jobset_completed_total`                    | Counter | The total number of completed JobSets.                                    | `jobset_name`: name of jobset  |
+| Metric Name                                | Type    | Description                                                                                     | Labels                                                                                             |
+|--------------------------------------------|---------|-------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| `jobset_failed_total`                      | Counter | The total number of failed JobSets.                                                            | `jobset_name`: Identifier for the JobSet in the format `<namespace>/<name>`, where `<namespace>` is the namespace and `<name>` is the name of the JobSet. |
+| `jobset_completed_total`                   | Counter | The total number of completed JobSets.                                                         | `jobset_name`: Identifier for the JobSet in the format `<namespace>/<name>`, where `<namespace>` is the namespace and `<name>` is the name of the JobSet. |
+| `jobset_terminal_state`                    | Gauge   | The current number of JobSets in a terminal state (e.g., Completed, Failed).                   | `jobset_name`: Identifier for the JobSet in the format `<namespace>/<name>`, where `<namespace>` is the namespace and `<name>` is the name of the JobSet.<br>`terminal_state`: Terminal state of the JobSet (e.g., "Completed", "Failed"). |

@@ -17,6 +17,7 @@ limitations under the License.
 package metrics
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -61,4 +62,24 @@ func TestJobSetCompleted(t *testing.T) {
 	if count := testutil.ToFloat64(CompletedTotal.WithLabelValues("default/jobset-test2")); count != float64(1) {
 		t.Errorf("Expecting %s to have value %d, but got %f", "default/jobset-test2", 1, count)
 	}
+}
+
+func TestRecordJobSetTerminalState(t *testing.T) {
+	prometheus.MustRegister(JobSetTerminalState)
+
+	jobSetName := "jobset-test"
+	namespace := "default"
+	completedPhase := "Completed"
+	failedPhase := "Failed"
+
+	RecordJobSetTerminalState(fmt.Sprintf("%s/%s", jobSetName, namespace), completedPhase, 1.0)
+	if value := testutil.ToFloat64(JobSetTerminalState.WithLabelValues(fmt.Sprintf("%s/%s", jobSetName, namespace), completedPhase)); value != 1.0 {
+		t.Errorf("Expecting terminal state %s to have value %f, but got %f", completedPhase, 1.0, value)
+	}
+
+	RecordJobSetTerminalState(fmt.Sprintf("%s/%s", jobSetName, namespace), failedPhase, 1.0)
+	if value := testutil.ToFloat64(JobSetTerminalState.WithLabelValues(fmt.Sprintf("%s/%s", jobSetName, namespace), failedPhase)); value != 1.0 {
+		t.Errorf("Expecting terminal state %s to have value %f, but got %f", failedPhase, 1.0, value)
+	}
+
 }
