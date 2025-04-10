@@ -1,39 +1,25 @@
-# The following manifests contain a self-signed issuer CR and a certificate CR.
-# More document can be found at https://docs.cert-manager.io
-# WARNING: Targets CertManager v1.0. Check https://cert-manager.io/docs/installation/upgrading/ for breaking changes.
-apiVersion: cert-manager.io/v1
-kind: Issuer
-metadata:
-  labels:
-    app.kubernetes.io/name: issuer
-    app.kubernetes.io/instance: selfsigned-issuer
-    app.kubernetes.io/component: certificate
-    app.kubernetes.io/created-by: jobset
-    app.kubernetes.io/part-of: jobset
-    app.kubernetes.io/managed-by: kustomize
-  name: selfsigned-issuer
-  namespace: system
-spec:
-  selfSigned: {}
----
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
+  name: jobset-cert
+  namespace: jobset-system
   labels:
-    app.kubernetes.io/name: certificate
-    app.kubernetes.io/instance: serving-cert
-    app.kubernetes.io/component: certificate
-    app.kubernetes.io/created-by: jobset
-    app.kubernetes.io/part-of: jobset
-    app.kubernetes.io/managed-by: kustomize
-  name: serving-cert  # this name should match the one appeared in kustomizeconfig.yaml
-  namespace: system
+    app.kubernetes.io/managed-by: Kustomize
+    app.kubernetes.io/version: "0.7.3"
+    app.kubernetes.io/name: jobset
+    app.kubernetes.io/instance: jobset
 spec:
-  # $(SERVICE_NAME) and $(SERVICE_NAMESPACE) will be substituted by kustomize
-  dnsNames:
-  - $(SERVICE_NAME).$(SERVICE_NAMESPACE).svc
-  - $(SERVICE_NAME).$(SERVICE_NAMESPACE).svc.cluster.local
+  secretName: jobset-webhook-server-cert
   issuerRef:
+    group: cert-manager.io/v1
     kind: Issuer
-    name: selfsigned-issuer
-  secretName: webhook-server-cert # this secret will not be prefixed, since it's not managed by kustomize
+    name: jobset-self-signed-issuer
+  commonName: jobset-webhook-service.jobset-system.svc
+  dnsNames:
+    - jobset-webhook-service.jobset-system.svc
+    - jobset-webhook-service.jobset-system.svc.cluster.local
+  duration: 8760h
+  renewBefore: 720h
+  usages:
+    - server auth
+    - client auth
