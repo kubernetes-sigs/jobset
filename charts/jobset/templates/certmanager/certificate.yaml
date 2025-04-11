@@ -25,12 +25,12 @@ metadata:
 spec:
   secretName: {{ include "jobset.webhook.secret.name" . }}
   issuerRef:
-  {{- with .Values.certManager.issuerRef }}
-    {{ toYaml . | nindent 4 }}
-  {{- else }}
-    group: cert-manager.io/v1
+  {{- if not .Values.certManager.issuerRef }}
+    group: cert-manager.io
     kind: Issuer
     name: {{ include "jobset.certManager.issuer.name" . }}
+  {{- else }}
+    {{- toYaml .Values.certManager.issuerRef | nindent 4 }}
   {{- end }}
   commonName: {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc
   dnsNames:
