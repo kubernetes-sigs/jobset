@@ -260,11 +260,6 @@ As a user, I want to fine-tune my LLM using TensorFlow using two Parameter Serve
 ReplicatedJob for pre-trained model and dataset initialization, the second and third ReplicatedJob
 to start parameter servers and the fourth ReplicatedJob for distributed fine-tuning.
 
-> [!NOTE]
-> This use-case won't be supported in the initial implementation of the DependsOn API, since
-> ReplicatedJob cannot depend on more than one other ReplicatedJob. However, we plan to consider
-> adding support for this functionality in the future.
-
 ![JobSet](./jobset-serial-execution.png)
 
 The example of JobSet looks as follows:
