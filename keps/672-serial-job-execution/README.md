@@ -412,6 +412,7 @@ We will add this functionality to the startup_policy API for the functionality.
 
 - Using "ready" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
 - Using "complete" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
+- Using "complete" ReplicatedJobs status for Jobset with mutiple DependsOn target ReplicatedJobs
 - Validate that if the first ReplicatedJob fails, the second ReplicatedJob does not execute.
 - Ensure that when DependsOn and FailurePolicy sets together, the JobSet will restart
   the job sequence from the beginning in case of failure.
