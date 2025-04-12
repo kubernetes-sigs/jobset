@@ -102,12 +102,12 @@ spec:
             spec:
               containers:
                 - name: model-initializer
-                  image: docker.io/kubeflow/model-initializer
+                  image: ghcr.io/kubeflow/trainer/model-initializer
                   volumeMounts:
                     - mountPath: /workspace/pre-trained-model
                       name: model-initializer
                 - name: dataset-initializer
-                  image: docker.io/kubeflow/dataset-initializer
+                  image: ghcr.io/kubeflow/trainer/dataset-initializer
                   volumeMounts:
                     - mountPath: /workspace/dataset
                       name: dataset-initializer
@@ -130,7 +130,7 @@ spec:
             spec:
               containers:
                 - name: trainer
-                  image: docker.io/kubeflow/trainer
+                  image: ghcr.io/kubeflow/trainer/torchtune-trianer
                   resources:
                     limits:
                       nvidia.com/gpu: 5
@@ -170,12 +170,12 @@ spec:
             spec:
               containers:
                 - name: model-initializer
-                  image: docker.io/kubeflow/model-initializer
+                  image: ghcr.io/kubeflow/trainer/model-initializer
                   volumeMounts:
                     - mountPath: /workspace/pre-trained-model
                       name: model-initializer
                 - name: dataset-initializer
-                  image: docker.io/kubeflow/dataset-initializer
+                  image: ghcr.io/kubeflow/trainer/dataset-initializer
                   volumeMounts:
                     - mountPath: /workspace/dataset
                       name: dataset-initializer
@@ -198,7 +198,7 @@ spec:
             spec:
               containers:
                 - name: launcher
-                  image: docker.io/kubeflow/mpi-launcher
+                  image: ghcr.io/kubeflow/trainer/mpi-launcher
                   resources:
                     limits:
                       nvidia.com/gpu: 5
@@ -226,7 +226,7 @@ spec:
             spec:
               containers:
                 - name: trainer
-                  image: docker.io/kubeflow/deepspeed-trainer
+                  image: ghcr.io/kubeflow/trainer/deepspeed-trainer
                   resources:
                     limits:
                       nvidia.com/gpu: 5
