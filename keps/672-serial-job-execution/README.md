@@ -338,14 +338,14 @@ const (
 The JobSet operator will control the creation of ReplicatedJobs based on their DependsOn
 configuration.
 
-In the DependsOn API, user can only reference the **single** ReplicatedJob that previously
+In the DependsOn API, user can reference the **multiple** ReplicatedJob that previously
 defined in the `.spec.replicatedJobs` list.
 
 If ReplicatedJob has the DependsOn configuration, controller will check the counter of
 Ready or Complete Jobs in the referenced ReplicatedJob. When the counter of Jobs is equal to
 referenced ReplicatedJob's replica count, the controller will create the ReplicatedJob.
 
-If JobSet is suspended the all ReplicatedJobs will be suspended and the Job sequence starts again.
+If JobSet is suspended, all ReplicatedJobs will be suspended and the Job sequence starts again.
 
 When the JobSet is restarted after failure, the Job sequence starts again. User controls how many
 times Job can be restarted via backOffLimit parameter.
@@ -390,7 +390,6 @@ spec:
 ### Defaulting/Validation
 
 - DependsOn API is immutable.
-- Length of DependsOn list is equal to 1.
 - Ensure that `replicatedJobs[n].dependsOn[0].name` is equal to the the previously defined
   ReplicatedJob's name (e.g. `n-1` from the list).
 - If DependsOn is set, `name` and `status` must be configured.
@@ -440,6 +439,7 @@ milestones with these graduation criteria:
 ## Implementation History
 
 - Draft KEP: September 25th 2024
+- Add Support for Multiple `DependsOn` Target: April 13th 2025
 
 ## Drawbacks
 
