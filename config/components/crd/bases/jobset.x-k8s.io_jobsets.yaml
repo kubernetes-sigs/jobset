@@ -229,7 +229,6 @@ spec:
                         - name
                         - status
                         type: object
-                      maxItems: 1
                       type: array
                       x-kubernetes-list-map-keys:
                       - name
