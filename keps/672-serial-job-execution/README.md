@@ -294,6 +294,8 @@ As a user, I want to fine-tune LLM using torchtune with JobSet. I have the first
 ReplicatedJob for dataset initialization, second ReplicatedJob for pretrained model intialization,
 and the third ReplicatedJob for distributed fine-tuning.
 
+I want to execute the third ReplicatedJob only after both the first and second ReplicatedJobs are completed, so that we can avoid wasting GPU / TPU resources for the third ReplicatedJob.
+
 The example of JobSet looks as follows:
 
 ```yaml
@@ -525,7 +527,7 @@ milestones with these graduation criteria:
 ## Implementation History
 
 - Draft KEP: September 25th 2024
-- Add Support for Multiple `DependsOn` Target: April 13th 2025
+- [KEP Merge and Implementation] Add Support for Multiple `DependsOn` Target: April 13th 2025
 
 ## Drawbacks
 
