@@ -26,19 +26,17 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
-
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"sigs.k8s.io/jobset/pkg/util/placement"
-
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
 // maximum lnegth of the value of the managedBy field
@@ -167,8 +165,6 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	if len(js.Spec.ReplicatedJobs) > 0 && js.Spec.ReplicatedJobs[0].DependsOn != nil {
 		allErrs = append(allErrs, fmt.Errorf("DependsOn can't be set for the first ReplicatedJob"))
 	}
-	// Validate that replicatedJobs listed in success policy are part of this JobSet.
-	validReplicatedJobs := replicatedJobNamesFromSpec(js)
 
 	// Ensure that a provided subdomain is a valid DNS name
 	if js.Spec.Network != nil && js.Spec.Network.Subdomain != "" {
@@ -200,12 +196,13 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		}
 	}
 
-	// Map where key is ReplicatedJob name.
-	replicatedJobNames := map[string]bool{}
+	rJobNames := sets.New[string]()
 
 	// Validate each replicatedJob.
 	for rJobIdx, rJob := range js.Spec.ReplicatedJobs {
 		fieldPath := field.NewPath("spec", "replicatedJobs").Index(rJobIdx)
+		rJobNames.Insert(rJob.Name)
+
 		var parallelism int32 = 1
 		if rJob.Template.Spec.Parallelism != nil {
 			parallelism = *rJob.Template.Spec.Parallelism
@@ -244,26 +241,22 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 				allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), longestJobName, errMessage))
 			}
 		}
-		replicatedJobNames[rJob.Name] = true
 		// Check that DependsOn references the previous ReplicatedJob.
-		if rJob.DependsOn != nil {
-			_, ok := replicatedJobNames[rJob.DependsOn[0].Name]
-			if !ok {
-				allErrs = append(allErrs, fmt.Errorf("replicatedJob: %s cannot depend on replicatedJob: %s", rJob.Name, rJob.DependsOn[0].Name))
-			}
+		if rJob.DependsOn != nil && !rJobNames.Has(rJob.DependsOn[0].Name) {
+			allErrs = append(allErrs, fmt.Errorf("replicatedJob: %s cannot depend on replicatedJob: %s", rJob.Name, rJob.DependsOn[0].Name))
 		}
 	}
 
 	// Validate the success policy's target replicated jobs are valid.
-	for _, rjobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
-		if !slices.Contains(validReplicatedJobs, rjobName) {
-			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rjobName))
+	for _, rJobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
+		if !rJobNames.Has(rJobName) {
+			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rJobName))
 		}
 	}
 
 	// Validate failure policy
 	if js.Spec.FailurePolicy != nil {
-		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, validReplicatedJobs)
+		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, rJobNames)
 		allErrs = append(allErrs, failurePolicyErrors...)
 	}
 
@@ -323,7 +316,7 @@ const (
 var ruleNameRegexp = regexp.MustCompile(ruleNameFmt)
 
 // validateFailurePolicy performs validation for jobset failure policies and returns all errors detected.
-func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, validReplicatedJobs []string) []error {
+func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, rJobNames sets.Set[string]) []error {
 	var allErrs []error
 	if failurePolicy == nil {
 		return allErrs
@@ -347,9 +340,9 @@ func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, validReplicatedJ
 		}
 
 		// Validate the rules target replicated jobs are valid
-		for _, rjobName := range rule.TargetReplicatedJobs {
-			if !slices.Contains(validReplicatedJobs, rjobName) {
-				allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' in failure policy does not appear in .spec.ReplicatedJobs", rjobName))
+		for _, rJobName := range rule.TargetReplicatedJobs {
+			if !rJobNames.Has(rJobName) {
+				allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' in failure policy does not appear in .spec.ReplicatedJobs", rJobName))
 			}
 		}
 
@@ -409,14 +402,4 @@ func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.Replic
 		}
 	}
 	return nil
-}
-
-// replicatedJobNamesFromSpec parses the JobSet spec and returns a list of
-// the replicatedJob names.
-func replicatedJobNamesFromSpec(js *jobset.JobSet) []string {
-	names := []string{}
-	for _, rjob := range js.Spec.ReplicatedJobs {
-		names = append(names, rjob.Name)
-	}
-	return names
 }
