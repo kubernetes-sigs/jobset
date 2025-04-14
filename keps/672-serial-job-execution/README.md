@@ -351,7 +351,7 @@ spec:
             spec:
               containers:
                 - name: trainer
-                  image: ghcr.io/kubeflow/trainer/torchtune-trianer
+                  image: ghcr.io/kubeflow/trainer/torchtune-trainer
                   command:
                     - tune
                     - run
