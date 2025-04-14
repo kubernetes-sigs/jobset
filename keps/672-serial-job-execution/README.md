@@ -527,7 +527,9 @@ milestones with these graduation criteria:
 ## Implementation History
 
 - Draft KEP: September 25th 2024
-- [KEP Merge and Implementation] Add Support for Multiple `DependsOn` Target: April 13th 2025
+- KEP Merge: December 13th 2024
+- Implementation Merge: Janurary 27th 2025
+- Add Support for Multiple `DependsOn` Target: April 13th 2025
 
 ## Drawbacks
 
