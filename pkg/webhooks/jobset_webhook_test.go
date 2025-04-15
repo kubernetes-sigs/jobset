@@ -77,7 +77,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -97,7 +97,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
 								},
 							},
 						},
@@ -115,7 +115,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
 								},
 							},
 						},
@@ -138,7 +138,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -156,7 +156,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -177,7 +177,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
 								},
 							},
 						},
@@ -195,7 +195,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
 								},
 							},
 						},
@@ -219,7 +219,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
 								},
 							},
 						},
@@ -237,7 +237,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
 								},
 							},
 						},
@@ -258,7 +258,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
 								},
 							},
 						},
@@ -276,7 +276,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.NonIndexedCompletion),
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
 								},
 							},
 						},
@@ -302,7 +302,7 @@ func TestJobSetDefaulting(t *testing.T) {
 									Template: corev1.PodTemplateSpec{
 										Spec: corev1.PodSpec{},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -324,7 +324,7 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyOnFailure,
 										},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -349,7 +349,7 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -371,7 +371,7 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -398,7 +398,7 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -420,7 +420,7 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -447,7 +447,7 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -471,7 +471,7 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -503,7 +503,7 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -529,7 +529,7 @@ func TestJobSetDefaulting(t *testing.T) {
 											RestartPolicy: corev1.RestartPolicyAlways,
 										},
 									},
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -552,7 +552,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -569,7 +569,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -588,7 +588,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -606,7 +606,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -629,7 +629,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -649,7 +649,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -673,7 +673,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
@@ -696,7 +696,7 @@ func TestJobSetDefaulting(t *testing.T) {
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Template:       TestPodTemplate,
-									CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
 								},
 							},
 						},
