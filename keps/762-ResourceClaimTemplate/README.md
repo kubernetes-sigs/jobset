@@ -237,7 +237,7 @@ shared by all Pods of a Job, ensuring my training job has the necessary multi-no
 
 #### Kubeflow User Story
 
-As a Kubeflow user leveraging JobSet through common interfaces like the [Training Operator](https://github.com/kubeflow/trainer?tab=readme-ov-file#kubeflow-training-operator-v1),
+As a Kubeflow user leveraging JobSet through common interfaces like the [Kubeflow Trainer](https://www.kubeflow.org/docs/components/trainer/overview/#who-is-this-for),
 I should be able to request per-job shared resources in addition to my per-pod resources in a declarative manner,
 so that the platform can manage resources for complex multi-node, multi-pod jobs without manual intervention.
 
