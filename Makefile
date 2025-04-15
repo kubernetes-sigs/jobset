@@ -1,5 +1,5 @@
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.31
+ENVTEST_K8S_VERSION = 1.32
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -53,7 +53,7 @@ PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 JOBSET_CHART_DIR := charts/jobset
 
 E2E_TARGET ?= ./test/e2e/...
-E2E_KIND_VERSION ?= kindest/node:v1.30.0
+E2E_KIND_VERSION ?= kindest/node:v1.32.3
 USE_EXISTING_CLUSTER ?= false
 
 # For local testing, we should allow user to use different kind cluster name
