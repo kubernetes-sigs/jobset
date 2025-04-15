@@ -121,7 +121,7 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	for i := range js.Spec.ReplicatedJobs {
 		// Default job completion mode to indexed.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
-			js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = completionModePtr(batchv1.IndexedCompletion)
+			js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode = ptr.To(batchv1.IndexedCompletion)
 		}
 		// Default pod restart policy to OnFailure.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.RestartPolicy == "" {
@@ -419,8 +419,4 @@ func replicatedJobNamesFromSpec(js *jobset.JobSet) []string {
 		names = append(names, rjob.Name)
 	}
 	return names
-}
-
-func completionModePtr(mode batchv1.CompletionMode) *batchv1.CompletionMode {
-	return &mode
 }
