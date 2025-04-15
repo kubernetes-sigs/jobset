@@ -73,8 +73,7 @@ distributed fine-tuning, post-processing for LLM fine-tuning.
 - Allowing for a percentage of Jobs in a ReplicatedJob to be ready to consider the
   whole ReplicatedJob to ready.
 - Support any other ReplicatedJob status other than Complete and Ready.
-- Allow Job to depends on multiple previous ReplicatedJob. We will support this in the next
-  iteration of this API.
+- Guarantee the order of dependent ReplicatedJobs when referencing multiple ReplicatedJobs.
 
 ## Proposal
 
