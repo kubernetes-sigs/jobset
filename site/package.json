@@ -2,7 +2,7 @@
   "devDependencies": {
     "autoprefixer": "^10.4.13",
     "docsy": "github:google/docsy",
-    "postcss": "^8.4.21",
+    "postcss": "^8.5.3",
     "postcss-cli": "^10.1.0"
   }
 }
