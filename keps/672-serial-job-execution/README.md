@@ -73,8 +73,7 @@ distributed fine-tuning, post-processing for LLM fine-tuning.
 - Allowing for a percentage of Jobs in a ReplicatedJob to be ready to consider the
   whole ReplicatedJob to ready.
 - Support any other ReplicatedJob status other than Complete and Ready.
-- Allow Job to depends on multiple previous ReplicatedJob. We will support this in the next
-  iteration of this API.
+- Guarantee the order of dependent ReplicatedJobs when referencing multiple ReplicatedJobs.
 
 ## Proposal
 
@@ -102,12 +101,12 @@ spec:
             spec:
               containers:
                 - name: model-initializer
-                  image: docker.io/kubeflow/model-initializer
+                  image: ghcr.io/kubeflow/trainer/model-initializer
                   volumeMounts:
                     - mountPath: /workspace/pre-trained-model
                       name: model-initializer
                 - name: dataset-initializer
-                  image: docker.io/kubeflow/dataset-initializer
+                  image: ghcr.io/kubeflow/trainer/dataset-initializer
                   volumeMounts:
                     - mountPath: /workspace/dataset
                       name: dataset-initializer
@@ -130,7 +129,7 @@ spec:
             spec:
               containers:
                 - name: trainer
-                  image: docker.io/kubeflow/trainer
+                  image: ghcr.io/kubeflow/trainer/torchtune-trianer
                   resources:
                     limits:
                       nvidia.com/gpu: 5
@@ -170,12 +169,12 @@ spec:
             spec:
               containers:
                 - name: model-initializer
-                  image: docker.io/kubeflow/model-initializer
+                  image: ghcr.io/kubeflow/trainer/model-initializer
                   volumeMounts:
                     - mountPath: /workspace/pre-trained-model
                       name: model-initializer
                 - name: dataset-initializer
-                  image: docker.io/kubeflow/dataset-initializer
+                  image: ghcr.io/kubeflow/trainer/dataset-initializer
                   volumeMounts:
                     - mountPath: /workspace/dataset
                       name: dataset-initializer
@@ -198,7 +197,7 @@ spec:
             spec:
               containers:
                 - name: launcher
-                  image: docker.io/kubeflow/mpi-launcher
+                  image: ghcr.io/kubeflow/trainer/mpi-launcher
                   resources:
                     limits:
                       nvidia.com/gpu: 5
@@ -226,7 +225,7 @@ spec:
             spec:
               containers:
                 - name: trainer
-                  image: docker.io/kubeflow/deepspeed-trainer
+                  image: ghcr.io/kubeflow/trainer/deepspeed-trainer
                   resources:
                     limits:
                       nvidia.com/gpu: 5
@@ -260,11 +259,6 @@ As a user, I want to fine-tune my LLM using TensorFlow using two Parameter Serve
 ReplicatedJob for pre-trained model and dataset initialization, the second and third ReplicatedJob
 to start parameter servers and the fourth ReplicatedJob for distributed fine-tuning.
 
-> [!NOTE]
-> This use-case won't be supported in the initial implementation of the DependsOn API, since
-> ReplicatedJob cannot depend on more than one other ReplicatedJob. However, we plan to consider
-> adding support for this functionality in the future.
-
 ![JobSet](./jobset-serial-execution.png)
 
 The example of JobSet looks as follows:
@@ -291,6 +285,93 @@ spec:
           status: Ready
         - name: ps-b
           status: Ready
+```
+
+#### Story 5
+
+As a user, I want to fine-tune LLM using torchtune with JobSet. I have the first
+ReplicatedJob for dataset initialization, second ReplicatedJob for pretrained model intialization,
+and the third ReplicatedJob for distributed fine-tuning.
+
+I want to execute the third ReplicatedJob only after both the first and second ReplicatedJobs are completed, so that we can avoid wasting GPU / TPU resources for the third ReplicatedJob.
+
+The example of JobSet looks as follows:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: fine-tune-llm
+spec:
+  replicatedJobs:
+    - name: dataset-initializer
+      template:
+        spec:
+          template:
+            spec:
+              containers:
+                - name: dataset-initializer
+                  image: ghcr.io/kubeflow/trainer/dataset-initializer
+                  env:
+                    - name: STORAGE_URI
+                      value: hf://tatsu-lab/alpaca
+                  volumeMounts:
+                    - mountPath: /workspace/dataset
+                      name: initializer
+              volumes:
+                - name: initializer
+                  persistentVolumeClaim:
+                    claimName: initializer
+    - name: model-initializer
+      template:
+        spec:
+          template:
+            spec:
+              containers:
+                - name: model-initializer
+                  image: ghcr.io/kubeflow/trainer/model-initializer
+                  env:
+                    - name: STORAGE_URI
+                      value: hf://meta-llama/Llama-3.2-1B-Instruct
+                  volumeMounts:
+                    - mountPath: /workspace/model
+                      name: initializer
+              volumes:
+                - name: initializer
+                  persistentVolumeClaim:
+                    claimName: initializer
+    - name: trainer
+      dependsOn:
+        - name: dataset-initializer
+          status: Complete
+        - name: model-initializer
+          status: Complete
+      template:
+        spec:
+          template:
+            spec:
+              containers:
+                - name: trainer
+                  image: ghcr.io/kubeflow/trainer/torchtune-trainer
+                  command:
+                    - tune
+                    - run
+                  args:
+                    - full_finetune_distributed
+                    - --config
+                    - llama3_2/1B_full.yaml
+                  resources:
+                    limits:
+                      nvidia.com/gpu: 2
+                  volumeMounts:
+                    - mountPath: /workspace/dataset
+                      name: initializer
+                    - mountPath: /workspace/model
+                      name: initializer
+              volumes:
+                - name: initializer
+                  persistentVolumeClaim:
+                    claimName: initializer
 ```
 
 ### Risks and Mitigations
@@ -343,14 +424,14 @@ const (
 The JobSet operator will control the creation of ReplicatedJobs based on their DependsOn
 configuration.
 
-In the DependsOn API, user can only reference the **single** ReplicatedJob that previously
+In the DependsOn API, user can reference the **multiple** ReplicatedJob that previously
 defined in the `.spec.replicatedJobs` list.
 
 If ReplicatedJob has the DependsOn configuration, controller will check the counter of
 Ready or Complete Jobs in the referenced ReplicatedJob. When the counter of Jobs is equal to
 referenced ReplicatedJob's replica count, the controller will create the ReplicatedJob.
 
-If JobSet is suspended the all ReplicatedJobs will be suspended and the Job sequence starts again.
+If JobSet is suspended, all ReplicatedJobs will be suspended and the Job sequence starts again.
 
 When the JobSet is restarted after failure, the Job sequence starts again. User controls how many
 times Job can be restarted via backOffLimit parameter.
@@ -395,7 +476,6 @@ spec:
 ### Defaulting/Validation
 
 - DependsOn API is immutable.
-- Length of DependsOn list is equal to 1.
 - Ensure that `replicatedJobs[n].dependsOn[0].name` is equal to the the previously defined
   ReplicatedJob's name (e.g. `n-1` from the list).
 - If DependsOn is set, `name` and `status` must be configured.
@@ -418,6 +498,7 @@ We will add this functionality to the startup_policy API for the functionality.
 
 - Using "ready" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
 - Using "complete" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
+- Using "complete" ReplicatedJobs status for Jobset with mutiple DependsOn target ReplicatedJobs
 - Validate that if the first ReplicatedJob fails, the second ReplicatedJob does not execute.
 - Ensure that when DependsOn and FailurePolicy sets together, the JobSet will restart
   the job sequence from the beginning in case of failure.
@@ -445,6 +526,9 @@ milestones with these graduation criteria:
 ## Implementation History
 
 - Draft KEP: September 25th 2024
+- KEP Merge: December 13th 2024
+- Implementation Merge: Janurary 27th 2025
+- Add Support for Multiple `DependsOn` Target: April 13th 2025
 
 ## Drawbacks
 
