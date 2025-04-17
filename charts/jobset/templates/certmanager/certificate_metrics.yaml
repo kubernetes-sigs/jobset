@@ -32,7 +32,7 @@ spec:
     kind: Issuer
     name: {{ include "jobset.certManager.issuer.name" . }}
   {{- end }}
-  commonName: {{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc
+  commonName: {{ include "jobset.name" . }}-metrics
   dnsNames:
   - {{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc
   - {{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc.cluster.local

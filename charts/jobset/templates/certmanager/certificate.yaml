@@ -32,7 +32,7 @@ spec:
   {{- else }}
     {{- toYaml .Values.certManager.issuerRef | nindent 4 }}
   {{- end }}
-  commonName: {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc
+  commonName: {{ include "jobset.name" . }}-webhook
   dnsNames:
   - {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc
   - {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
