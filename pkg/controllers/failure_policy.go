@@ -260,7 +260,7 @@ func setJobSetFailedCondition(js *jobset.JobSet, reason, msg string, updateStatu
 	setCondition(js, makeFailedConditionOpts(reason, msg), updateStatusOpts)
 	js.Status.TerminalState = string(jobset.JobSetFailed)
 	// Update the metrics
-	metrics.JobSetFailed(fmt.Sprintf("%s/%s", js.Namespace, js.Name))
+	metrics.JobSetFailed(js.Name, js.Namespace)
 }
 
 // findJobFailureTimeAndReason is a helper function which extracts the Job failure condition from a Job,

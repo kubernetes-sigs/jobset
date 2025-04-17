@@ -29,7 +29,7 @@ var (
 			Subsystem: constants.JobSetSubsystemName,
 			Name:      "failed_total",
 			Help:      `The total number of failed JobSets`,
-		}, []string{"jobset_name"},
+		}, []string{"jobset_name", "namespace"},
 	)
 
 	CompletedTotal = prometheus.NewCounterVec(
@@ -37,20 +37,20 @@ var (
 			Subsystem: constants.JobSetSubsystemName,
 			Name:      "completed_total",
 			Help:      `The total number of completed JobSets`,
-		}, []string{"jobset_name"},
+		}, []string{"jobset_name", "namespace"},
 	)
 )
 
 // JobSetFailed records the failed case
-// label values: namespace/name
-func JobSetFailed(namespaceName string) {
-	FailedTotal.WithLabelValues(namespaceName).Inc()
+// label values: name, namespace
+func JobSetFailed(name, namespace string) {
+	FailedTotal.WithLabelValues(name, namespace).Inc()
 }
 
 // JobSetCompleted records the completed case
-// label values: namespace/name
-func JobSetCompleted(namespaceName string) {
-	CompletedTotal.WithLabelValues(namespaceName).Inc()
+// label values: name, namespace
+func JobSetCompleted(name, namespace string) {
+	CompletedTotal.WithLabelValues(name, namespace).Inc()
 }
 
 func Register() {

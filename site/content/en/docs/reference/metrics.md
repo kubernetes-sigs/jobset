@@ -28,7 +28,7 @@ Use the following metrics to monitor the health of the jobset controller:
 
 Use the following metrics to monitor the health of the jobsets created by the jobset controller:
 
-| Metric name                                 | Type | Description                                                               | Labels                                                                                            |
-|---------------------------------------------| ---- |---------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| `jobset_failed_total`                       | Counter | The total number of failed JobSets. | `jobset_name`: name of jobset      |
-| `jobset_completed_total`                    | Counter | The total number of completed JobSets.                                    | `jobset_name`: name of jobset  |
+| Metric name                                 | Type | Description                                                               | Labels                                                          |
+|---------------------------------------------| ---- |---------------------------------------------------------------------------|-----------------------------------------------------------------|
+| `jobset_failed_total`                       | Counter | The total number of failed JobSets. | `jobset_name`: name of jobset, `namespace`: namespace of jobset                                |
+| `jobset_completed_total`                    | Counter | The total number of completed JobSets.                                    | `jobset_name`: name of jobset, `namespace`: namespace of jobset |
