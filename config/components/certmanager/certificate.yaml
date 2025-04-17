@@ -33,7 +33,7 @@ spec:
   dnsNames:
   - $(SERVICE_NAME).$(SERVICE_NAMESPACE).svc
   - $(SERVICE_NAME).$(SERVICE_NAMESPACE).svc.cluster.local
-  commonName: $(SERVICE_NAME).$(SERVICE_NAMESPACE).svc
+  commonName: jobset-webhook
   duration: 8760h
   renewBefore: 720h
   usages:
