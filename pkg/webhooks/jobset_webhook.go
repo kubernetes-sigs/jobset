@@ -241,11 +241,11 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 				allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), longestJobName, errMessage))
 			}
 		}
+
 		// Check that DependsOn references the previous ReplicatedJob.
 		if rJob.DependsOn != nil {
 			for _, dependOnItem := range rJob.DependsOn {
-				_, ok := replicatedJobNames[dependOnItem.Name]
-				if !ok {
+				if !rJobNames.Has(dependOnItem.Name) {
 					allErrs = append(allErrs, fmt.Errorf("replicatedJob: %s cannot depend on replicatedJob: %s", rJob.Name, dependOnItem.Name))
 				}
 			}
