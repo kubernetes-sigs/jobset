@@ -262,6 +262,7 @@ type ReplicatedJob struct {
 	// resumed the Job sequence starts again.
 	// This API is mutually exclusive with the StartupPolicy API.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +kubebuilder:validation:MaxItems=16
 	// +optional
 	// +listType=map
 	// +listMapKey=name

@@ -23,7 +23,7 @@ GO_CMD=${1:-go}
 CODEGEN_PKG=${2:-bin}
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-echo "GOPATH=$GOPATH"
+echo "GOPATH=$(go env GOPATH)"
 
 source "${CODEGEN_PKG}/kube_codegen.sh"
 
