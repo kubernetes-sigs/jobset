@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: jobset-self-signed-issuer
+  namespace: jobset-system
+  labels:
+    app.kubernetes.io/managed-by: Kustomize
+    app.kubernetes.io/version: "0.7.3"
+    app.kubernetes.io/name: jobset
+    app.kubernetes.io/instance: jobset
+spec:
+  selfSigned: {}

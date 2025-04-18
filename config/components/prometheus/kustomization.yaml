@@ -1,3 +1,4 @@
 resources:
-- monitor.yaml
-- role.yaml
+  - role.yaml
+  - service.yaml
+  - service_monitor.yaml

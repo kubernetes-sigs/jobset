@@ -31,4 +31,9 @@ spec:
       {{- include "jobset.controller.selectorLabels" . | nindent 6 }}
   endpoints:
   - port: metrics
+    path: /metrics
+    scheme: https
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tlsConfig:
+      insecureSkipVerify: true
 {{- end }}
