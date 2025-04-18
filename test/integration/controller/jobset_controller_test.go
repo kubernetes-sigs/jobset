@@ -1931,11 +1931,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 								Name: "rjob-c",
 							},
 							{
-								Name:      "rjob-a",
+								Name:      "rjob-b",
 								Succeeded: 1,
 							},
 							{
-								Name:      "rjob-b",
+								Name:      "rjob-a",
 								Succeeded: 1,
 							},
 						})
@@ -1954,11 +1954,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 								Name: "rjob-c",
 							},
 							{
-								Name:      "rjob-a",
+								Name:      "rjob-b",
 								Succeeded: 1,
 							},
 							{
-								Name:      "rjob-b",
+								Name:      "rjob-a",
 								Succeeded: 1,
 							},
 						})
