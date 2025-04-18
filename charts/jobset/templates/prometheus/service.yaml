@@ -13,22 +13,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */ -}}
-
-{{- if .Values.prometheus.enable }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "jobset.metrics.service.name" . }}
   namespace: {{ .Release.Namespace}}
   labels:
-    {{- include "jobset.labels" . | nindent 4 }}
+    {{- include "jobset.controller.selectorLabels" . | nindent 4 }}
 spec:
   type: ClusterIP
   selector:
     {{- include "jobset.controller.selectorLabels" . | nindent 4 }}
   ports:
-  - name: metrics
+  - name: https
     port: 8443
-    targetPort: metrics
     protocol: TCP
-{{- end }}
+    targetPort: 8443

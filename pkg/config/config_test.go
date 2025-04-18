@@ -141,6 +141,48 @@ clientConnection:
 		t.Fatal(err)
 	}
 
+	metricsCertConfig := filepath.Join(tmpDir, "metrics-cert.yaml")
+	if err := os.WriteFile(metricsCertConfig, []byte(`
+apiVersion: config.jobset.x-k8s.io/v1alpha1
+kind: Configuration
+health:
+  healthProbeBindAddress: :8081
+metrics:
+  bindAddress: :8443
+  certDir: /tmp/my-metrics-server/my-serving-certs
+leaderElection:
+  leaderElect: true
+  resourceName: 6d4f6a47.jobset.x-k8s.io
+webhook:
+  port: 9443
+internalCertManagement:
+  enable: true
+  webhookServiceName: jobset-tenant-a-webhook-service
+  webhookSecretName: jobset-tenant-a-webhook-server-cert
+`), os.FileMode(0600)); err != nil {
+		t.Fatal(err)
+	}
+
+	metricsCertWithExternalCertsConfig := filepath.Join(tmpDir, "metrics-cert-with-external-certs.yaml")
+	if err := os.WriteFile(metricsCertWithExternalCertsConfig, []byte(`
+apiVersion: config.jobset.x-k8s.io/v1alpha1
+kind: Configuration
+health:
+  healthProbeBindAddress: :8081
+metrics:
+  bindAddress: :8443
+  certDir: /tmp/my-metrics-server/my-serving-certs
+leaderElection:
+  leaderElect: true
+  resourceName: 6d4f6a47.jobset.x-k8s.io
+webhook:
+  port: 9443
+internalCertManagement:
+  enable: false
+`), os.FileMode(0600)); err != nil {
+		t.Fatal(err)
+	}
+
 	invalidConfig := filepath.Join(tmpDir, "invalid-config.yaml")
 	if err := os.WriteFile(invalidConfig, []byte(`
 apiVersion: config.jobset.x-k8s.io/v1alpha1
@@ -302,7 +344,26 @@ webhook:
 				},
 				ClientConnection: defaultClientConnection,
 			},
-			wantOptions: defaultControlOptions,
+			wantOptions: ctrl.Options{
+				HealthProbeBindAddress: configapi.DefaultHealthProbeBindAddress,
+				Metrics: metricsserver.Options{
+					BindAddress: configapi.DefaultMetricsBindAddress,
+					CertDir:     "/tmp/k8s-metrics-server/serving-certs",
+					CertName:    "tls.crt",
+					KeyName:     "tls.key",
+				},
+				LeaderElection:             true,
+				LeaderElectionID:           configapi.DefaultLeaderElectionID,
+				LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
+				LeaseDuration:              ptr.To(configapi.DefaultLeaderElectionLeaseDuration),
+				RenewDeadline:              ptr.To(configapi.DefaultLeaderElectionRenewDeadline),
+				RetryPeriod:                ptr.To(configapi.DefaultLeaderElectionRetryPeriod),
+				WebhookServer: &webhook.DefaultServer{
+					Options: webhook.Options{
+						Port: configapi.DefaultWebhookPort,
+					},
+				},
+			},
 		},
 		{
 			name:       "leaderElection disabled config",
@@ -348,6 +409,77 @@ webhook:
 				},
 			},
 			wantOptions: defaultControlOptions,
+		},
+		{
+			name:       "metrics cert config",
+			configFile: metricsCertConfig,
+			wantConfiguration: configapi.Configuration{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: configapi.GroupVersion.String(),
+					Kind:       "Configuration",
+				},
+				InternalCertManagement: &configapi.InternalCertManagement{
+					Enable:             ptr.To(true),
+					WebhookServiceName: ptr.To("jobset-tenant-a-webhook-service"),
+					WebhookSecretName:  ptr.To("jobset-tenant-a-webhook-server-cert"),
+				},
+				ClientConnection: defaultClientConnection,
+			},
+			wantOptions: ctrl.Options{
+				HealthProbeBindAddress: configapi.DefaultHealthProbeBindAddress,
+				Metrics: metricsserver.Options{
+					BindAddress: ":8443",
+					CertDir:     "/tmp/my-metrics-server/my-serving-certs",
+					CertName:    "tls.crt",
+					KeyName:     "tls.key",
+				},
+				LeaderElection:             true,
+				LeaderElectionID:           configapi.DefaultLeaderElectionID,
+				LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
+				LeaseDuration:              ptr.To(configapi.DefaultLeaderElectionLeaseDuration),
+				RenewDeadline:              ptr.To(configapi.DefaultLeaderElectionRenewDeadline),
+				RetryPeriod:                ptr.To(configapi.DefaultLeaderElectionRetryPeriod),
+				WebhookServer: &webhook.DefaultServer{
+					Options: webhook.Options{
+						Port: configapi.DefaultWebhookPort,
+					},
+				},
+			},
+		},
+
+		{
+			name:       "metrics cert config with external certs",
+			configFile: metricsCertWithExternalCertsConfig,
+			wantConfiguration: configapi.Configuration{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: configapi.GroupVersion.String(),
+					Kind:       "Configuration",
+				},
+				InternalCertManagement: &configapi.InternalCertManagement{
+					Enable: ptr.To(false),
+				},
+				ClientConnection: defaultClientConnection,
+			},
+			wantOptions: ctrl.Options{
+				HealthProbeBindAddress: configapi.DefaultHealthProbeBindAddress,
+				Metrics: metricsserver.Options{
+					BindAddress: ":8443",
+					CertDir:     "/tmp/my-metrics-server/my-serving-certs",
+					CertName:    "tls.crt",
+					KeyName:     "tls.key",
+				},
+				LeaderElection:             true,
+				LeaderElectionID:           configapi.DefaultLeaderElectionID,
+				LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
+				LeaseDuration:              ptr.To(configapi.DefaultLeaderElectionLeaseDuration),
+				RenewDeadline:              ptr.To(configapi.DefaultLeaderElectionRenewDeadline),
+				RetryPeriod:                ptr.To(configapi.DefaultLeaderElectionRetryPeriod),
+				WebhookServer: &webhook.DefaultServer{
+					Options: webhook.Options{
+						Port: configapi.DefaultWebhookPort,
+					},
+				},
+			},
 		},
 		{
 			name:       "invalid config",

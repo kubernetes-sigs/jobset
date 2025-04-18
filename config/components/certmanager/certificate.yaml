@@ -33,6 +33,12 @@ spec:
   dnsNames:
   - $(SERVICE_NAME).$(SERVICE_NAMESPACE).svc
   - $(SERVICE_NAME).$(SERVICE_NAMESPACE).svc.cluster.local
+  commonName: jobset-webhook
+  duration: 8760h
+  renewBefore: 720h
+  usages:
+    - server auth
+    - client auth
   issuerRef:
     kind: Issuer
     name: selfsigned-issuer
