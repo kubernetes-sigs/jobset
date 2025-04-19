@@ -1759,6 +1759,64 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(fmt.Errorf("replicatedJob: job-2 cannot depend on replicatedJob: job-3")),
 		},
 		{
+			name: "DependsOn is invalid since job-2 depends on job-3 and job-1",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+						{
+							Name: "job-2",
+							DependsOn: []jobset.DependsOn{
+								{
+									Name:   "job-1",
+									Status: "Complete",
+								},
+								{
+									Name:   "job-3",
+									Status: "Complete",
+								},
+							},
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+						{
+							Name: "job-3",
+							DependsOn: []jobset.DependsOn{
+								{
+									Name:   "job-1",
+									Status: "Complete",
+								},
+							},
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("replicatedJob: job-2 cannot depend on replicatedJob: job-3")),
+		},
+		{
 			name: "job-2 depends on invalid ReplicatedJob",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
