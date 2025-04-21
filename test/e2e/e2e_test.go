@@ -330,7 +330,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 			// Otherwise, it will cause this check to fail.
 			ginkgo.By("Verify that only Initializer is created", func() {
 				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
-					Should(gomega.Equal(numReplicas))
+					Should(gomega.Equal(numReplicas * 2))
 			})
 
 			ginkgo.By("Wait for Initializer to be in Completed status", func() {

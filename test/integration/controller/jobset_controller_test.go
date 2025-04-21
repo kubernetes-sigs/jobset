@@ -2040,8 +2040,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 								Succeeded: 1,
 							},
 							{
-								Name:  "rjob-a",
-								Ready: 1,
+								Name:   "rjob-a",
+								Ready:  1,
+								Active: 1,
 							},
 						})
 					},
@@ -2063,8 +2064,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 								Succeeded: 1,
 							},
 							{
-								Name:  "rjob-a",
-								Ready: 1,
+								Name:   "rjob-a",
+								Ready:  1,
+								Active: 1,
 							},
 						})
 					},
