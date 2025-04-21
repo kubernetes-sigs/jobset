@@ -273,36 +273,51 @@ var _ = ginkgo.Describe("JobSet", func() {
 	// This test runs JobSet with the DependsOn API.
 	ginkgo.When("DependsOn is enabled on JobSet", func() {
 		// This test shows that when a JobSet is used with the Kubeflow Trainer LLM Runtime.
-		// The initializer Job should be completed before trainer node Job is started.
+		// The model-initializer and dataset-intializer Job should be completed before trainer node Job is started.
 		ginkgo.It("trainer-node Job depends on initializer Job completion", func() {
 			ctx := context.Background()
 
 			numReplicas := 1
-			initializerJob := "initializer"
+			modelInitializerJob := "model-initializer"
+			datasetInitializerJob := "dataset-initializer"
 			trainerJob := "trainer-node"
 
 			// Every ReplicatedJob runs 1 container to sleep for 10 seconds.
-			rJobInitializer := dependsOnTestReplicatedJob(ns, initializerJob, numReplicas, nil, nil)
+			rJobModelInitializer := dependsOnTestReplicatedJob(ns, modelInitializerJob, numReplicas, nil, nil)
+			rJobDatasetInitializer := dependsOnTestReplicatedJob(ns, datasetInitializerJob, numReplicas, nil, nil)
 			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicas, nil,
 				[]jobset.DependsOn{
 					{
-						Name:   initializerJob,
+						Name:   modelInitializerJob,
+						Status: jobset.DependencyComplete,
+					},
+					{
+						Name:   datasetInitializerJob,
 						Status: jobset.DependencyComplete,
 					},
 				})
 
-			jobSet := dependsOnTestJobSet(ns, []jobset.ReplicatedJob{rJobInitializer, rJobTrainer})
+			jobSet := dependsOnTestJobSet(ns, []jobset.ReplicatedJob{rJobModelInitializer, rJobDatasetInitializer, rJobTrainer})
 			jobSetKey := types.NamespacedName{Name: jobSet.Name, Namespace: jobSet.Namespace}
 
 			ginkgo.By("Create a JobSet with DependsOn", func() {
 				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
 			})
 
-			ginkgo.By("Wait for Initializer to be in Ready status", func() {
+			ginkgo.By("Wait for Model Initializer and Dataset Initializer to be in Ready status", func() {
 				gomega.Eventually(func() int32 {
 					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
 					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
-						if rJobStatus.Name == initializerJob {
+						if rJobStatus.Name == modelInitializerJob {
+							return rJobStatus.Ready
+						}
+					}
+					return 0
+				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
+						if rJobStatus.Name == datasetInitializerJob {
 							return rJobStatus.Ready
 						}
 					}
@@ -323,7 +338,16 @@ var _ = ginkgo.Describe("JobSet", func() {
 				gomega.Eventually(func() int32 {
 					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
 					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
-						if rJobStatus.Name == initializerJob {
+						if rJobStatus.Name == modelInitializerJob {
+							return rJobStatus.Succeeded
+						}
+					}
+					return 0
+				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
+						if rJobStatus.Name == datasetInitializerJob {
 							return rJobStatus.Succeeded
 						}
 					}
@@ -331,7 +355,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
 			})
 
-			ginkgo.By("Verify that Initializer and Trainer Job is created", func() {
+			ginkgo.By("Verify that Model Initializer, Dataset Initializer, and Trainer Job is created", func() {
 				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
 					Should(gomega.Equal(util.NumExpectedJobs(jobSet)))
 			})
