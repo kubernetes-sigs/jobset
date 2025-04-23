@@ -274,7 +274,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 	ginkgo.When("DependsOn is enabled on JobSet", func() {
 		// This test shows that when a JobSet is used with the Kubeflow Trainer LLM Runtime.
 		// The model-initializer and dataset-intializer Job should be completed before trainer node Job is started.
-		ginkgo.It("trainer-node Job depends on initializer Job completion", func() {
+		ginkgo.It("trainer-node Job depends on dataset initializer and model initializer Jobs completion", func() {
 			ctx := context.Background()
 
 			numReplicas := 1
