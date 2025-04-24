@@ -4,5 +4,5 @@ kind: Kustomization
 resources:
 - ../../../config/default
 
-patchesStrategicMerge:
-- image_pull_policy.yaml
+patches:
+- path: image_pull_policy.yaml
