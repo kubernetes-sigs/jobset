@@ -18,24 +18,24 @@ limitations under the License.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ include "jobset.certManager.certificate.name" . }}
+  name: {{ include "jobset.certManager.metricsCertificate.name" . }}
   namespace: {{ .Release.Namespace}}
   labels:
     {{- include "jobset.labels" . | nindent 4 }}
 spec:
-  secretName: {{ include "jobset.webhook.secret.name" . }}
+  secretName: {{ include "jobset.metrics.secret.name" . }}
   issuerRef:
-  {{- if not .Values.certManager.issuerRef }}
+  {{- with .Values.certManager.issuerRef }}
+    {{ toYaml . | nindent 4 }}
+  {{- else }}
     group: cert-manager.io
     kind: Issuer
     name: {{ include "jobset.certManager.issuer.name" . }}
-  {{- else }}
-    {{- toYaml .Values.certManager.issuerRef | nindent 4 }}
   {{- end }}
-  commonName: {{ include "jobset.name" . }}-webhook
+  commonName: {{ include "jobset.name" . }}-metrics
   dnsNames:
-  - {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc
-  - {{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  - {{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc
+  - {{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
   duration: 8760h
   renewBefore: 720h
   usages:

@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -35,6 +36,16 @@ func addTo(o *ctrl.Options, cfg *configapi.Configuration) {
 
 	if o.Metrics.BindAddress == "" && cfg.Metrics.BindAddress != "" {
 		o.Metrics.BindAddress = cfg.Metrics.BindAddress
+	}
+
+	internalCertManagementEnabled := ptr.Deref(cfg.InternalCertManagement.Enable, false)
+	if o.Metrics.CertDir == "" && (cfg.Metrics.CertDir != "" || !internalCertManagementEnabled) {
+		o.Metrics.CertDir = cfg.Metrics.CertDir
+		if o.Metrics.CertDir == "" {
+			o.Metrics.CertDir = "/tmp/k8s-metrics-server/serving-certs"
+		}
+		o.Metrics.CertName = "tls.crt"
+		o.Metrics.KeyName = "tls.key"
 	}
 
 	if o.HealthProbeBindAddress == "" && cfg.Health.HealthProbeBindAddress != "" {

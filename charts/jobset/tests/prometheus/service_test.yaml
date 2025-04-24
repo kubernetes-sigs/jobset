@@ -24,12 +24,7 @@ release:
   namespace: jobset-system
 
 tests:
-  - it: Should not create Prometheus metrics service by default
-    asserts:
-      - hasDocuments:
-          count: 0
-
-  - it: Should create Prometheus Service if `prometheus.enable` is `true`
+  - it: Should create Prometheus Service by default
     set:
       prometheus:
         enable: true

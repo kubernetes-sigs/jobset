@@ -30,5 +30,27 @@ spec:
     matchLabels:
       {{- include "jobset.controller.selectorLabels" . | nindent 6 }}
   endpoints:
-  - port: metrics
+  - port: https
+    path: /metrics
+    scheme: https
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+{{- if .Values.certManager.enable }}
+    tlsConfig:
+      ca:
+        secret:
+          key: ca.crt
+          name: {{ include "jobset.metrics.secret.name" . }}
+      cert:
+        secret:
+          key: tls.crt
+          name: {{ .Values.prometheus.prometheusClientCertSecretName }}
+      insecureSkipVerify: false
+      keySecret:
+        key: tls.key
+        name: {{ .Values.prometheus.prometheusClientCertSecretName }}
+      serverName: {{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc
+{{- else }}
+    tlsConfig:
+      insecureSkipVerify: true
+{{- end }}
 {{- end }}
