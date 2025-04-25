@@ -74,7 +74,8 @@ class TestIoK8sApiCoreV1Lifecycle(unittest.TestCase):
                         seconds = 56, ), 
                     tcp_socket = jobset.models.io/k8s/api/core/v1/tcp_socket_action.io.k8s.api.core.v1.TCPSocketAction(
                         host = '', 
-                        port = '', ), )
+                        port = '', ), ),
+                stop_signal = ''
             )
         else:
             return IoK8sApiCoreV1Lifecycle(

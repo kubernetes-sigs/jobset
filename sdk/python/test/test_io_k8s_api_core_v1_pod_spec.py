@@ -122,7 +122,8 @@ class TestIoK8sApiCoreV1PodSpec(unittest.TestCase):
                                 tcp_socket = jobset.models.io/k8s/api/core/v1/tcp_socket_action.io.k8s.api.core.v1.TCPSocketAction(
                                     host = '', 
                                     port = '', ), ), 
-                            pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), ), 
+                            pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), 
+                            stop_signal = '', ), 
                         liveness_probe = jobset.models.io/k8s/api/core/v1/probe.io.k8s.api.core.v1.Probe(
                             failure_threshold = 56, 
                             grpc = jobset.models.io/k8s/api/core/v1/grpc_action.io.k8s.api.core.v1.GRPCAction(
@@ -294,7 +295,8 @@ class TestIoK8sApiCoreV1PodSpec(unittest.TestCase):
                                 tcp_socket = jobset.models.io/k8s/api/core/v1/tcp_socket_action.io.k8s.api.core.v1.TCPSocketAction(
                                     host = '', 
                                     port = '', ), ), 
-                            pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), ), 
+                            pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), 
+                            stop_signal = '', ), 
                         liveness_probe = jobset.models.io/k8s/api/core/v1/probe.io.k8s.api.core.v1.Probe(
                             failure_threshold = 56, 
                             grpc = jobset.models.io/k8s/api/core/v1/grpc_action.io.k8s.api.core.v1.GRPCAction(
@@ -469,7 +471,8 @@ class TestIoK8sApiCoreV1PodSpec(unittest.TestCase):
                                 tcp_socket = jobset.models.io/k8s/api/core/v1/tcp_socket_action.io.k8s.api.core.v1.TCPSocketAction(
                                     host = '', 
                                     port = '', ), ), 
-                            pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), ), 
+                            pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), 
+                            stop_signal = '', ), 
                         liveness_probe = jobset.models.io/k8s/api/core/v1/probe.io.k8s.api.core.v1.Probe(
                             failure_threshold = 56, 
                             grpc = jobset.models.io/k8s/api/core/v1/grpc_action.io.k8s.api.core.v1.GRPCAction(
@@ -1002,7 +1005,8 @@ class TestIoK8sApiCoreV1PodSpec(unittest.TestCase):
                                 tcp_socket = jobset.models.io/k8s/api/core/v1/tcp_socket_action.io.k8s.api.core.v1.TCPSocketAction(
                                     host = '', 
                                     port = '', ), ), 
-                            pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), ), 
+                            pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), 
+                            stop_signal = '', ), 
                         liveness_probe = jobset.models.io/k8s/api/core/v1/probe.io.k8s.api.core.v1.Probe(
                             failure_threshold = 56, 
                             grpc = jobset.models.io/k8s/api/core/v1/grpc_action.io.k8s.api.core.v1.GRPCAction(

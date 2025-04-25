@@ -26,10 +26,10 @@ from typing_extensions import Self
 
 class IoK8sApiCoreV1EnvFromSource(BaseModel):
     """
-    EnvFromSource represents the source of a set of ConfigMaps
+    EnvFromSource represents the source of a set of ConfigMaps or Secrets
     """ # noqa: E501
     config_map_ref: Optional[IoK8sApiCoreV1ConfigMapEnvSource] = Field(default=None, alias="configMapRef")
-    prefix: Optional[StrictStr] = Field(default=None, description="An optional identifier to prepend to each key in the ConfigMap. Must be a C_IDENTIFIER.")
+    prefix: Optional[StrictStr] = Field(default=None, description="Optional text to prepend to the name of each environment variable. Must be a C_IDENTIFIER.")
     secret_ref: Optional[IoK8sApiCoreV1SecretEnvSource] = Field(default=None, alias="secretRef")
     __properties: ClassVar[List[str]] = ["configMapRef", "prefix", "secretRef"]
 

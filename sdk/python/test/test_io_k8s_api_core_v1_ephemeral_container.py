@@ -95,7 +95,8 @@ class TestIoK8sApiCoreV1EphemeralContainer(unittest.TestCase):
                         tcp_socket = jobset.models.io/k8s/api/core/v1/tcp_socket_action.io.k8s.api.core.v1.TCPSocketAction(
                             host = '', 
                             port = '', ), ), 
-                    pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), ),
+                    pre_stop = jobset.models.io/k8s/api/core/v1/lifecycle_handler.io.k8s.api.core.v1.LifecycleHandler(), 
+                    stop_signal = '', ),
                 liveness_probe = jobset.models.io/k8s/api/core/v1/probe.io.k8s.api.core.v1.Probe(
                     exec = jobset.models.io/k8s/api/core/v1/exec_action.io.k8s.api.core.v1.ExecAction(
                         command = [
