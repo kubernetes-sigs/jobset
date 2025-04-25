@@ -374,7 +374,17 @@ var _ = ginkgo.Describe("JobSet", func() {
 			trainerJob := "trainer-node"
 
 			// Every ReplicatedJob runs 1 container to sleep for 10 seconds.
-			rJobCoordinator := dependsOnTestReplicatedJob(ns, coordinatorJob, numReplicas, nil, nil)
+			rJobCoordinator := dependsOnTestReplicatedJob(ns, coordinatorJob, numReplicas,
+				&corev1.Probe{
+					ProbeHandler: corev1.ProbeHandler{
+						Exec: &corev1.ExecAction{
+							Command: []string{"echo", "started"},
+						},
+					},
+					InitialDelaySeconds: 5,
+				},
+				nil)
+			
 			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicas, nil,
 				[]jobset.DependsOn{
 					{
@@ -390,6 +400,14 @@ var _ = ginkgo.Describe("JobSet", func() {
 				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
 			})
 
+			ginkgo.By("Verify that only Coordinator is created", func() {
+				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
+					Should(gomega.Equal(numReplicas))
+			})
+
+			// We need to ensure that the E2E test reaches this check within 10 seconds of
+			// the JobSet being created, as the Coordinator has a 10-second sleep timer.
+			// Otherwise, it will cause this check to fail.
 			ginkgo.By("Wait for Coordinator Job to be in Ready status", func() {
 				gomega.Eventually(func() int32 {
 					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
@@ -400,14 +418,6 @@ var _ = ginkgo.Describe("JobSet", func() {
 					}
 					return 0
 				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
-			})
-
-			// We need to ensure that the E2E test reaches this check within 10 seconds of
-			// the JobSet being created, as the Initializer has a 10-second sleep timer.
-			// Otherwise, it will cause this check to fail.
-			ginkgo.By("Verify that only Coordinator is created", func() {
-				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
-					Should(gomega.Equal(numReplicas))
 			})
 
 			ginkgo.By("Verify that Coordinator Job and Trainer Job is created", func() {
