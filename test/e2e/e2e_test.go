@@ -328,12 +328,12 @@ var _ = ginkgo.Describe("JobSet", func() {
 			// We need to ensure that the E2E test reaches this check within 10 seconds of
 			// the JobSet being created, as the Initializer has a 10-second sleep timer.
 			// Otherwise, it will cause this check to fail.
-			ginkgo.By("Verify that only Initializer is created", func() {
+			ginkgo.By("Verify that only Model Initializer and Dataset Initializer are created", func() {
 				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
 					Should(gomega.Equal(numReplicas * 2))
 			})
 
-			ginkgo.By("Wait for Initializer to be in Completed status", func() {
+			ginkgo.By("Wait for Model Initializer and Dataset Initializer to be in Completed status", func() {
 				gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
 				gomega.Eventually(func() int32 {
 					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
@@ -356,6 +356,61 @@ var _ = ginkgo.Describe("JobSet", func() {
 			})
 
 			ginkgo.By("Verify that Model Initializer, Dataset Initializer, and Trainer Job is created", func() {
+				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
+					Should(gomega.Equal(util.NumExpectedJobs(jobSet)))
+			})
+
+			ginkgo.By("Wait for JobSet to be Completed", func() {
+				util.JobSetCompleted(ctx, k8sClient, jobSet, timeout)
+			})
+		})
+		// This test shows that when a JobSet is used for the Kubeflow Trainer with coordinator.
+		// The coordinator Job should be ready before trainer node Job is started.
+		ginkgo.It("trainer-node Job depends on coordinator Job ready status", func() {
+			ctx := context.Background()
+
+			numReplicas := 1
+			coordinatorJob := "coordinator"
+			trainerJob := "trainer-node"
+
+			// Every ReplicatedJob runs 1 container to sleep for 10 seconds.
+			rJobCoordinator := dependsOnTestReplicatedJob(ns, coordinatorJob, numReplicas, nil, nil)
+			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicas, nil,
+				[]jobset.DependsOn{
+					{
+						Name:   coordinatorJob,
+						Status: jobset.DependencyReady,
+					},
+				})
+
+			jobSet := dependsOnTestJobSet(ns, []jobset.ReplicatedJob{rJobCoordinator, rJobTrainer})
+			jobSetKey := types.NamespacedName{Name: jobSet.Name, Namespace: jobSet.Namespace}
+
+			ginkgo.By("Create a JobSet with DependsOn", func() {
+				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
+			})
+
+			ginkgo.By("Wait for Coordinator Job to be in Ready status", func() {
+				gomega.Eventually(func() int32 {
+					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
+					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
+						if rJobStatus.Name == coordinatorJob {
+							return rJobStatus.Ready
+						}
+					}
+					return 0
+				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
+			})
+
+			// We need to ensure that the E2E test reaches this check within 10 seconds of
+			// the JobSet being created, as the Initializer has a 10-second sleep timer.
+			// Otherwise, it will cause this check to fail.
+			ginkgo.By("Verify that only Coordinator is created", func() {
+				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
+					Should(gomega.Equal(numReplicas))
+			})
+
+			ginkgo.By("Verify that Coordinator Job and Trainer Job is created", func() {
 				gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, jobSet).
 					Should(gomega.Equal(util.NumExpectedJobs(jobSet)))
 			})
