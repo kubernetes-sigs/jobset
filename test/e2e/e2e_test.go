@@ -384,7 +384,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 					InitialDelaySeconds: 5,
 				},
 				nil)
-			
+
 			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicas, nil,
 				[]jobset.DependsOn{
 					{
