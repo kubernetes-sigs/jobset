@@ -7,11 +7,6 @@ import (
 // dependencyReachedStatus checks if dependant ReplicatedJob reaches Ready or Complete status.
 // func dependencyReachedStatus(dependsOnJob jobset.DependsOn, dependsOnJobReplicas int32, rJobsStatuses []jobset.ReplicatedJobStatus) bool {
 func dependencyReachedStatus(rJob jobset.ReplicatedJob, rJobReplicas map[string]int32, rJobsStatuses []jobset.ReplicatedJobStatus) bool {
-	// Check is ReplicatedJob has any dependencies.
-	if rJob.DependsOn == nil {
-		return true
-	}
-
 	for _, dependsOnJob := range rJob.DependsOn {
 		// If the actual status of dependant ReplicatedJob is empty, return false.
 		actualStatus := findReplicatedJobStatus(rJobsStatuses, dependsOnJob.Name)

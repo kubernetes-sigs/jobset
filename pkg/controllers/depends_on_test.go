@@ -60,6 +60,25 @@ func TestDependencyReachedStatus(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: "rJobStatuses is nil",
+			rJob: testutils.MakeReplicatedJob(rJobTrainer).
+				DependsOn(
+					[]jobset.DependsOn{
+						{
+							Name:   rJobModelInitializer,
+							Status: jobset.DependencyComplete,
+						},
+					},
+				).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobModelInitializer: 1,
+				rJobTrainer:          1,
+			},
+			rJobsStatuses: nil,
+			expected:      false,
+		},
+		{
 			name: "depends on ReplicatedJob reaches complete status",
 			rJob: testutils.MakeReplicatedJob(rJobTrainer).
 				DependsOn(
