@@ -10,7 +10,8 @@ import (
 )
 
 func TestDependencyReachedStatus(t *testing.T) {
-	rJobInitializer := "initializer"
+	rJobModelInitializer := "model-initializer"
+	rJobDatasetInitializer := "dataset-initializer"
 	rJobTrainer := "trainer-node"
 
 	tests := []struct {
@@ -22,10 +23,10 @@ func TestDependencyReachedStatus(t *testing.T) {
 	}{
 		{
 			name: "ReplicatedJob doesn't have any dependencies",
-			rJob: testutils.MakeReplicatedJob(rJobInitializer).
+			rJob: testutils.MakeReplicatedJob(rJobModelInitializer).
 				Obj(),
 			rJobReplicas: map[string]int32{
-				rJobInitializer: 1,
+				rJobModelInitializer: 1,
 			},
 			rJobsStatuses: []jobset.ReplicatedJobStatus{},
 			expected:      true,
@@ -36,15 +37,15 @@ func TestDependencyReachedStatus(t *testing.T) {
 				DependsOn(
 					[]jobset.DependsOn{
 						{
-							Name:   rJobInitializer,
+							Name:   rJobModelInitializer,
 							Status: jobset.DependencyComplete,
 						},
 					},
 				).
 				Obj(),
 			rJobReplicas: map[string]int32{
-				rJobInitializer: 1,
-				rJobTrainer:     1,
+				rJobModelInitializer: 1,
+				rJobTrainer:          1,
 			},
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
@@ -59,24 +60,56 @@ func TestDependencyReachedStatus(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "depends on ReplicatedJob reaches complete status",
+			name: "rJobStatuses is nil",
 			rJob: testutils.MakeReplicatedJob(rJobTrainer).
 				DependsOn(
 					[]jobset.DependsOn{
 						{
-							Name:   rJobInitializer,
+							Name:   rJobModelInitializer,
 							Status: jobset.DependencyComplete,
 						},
 					},
 				).
 				Obj(),
 			rJobReplicas: map[string]int32{
-				rJobInitializer: 2,
-				rJobTrainer:     1,
+				rJobModelInitializer: 1,
+				rJobTrainer:          1,
+			},
+			rJobsStatuses: nil,
+			expected:      false,
+		},
+		{
+			name: "depends on ReplicatedJob reaches complete status",
+			rJob: testutils.MakeReplicatedJob(rJobTrainer).
+				DependsOn(
+					[]jobset.DependsOn{
+						{
+							Name:   rJobModelInitializer,
+							Status: jobset.DependencyComplete,
+						},
+						{
+							Name:   rJobDatasetInitializer,
+							Status: jobset.DependencyComplete,
+						},
+					},
+				).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobModelInitializer:   2,
+				rJobDatasetInitializer: 2,
+				rJobTrainer:            1,
 			},
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
-					Name:      rJobInitializer,
+					Name:      rJobModelInitializer,
+					Ready:     0,
+					Succeeded: 2,
+					Failed:    0,
+					Suspended: 0,
+					Active:    0,
+				},
+				{
+					Name:      rJobDatasetInitializer,
 					Ready:     0,
 					Succeeded: 2,
 					Failed:    0,
@@ -87,24 +120,78 @@ func TestDependencyReachedStatus(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "depends on ReplicatedJob doesn't reach complete status",
+			name: "one depends on ReplicatedJob doesn't reach complete status",
 			rJob: testutils.MakeReplicatedJob(rJobTrainer).
 				DependsOn(
 					[]jobset.DependsOn{
 						{
-							Name:   rJobInitializer,
+							Name:   rJobModelInitializer,
+							Status: jobset.DependencyComplete,
+						},
+						{
+							Name:   rJobDatasetInitializer,
 							Status: jobset.DependencyComplete,
 						},
 					},
 				).
 				Obj(),
 			rJobReplicas: map[string]int32{
-				rJobInitializer: 2,
-				rJobTrainer:     1,
+				rJobModelInitializer:   2,
+				rJobDatasetInitializer: 2,
+				rJobTrainer:            1,
 			},
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
-					Name:      rJobInitializer,
+					Name:      rJobModelInitializer,
+					Ready:     1,
+					Succeeded: 1,
+					Failed:    0,
+					Suspended: 0,
+					Active:    0,
+				},
+				{
+					Name:      rJobDatasetInitializer,
+					Ready:     0,
+					Succeeded: 2,
+					Failed:    0,
+					Suspended: 0,
+					Active:    0,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "two depends on ReplicatedJob doesn't reach complete status",
+			rJob: testutils.MakeReplicatedJob(rJobTrainer).
+				DependsOn(
+					[]jobset.DependsOn{
+						{
+							Name:   rJobModelInitializer,
+							Status: jobset.DependencyComplete,
+						},
+						{
+							Name:   rJobDatasetInitializer,
+							Status: jobset.DependencyComplete,
+						},
+					},
+				).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobModelInitializer:   2,
+				rJobDatasetInitializer: 2,
+				rJobTrainer:            1,
+			},
+			rJobsStatuses: []jobset.ReplicatedJobStatus{
+				{
+					Name:      rJobModelInitializer,
+					Ready:     1,
+					Succeeded: 1,
+					Failed:    0,
+					Suspended: 0,
+					Active:    0,
+				},
+				{
+					Name:      rJobDatasetInitializer,
 					Ready:     1,
 					Succeeded: 1,
 					Failed:    0,
@@ -120,19 +207,32 @@ func TestDependencyReachedStatus(t *testing.T) {
 				DependsOn(
 					[]jobset.DependsOn{
 						{
-							Name:   rJobInitializer,
+							Name:   rJobModelInitializer,
+							Status: jobset.DependencyReady,
+						},
+						{
+							Name:   rJobDatasetInitializer,
 							Status: jobset.DependencyReady,
 						},
 					},
 				).
 				Obj(),
 			rJobReplicas: map[string]int32{
-				rJobInitializer: 3,
-				rJobTrainer:     1,
+				rJobModelInitializer:   3,
+				rJobDatasetInitializer: 3,
+				rJobTrainer:            1,
 			},
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
-					Name:      rJobInitializer,
+					Name:      rJobModelInitializer,
+					Ready:     1,
+					Succeeded: 1,
+					Failed:    1,
+					Suspended: 0,
+					Active:    0,
+				},
+				{
+					Name:      rJobDatasetInitializer,
 					Ready:     1,
 					Succeeded: 1,
 					Failed:    1,
@@ -143,24 +243,78 @@ func TestDependencyReachedStatus(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "depends on ReplicatedJob doesn't reach ready status",
+			name: "one depends on ReplicatedJob doesn't reach ready status",
 			rJob: testutils.MakeReplicatedJob(rJobTrainer).
 				DependsOn(
 					[]jobset.DependsOn{
 						{
-							Name:   rJobInitializer,
+							Name:   rJobModelInitializer,
+							Status: jobset.DependencyReady,
+						},
+						{
+							Name:   rJobDatasetInitializer,
 							Status: jobset.DependencyReady,
 						},
 					},
 				).
 				Obj(),
 			rJobReplicas: map[string]int32{
-				rJobInitializer: 3,
-				rJobTrainer:     1,
+				rJobModelInitializer:   3,
+				rJobDatasetInitializer: 3,
+				rJobTrainer:            1,
 			},
 			rJobsStatuses: []jobset.ReplicatedJobStatus{
 				{
-					Name:      rJobInitializer,
+					Name:      rJobModelInitializer,
+					Ready:     2,
+					Succeeded: 0,
+					Failed:    0,
+					Suspended: 0,
+					Active:    1,
+				},
+				{
+					Name:      rJobDatasetInitializer,
+					Ready:     1,
+					Succeeded: 1,
+					Failed:    1,
+					Suspended: 0,
+					Active:    0,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "two depends on ReplicatedJobs doesn't reach ready status",
+			rJob: testutils.MakeReplicatedJob(rJobTrainer).
+				DependsOn(
+					[]jobset.DependsOn{
+						{
+							Name:   rJobModelInitializer,
+							Status: jobset.DependencyReady,
+						},
+						{
+							Name:   rJobDatasetInitializer,
+							Status: jobset.DependencyReady,
+						},
+					},
+				).
+				Obj(),
+			rJobReplicas: map[string]int32{
+				rJobModelInitializer:   3,
+				rJobDatasetInitializer: 3,
+				rJobTrainer:            1,
+			},
+			rJobsStatuses: []jobset.ReplicatedJobStatus{
+				{
+					Name:      rJobModelInitializer,
+					Ready:     2,
+					Succeeded: 0,
+					Failed:    0,
+					Suspended: 0,
+					Active:    1,
+				},
+				{
+					Name:      rJobDatasetInitializer,
 					Ready:     2,
 					Succeeded: 0,
 					Failed:    0,

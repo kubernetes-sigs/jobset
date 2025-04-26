@@ -1883,6 +1883,218 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("DependsOn: rjob-c depends on complete status of rjob-a and rjob-b", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("depends-on", ns.Name).
+					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-a").
+						Job(testing.MakeJobTemplate("job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+						Replicas(1).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-b").
+						Job(testing.MakeJobTemplate("job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+						Replicas(1).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-c").
+						Job(testing.MakeJobTemplate("job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+						Replicas(3).
+						DependsOn([]jobset.DependsOn{
+							{
+								Name:   "rjob-a",
+								Status: jobset.DependencyComplete,
+							},
+							{
+								Name:   "rjob-b",
+								Status: jobset.DependencyComplete,
+							},
+						}).
+						Obj())
+			},
+			skipCreationCheck: true,
+			steps: []*step{
+				{
+					// First check.
+					// Replicated-Job-A and Replicated-Job-B must be created.
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 2
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					// Set the Replicated-Job-A and Replicated-Job-B status to complete.
+					// Replicated-Job-C depends on complete status of Replicated-Job-A and Replicated-Job-B
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						completeJob(&jobList.Items[0])
+						completeJob(&jobList.Items[1])
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name: "rjob-c",
+							},
+							{
+								Name:      "rjob-b",
+								Succeeded: 1,
+							},
+							{
+								Name:      "rjob-a",
+								Succeeded: 1,
+							},
+						})
+					},
+				},
+				{
+					// Second check.
+					// Replicated-Job-A, Replicated-Job-B, and Replicated-Job-C must be created.
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 5
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name: "rjob-c",
+							},
+							{
+								Name:      "rjob-b",
+								Succeeded: 1,
+							},
+							{
+								Name:      "rjob-a",
+								Succeeded: 1,
+							},
+						})
+					},
+				},
+				{
+					// Final check.
+					// Complete all Jobs.
+					jobUpdateFn: completeAllJobs,
+					// All Jobs must be in the succeeded status.
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "rjob-c",
+								Succeeded: 3,
+							},
+							{
+								Name:      "rjob-b",
+								Succeeded: 1,
+							},
+							{
+								Name:      "rjob-a",
+								Succeeded: 1,
+							},
+						})
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("DependsOn: rjob-c depends on ready status of rjob-a and complete status of rjob-b", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("depends-on", ns.Name).
+					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-a").
+						Job(testing.MakeJobTemplate("job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+						Replicas(1).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-b").
+						Job(testing.MakeJobTemplate("job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+						Replicas(1).
+						Obj()).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-c").
+						Job(testing.MakeJobTemplate("job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+						Replicas(3).
+						DependsOn([]jobset.DependsOn{
+							{
+								Name:   "rjob-a",
+								Status: jobset.DependencyReady,
+							},
+							{
+								Name:   "rjob-b",
+								Status: jobset.DependencyComplete,
+							},
+						}).
+						Obj())
+			},
+			skipCreationCheck: true,
+			steps: []*step{
+				{
+					// First check.
+					// Replicated-Job-A and Replicated-Job-B must be created.
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 2
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					// Set the Replicated-Job-A status to ready and Replicated-Job-B status to complete.
+					// Replicated-Job-C depends on ready status of Replicated-Job-A and complete status of Replicated-Job-B
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyReplicatedJob(jobList, "rjob-a")
+						completeJob(&jobList.Items[1])
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name: "rjob-c",
+							},
+							{
+								Name:      "rjob-b",
+								Succeeded: 1,
+							},
+							{
+								Name:   "rjob-a",
+								Ready:  1,
+								Active: 1,
+							},
+						})
+					},
+				},
+				{
+					// Second check.
+					// Replicated-Job-A, Replicated-Job-B, and Replicated-Job-C must be created.
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 5
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name: "rjob-c",
+							},
+							{
+								Name:      "rjob-b",
+								Succeeded: 1,
+							},
+							{
+								Name:   "rjob-a",
+								Ready:  1,
+								Active: 1,
+							},
+						})
+					},
+				},
+				{
+					// Final check.
+					// Complete all Jobs.
+					jobUpdateFn: completeAllJobs,
+					// All Jobs must be in the succeeded status.
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "rjob-c",
+								Succeeded: 3,
+							},
+							{
+								Name:      "rjob-b",
+								Succeeded: 1,
+							},
+							{
+								Name:      "rjob-a",
+								Succeeded: 1,
+							},
+						})
+					},
+				},
+			},
+		}),
 		ginkgo.Entry("DependsOn: resume suspended JobSet when rjob-b depends on ready status of rjob-a", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("depends-on", ns.Name).
