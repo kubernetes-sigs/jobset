@@ -30,7 +30,7 @@ Here we have some simple examples demonstrating core JobSet features.
 - [Parallel Jobs](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/paralleljobs.yaml)
   demonstrates how to submit multiple replicated jobs in a jobset.
 
-- [Depends On](https://github.com/kubernetes-sigs/jobset/tree/main/examples/depends-on/depends-on.yaml)
+- [Depends On](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/depends-on/depends-on.yaml)
   demonstrates how to define dependencies between ReplicatedJobs, ensuring they are executed in
   the correct sequence. This is important for implementing the leader-worker paradigm in distributed
   ML training, where the workers need to wait for the leader to start first before they attempt to
