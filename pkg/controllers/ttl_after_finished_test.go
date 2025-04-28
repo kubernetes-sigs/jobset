@@ -151,7 +151,7 @@ func TestCheckIfTTLExpired(t *testing.T) {
 		{
 			name:          "jobset completed, TTL expired",
 			jobset:        testutils.MakeJobSet(jobSetName, ns).TTLSecondsAfterFinished(10).CompletedCondition(now).Obj(),
-			clock:         clocktesting.NewFakeClock(now.Time.Add(15 * time.Second)),
+			clock:         clocktesting.NewFakeClock(now.Add(15 * time.Second)),
 			expectExpired: true,
 		},
 		{

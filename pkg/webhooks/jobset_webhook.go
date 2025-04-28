@@ -330,7 +330,7 @@ func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, rJobNames sets.S
 	for index, rule := range failurePolicy.Rules {
 		// Check that the rule name meets the minimum length
 		nameLen := len(rule.Name)
-		if !(minRuleNameLength <= nameLen && nameLen <= maxRuleNameLength) {
+		if nameLen < minRuleNameLength || nameLen > maxRuleNameLength {
 			err := fmt.Errorf("invalid failure policy rule name of length %v, the rule name must be at least %v characters long and at most %v characters long", nameLen, minRuleNameLength, maxRuleNameLength)
 			allErrs = append(allErrs, err)
 		}

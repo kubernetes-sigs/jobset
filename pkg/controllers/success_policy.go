@@ -24,7 +24,7 @@ import (
 // jobMatchesSuccessPolicy returns a boolean value indicating if the Job is part of a
 // ReplicatedJob that matches the JobSet's success policy.
 func jobMatchesSuccessPolicy(js *jobset.JobSet, job *batchv1.Job) bool {
-	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || slices.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, job.ObjectMeta.Labels[jobset.ReplicatedJobNameKey])
+	return len(js.Spec.SuccessPolicy.TargetReplicatedJobs) == 0 || slices.Contains(js.Spec.SuccessPolicy.TargetReplicatedJobs, job.Labels[jobset.ReplicatedJobNameKey])
 }
 
 // replicatedJobMatchesSuccessPolicy returns a boolean value indicating if the ReplicatedJob
