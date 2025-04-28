@@ -34,7 +34,8 @@ Here we have some simple examples demonstrating core JobSet features.
   demonstrates how to define dependencies between ReplicatedJobs, ensuring they are executed in
   the correct sequence. This is important for implementing the leader-worker paradigm in distributed
   ML training, where the workers need to wait for the leader to start first before they attempt to
-  connect to it.
+  connect to it. You can also see the [example of multiple DependsOn items](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/depends-on/multiple-depends-on.yaml)
+  that uses DependsOn API to wait for the completion of two previous ReplicatedJobs.
 
 - [Startup Policy (DEPRECATED)](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/startup-policy/startup-driver-ready.yaml)
   demonstrates how to define a startup order for ReplicatedJobs in order to ensure a "leader"
