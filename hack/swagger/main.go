@@ -52,7 +52,7 @@ func main() {
 
 	for _, dep := range info.Deps {
 		if dep.Path == "k8s.io/api" {
-			k8sVersion = strings.Replace(dep.Version, "v0.", "v1.", -1)
+			k8sVersion = strings.ReplaceAll(dep.Version, "v0.", "v1.")
 		}
 	}
 	if k8sVersion == "" {
@@ -97,8 +97,8 @@ func main() {
 }
 
 func swaggify(name string) string {
-	name = strings.Replace(name, "sigs.k8s.io/jobset/api/", "", -1)
-	name = strings.Replace(name, "k8s.io", "io.k8s", -1)
-	name = strings.Replace(name, "/", ".", -1)
+	name = strings.ReplaceAll(name, "sigs.k8s.io/jobset/api/", "")
+	name = strings.ReplaceAll(name, "k8s.io", "io.k8s")
+	name = strings.ReplaceAll(name, "/", ".")
 	return name
 }

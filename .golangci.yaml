@@ -1,19 +1,30 @@
-# golangci-lint configuration file
-# see: https://golangci-lint.run/usage/configuration/
-
-# Settings related to issues
-issues:
-  # Which dirs to exclude: issues from them won't be reported
-  exclude-dirs:
-    - bin
-
-# Settings of specific linters
-linters-settings:
-  goimports:
-    local-prefixes: sigs.k8s.io/jobset
-
-# Settings for enabling and disabling linters
+version: "2"
 linters:
   enable:
-    - goimports
     - unparam
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - bin
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - sigs.k8s.io/jobset
+  exclusions:
+    generated: lax
+    paths:
+      - bin
+      - third_party$
+      - builtin$
+      - examples$
