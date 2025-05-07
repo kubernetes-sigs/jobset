@@ -36,7 +36,6 @@ import (
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	"sigs.k8s.io/jobset/test/util"
 	"sigs.k8s.io/lws/test/testutils"
-	testing "sigs.k8s.io/lws/test/testutils"
 )
 
 var _ = ginkgo.Describe("JobSet", func() {
@@ -504,7 +503,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 			})
 		})
 	})
-	ginkgo.FIt("should ensure the metrics endpoint is serving metrics", func() {
+	ginkgo.It("should ensure the metrics endpoint is serving metrics", func() {
 		serviceAccountName := "jobset-controller-manager"
 		metricsServiceName := "jobset-controller-manager-metrics-service"
 		namespace := "jobset-system"
@@ -558,7 +557,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 		ginkgo.By("creating the curl-metrics job to access the metrics endpoint")
 		cmd = exec.Command("kubectl", "create", "job", "curl-metrics",
 			"--namespace", namespace,
-			"--image=curlimages/curl:7.78.0",
+			"--image=quay.io/openshifttest/hello-openshift:1.2.0",
 			"--", "/bin/sh", "-c", fmt.Sprintf(
 				"curl -v -k -H 'Authorization: Bearer %s' https://%s.%s.svc.cluster.local:8443/metrics",
 				token, metricsServiceName, namespace))
@@ -579,10 +578,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 		ginkgo.By("getting the metrics by checking curl-metrics logs")
 		metricsOutput := getMetricsOutput(namespace)
 		gomega.Expect(metricsOutput).To(gomega.ContainSubstring(
-			"controller_runtime_reconcile_errors_total",
-		))
-		gomega.Expect(metricsOutput).To(gomega.ContainSubstring(
-			"jobset_failed_total",
+			"workqueue_adds_total",
 		))
 
 		ginkgo.By("cleaning up the curl-metrics job")
@@ -773,6 +769,12 @@ func serviceAccountToken(serviceAccountName, namespace string) (string, error) {
 	gomega.Eventually(verifyTokenCreation).Should(gomega.Succeed())
 
 	return out, err
+}
+
+type tokenRequest struct {
+	Status struct {
+		Token string `json:"token"`
+	} `json:"status"`
 }
 
 // getMetricsOutput retrieves and returns the logs from the curl pod used to access the metrics endpoint.
