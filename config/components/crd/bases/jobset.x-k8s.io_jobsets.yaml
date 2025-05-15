@@ -9215,6 +9215,8 @@ spec:
                   TerminalState the state of the JobSet when it finishes execution.
                   It can be either Completed or Failed. Otherwise, it is empty by default.
                 type: string
+            required:
+            - restarts
             type: object
         type: object
     served: true
