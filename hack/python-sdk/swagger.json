@@ -218,6 +218,9 @@
     "jobset.v1alpha2.JobSetStatus": {
       "description": "JobSetStatus defines the observed state of JobSet",
       "type": "object",
+      "required": [
+        "restarts"
+      ],
       "properties": {
         "conditions": {
           "type": "array",
@@ -245,7 +248,8 @@
         "restarts": {
           "description": "Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "default": 0
         },
         "restartsCountTowardsMax": {
           "description": "RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.",

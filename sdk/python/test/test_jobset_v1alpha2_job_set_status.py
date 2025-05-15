@@ -59,6 +59,7 @@ class TestJobsetV1alpha2JobSetStatus(unittest.TestCase):
             )
         else:
             return JobsetV1alpha2JobSetStatus(
+                restarts = 56,
         )
         """
 
