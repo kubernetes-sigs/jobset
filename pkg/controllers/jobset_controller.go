@@ -154,6 +154,16 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
+	if len(ownedJobs.failed) > 0 {
+		log.V(2).Info("Deleting only failed jobs")
+		if err := r.deleteJobs(ctx, ownedJobs.failed); err != nil {
+			log.Error(err, "error deleting only failed jobs")
+			return ctrl.Result{}, err
+		}
+		log.V(2).Info("Quit after deleting only failed jobs")
+		return ctrl.Result{}, nil
+	}
+
 	// Calculate JobsReady and update statuses for each ReplicatedJob.
 	rjobStatuses := r.calculateReplicatedJobStatuses(ctx, js, ownedJobs)
 	updateReplicatedJobsStatuses(js, rjobStatuses, updateStatusOpts)
