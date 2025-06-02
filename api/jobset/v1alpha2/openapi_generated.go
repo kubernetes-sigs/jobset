@@ -428,6 +428,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					"restarts": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).",
+							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
