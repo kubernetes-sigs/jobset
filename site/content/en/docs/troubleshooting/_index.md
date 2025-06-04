@@ -103,4 +103,3 @@ PING network-jobset-workers-0-1.example (10.6.2.28): 56 data bytes
 64 bytes from 10.6.2.28: seq=2 ttl=63 time=0.079 ms
 --- network-jobset-workers-0-1.example ping statistics ---
 ```
-
