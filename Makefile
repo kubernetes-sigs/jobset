@@ -256,7 +256,7 @@ ginkgo: ## Download ginkgo locally if necessary.
 KIND = $(shell pwd)/bin/kind
 .PHONY: kind
 kind:
-	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install sigs.k8s.io/kind@v0.23.0
+	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install sigs.k8s.io/kind@v0.29.0
 
 .PHONY: kind-image-build
 kind-image-build: PLATFORMS=linux/amd64
