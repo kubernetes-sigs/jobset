@@ -123,6 +123,7 @@ spec:
                           - FailJobSet
                           - RestartJobSet
                           - RestartJobSetAndIgnoreMaxRestarts
+                          - RestartJob
                           type: string
                         name:
                           description: |-
@@ -9150,6 +9151,18 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              jobsPendingRestart:
+                description: JobsToRestart tracks failed Jobs for which a restart
+                  is pending.
+                items:
+                  type: string
+                type: array
+              jobsToRestart:
+                description: JobsToRestart tracks failed Jobs for which a restart
+                  needs to be issued.
+                items:
+                  type: string
+                type: array
               replicatedJobsStatus:
                 description: ReplicatedJobsStatus track the number of JobsReady for
                   each replicatedJob.

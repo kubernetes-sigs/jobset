@@ -181,6 +181,41 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
+	// Delete the failed Jobs that have been flagged for restart.
+	if len(js.Status.JobsToRestart) > 0 {
+		var jobsToRestart []*batchv1.Job
+		var jobsToRestartRemaining []string
+		for _, jobToRestart := range js.Status.JobsToRestart {
+			matchingOwnedFailedJobFound := false
+			for _, ownedFailedJob := range ownedJobs.failed {
+				if ownedFailedJob.Name == jobToRestart {
+					jobsToRestart = append(jobsToRestart, ownedFailedJob)
+					matchingOwnedFailedJobFound = true
+					break
+				}
+			}
+
+			if !matchingOwnedFailedJobFound {
+				jobsToRestartRemaining = append(jobsToRestartRemaining, jobToRestart)
+				log.Info("Job was marked for restart, but no matching owned failed jobs found", "jobToRestart", jobToRestart)
+			}
+		}
+
+		log.Info("deleting jobs so they can be restarted", "jobsToRestart", jobsToRestart)
+		err := r.deleteJobs(ctx, jobsToRestart)
+		if err != nil {
+			log.Error(err, "could not delete Jobs marked for restart")
+			return ctrl.Result{}, err
+		}
+
+		for _, restartedJob := range jobsToRestart {
+			js.Status.JobsPendingRestart = append(js.Status.JobsPendingRestart, restartedJob.Name)
+		}
+		js.Status.JobsToRestart = jobsToRestartRemaining
+		updateStatusOpts.shouldUpdate = true
+		return ctrl.Result{}, nil
+	}
+
 	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
 		if err := executeFailurePolicy(ctx, js, ownedJobs, updateStatusOpts); err != nil {
@@ -207,6 +242,27 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 	if err := r.reconcileReplicatedJobs(ctx, js, ownedJobs, rjobStatuses, updateStatusOpts); err != nil {
 		log.Error(err, "creating jobs")
 		return ctrl.Result{}, err
+	}
+
+	// Check if Jobs that are pending restart are ready yet.
+	if len(js.Status.JobsPendingRestart) > 0 {
+		var newJobsPendingRestart []string
+		for _, jobPendingRestart := range js.Status.JobsPendingRestart {
+			jobIsActive := false
+			for _, ownedActiveJob := range ownedJobs.active {
+				if ownedActiveJob.Name == jobPendingRestart {
+					jobIsActive = true
+					break
+				}
+			}
+
+			if !jobIsActive {
+				newJobsPendingRestart = append(newJobsPendingRestart, jobPendingRestart)
+			}
+		}
+		js.Status.JobsPendingRestart = newJobsPendingRestart
+		updateStatusOpts.shouldUpdate = true
+		return ctrl.Result{}, nil
 	}
 
 	// Handle suspending a jobset or resuming a suspended jobset.

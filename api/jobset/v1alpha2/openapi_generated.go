@@ -468,6 +468,36 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							},
 						},
 					},
+					"jobsToRestart": {
+						SchemaProps: spec.SchemaProps{
+							Description: "JobsToRestart tracks failed Jobs for which a restart needs to be issued.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"jobsPendingRestart": {
+						SchemaProps: spec.SchemaProps{
+							Description: "JobsToRestart tracks failed Jobs for which a restart is pending.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
