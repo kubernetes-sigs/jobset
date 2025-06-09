@@ -131,6 +131,12 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     status = '', 
                                     type = '', )
                                 ], 
+                            jobs_pending_restart = [
+                                ''
+                                ], 
+                            jobs_to_restart = [
+                                ''
+                                ], 
                             replicated_jobs_status = [
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                                     active = 56, 
@@ -247,6 +253,12 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     reason = '', 
                                     status = '', 
                                     type = '', )
+                                ], 
+                            jobs_pending_restart = [
+                                ''
+                                ], 
+                            jobs_to_restart = [
+                                ''
                                 ], 
                             replicated_jobs_status = [
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
