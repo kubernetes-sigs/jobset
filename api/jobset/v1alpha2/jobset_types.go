@@ -169,7 +169,8 @@ type JobSetStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
-	Restarts int32 `json:"restarts,omitempty"`
+	// +optional
+	Restarts int32 `json:"restarts"`
 
 	// RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
