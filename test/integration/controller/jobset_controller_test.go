@@ -990,6 +990,38 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("job recreated without restarting jobset when RestartJob failure policy is the default", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(
+						&jobset.FailurePolicy{
+							MaxRestarts: 0,
+							Rules: []jobset.FailurePolicyRule{{
+								Action: jobset.RestartJob,
+							}},
+						},
+					)
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("complete one job and fail another")
+						completeJob(&jobList.Items[0])
+						failJob(&jobList.Items[1])
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// Only a single Job failed, so we only expect a single deletion finalizer.
+						removeForegroundDeletionFinalizers(js, 1)
+					},
+				},
+				{
+					jobUpdateFn:          completeAllJobs,
+					checkJobSetCondition: testutil.JobSetCompleted,
+				},
+			},
+		}),
 		ginkgo.Entry("jobset created in suspended state", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
