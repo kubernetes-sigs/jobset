@@ -13,7 +13,7 @@ of the controller.
 
 ## Installation Examples
 
-The following [example](https://github.com/kubernetes-sigs/jobset/tree/main/examples/prometheus-operator) show how to install the Prometheus Operator for JobSet system.
+The following [example](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/prometheus-operator) show how to install the Prometheus Operator for JobSet system.
 
 ## JobSet controller health
 
