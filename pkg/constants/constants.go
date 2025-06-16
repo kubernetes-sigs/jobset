@@ -96,6 +96,10 @@ const (
 	RestartJobSetAndIgnoreMaxRestartsActionMessage = "applying RestartJobSetAndIgnoreMaxRestarts failure policy action"
 
 	// Event reason and message related to applying the RestartJob failure policy action.
-	RestartJobActionReason  = "RestartJobFailurePolicyAction"
-	RestartJobActionMessage = "applying RestartJob failure policy action"
+	RecreateJobActionReason  = "RecreateJobFailurePolicyAction"
+	RecreateJobActionMessage = "applying RecreateJob failure policy action"
+
+	// Event reason and message related to applying the RestartJob failure policy action.
+	RecreateReplicatedJobActionReason  = "RecreateJobFailurePolicyAction"
+	RecreateReplicatedJobActionMessage = "applying RecreateReplicatedJob failure policy action"
 )
