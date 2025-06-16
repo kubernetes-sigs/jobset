@@ -27,6 +27,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
 	"sigs.k8s.io/jobset/pkg/metrics"
+	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
 // actionFunctionMap relates jobset failure policy action names to the appropriate behavior during jobset reconciliation.
@@ -34,7 +35,8 @@ var actionFunctionMap = map[jobset.FailurePolicyAction]failurePolicyActionApplie
 	jobset.FailJobSet:                        failJobSetActionApplier,
 	jobset.RestartJobSet:                     restartJobSetActionApplier,
 	jobset.RestartJobSetAndIgnoreMaxRestarts: restartJobSetAndIgnoreMaxRestartsActionApplier,
-	jobset.RestartJob:                        restartJobActionApplier,
+	jobset.RecreateJob:                       recreateJobActionApplier,
+	jobset.RecreateReplicatedJob:             recreateReplicatedJobActionApplier,
 }
 
 // The source of truth for the definition of defaultFailurePolicyRuleAction is the Configurable Failure Policy KEP.
@@ -230,28 +232,70 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 	return nil
 }
 
-// restartJobActionApplier applies the RestartJob FailurePolicyAction, marking a single
+// recreateJobActionApplier applies the RestartJob FailurePolicyAction, marking a single
 // job for deletion and recreation.
-var restartJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
 	// Shortcut if job is already pending restart so we don't recreate it
 	// multiple times.
-	for _, jobPendingRestart := range js.Status.JobsPendingRestart {
+	for _, jobPendingRestart := range js.Status.JobsPendingRecreation {
 		if matchingFailedJob.Name == jobPendingRestart {
 			return nil
 		}
 	}
 
-	baseMessage := constants.RestartJobActionMessage
+	baseMessage := constants.RecreateJobActionMessage
 	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
 	event := &eventParams{
 		object:       js,
 		eventType:    corev1.EventTypeWarning,
-		eventReason:  constants.RestartJobActionReason,
+		eventReason:  constants.RecreateJobActionReason,
 		eventMessage: eventMessage,
 	}
 	enqueueEvent(updateStatusOpts, event)
 
-	js.Status.JobsToRestart = append(js.Status.JobsToRestart, matchingFailedJob.Name)
+	js.Status.JobsToRecreate = append(js.Status.JobsToRecreate, matchingFailedJob.Name)
+	updateStatusOpts.shouldUpdate = true
+
+	return nil
+}
+
+// recreateJobActionApplier applies the RestartReplicatedJob FailurePolicyAction, marking all Jobs
+// in the parent ReplicatedJob of the failed Job for deletion and recreation.
+var recreateReplicatedJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	rJobName, ok := parentReplicatedJobName(matchingFailedJob)
+	if !ok {
+		return fmt.Errorf("could not find parent ReplicatedJob for Job %v", matchingFailedJob.Name)
+	}
+
+	childJobNames := replicatedJobChildrenNames(js, rJobName)
+
+	// Only mark Job for recreation if it isn't already pending recreation.
+	var jobsToRecreate []string
+	for _, childJobName := range childJobNames {
+		pendingRecreate := false
+		for _, jobPendingRecreate := range js.Status.JobsPendingRecreation {
+			if childJobName == jobPendingRecreate {
+				pendingRecreate = true
+				break
+			}
+		}
+
+		if !pendingRecreate {
+			jobsToRecreate = append(jobsToRecreate, childJobName)
+		}
+	}
+
+	baseMessage := constants.RecreateReplicatedJobActionMessage
+	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
+	event := &eventParams{
+		object:       js,
+		eventType:    corev1.EventTypeWarning,
+		eventReason:  constants.RecreateReplicatedJobActionReason,
+		eventMessage: eventMessage,
+	}
+	enqueueEvent(updateStatusOpts, event)
+
+	js.Status.JobsToRecreate = append(js.Status.JobsToRecreate, jobsToRecreate...)
 	updateStatusOpts.shouldUpdate = true
 
 	return nil
@@ -268,6 +312,24 @@ func parentReplicatedJobName(job *batchv1.Job) (string, bool) {
 	replicatedJobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
 	replicatedJobNameIsUnset := !ok || replicatedJobName == ""
 	return replicatedJobName, !replicatedJobNameIsUnset
+}
+
+// replicatedJobChildrenNames gets the names of the child Jobs of a ReplicatedJob.
+func replicatedJobChildrenNames(js *jobset.JobSet, rJobName string) []string {
+	var rJob jobset.ReplicatedJob
+	for _, rJobSpec := range js.Spec.ReplicatedJobs {
+		if rJobSpec.Name == rJobName {
+			rJob = rJobSpec
+			break
+		}
+	}
+
+	var res []string
+	for i := range rJob.Replicas {
+		res = append(res, placement.GenJobName(js.Name, rJob.Name, int(i)))
+	}
+
+	return res
 }
 
 // makeFailedConditionOpts returns the options we use to generate the JobSet failed condition.
