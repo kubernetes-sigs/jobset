@@ -212,10 +212,10 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             status = '', 
                             type = '', )
                         ], 
-                    jobs_pending_restart = [
+                    jobs_pending_recreation = [
                         ''
                         ], 
-                    jobs_to_restart = [
+                    jobs_to_recreate = [
                         ''
                         ], 
                     replicated_jobs_status = [

@@ -26,8 +26,8 @@ type JobSetStatusApplyConfiguration struct {
 	RestartsCountTowardsMax *int32                                  `json:"restartsCountTowardsMax,omitempty"`
 	TerminalState           *string                                 `json:"terminalState,omitempty"`
 	ReplicatedJobsStatus    []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
-	JobsToRestart           []string                                `json:"jobsToRestart,omitempty"`
-	JobsPendingRestart      []string                                `json:"jobsPendingRestart,omitempty"`
+	JobsToRecreate          []string                                `json:"jobsToRecreate,omitempty"`
+	JobsPendingRecreation   []string                                `json:"jobsPendingRecreation,omitempty"`
 }
 
 // JobSetStatusApplyConfiguration constructs a declarative configuration of the JobSetStatus type for use with
@@ -86,22 +86,22 @@ func (b *JobSetStatusApplyConfiguration) WithReplicatedJobsStatus(values ...*Rep
 	return b
 }
 
-// WithJobsToRestart adds the given value to the JobsToRestart field in the declarative configuration
+// WithJobsToRecreate adds the given value to the JobsToRecreate field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, values provided by each call will be appended to the JobsToRestart field.
-func (b *JobSetStatusApplyConfiguration) WithJobsToRestart(values ...string) *JobSetStatusApplyConfiguration {
+// If called multiple times, values provided by each call will be appended to the JobsToRecreate field.
+func (b *JobSetStatusApplyConfiguration) WithJobsToRecreate(values ...string) *JobSetStatusApplyConfiguration {
 	for i := range values {
-		b.JobsToRestart = append(b.JobsToRestart, values[i])
+		b.JobsToRecreate = append(b.JobsToRecreate, values[i])
 	}
 	return b
 }
 
-// WithJobsPendingRestart adds the given value to the JobsPendingRestart field in the declarative configuration
+// WithJobsPendingRecreation adds the given value to the JobsPendingRecreation field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, values provided by each call will be appended to the JobsPendingRestart field.
-func (b *JobSetStatusApplyConfiguration) WithJobsPendingRestart(values ...string) *JobSetStatusApplyConfiguration {
+// If called multiple times, values provided by each call will be appended to the JobsPendingRecreation field.
+func (b *JobSetStatusApplyConfiguration) WithJobsPendingRecreation(values ...string) *JobSetStatusApplyConfiguration {
 	for i := range values {
-		b.JobsPendingRestart = append(b.JobsPendingRestart, values[i])
+		b.JobsPendingRecreation = append(b.JobsPendingRecreation, values[i])
 	}
 	return b
 }

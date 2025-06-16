@@ -997,7 +997,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						&jobset.FailurePolicy{
 							MaxRestarts: 0,
 							Rules: []jobset.FailurePolicyRule{{
-								Action: jobset.RestartJob,
+								Action: jobset.RecreateJob,
 							}},
 						},
 					)

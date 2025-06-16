@@ -469,9 +469,9 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							},
 						},
 					},
-					"jobsToRestart": {
+					"jobsToRecreate": {
 						SchemaProps: spec.SchemaProps{
-							Description: "JobsToRestart tracks failed Jobs for which a restart needs to be issued.",
+							Description: "JobsToRecreate tracks failed Jobs for which a deletion call needs to be issued.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -484,9 +484,9 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							},
 						},
 					},
-					"jobsPendingRestart": {
+					"jobsPendingRecreation": {
 						SchemaProps: spec.SchemaProps{
-							Description: "JobsToRestart tracks failed Jobs for which a restart is pending.",
+							Description: "JobsPendingRecreation tracks failed Jobs for which a recreation is pending.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
