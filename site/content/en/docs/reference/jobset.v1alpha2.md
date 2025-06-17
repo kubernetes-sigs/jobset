@@ -388,7 +388,7 @@ the JobSet becomes eligible to be deleted immediately after it finishes.</p>
 <td>
    <span class="text-muted">No description provided.</span></td>
 </tr>
-<tr><td><code>restarts</code> <B>[Required]</B><br/>
+<tr><td><code>restarts</code><br/>
 <code>int32</code>
 </td>
 <td>
@@ -407,7 +407,7 @@ the JobSet becomes eligible to be deleted immediately after it finishes.</p>
 </td>
 <td>
    <p>TerminalState the state of the JobSet when it finishes execution.
-It can be either Complete or Failed. Otherwise, it is empty by default.</p>
+It can be either Completed or Failed. Otherwise, it is empty by default.</p>
 </td>
 </tr>
 <tr><td><code>replicatedJobsStatus</code><br/>
@@ -497,6 +497,13 @@ Defaults to True.</p>
 <td>
    <p>Name is the name of the entry and will be used as a suffix
 for the Job name.</p>
+</td>
+</tr>
+<tr><td><code>groupName</code> <B>[Required]</B><br/>
+<code>string</code>
+</td>
+<td>
+   <p>GroupName defines the name of the group this ReplicatedJob belongs to. Defaults to &quot;default&quot;</p>
 </td>
 </tr>
 <tr><td><code>template</code> <B>[Required]</B><br/>

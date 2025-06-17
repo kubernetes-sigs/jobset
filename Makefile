@@ -339,7 +339,7 @@ kind-image-build: kind image-build
 
 .PHONY: test-integration
 test-integration: manifests fmt vet envtest ginkgo ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
 	$(GINKGO) --junit-report=junit.xml --output-dir=$(ARTIFACTS) $(GINKGO_ARGS) -v $(INTEGRATION_TARGET)
 
 .PHONY: test-e2e-kind
