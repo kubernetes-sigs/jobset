@@ -85,7 +85,7 @@ List the specific goals of the KEP. What is it trying to achieve? How will we
 know that this has succeeded?
 -->
 
-* Provide an opt in feature for users with large workloads to significantly speed up their restart time  
+* Provide an opt in feature for users with large workloads to significantly speed up their restart time
 * Propose a short term implementation for the feature and pave the way for a long term solution
 
 ### Non-Goals
@@ -95,7 +95,7 @@ What is out of scope for this KEP? Listing non-goals helps to focus discussion
 and make progress.
 -->
 
-* Improve restart time for all workloads that can be created with JobSet at all scales. We want to provide performance gains for use cases that justify the increased deployment complexity  
+* Improve restart time for all workloads that can be created with JobSet at all scales. We want to provide performance gains for use cases that justify the increased deployment complexity
 * Provide a definitive and fully native implementation for improving restart time in JobSet. We understand that performant solutions that are fully native require upstream changes to Kubernetes
 
 ## Proposal
@@ -169,38 +169,38 @@ proposal will be implemented, this is the place to discuss them.
 
 We propose to add / change the following components in JobSet:
 
-* (New) One agent per worker Pod, which will handle the respective worker container and coordinate workload wide. It runs as a sidecar in each worker Pod and is defined in the JobSet manifest by the user using an image built from code available in the JobSet repository  
-* (New) One orchestrator per JobSet controller Pod, which will handle workloads cluster wide. It runs as a sidecar in each JobSet controller Pod and is installed with the JobSet controller by setting a flag in the Helm chart  
-* (New) One Valkey database, which will handle workloads cluster wide. It is exposed through a service and is installed with the JobSet controller by setting a flag in the Helm chart. Valkey is the most popular fork of Redis and has a license compatible with Kubernetes  
+* (New) One agent per worker Pod, which will handle the respective worker container and coordinate workload wide. It runs as a sidecar in each worker Pod and is defined in the JobSet manifest by the user using an image built from code available in the JobSet repository
+* (New) One orchestrator per JobSet controller Pod, which will handle workloads cluster wide. It runs as a sidecar in each JobSet controller Pod and is installed with the JobSet controller by setting a flag in the Helm chart
+* (New) One Valkey database, which will handle workloads cluster wide. It is exposed through a service and is installed with the JobSet controller by setting a flag in the Helm chart. Valkey is the most popular fork of Redis and has a license compatible with Kubernetes
 * (Change) Change the JobSet controller to fail the JobSet if the value of the annotation `alpha.jobset.sigs.k8s.io/inplace-restarts` in the JobSet object exceeds `jobSet.spec.failurePolicy.maxRestarts`
 
 On a high level, the design works as follows
 
-* Total restart count  
-  * In a workload, each worker will have a value associated with it called total restart count (TRC) that is tracked by its agent and preserved on Valkey  
-  * When all total restart count values are equal, the workers are inferred to be in sync  
-  * Otherwise, the workers are inferred to not be in sync and something must be done  
-* Starting points  
-  * When the JobSet object is created, all worker Pods are created. Their total restart count values are set to `0`  
-  * When the JobSet object is restarted (full recreation), all worker Pods are recreated. Their total restart count values are set to `0` as well  
-  * In both cases all restart count values are equal, so the workers are inferred to be in sync  
-* Lose sync  
-  * If a worker container exits non-zero, it is restarted by container runtime. Its total restart count is increased by `1`  
-  * If something like a node failure happens, the worker Pod is recreated independently. Its total restart count is increased by `1` as well  
-  * Both cases cause the total restart count values of all workers to not be the same value, so the workers are inferred to be not in sync  
-* Restore sync  
-  * If the total restart count of all workers differ by only `1`, then the workload is recoverable by performing an in place restart (full restart)  
-  * Otherwise, or if any other error occurs, then the workload is not recoverable by performing an in place restart (full restart) and the orchestrator must fail over to restarting the JobSet object (full recreation)  
-* In place restart (full restart)  
-  * When the total restart count of a worker changes, its agent is responsible for reporting the change to Valkey  
-  * The orchestrator is responsible for detecting these changes and broadcasting a message to all agents informing them of the new desired total restart count  
-  * The agents are responsible for receiving the broadcast message and making sure their total restart count matches the desired value  
-    * If the values are the same, do nothing  
-    * If the values differ by `1`, restart its worker  
-    * If the values differ by more than `1`, report this to Valkey, which will make the orchestrator fail over to a full recreation  
-* Fail over with JobSet object restart (full recreation)  
-  * If anything not recoverable with an in place restart happens, the orchestrator will restart the JobSet object by deleting the child jobs, which will start a full recreation  
-* Fail the JobSet  
+* Total restart count
+  * In a workload, each worker will have a value associated with it called total restart count (TRC) that is tracked by its agent and preserved on Valkey
+  * When all total restart count values are equal, the workers are inferred to be in sync
+  * Otherwise, the workers are inferred to not be in sync and something must be done
+* Starting points
+  * When the JobSet object is created, all worker Pods are created. Their total restart count values are set to `0`
+  * When the JobSet object is restarted (full recreation), all worker Pods are recreated. Their total restart count values are set to `0` as well
+  * In both cases all restart count values are equal, so the workers are inferred to be in sync
+* Lose sync
+  * If a worker container exits non-zero, it is restarted by container runtime. Its total restart count is increased by `1`
+  * If something like a node failure happens, the worker Pod is recreated independently. Its total restart count is increased by `1` as well
+  * Both cases cause the total restart count values of all workers to not be the same value, so the workers are inferred to be not in sync
+* Restore sync
+  * If the total restart count of all workers differ by only `1`, then the workload is recoverable by performing an in place restart (full restart)
+  * Otherwise, or if any other error occurs, then the workload is not recoverable by performing an in place restart (full restart) and the orchestrator must fail over to restarting the JobSet object (full recreation)
+* In place restart (full restart)
+  * When the total restart count of a worker changes, its agent is responsible for reporting the change to Valkey
+  * The orchestrator is responsible for detecting these changes and broadcasting a message to all agents informing them of the new desired total restart count
+  * The agents are responsible for receiving the broadcast message and making sure their total restart count matches the desired value
+    * If the values are the same, do nothing
+    * If the values differ by `1`, restart its worker
+    * If the values differ by more than `1`, report this to Valkey, which will make the orchestrator fail over to a full recreation
+* Fail over with JobSet object restart (full recreation)
+  * If anything not recoverable with an in place restart happens, the orchestrator will restart the JobSet object by deleting the child jobs, which will start a full recreation
+* Fail the JobSet
   * If the total number of full restarts and full recreations (saved as the `alpha.jobset.sigs.k8s.io/inplace-restarts` annotation in the JobSet object by the orchestrator) exceeds `jobSet.spec.failurePolicy.maxRestarts`, then the JobSet controller will fail the JobSet object
 
 The following diagram shows an example of a workload with 2 workers. It shows how the proposed design detects a worker container failure, performs an in place restart to restore sync and detects the operation is complete.
@@ -215,7 +215,7 @@ To support JobSet objects that use in place restart, the orchestrator must run a
 
 There is no change to the JobSet spec. Instead, we will reserve 2 new annotations for JobSet objects
 
-* `alpha.jobset.sigs.k8s.io/inplace-timeout`: This annotation is set by the user in the JobSet manifest and serves two purposes. First, if the annotation is set, the orchestrator will detect that it should handle this JobSet object. Second, if the in place restart duration takes more than the annotation value (a possible edge case), then the orchestrator will time out the in place restart and fail over to full recreation  
+* `alpha.jobset.sigs.k8s.io/inplace-timeout`: This annotation is set by the user in the JobSet manifest and serves two purposes. First, if the annotation is set, the orchestrator will detect that it should handle this JobSet object. Second, if the in place restart duration takes more than the annotation value (a possible edge case), then the orchestrator will time out the in place restart and fail over to full recreation
 * `alpha.jobset.sigs.k8s.io/inplace-restarts`: This annotation is set by the orchestrator and starts at `0`. Every time there is a full restart or a full recreation, the orchestrator increases this annotation value by `1`. If the annotation value exceeds `jobSet.spec.failurePolicy.maxRestarts`, the JobSet controller will fail the JobSet object
 
 ### JobSet Sample
@@ -382,8 +382,8 @@ milestones with these graduation criteria:
 [deprecation-policy]: https://kubernetes.io/docs/reference/using-api/deprecation-policy/
 -->
 
-* Alpha: The feature as described in this KEP is implemented and tested  
-* Beta: The feature incorporates the necessary upstream changes to make it fully native  
+* Alpha: The feature as described in this KEP is implemented and tested
+* Beta: The feature incorporates the necessary upstream changes to make it fully native
 * Stable: The feature demonstrates widespread production reliability for 2 release cycles
 
 ## Implementation History
@@ -399,8 +399,8 @@ Major milestones might include:
 - when the KEP was retired or superseded
 -->
 
-* [First request](https://github.com/kubernetes-sigs/jobset/issues/467): March 22th, 2024  
-* [Design proposal](https://github.com/kubernetes-sigs/jobset/issues/876): April 11th, 2025  
+* [First request](https://github.com/kubernetes-sigs/jobset/issues/467): March 22th, 2024
+* [Design proposal](https://github.com/kubernetes-sigs/jobset/issues/876): April 11th, 2025
 * KEP: May 23rd, 2025
 
 ## Drawbacks
@@ -409,7 +409,7 @@ Major milestones might include:
 Why should this KEP _not_ be implemented?
 -->
 
-This KEP proposes the short term implementation for in place restart, which contains hacks like mounting the CRI socket to monitor and restart worker containers instead of using the api server or kubelet. This is why we are proposing this feature as opt in and taking other measures such as running the orchestrator as a sidecar instead of integrating it directly to JobSet controller code. 
+This KEP proposes the short term implementation for in place restart, which contains hacks like mounting the CRI socket to monitor and restart worker containers instead of using the api server or kubelet. This is why we are proposing this feature as opt in and taking other measures such as running the orchestrator as a sidecar instead of integrating it directly to JobSet controller code.
 
 ## Alternatives
 
@@ -421,11 +421,11 @@ information to express the idea and why it was not acceptable.
 
 Initial investigations showed that fully native solutions do not scale. For instance, we benchmarked a native solution (see code [here](https://github.com/danielvegamyhre/jobset/tree/script/hack/restart_handler/exec)) that works as following
 
-1. Each worker runs as a child process of a process called handler in the worker container  
-2. When a worker fails, its handler detects the failure and acquires a lease on a shared ConfigMap  
-3. When the lease is acquired, the same handler sends an exec to each worker Pod to execute a special command to each handler  
+1. Each worker runs as a child process of a process called handler in the worker container
+2. When a worker fails, its handler detects the failure and acquires a lease on a shared ConfigMap
+3. When the lease is acquired, the same handler sends an exec to each worker Pod to execute a special command to each handler
 4. When a handler receives this special command, it recreates its worker child process
 
 This unconventional solution was designed to work around the limitations of the Job API for handling intentional container restarts and to reduce pressure to the api server and etcd as much as possible.
 
-In a test with 5k nodes and 5k Pods (one worker Pod per node), this native solution took 109s compared to 152s of the baseline (recreate all Pods), whereas a similar solution to the one proposed in this KEP took 1s. While the 43s improvement is welcome, we believe the solution proposed in this KEP (along with future upstream changes to make it fully native) present a better opportunity to improve restart time in JobSet.
+In a test with 5k nodes and 5k Pods (one worker Pod per node), this native solution took 109s compared to 152s of the baseline (recreate all Pods), whereas a similar solution to the one proposed in this KEP took 1s. While the 43s improvement is welcome, we believe the solution proposed in this KEP (along with future upstream changes to make it fully native) present a better opportunity to improve restart time in JobSet.[hi on] giuseppett@giuseppett:~/Documen
