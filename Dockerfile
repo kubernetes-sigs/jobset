@@ -9,6 +9,10 @@ ARG TARGETARCH
 
 WORKDIR /workspace
 
+# Install dependencies
+COPY go.mod go.sum Makefile ./
+RUN make install-go-deps controller-gen
+
 # Copy the go source
 COPY . .
 

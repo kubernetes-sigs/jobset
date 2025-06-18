@@ -151,13 +151,16 @@ verify: vet fmt-verify ci-lint manifests generate helm-verify toc-verify generat
 
 
 ##@ Build
+.PHONY: install-go-deps
+install-go-deps:
+	$(GO_BUILD_ENV) $(GO_CMD) mod download
 
 .PHONY: build
-build: manifests ## Build manager binary.
+build: install-go-deps manifests ## Build manager binary.
 	$(GO_BUILD_ENV) $(GO_CMD) build -ldflags="$(LD_FLAGS)" -o bin/manager main.go
 
 .PHONY: run
-run: manifests fmt vet ## Run a controller from your host.
+run: install-go-deps manifests fmt vet ## Run a controller from your host.
 	$(GO_CMD) run ./main.go
 
 # Build the container image
