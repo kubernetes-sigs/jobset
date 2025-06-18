@@ -193,37 +193,7 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 
 	// Delete the failed Jobs that have been flagged for restart.
 	if len(js.Status.JobsToRecreate) > 0 {
-		var jobsToRecreate []*batchv1.Job
-		var jobsToRecreateRemaining []string
-		for _, jobToRecreate := range js.Status.JobsToRecreate {
-			matchingOwnedJobFound := false
-			for _, ownedFailedJob := range ownedJobs.allChildJobs() {
-				if ownedFailedJob.Name == jobToRecreate {
-					jobsToRecreate = append(jobsToRecreate, ownedFailedJob)
-					matchingOwnedJobFound = true
-					break
-				}
-			}
-
-			if !matchingOwnedJobFound {
-				jobsToRecreateRemaining = append(jobsToRecreateRemaining, jobToRecreate)
-				log.Info("Job was marked for restart, but no matching owned jobs found", "jobToRestart", jobToRecreate)
-			}
-		}
-
-		log.Info("deleting jobs so they can be restarted", "jobsToRestart", jobsToRecreate)
-		err := r.deleteJobs(ctx, jobsToRecreate)
-		if err != nil {
-			log.Error(err, "could not delete Jobs marked for restart")
-			return ctrl.Result{}, err
-		}
-
-		for _, recreatedJob := range jobsToRecreate {
-			js.Status.JobsPendingRecreation = append(js.Status.JobsPendingRecreation, recreatedJob.Name)
-		}
-		js.Status.JobsToRecreate = jobsToRecreateRemaining
-		updateStatusOpts.shouldUpdate = true
-		return ctrl.Result{}, nil
+		return r.deleteJobsToRecreate(ctx, js, ownedJobs, updateStatusOpts)
 	}
 
 	// If any jobs have failed, execute the JobSet failure policy (if any).
@@ -288,6 +258,44 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 			return ctrl.Result{}, err
 		}
 	}
+	return ctrl.Result{}, nil
+}
+
+// deleteJobsToRecreate deletes all the Jobs in JobSet.Status.JobsToRecreate that are owned
+// by the JobSet.
+func (r *JobSetReconciler) deleteJobsToRecreate(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js))
+
+	var jobsToRecreate []*batchv1.Job
+	var jobsToRecreateRemaining []string
+	for _, jobToRecreate := range js.Status.JobsToRecreate {
+		matchingOwnedJobFound := false
+		for _, ownedFailedJob := range ownedJobs.allChildJobs() {
+			if ownedFailedJob.Name == jobToRecreate {
+				jobsToRecreate = append(jobsToRecreate, ownedFailedJob)
+				matchingOwnedJobFound = true
+				break
+			}
+		}
+
+		if !matchingOwnedJobFound {
+			jobsToRecreateRemaining = append(jobsToRecreateRemaining, jobToRecreate)
+			log.Info("Job was marked for restart, but no matching owned jobs found", "jobToRestart", jobToRecreate)
+		}
+	}
+
+	log.Info("deleting jobs so they can be restarted", "jobsToRestart", jobsToRecreate)
+	err := r.deleteJobs(ctx, jobsToRecreate)
+	if err != nil {
+		log.Error(err, "could not delete Jobs marked for restart")
+		return ctrl.Result{}, err
+	}
+
+	for _, recreatedJob := range jobsToRecreate {
+		js.Status.JobsPendingRecreation = append(js.Status.JobsPendingRecreation, recreatedJob.Name)
+	}
+	js.Status.JobsToRecreate = jobsToRecreateRemaining
+	updateStatusOpts.shouldUpdate = true
 	return ctrl.Result{}, nil
 }
 
