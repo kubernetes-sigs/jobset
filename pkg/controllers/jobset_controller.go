@@ -70,7 +70,7 @@ type childJobs struct {
 	previous []*batchv1.Job
 }
 
-// allChildJobs returns a slice of all Jovs contained in childJobs.
+// allChildJobs returns a slice of all Jobs contained in childJobs.
 func (c *childJobs) allChildJobs() []*batchv1.Job {
 	res := c.active
 	res = append(res, c.successful...)
