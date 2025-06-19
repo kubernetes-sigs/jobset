@@ -10,7 +10,7 @@ no_list: true
 
 ## PyTorch Example
 
-- [Distributed Training of a CNN on the MNIST dataset using PyTorch and JobSet](https://github.com/kubernetes-sigs/jobset/blob/1ae6c0c039c21d29083de38ae70d13c2c8ec613f/examples/pytorch/cnn-mnist/mnist.yaml)
+- [Distributed Training of a CNN on the MNIST dataset using PyTorch and JobSet](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/pytorch/cnn-mnist/mnist.yaml)
 
 **Note**: Machine learning container images can be quite large so it may take some time to pull the images.
 
@@ -18,16 +18,16 @@ no_list: true
 
 Here we have some simple examples demonstrating core JobSet features.
 
-- [Success Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
+- [Success Policy](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/simple/success-policy.yaml) demonstrates an example of utilizing `successPolicy`.
   Success Policy allows one to specify when to mark a JobSet as completed successfully.
   This example showcases how to use success policy to mark the JobSet as successful if the worker replicated job completes.
 
-- [Failure Policy](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/failure-policy.yaml) demonstrates an example of utilizing `failurePolicy`. Failure Policy allows one to control how many restarts a JobSet can do before declaring the JobSet as failed. The strategy used when restarting can also be specified (i.e. whether to first delete all Jobs, or recreate on a one-by-one basis).
+- [Failure Policy](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/simple/failure-policy.yaml) demonstrates an example of utilizing `failurePolicy`. Failure Policy allows one to control how many restarts a JobSet can do before declaring the JobSet as failed. The strategy used when restarting can also be specified (i.e. whether to first delete all Jobs, or recreate on a one-by-one basis).
 
-- [Exclusive Job Placement](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/exclusive-placement.yaml)
+- [Exclusive Job Placement](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/simple/exclusive-placement.yaml)
   demonstrates how to configure a JobSet to have a 1:1 mapping between each child Job and a particular topology domain, such as a datacenter rack or zone. This means that all the pods belonging to a child job will be colocated in the same topology domain, while pods from other jobs will not be allowed to run within this domain. This gives the child job exclusive access to computer resources in this domain.
 
-- [Parallel Jobs](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/paralleljobs.yaml)
+- [Parallel Jobs](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/simple/paralleljobs.yaml)
   demonstrates how to submit multiple replicated jobs in a jobset.
 
 - [Depends On](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/depends-on/depends-on.yaml)
@@ -37,11 +37,11 @@ Here we have some simple examples demonstrating core JobSet features.
   connect to it. You can also see the [example of multiple DependsOn items](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/depends-on/multiple-depends-on.yaml)
   that uses DependsOn API to wait for the completion of two previous ReplicatedJobs.
 
-- [Startup Policy (DEPRECATED)](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/startup-policy/startup-driver-ready.yaml)
+- [Startup Policy (DEPRECATED)](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/startup-policy/startup-driver-ready.yaml)
   demonstrates how to define a startup order for ReplicatedJobs in order to ensure a "leader"
   pod is running before the "workers" are created. **Note:** Startup Policy is deprecated, please use the DependsOn API.
 
-- [TTL after finished](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/simple/ttl-after-finished.yaml)
+- [TTL after finished](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/simple/ttl-after-finished.yaml)
   demonstrates how to configure a JobSet to be cleaned up automatically after a defined period of time has passed after the JobSet finishes.
 
 - [Replicated jobs grouping](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/simple/group.yaml)
@@ -49,7 +49,7 @@ Here we have some simple examples demonstrating core JobSet features.
   
 ## Tensorflow Example
 
-- [Distributed Training of a Handwritten Digit Classifier on the MNIST dataset using Tensorflow and JobSet](https://github.com/kubernetes-sigs/jobset/blob/release-0.5/examples/tensorflow/mnist.yaml)
+- [Distributed Training of a Handwritten Digit Classifier on the MNIST dataset using Tensorflow and JobSet](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/tensorflow/mnist.yaml)
 
 This example runs an example job for a single epoch.
 You can view the progress of your jobs via `kubectl logs jobs/tensorflow-tensorflow-0`.
