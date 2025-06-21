@@ -469,6 +469,36 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							},
 						},
 					},
+					"jobsToRecreate": {
+						SchemaProps: spec.SchemaProps{
+							Description: "JobsToRecreate tracks failed Jobs for which a deletion call needs to be issued.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"jobsPendingRecreation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "JobsPendingRecreation tracks failed Jobs for which a recreation is pending.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},

@@ -70,6 +70,16 @@ type childJobs struct {
 	previous []*batchv1.Job
 }
 
+// allChildJobs returns a slice of all Jovs contained in childJobs.
+func (c *childJobs) allChildJobs() []*batchv1.Job {
+	res := c.active
+	res = append(res, c.successful...)
+	res = append(res, c.failed...)
+	res = append(res, c.previous...)
+
+	return res
+}
+
 // statusUpdateOpts tracks if a JobSet status update should be performed at the end of the reconciliation
 // attempt, as well as events that should be conditionally emitted if the status update succeeds.
 type statusUpdateOpts struct {
@@ -181,6 +191,41 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
+	// Delete the failed Jobs that have been flagged for restart.
+	if len(js.Status.JobsToRecreate) > 0 {
+		var jobsToRecreate []*batchv1.Job
+		var jobsToRecreateRemaining []string
+		for _, jobToRecreate := range js.Status.JobsToRecreate {
+			matchingOwnedJobFound := false
+			for _, ownedFailedJob := range ownedJobs.allChildJobs() {
+				if ownedFailedJob.Name == jobToRecreate {
+					jobsToRecreate = append(jobsToRecreate, ownedFailedJob)
+					matchingOwnedJobFound = true
+					break
+				}
+			}
+
+			if !matchingOwnedJobFound {
+				jobsToRecreateRemaining = append(jobsToRecreateRemaining, jobToRecreate)
+				log.Info("Job was marked for restart, but no matching owned jobs found", "jobToRestart", jobToRecreate)
+			}
+		}
+
+		log.Info("deleting jobs so they can be restarted", "jobsToRestart", jobsToRecreate)
+		err := r.deleteJobs(ctx, jobsToRecreate)
+		if err != nil {
+			log.Error(err, "could not delete Jobs marked for restart")
+			return ctrl.Result{}, err
+		}
+
+		for _, recreatedJob := range jobsToRecreate {
+			js.Status.JobsPendingRecreation = append(js.Status.JobsPendingRecreation, recreatedJob.Name)
+		}
+		js.Status.JobsToRecreate = jobsToRecreateRemaining
+		updateStatusOpts.shouldUpdate = true
+		return ctrl.Result{}, nil
+	}
+
 	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
 		if err := executeFailurePolicy(ctx, js, ownedJobs, updateStatusOpts); err != nil {
@@ -207,6 +252,27 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 	if err := r.reconcileReplicatedJobs(ctx, js, ownedJobs, rjobStatuses, updateStatusOpts); err != nil {
 		log.Error(err, "creating jobs")
 		return ctrl.Result{}, err
+	}
+
+	// Check if Jobs that are pending restart are ready yet.
+	if len(js.Status.JobsPendingRecreation) > 0 {
+		var newJobsPendingRecreate []string
+		for _, jobPendingRecreate := range js.Status.JobsPendingRecreation {
+			jobIsActive := false
+			for _, ownedActiveJob := range ownedJobs.active {
+				if ownedActiveJob.Name == jobPendingRecreate {
+					jobIsActive = true
+					break
+				}
+			}
+
+			if !jobIsActive {
+				newJobsPendingRecreate = append(newJobsPendingRecreate, jobPendingRecreate)
+			}
+		}
+		js.Status.JobsPendingRecreation = newJobsPendingRecreate
+		updateStatusOpts.shouldUpdate = true
+		return ctrl.Result{}, nil
 	}
 
 	// Handle suspending a jobset or resuming a suspended jobset.

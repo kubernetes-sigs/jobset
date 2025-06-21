@@ -26,6 +26,8 @@ type JobSetStatusApplyConfiguration struct {
 	RestartsCountTowardsMax *int32                                  `json:"restartsCountTowardsMax,omitempty"`
 	TerminalState           *string                                 `json:"terminalState,omitempty"`
 	ReplicatedJobsStatus    []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
+	JobsToRecreate          []string                                `json:"jobsToRecreate,omitempty"`
+	JobsPendingRecreation   []string                                `json:"jobsPendingRecreation,omitempty"`
 }
 
 // JobSetStatusApplyConfiguration constructs a declarative configuration of the JobSetStatus type for use with
@@ -80,6 +82,26 @@ func (b *JobSetStatusApplyConfiguration) WithReplicatedJobsStatus(values ...*Rep
 			panic("nil value passed to WithReplicatedJobsStatus")
 		}
 		b.ReplicatedJobsStatus = append(b.ReplicatedJobsStatus, *values[i])
+	}
+	return b
+}
+
+// WithJobsToRecreate adds the given value to the JobsToRecreate field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the JobsToRecreate field.
+func (b *JobSetStatusApplyConfiguration) WithJobsToRecreate(values ...string) *JobSetStatusApplyConfiguration {
+	for i := range values {
+		b.JobsToRecreate = append(b.JobsToRecreate, values[i])
+	}
+	return b
+}
+
+// WithJobsPendingRecreation adds the given value to the JobsPendingRecreation field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the JobsPendingRecreation field.
+func (b *JobSetStatusApplyConfiguration) WithJobsPendingRecreation(values ...string) *JobSetStatusApplyConfiguration {
+	for i := range values {
+		b.JobsPendingRecreation = append(b.JobsPendingRecreation, values[i])
 	}
 	return b
 }
