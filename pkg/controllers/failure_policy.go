@@ -143,7 +143,7 @@ func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failed
 		return false
 	}
 
-	parentReplicatedJob, exists := parentReplicatedJobName(failedJob)
+	parentReplicatedJob, exists := ParentReplicatedJobName(failedJob)
 	if !exists {
 		// If we cannot find the parent ReplicatedJob, we assume the rule does not apply.
 		log.V(2).Info(fmt.Sprintf("The failed job %v does not appear to have a parent replicatedJob.", failedJob.Name))
@@ -233,15 +233,18 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 }
 
 // recreateJobActionApplier applies the RestartJob FailurePolicyAction, marking a single
-// job for deletion and recreation.
+// job for deletion and recreation by incrementing the appropriate IndexedJobRecreates
+// counter in the respective ReplicatedJobStatus.
 var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
-	// Shortcut if job is already pending restart so we don't recreate it
-	// multiple times.
-	for _, jobPendingRestart := range js.Status.JobsPendingRecreation {
-		if matchingFailedJob.Name == jobPendingRestart {
-			return nil
-		}
+	if js.Status.IndividualJobRecreates == nil {
+		js.Status.IndividualJobRecreates = map[string]int32{}
 	}
+
+	individualRecreates, ok := js.Status.IndividualJobRecreates[matchingFailedJob.Name]
+	if !ok {
+		individualRecreates = 0
+	}
+	js.Status.IndividualJobRecreates[matchingFailedJob.Name] = individualRecreates + 1
 
 	baseMessage := constants.RecreateJobActionMessage
 	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
@@ -253,36 +256,39 @@ var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Conte
 	}
 	enqueueEvent(updateStatusOpts, event)
 
-	js.Status.JobsToRecreate = append(js.Status.JobsToRecreate, matchingFailedJob.Name)
 	updateStatusOpts.shouldUpdate = true
 
 	return nil
 }
 
 // recreateJobActionApplier applies the RestartReplicatedJob FailurePolicyAction, marking all Jobs
-// in the parent ReplicatedJob of the failed Job for deletion and recreation.
+// in the parent ReplicatedJob of the failed Job for deletion and recreation by incrementing the
+// Recreates counter in the respective ReplicatedJobStatus.
 var recreateReplicatedJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
-	rJobName, ok := parentReplicatedJobName(matchingFailedJob)
+	rJobName, ok := ParentReplicatedJobName(matchingFailedJob)
 	if !ok {
 		return fmt.Errorf("could not find parent ReplicatedJob for Job %v", matchingFailedJob.Name)
 	}
 
-	childJobNames := replicatedJobChildrenNames(js, rJobName)
-
-	// Only mark Job for recreation if it isn't already pending recreation.
-	var jobsToRecreate []string
-	for _, childJobName := range childJobNames {
-		pendingRecreate := false
-		for _, jobPendingRecreate := range js.Status.JobsPendingRecreation {
-			if childJobName == jobPendingRecreate {
-				pendingRecreate = true
-				break
-			}
+	parentRJob := jobset.ReplicatedJob{}
+	for _, rJob := range js.Spec.ReplicatedJobs {
+		if rJob.Name == rJobName {
+			parentRJob = rJob
+			break
 		}
+	}
 
-		if !pendingRecreate {
-			jobsToRecreate = append(jobsToRecreate, childJobName)
+	if js.Status.IndividualJobRecreates == nil {
+		js.Status.IndividualJobRecreates = map[string]int32{}
+	}
+
+	for i := range int(parentRJob.Replicas) {
+		jobName := placement.GenJobName(js.Name, rJobName, i)
+		individualRecreates, ok := js.Status.IndividualJobRecreates[jobName]
+		if !ok {
+			individualRecreates = 0
 		}
+		js.Status.IndividualJobRecreates[jobName] = individualRecreates + 1
 	}
 
 	baseMessage := constants.RecreateReplicatedJobActionMessage
@@ -295,16 +301,15 @@ var recreateReplicatedJobActionApplier failurePolicyActionApplier = func(ctx con
 	}
 	enqueueEvent(updateStatusOpts, event)
 
-	js.Status.JobsToRecreate = append(js.Status.JobsToRecreate, jobsToRecreate...)
 	updateStatusOpts.shouldUpdate = true
 
 	return nil
 }
 
-// parentReplicatedJobName returns the name of the parent
+// ParentReplicatedJobName returns the name of the parent
 // ReplicatedJob and true if it is able to retrieve the parent.
 // The empty string and false are returned otherwise.
-func parentReplicatedJobName(job *batchv1.Job) (string, bool) {
+func ParentReplicatedJobName(job *batchv1.Job) (string, bool) {
 	if job == nil {
 		return "", false
 	}
@@ -312,24 +317,6 @@ func parentReplicatedJobName(job *batchv1.Job) (string, bool) {
 	replicatedJobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
 	replicatedJobNameIsUnset := !ok || replicatedJobName == ""
 	return replicatedJobName, !replicatedJobNameIsUnset
-}
-
-// replicatedJobChildrenNames gets the names of the child Jobs of a ReplicatedJob.
-func replicatedJobChildrenNames(js *jobset.JobSet, rJobName string) []string {
-	var rJob jobset.ReplicatedJob
-	for _, rJobSpec := range js.Spec.ReplicatedJobs {
-		if rJobSpec.Name == rJobName {
-			rJob = rJobSpec
-			break
-		}
-	}
-
-	var res []string
-	for i := range rJob.Replicas {
-		res = append(res, placement.GenJobName(js.Name, rJob.Name, int(i)))
-	}
-
-	return res
 }
 
 // makeFailedConditionOpts returns the options we use to generate the JobSet failed condition.

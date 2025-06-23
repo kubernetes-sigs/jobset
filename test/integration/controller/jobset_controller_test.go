@@ -990,7 +990,44 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("job recreated without restarting jobset when RestartJob failure policy is the default", &testCase{
+		ginkgo.Entry("replicated job recreated without restarting jobset when RecreateReplicatedJob failure policy is the default", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(
+						&jobset.FailurePolicy{
+							MaxRestarts: 0,
+							Rules: []jobset.FailurePolicyRule{{
+								Action: jobset.RecreateReplicatedJob,
+							}},
+						},
+					)
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("complete a job in ReplicatedJob with 3 replicas")
+						for _, job := range jobList.Items {
+							rJob, _ := controllers.ParentReplicatedJobName(&job)
+							if rJob == "replicated-job-b" {
+								failJob(&job)
+								break
+							}
+						}
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// replicated-job-b has 3 replicas, so we expect 3 deletions on failure of one of them.
+						removeForegroundDeletionFinalizers(js, 3)
+					},
+				},
+				{
+					jobUpdateFn:          completeAllJobs,
+					checkJobSetCondition: testutil.JobSetCompleted,
+				},
+			},
+		}),
+		ginkgo.Entry("job recreated without restarting jobset when RecreateJob failure policy is the default", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(
