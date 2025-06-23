@@ -230,20 +230,13 @@
           ],
           "x-kubernetes-list-type": "map"
         },
-        "jobsPendingRecreation": {
-          "description": "JobsPendingRecreation tracks failed Jobs for which a recreation is pending.",
-          "type": "array",
-          "items": {
-            "type": "string",
-            "default": ""
-          }
-        },
-        "jobsToRecreate": {
-          "description": "JobsToRecreate tracks failed Jobs for which a deletion call needs to be issued.",
-          "type": "array",
-          "items": {
-            "type": "string",
-            "default": ""
+        "individualJobRecreates": {
+          "description": "IndividualJobRecreates tracks the number of times an individual Job within the JobSet has been recreated (i.e. in case of RecreateJob or RecreateReplicatedJob failure policy).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
           }
         },
         "replicatedJobsStatus": {

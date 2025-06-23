@@ -469,31 +469,17 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							},
 						},
 					},
-					"jobsToRecreate": {
+					"individualJobRecreates": {
 						SchemaProps: spec.SchemaProps{
-							Description: "JobsToRecreate tracks failed Jobs for which a deletion call needs to be issued.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
+							Description: "IndividualJobRecreates tracks the number of times an individual Job within the JobSet has been recreated (i.e. in case of RecreateJob or RecreateReplicatedJob failure policy).",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-					"jobsPendingRecreation": {
-						SchemaProps: spec.SchemaProps{
-							Description: "JobsPendingRecreation tracks failed Jobs for which a recreation is pending.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
+										Default: 0,
+										Type:    []string{"integer"},
+										Format:  "int32",
 									},
 								},
 							},
