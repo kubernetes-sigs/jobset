@@ -9152,18 +9152,14 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              jobsPendingRecreation:
-                description: JobsPendingRecreation tracks failed Jobs for which a
-                  recreation is pending.
-                items:
-                  type: string
-                type: array
-              jobsToRecreate:
-                description: JobsToRecreate tracks failed Jobs for which a deletion
-                  call needs to be issued.
-                items:
-                  type: string
-                type: array
+              individualJobRecreates:
+                additionalProperties:
+                  format: int32
+                  type: integer
+                description: |-
+                  IndividualJobRecreates tracks the number of times an individual Job within
+                  the JobSet has been recreated (i.e. in case of RecreateJob or RecreateReplicatedJob failure policy).
+                type: object
               replicatedJobsStatus:
                 description: ReplicatedJobsStatus track the number of JobsReady for
                   each replicatedJob.

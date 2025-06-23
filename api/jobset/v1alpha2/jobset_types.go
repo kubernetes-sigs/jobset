@@ -185,13 +185,10 @@ type JobSetStatus struct {
 	// +listMapKey=name
 	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
 
-	// JobsToRecreate tracks failed Jobs for which a deletion call needs to be issued.
+	// IndividualJobRecreates tracks the number of times an individual Job within
+	// the JobSet has been recreated (i.e. in case of RecreateJob or RecreateReplicatedJob failure policy).
 	// +optional
-	JobsToRecreate []string `json:"jobsToRecreate,omitempty"`
-
-	// JobsPendingRecreation tracks failed Jobs for which a recreation is pending.
-	// +optional
-	JobsPendingRecreation []string `json:"jobsPendingRecreation,omitempty"`
+	IndividualJobRecreates map[string]int32 `json:"individualJobRecreates,omitempty"`
 }
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.

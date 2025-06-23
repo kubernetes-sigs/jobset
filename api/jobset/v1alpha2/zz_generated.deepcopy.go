@@ -235,15 +235,12 @@ func (in *JobSetStatus) DeepCopyInto(out *JobSetStatus) {
 		*out = make([]ReplicatedJobStatus, len(*in))
 		copy(*out, *in)
 	}
-	if in.JobsToRecreate != nil {
-		in, out := &in.JobsToRecreate, &out.JobsToRecreate
-		*out = make([]string, len(*in))
-		copy(*out, *in)
-	}
-	if in.JobsPendingRecreation != nil {
-		in, out := &in.JobsPendingRecreation, &out.JobsPendingRecreation
-		*out = make([]string, len(*in))
-		copy(*out, *in)
+	if in.IndividualJobRecreates != nil {
+		in, out := &in.IndividualJobRecreates, &out.IndividualJobRecreates
+		*out = make(map[string]int32, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 }
 

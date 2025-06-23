@@ -70,16 +70,6 @@ type childJobs struct {
 	previous []*batchv1.Job
 }
 
-// allChildJobs returns a slice of all Jobs contained in childJobs.
-func (c *childJobs) allChildJobs() []*batchv1.Job {
-	res := c.active
-	res = append(res, c.successful...)
-	res = append(res, c.failed...)
-	res = append(res, c.previous...)
-
-	return res
-}
-
 // statusUpdateOpts tracks if a JobSet status update should be performed at the end of the reconciliation
 // attempt, as well as events that should be conditionally emitted if the status update succeeds.
 type statusUpdateOpts struct {
@@ -191,11 +181,6 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
-	// Delete the failed Jobs that have been flagged for restart.
-	if len(js.Status.JobsToRecreate) > 0 {
-		return r.deleteJobsToRecreate(ctx, js, ownedJobs, updateStatusOpts)
-	}
-
 	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
 		if err := executeFailurePolicy(ctx, js, ownedJobs, updateStatusOpts); err != nil {
@@ -224,27 +209,6 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
-	// Check if Jobs that are pending restart are ready yet.
-	if len(js.Status.JobsPendingRecreation) > 0 {
-		var newJobsPendingRecreate []string
-		for _, jobPendingRecreate := range js.Status.JobsPendingRecreation {
-			jobIsActive := false
-			for _, ownedActiveJob := range ownedJobs.active {
-				if ownedActiveJob.Name == jobPendingRecreate {
-					jobIsActive = true
-					break
-				}
-			}
-
-			if !jobIsActive {
-				newJobsPendingRecreate = append(newJobsPendingRecreate, jobPendingRecreate)
-			}
-		}
-		js.Status.JobsPendingRecreation = newJobsPendingRecreate
-		updateStatusOpts.shouldUpdate = true
-		return ctrl.Result{}, nil
-	}
-
 	// Handle suspending a jobset or resuming a suspended jobset.
 	jobsetSuspended := jobSetSuspended(js)
 	if jobsetSuspended {
@@ -258,44 +222,6 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 			return ctrl.Result{}, err
 		}
 	}
-	return ctrl.Result{}, nil
-}
-
-// deleteJobsToRecreate deletes all the Jobs in JobSet.Status.JobsToRecreate that are owned
-// by the JobSet.
-func (r *JobSetReconciler) deleteJobsToRecreate(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js))
-
-	var jobsToRecreate []*batchv1.Job
-	var jobsToRecreateRemaining []string
-	for _, jobToRecreate := range js.Status.JobsToRecreate {
-		matchingOwnedJobFound := false
-		for _, ownedFailedJob := range ownedJobs.allChildJobs() {
-			if ownedFailedJob.Name == jobToRecreate {
-				jobsToRecreate = append(jobsToRecreate, ownedFailedJob)
-				matchingOwnedJobFound = true
-				break
-			}
-		}
-
-		if !matchingOwnedJobFound {
-			jobsToRecreateRemaining = append(jobsToRecreateRemaining, jobToRecreate)
-			log.Info("Job was marked for restart, but no matching owned jobs found", "jobToRestart", jobToRecreate)
-		}
-	}
-
-	log.Info("deleting jobs so they can be restarted", "jobsToRestart", jobsToRecreate)
-	err := r.deleteJobs(ctx, jobsToRecreate)
-	if err != nil {
-		log.Error(err, "could not delete Jobs marked for restart")
-		return ctrl.Result{}, err
-	}
-
-	for _, recreatedJob := range jobsToRecreate {
-		js.Status.JobsPendingRecreation = append(js.Status.JobsPendingRecreation, recreatedJob.Name)
-	}
-	js.Status.JobsToRecreate = jobsToRecreateRemaining
-	updateStatusOpts.shouldUpdate = true
 	return ctrl.Result{}, nil
 }
 
@@ -358,15 +284,18 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	// Categorize each job into a bucket: active, successful, failed, or delete.
 	ownedJobs := childJobs{}
 	for i, job := range childJobList.Items {
-		// Jobs with jobset.sigs.k8s.io/restart-attempt < jobset.status.restarts are marked for
-		// deletion, as they were part of the previous JobSet run.
+		// Jobs with jobset.sigs.k8s.io/restart-attempt < targetJobRestarts are marked for
+		// deletion, as they were part of the previous JobSet/ReplicatedJob/IndexedJob run.
+		targetJobRestarts := calculateTargetJobRestarts(js, &job)
+
 		jobRestarts, err := strconv.Atoi(job.Labels[constants.RestartsKey])
 		if err != nil {
 			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", constants.RestartsKey))
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			return nil, err
 		}
-		if int32(jobRestarts) < js.Status.Restarts {
+		if int32(jobRestarts) < targetJobRestarts {
+			log.Info("child Job marked for recreation as value of restarts label  is less than target", "name", job.Name, constants.RestartsKey, jobRestarts, "target", targetJobRestarts)
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			continue
 		}
@@ -384,6 +313,21 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		}
 	}
 	return &ownedJobs, nil
+}
+
+// calculateTargetJobRestarts calculates what restart attempt a Job should be in
+// by adding the Restarts and IndividualJobRecreates couters.
+func calculateTargetJobRestarts(js *jobset.JobSet, job *batchv1.Job) int32 {
+	target := js.Status.Restarts
+
+	if js.Status.IndividualJobRecreates != nil {
+		individualRecreates, ok := js.Status.IndividualJobRecreates[job.Name]
+		if ok {
+			target += individualRecreates
+		}
+	}
+
+	return target
 }
 
 // updateReplicatedJobsStatuses updates the replicatedJob statuses if they have changed.
@@ -607,8 +551,24 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 			continue
 		}
 
+		// Only create jobs that aren't active yet
+		jobsToCreate := []*batchv1.Job{}
+		for _, job := range jobs {
+			active := false
+			for _, ownedJob := range ownedJobs.active {
+				if job.Name == ownedJob.Name {
+					active = true
+					break
+				}
+			}
+
+			if !active {
+				jobsToCreate = append(jobsToCreate, job)
+			}
+		}
+
 		// Create jobs as necessary.
-		if err := r.createJobs(ctx, js, jobs); err != nil {
+		if err := r.createJobs(ctx, js, jobsToCreate); err != nil {
 			log.Error(err, "creating jobs")
 			return err
 		}
@@ -838,13 +798,19 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
 	jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 
+	restarts := js.Status.Restarts
+	job, ok := obj.(*batchv1.Job)
+	if ok {
+		restarts = calculateTargetJobRestarts(js, job)
+	}
+
 	// Set labels on the object.
 	labels := make(map[string]string)
 	maps.Copy(labels, obj.GetLabels())
 	labels[jobset.JobSetNameKey] = js.Name
 	labels[jobset.JobSetUIDKey] = string(js.GetUID())
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
-	labels[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	labels[constants.RestartsKey] = strconv.Itoa(int(restarts))
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.GlobalReplicasKey] = globalReplicas(js)
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
@@ -859,7 +825,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.JobSetNameKey] = js.Name
 	annotations[jobset.JobSetUIDKey] = string(js.GetUID())
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
-	annotations[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	annotations[constants.RestartsKey] = strconv.Itoa(int(restarts))
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.GlobalReplicasKey] = globalReplicas(js)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
