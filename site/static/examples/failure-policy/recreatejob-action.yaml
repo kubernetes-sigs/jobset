@@ -1,0 +1,85 @@
+# To manually fail a pod in this JobSet, execute:
+#   kubectl exec <POD_NAME> -- touch /tmp/fail
+# Similarly, to manually complete a pod in this JobSet, execute:
+#   kubectl exec <POD_NAME> -- touch /tmp/succeed
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: test
+spec:
+  failurePolicy:
+    maxRestarts: 3
+    rules:
+    # If any Job within workers-a fails, only the failed Job will be recreated without restarting
+    # the entire JobSet.
+    - action: RecreateJob
+      targetReplicatedJobs:
+      - workers-a
+    # If any Job within workers-b fails, all of the child Jobs of worker-b will be recreated
+    # without restarting the entire JobSet.
+    - action: RecreateReplicatedJob
+      targetReplicatedJobs:
+      - workers-b
+  replicatedJobs:
+  - name: workers-a
+    replicas: 2
+    template:
+      spec:
+        completions: 2
+        parallelism: 2
+        backoffLimit: 0
+        template:
+          spec:
+            terminationGracePeriodSeconds: 2
+            containers:
+            - name: worker
+              image: busybox
+              command: ['/bin/sh', '-c']
+              args:
+              - |
+                echo "Start"
+
+                while true; do
+                  if [ -f /tmp/fail ]; then
+                    echo "Exiting 1"
+                    exit 1;
+                  fi;
+                  if [ -f /tmp/succeed ]; then
+                    echo "Exiting 0"
+                    exit 0;
+                  fi;
+                  sleep 1;
+                done
+
+                echo "End"
+  - name: workers-b 
+    replicas: 3
+    template:
+      spec:
+        completions: 2
+        parallelism: 2
+        backoffLimit: 0
+        template:
+          spec:
+            terminationGracePeriodSeconds: 2
+            containers:
+            - name: worker
+              image: busybox
+              command: ['/bin/sh', '-c']
+              args:
+              - |
+                echo "Start"
+
+                while true; do
+                  if [ -f /tmp/fail ]; then
+                    echo "Exiting 1"
+                    exit 1;
+                  fi;
+                  if [ -f /tmp/succeed ]; then
+                    echo "Exiting 0"
+                    exit 0;
+                  fi;
+                  sleep 1;
+                done
+
+                echo "End"
