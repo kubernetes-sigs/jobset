@@ -295,7 +295,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 			return nil, err
 		}
 		if int32(jobRestarts) < targetJobRestarts {
-			log.V(2).Info("child Job marked for recreation as value of restarts label  is less than target", "name", job.Name, constants.RestartsKey, jobRestarts, "target", targetJobRestarts)
+			log.V(2).Info("child Job marked for recreation as value of restarts label is less than target", "name", job.Name, constants.RestartsKey, jobRestarts, "target", targetJobRestarts)
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			continue
 		}
