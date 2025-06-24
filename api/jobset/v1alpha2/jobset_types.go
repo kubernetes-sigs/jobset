@@ -343,11 +343,11 @@ const (
 	RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobSetAndIgnoreMaxRestarts"
 
 	// Delete and recreate the individual Job that the FailurePolicyRule matches to without
-	// failing the entire JobSet
+	// failing the entire JobSet. Does not count towards JobSet's maxRestarts.
 	RecreateJob FailurePolicyAction = "RecreateJob"
 
 	// Delete and recreate the parent ReplicatedJob of the Job the FailurePolicyRule matches to without
-	// failing the entire JobSet
+	// failing the entire JobSet. Does not count towards JobSet's maxRestarts.
 	RecreateReplicatedJob FailurePolicyAction = "RecreateReplicatedJob"
 )
 
