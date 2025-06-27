@@ -162,6 +162,23 @@ spec:
   replicatedJobs:
     - name: worker-group
       replicas: 3
+      resourceClaimTemplates:  # NEW: JobSet-level ResourceClaimTemplates (at ReplicatedJob level)
+        - metadata:
+            name: imex-channel
+          spec:
+            devices:
+              requests:
+              - name: imex-channel
+                deviceClassName: imex.nvidia.com
+          containers:
+            - worker # Only the 'worker' container gets the 'imex-channel' claim reference
+        - metadata:
+            name: shared-data
+          spec:
+            devices:
+              requests:
+              - name: shared-data
+                deviceClassName: shared-data-resource
       template: # This is the JobTemplateSpec
         spec: # This is the JobSpec
           parallelism: 1 # JobSpec fields
@@ -184,23 +201,36 @@ spec:
                   image: helper-image:latest
                   command: ["sleep", "infinity"]
               restartPolicy: OnFailure
-          resourceClaimTemplates:  # NEW: JobSet-level ResourceClaimTemplates (added inside JobSpec)
-            - metadata:
-                name: imex-channel
-              spec:
-                devices:
-                  requests:
-                  - name: imex-channel
-                    deviceClassName: imex.nvidia.com
-              containers:
-                - worker # Only the 'worker' container gets the 'imex-channel' claim reference
-            - metadata:
-                name: shared-data
-              spec:
-                devices:
-                  requests:
-                  - name: shared-data
-                    deviceClassName: shared-data-resource
+```
+The following changes will be made to the JobSet Go types:
+
+```go
+// In JobSetSpec, inside ReplicatedJobSpec:
+type ReplicatedJobSpec struct {
+    // ... existing fields ...
+    ResourceClaimTemplates []ResourceClaimTemplate `json:"resourceClaimTemplates,omitempty"`
+}
+
+// ResourceClaimTemplate is a local type that matches the structure of resource.k8s.io ResourceClaimTemplate,
+// possibly with an additional Containers field for targeting.
+type ResourceClaimTemplate struct {
+    metav1.ObjectMeta `json:"metadata,omitempty"`
+    Spec             ResourceClaimTemplateSpec `json:"spec"`
+    // Optional: restrict claim injection to specific containers
+    Containers       []string                  `json:"containers,omitempty"`
+}
+
+// ResourceClaimTemplateSpec matches resource.k8s.io ResourceClaimTemplateSpec
+type ResourceClaimTemplateSpec struct {
+    metav1.ObjectMeta `json:"metadata,omitempty"`
+    Spec             ResourceClaimSpec `json:"spec"`
+}
+
+// ResourceClaimSpec matches resource.k8s.io ResourceClaimSpec
+type ResourceClaimSpec struct {
+    Devices *DeviceClaim `json:"devices,omitempty"`
+    // ... other fields as needed ...
+}
 ```
 
 #### Behavior Changes
@@ -254,7 +284,7 @@ This might be a good place to talk about core concepts and how they relate.
 * If `spec.replicatedJobs[].template.spec.resourceClaimTemplates[].spec.containers` is omitted, the controller should still create the ResourceClaim for the Job and associate it with the Pod (e.g., by adding it to pod.spec.resourceClaims), but it should not automatically add a reference to it in spec.containers[].resourceClaims for any container.
 
 * Pod-level `resourceClaim`s with the same name as a JobSet-templated
-claim will override the JobSet-level claim for that container, and a warning will be emitted.
+claim will override the JobSet-level claim for that container, and a warning will be emitted. See Appendix for a webhook based approach too.
 
 * If there is a name conflict between resource claims for different containers,
 the JobSet creation will fail.
@@ -348,23 +378,13 @@ After the implementation PR is merged, add the names of the tests here.
 
 ### Graduation Criteria
 
-- TODO, feature gate?
+#### Feature Gate
+The feature will be controlled with a `JobSetResourceClaimTemplates` feature gate:
+- **Initial**: `JobSetResourceClaimTemplates=false` (disabled by default)
+- **Community Validation**: `JobSetResourceClaimTemplates=true` (enabled by default)
+- **Community Usage**: Feature gate removed (always enabled)
 
-<!--
-
-Clearly define what it means for the feature to be implemented and
-considered stable.
-
-If the feature you are introducing has high complexity, consider adding graduation
-milestones with these graduation criteria:
-- [Maturity levels (`alpha`, `beta`, `stable`)][maturity-levels]
-- [Feature gate][feature gate] lifecycle
-- [Deprecation policy][deprecation-policy]
-
-[feature gate]: https://git.k8s.io/community/contributors/devel/sig-architecture/feature-gates.md
-[maturity-levels]: https://git.k8s.io/community/contributors/devel/sig-architecture/api_changes.md#alpha-beta-and-stable-versions
-[deprecation-policy]: https://kubernetes.io/docs/reference/using-api/deprecation-policy/
--->
+This approach allows for community-driven development and validation while maintaining backward compatibility during the initial phase.
 
 ## Alternatives
 
@@ -415,3 +435,15 @@ generated `ResourceClaim` name (`my-jobset-job-0-imex-channel`).
 Potential Advantages: This might feel more declarative within the Pod spec, as the
 user explicitly links the container to the template name. It could also remove the
 need for the `resourceClaimTemplates.spec.containers` field, as the targeting is implicit in where the user places the placeholder reference.
+
+---
+
+## Appendix: Webhook Validation for ResourceClaim Name Collisions
+
+As an additional safeguard, a validation webhook can be implemented to prevent name collisions between JobSet-level `resourceClaimTemplates` and Pod-level `resourceClaims` within the JobSet's Pod template. This webhook would *WARN* (or reject) JobSets where a Pod template defines a `resourceClaim` with the same name as a JobSet-level `resourceClaimTemplate`, ensuring users receive immediate feedback and resolve the conflict.
+
+This approach will be implemented as an add-on to the core feature. While it provides a stronger guarantee of correctness and a better user experience, it introduces some potential pitfalls:
+
+* **Operational complexity:** The webhook adds logic and maintenance overhead to the JobSet admission path.
+* **Availability:** If the webhook is unavailable (e.g., during upgrades), JobSet creation and updates may be blocked.
+* **Strictness:** Overly strict validation could block valid use cases if not carefully designed.
