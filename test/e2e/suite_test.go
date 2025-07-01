@@ -37,6 +37,8 @@ import (
 const (
 	timeout  = 10 * time.Minute
 	interval = time.Millisecond * 250
+
+	fieldManagerName = client.FieldOwner("e2e-test")
 )
 
 var (
