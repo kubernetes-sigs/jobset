@@ -18,16 +18,22 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	batchv1ac "k8s.io/client-go/applyconfigurations/batch/v1"
+	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	jobsetv1alpha2ac "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	"sigs.k8s.io/jobset/test/util"
 )
@@ -497,6 +503,58 @@ var _ = ginkgo.Describe("JobSet", func() {
 			})
 		})
 	})
+
+	ginkgo.When("Using Server-Side Apply", func() {
+		ginkgo.It("should not increment generation when re-applying the same JobSet apply configuration", func() {
+			ctx := context.Background()
+
+			// Create a JobSet apply configuration
+			ginkgo.By("Creating JobSet using Server-Side Apply")
+			jobSetConfig := serverSideApplyTestJobSet(ns, "test")
+
+			// Convert the JobSet apply configuration into a client.Object
+			u, err := apiruntime.DefaultUnstructuredConverter.ToUnstructured(jobSetConfig)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			patch := &unstructured.Unstructured{Object: u}
+
+			// Create the JobSet using Server-Side Apply
+			gomega.Expect(k8sClient.Patch(ctx, patch.DeepCopy(), client.Apply, client.ForceOwnership, fieldManagerName)).
+				To(gomega.Succeed())
+
+			// Wait for the JobSet to be created and get its initial generation
+			ginkgo.By("Waiting for the JobSet to be created")
+			jobSetKey := types.NamespacedName{Name: *jobSetConfig.GetName(), Namespace: ns.Name}
+			jobSet := &jobset.JobSet{}
+			gomega.Eventually(func() error {
+				return k8sClient.Get(ctx, jobSetKey, jobSet)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			generation := jobSet.Generation
+
+			ginkgo.By("Re-applying the same JobSet apply configuration once")
+			// Re-apply the original apply configuration
+			gomega.Expect(k8sClient.Patch(ctx, patch.DeepCopy(), client.Apply, client.ForceOwnership, fieldManagerName)).
+				To(gomega.Succeed())
+
+			ginkgo.By("Re-applying the same JobSet apply configuration twice")
+			// Re-apply the original apply configuration
+			gomega.Expect(k8sClient.Patch(ctx, patch.DeepCopy(), client.Apply, client.ForceOwnership, fieldManagerName)).
+				To(gomega.Succeed())
+
+			// Get the JobSet again and verify generation hasn't changed
+			ginkgo.By("Verifying the JobSet generation hasn't changed", func() {
+				jobSetReApply := &jobset.JobSet{}
+				gomega.Consistently(func() int64 {
+					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSetReApply)).To(gomega.Succeed())
+					return jobSetReApply.Generation
+				}, 10*time.Second, interval).Should(gomega.Equal(generation))
+			})
+
+			ginkgo.By("Cleaning up the JobSet")
+			// Clean up by deleting the JobSet
+			gomega.Expect(k8sClient.Delete(ctx, jobSet)).To(gomega.Succeed())
+		})
+	})
 }) // end of Describe
 
 // getPingCommand returns ping command for 4 hostnames
@@ -638,4 +696,30 @@ func dependsOnTestReplicatedJob(ns *corev1.Namespace, jobName string, numReplica
 		Replicas(int32(numReplicas)).
 		DependsOn(dependsOn).
 		Obj()
+}
+
+// serverSideApplyTestJobSet creates a JobSet apply configuration for testing server-side apply
+func serverSideApplyTestJobSet(ns *corev1.Namespace, name string) *jobsetv1alpha2ac.JobSetApplyConfiguration {
+	return jobsetv1alpha2ac.JobSet(name, ns.Name).
+		WithSpec(jobsetv1alpha2ac.JobSetSpec().
+			WithReplicatedJobs(jobsetv1alpha2ac.ReplicatedJob().
+				WithName("worker").
+				WithReplicas(2).
+				WithTemplate(batchv1ac.JobTemplateSpec().
+					WithSpec(batchv1ac.JobSpec().
+						WithTemplate(corev1ac.PodTemplateSpec().
+							WithSpec(corev1ac.PodSpec().
+								WithRestartPolicy(corev1.RestartPolicyNever).
+								WithContainers(corev1ac.Container().
+									WithName("test-container").
+									WithImage("bash:latest").
+									WithCommand("bash", "-c").
+									WithArgs("echo 'Hello from server-side apply test'; sleep 5"),
+								),
+							),
+						),
+					),
+				),
+			),
+		)
 }
