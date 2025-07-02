@@ -212,6 +212,9 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             status = '', 
                             type = '', )
                         ], 
+                    individual_job_recreates = {
+                        'key' : 56
+                        }, 
                     replicated_jobs_status = [
                         jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                             active = 56, 
