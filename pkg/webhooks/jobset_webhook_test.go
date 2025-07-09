@@ -1415,9 +1415,8 @@ func TestValidateCreate(t *testing.T) {
 					},
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
-							Name:      "replicatedjob-a",
-							GroupName: "default",
-							Replicas:  2,
+							Name:     "replicatedjob-a",
+							Replicas: 2,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									CompletionMode: ptr.To(batchv1.IndexedCompletion),
@@ -1426,9 +1425,8 @@ func TestValidateCreate(t *testing.T) {
 							},
 						},
 						{
-							Name:      "replicatedjob-b",
-							GroupName: "default",
-							Replicas:  2,
+							Name:     "replicatedjob-b",
+							Replicas: 2,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									CompletionMode: ptr.To(batchv1.IndexedCompletion),
