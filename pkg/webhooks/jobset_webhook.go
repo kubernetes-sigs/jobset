@@ -384,9 +384,9 @@ func validateCoordinator(js *jobset.JobSet) error {
 		return fmt.Errorf("coordinator job index %d is invalid for replicatedJob %s", js.Spec.Coordinator.JobIndex, replicatedJob.Name)
 	}
 
-	// Validate job is using indexed completion mode.
-	if replicatedJob.Template.Spec.CompletionMode == nil || *replicatedJob.Template.Spec.CompletionMode != batchv1.IndexedCompletion {
-		return fmt.Errorf("job for coordinator pod must be indexed completion mode")
+	// Validate job is using indexed completion mode and completions number is set.
+	if replicatedJob.Template.Spec.CompletionMode == nil || replicatedJob.Template.Spec.Completions == nil || *replicatedJob.Template.Spec.CompletionMode != batchv1.IndexedCompletion {
+		return fmt.Errorf("job for coordinator pod must be indexed completion mode, and completions number must be set")
 	}
 
 	// Validate Pod index.
