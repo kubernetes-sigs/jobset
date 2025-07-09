@@ -381,7 +381,7 @@ func validateCoordinator(js *jobset.JobSet) error {
 	}
 
 	// Validate Pod index.
-	if js.Spec.Coordinator.PodIndex < 0 || js.Spec.Coordinator.PodIndex >= int(*replicatedJob.Template.Spec.Completions) {
+	if js.Spec.Coordinator.PodIndex < 0 || replicatedJob.Template.Spec.Completions == nil || js.Spec.Coordinator.PodIndex >= int(*replicatedJob.Template.Spec.Completions) {
 		return fmt.Errorf("coordinator pod index %d is invalid for replicatedJob %s job index %d", js.Spec.Coordinator.PodIndex, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex)
 	}
 	return nil
