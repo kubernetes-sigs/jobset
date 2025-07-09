@@ -273,11 +273,11 @@ spec:
                 python3 train.py
 ```
 
-#### Story 5: Recreating replicated jobs on failure rather than failing JobSet
+#### Story 5: Recreating individual jobs on failure rather than failing JobSet (`RecreateJob`)
 
-As a user, I have a JobSet with 2 replicated jobs: one which runs distributed training processes across a pool of GPU
-nodes, and one which runs the driver/coordinator on a CPU pool. If a child job of the GPU worker ReplicatedJob crashes, I just want to recreate the GPU workers and not the driver, then resume training from the latest checkpoint. However, if
-the driver crashes, I want to restart the entire JobSet, then resume training from the latest checkpoint.
+If it is possible for individual worker Jobs within a ReplicatedJob to be restarted independently on failure
+without requiring a full restart of their parent ReplicatedJob or the entire JobSet, the `RecreateJob`
+failure policy can be used.
 
 **Example Failure Policy configuration for this use case**:
 
@@ -285,20 +285,18 @@ the driver crashes, I want to restart the entire JobSet, then resume training fr
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
-  name: recreate-replicated-job-example
-  annotations:
-    alpha.jobset.sigs.k8s.io/exclusive-topology: {{topologyDomain}} # 1:1 job replica to topology domain assignment
+  name: recreate-job-example
 spec:
-  # Failure Policy to restart the child jobs of the target ReplicatedJob (gpu-workers) if any fail, but fall
-  # back to the default behavior of restarting the entire JobSet if the driver fails.
+  # Failure Policy to restart individual jobs of the target ReplicatedJob (recoverable-workers) if they fail,
+  # without restarting the entire JobSet or other jobs in recoverable-workers.
   failurePolicy:
     rules:
-    - action: RecreateReplicatedJob
+    - action: RecreateJob
       targetReplicatedJobs:
-      - gpu-workers
+      - recoverable-workers
     maxRestarts: 10
   replicatedJobs:
-  - name: driver
+  - name: recoverable-workers
     replicas: 1
     template:
       spec:
@@ -330,44 +328,6 @@ spec:
                 nvidia.com/gpu: 1
 ```
 
-#### Story 5: Recreating individual jobs on failure rather than failing JobSet (`RecreateJob`)
-
-If it is possible for individual worker Jobs within a ReplicatedJob to be restarted independently on failure
-without requiring a full restart of their parent ReplicatedJob or the entire JobSet, the `RecreateJob`
-failure policy can be used.
-
-**Example Failure Policy configuration for this use case**:
-
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: recreate-job-example
-spec:
-  # Failure Policy to restart individual jobs of the target ReplicatedJob (recoverable-workers) if they fail,
-  # without restarting the entire JobSet or other jobs in recoverable-workers.
-  failurePolicy:
-    rules:
-    - action: RecreateJob
-      targetReplicatedJobs:
-      - recoverable-workers
-    maxRestarts: 10
-  replicatedJobs:
-  - name: recoverable-workers
-    replicas: 2
-    template:
-      spec:
-        parallelism: 1
-        completions: 1
-        backoffLimit: 0
-        template:
-          spec:
-            restartPolicy: Never
-            containers:
-            - name: main
-              image: python:3.10
-              command: ["..."]
-```
 
 ### Notes/Constraints/Caveats (Optional)
 
