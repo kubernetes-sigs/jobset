@@ -1404,6 +1404,48 @@ func TestValidateCreate(t *testing.T) {
 			),
 		},
 		{
+			name: "coordinator replicated job missing completions",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "replicatedjob-a",
+						JobIndex:      0,
+						PodIndex:      0,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "replicatedjob-a",
+							GroupName: "default",
+							Replicas:  2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To(int32(2)),
+								},
+							},
+						},
+						{
+							Name:      "replicatedjob-b",
+							GroupName: "default",
+							Replicas:  2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(2)),
+									Parallelism:    ptr.To(int32(2)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("job for coordinator pod must be indexed completion mode, and completions number must be set"),
+			),
+		},
+		{
 			name: "coordinator job index invalid",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
