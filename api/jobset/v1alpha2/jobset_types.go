@@ -345,10 +345,6 @@ const (
 	// Delete and recreate the individual Job that the FailurePolicyRule matches to without
 	// failing the entire JobSet. Does not count towards JobSet's maxRestarts.
 	RecreateJob FailurePolicyAction = "RecreateJob"
-
-	// Delete and recreate the parent ReplicatedJob of the Job the FailurePolicyRule matches to without
-	// failing the entire JobSet. Does not count towards JobSet's maxRestarts.
-	RecreateReplicatedJob FailurePolicyAction = "RecreateReplicatedJob"
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
@@ -359,7 +355,7 @@ type FailurePolicyRule struct {
 	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
 	Name string `json:"name"`
 	// The action to take if the rule is matched.
-	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts;RecreateJob;RecreateReplicatedJob
+	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts;RecreateJob
 	Action FailurePolicyAction `json:"action"`
 	// The requirement on the job failure reasons. The requirement
 	// is satisfied if at least one reason matches the list.
