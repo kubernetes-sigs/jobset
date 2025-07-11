@@ -310,24 +310,7 @@ spec:
             - name: main
               image: python:3.10
               command: ["..."]
-  - name: gpu-workers
-    replicas: 4 # number of node pools
-    template:
-      spec:
-        parallelism: 2
-        completions: 2
-        backoffLimit: 0
-        template:
-          spec:
-            containers:
-            - name: main
-              image: pytorch:latest
-              command: ["..."]
-            resources:
-              limits:
-                nvidia.com/gpu: 1
-```
-
+``
 
 ### Notes/Constraints/Caveats (Optional)
 
@@ -538,3 +521,4 @@ recreated via the normal reconciliation process.
 
 2) `FailJob`: To leave a particular child job in a failed state without restarting it or restarting the JobSet, the
 controller will simply do nothing, taking no action on this job.
+
