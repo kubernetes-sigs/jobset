@@ -45,9 +45,19 @@ echo "Generating Python SDK for JobSet..."
 # Defaults the container engine to docker
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
 
-# Install the sdk using docker, using the user that is running the container engine so that files can still be removed
-${CONTAINER_ENGINE} run --user $(id -u):$(id -g) --rm \
-  -v "${repo_root}":/local docker.io/openapitools/openapi-generator-cli:v7.11.0 generate \
+# Install the sdk using the chosen container engine,
+# using the user that is running the container engine so that files can still be removed
+user="$(id -u):$(id -g)"
+volume_mapping="${repo_root}:/local"
+
+if [[ "$CONTAINER_ENGINE" == podman ]]; then
+  # In rootless Podman, root is remapped to the current user.
+  user="root:root"
+  volume_mapping="${repo_root}:/local:rw,Z"
+fi
+
+${CONTAINER_ENGINE} run --user "${user}" --rm \
+  -v "${volume_mapping}" docker.io/openapitools/openapi-generator-cli:v7.11.0 generate \
   -i /local/hack/python-sdk/swagger.json \
   -g python \
   -o /local/sdk/python \
