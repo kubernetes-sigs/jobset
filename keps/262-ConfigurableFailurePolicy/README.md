@@ -302,7 +302,7 @@ spec:
     maxRestarts: 10
   replicatedJobs:
   - name: recoverable-workers
-    replicas: 1
+    replicas: 2
     template:
       spec:
         parallelism: 1
@@ -363,17 +363,13 @@ const (
 
   // Recreate the failed Job without restarting the entire JobSet.
   RecreateJob FailurePolicyAction = "RecreateJob"
-
-  // Recreate all Jobs in a ReplicatedJob if any of them fail, without
-  // restarting the entire JobSet.
-  RecreateReplicatedJob FailurePolicyAction = "RecreateReplicatedJob"
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
 // fails due to a reason listed in OnJobFailureReasons.
 type FailurePolicyRule struct {
   // The action to take if the rule is matched.
-  // +kubebuilder:validation:Enum:=FailJobSet;RestartJobSetAndIgnoreMaxRestarts;FailJob;RecreateJob;RecreateReplicatedJob
+  // +kubebuilder:validation:Enum:=FailJobSet;RestartJobSetAndIgnoreMaxRestarts;FailJob;RecreateJob
   Action FailurePolicyAction `json:"action"`
   // The requirement on the job failure reasons. The requirement
   // is satisfied if at least one reason matches the list.
