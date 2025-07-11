@@ -297,7 +297,7 @@ spec:
     maxRestarts: 10
   replicatedJobs:
   - name: recoverable-workers
-    replicas: 1
+    replicas: 2
     template:
       spec:
         parallelism: 1
