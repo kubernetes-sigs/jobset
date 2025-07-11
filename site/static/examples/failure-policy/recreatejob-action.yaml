@@ -15,11 +15,6 @@ spec:
     - action: RecreateJob
       targetReplicatedJobs:
       - workers-a
-    # If any Job within workers-b fails, all of the child Jobs of worker-b will be recreated
-    # without restarting the entire JobSet.
-    - action: RecreateReplicatedJob
-      targetReplicatedJobs:
-      - workers-b
   replicatedJobs:
   - name: workers-a
     replicas: 2
