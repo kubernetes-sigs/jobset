@@ -34,6 +34,7 @@ var actionFunctionMap = map[jobset.FailurePolicyAction]failurePolicyActionApplie
 	jobset.FailJobSet:                        failJobSetActionApplier,
 	jobset.RestartJobSet:                     restartJobSetActionApplier,
 	jobset.RestartJobSetAndIgnoreMaxRestarts: restartJobSetAndIgnoreMaxRestartsActionApplier,
+	jobset.RecreateJob:                       recreateJobActionApplier,
 }
 
 // The source of truth for the definition of defaultFailurePolicyRuleAction is the Configurable Failure Policy KEP.
@@ -140,7 +141,7 @@ func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failed
 		return false
 	}
 
-	parentReplicatedJob, exists := parentReplicatedJobName(failedJob)
+	parentReplicatedJob, exists := ParentReplicatedJobName(failedJob)
 	if !exists {
 		// If we cannot find the parent ReplicatedJob, we assume the rule does not apply.
 		log.V(2).Info(fmt.Sprintf("The failed job %v does not appear to have a parent replicatedJob.", failedJob.Name))
@@ -229,10 +230,41 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 	return nil
 }
 
-// parentReplicatedJobName returns the name of the parent
+// recreateJobActionApplier applies the RecreateJob FailurePolicyAction, marking a single
+// job for deletion and recreation by incrementing the appropriate IndividualJobRecreates
+// entry in the JobSet status.
+var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	if js.Status.IndividualJobRecreates == nil {
+		js.Status.IndividualJobRecreates = map[string]int32{}
+	}
+
+	individualRecreates, ok := js.Status.IndividualJobRecreates[matchingFailedJob.Name]
+	if !ok {
+		individualRecreates = 0
+	}
+	js.Status.IndividualJobRecreates[matchingFailedJob.Name] = individualRecreates + 1
+
+	js.Status.RestartsCountTowardsMax += 1
+
+	baseMessage := constants.RecreateJobActionMessage
+	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
+	event := &eventParams{
+		object:       js,
+		eventType:    corev1.EventTypeWarning,
+		eventReason:  constants.RecreateJobActionReason,
+		eventMessage: eventMessage,
+	}
+	enqueueEvent(updateStatusOpts, event)
+
+	updateStatusOpts.shouldUpdate = true
+
+	return nil
+}
+
+// ParentReplicatedJobName returns the name of the parent
 // ReplicatedJob and true if it is able to retrieve the parent.
 // The empty string and false are returned otherwise.
-func parentReplicatedJobName(job *batchv1.Job) (string, bool) {
+func ParentReplicatedJobName(job *batchv1.Job) (string, bool) {
 	if job == nil {
 		return "", false
 	}
