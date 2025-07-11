@@ -186,7 +186,7 @@ type JobSetStatus struct {
 	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
 
 	// IndividualJobRecreates tracks the number of times an individual Job within
-	// the JobSet has been recreated (i.e. in case of RecreateJob or RecreateReplicatedJob failure policy).
+	// the JobSet has been recreated (i.e. in case of RecreateJob failure policy).
 	// +optional
 	IndividualJobRecreates map[string]int32 `json:"individualJobRecreates,omitempty"`
 }

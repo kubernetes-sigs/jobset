@@ -9157,7 +9157,7 @@ spec:
                   type: integer
                 description: |-
                   IndividualJobRecreates tracks the number of times an individual Job within
-                  the JobSet has been recreated (i.e. in case of RecreateJob or RecreateReplicatedJob failure policy).
+                  the JobSet has been recreated (i.e. in case of RecreateJob failure policy).
                 type: object
               replicatedJobsStatus:
                 description: ReplicatedJobsStatus track the number of JobsReady for

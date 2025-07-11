@@ -29,7 +29,7 @@ class JobsetV1alpha2JobSetStatus(BaseModel):
     JobSetStatus defines the observed state of JobSet
     """ # noqa: E501
     conditions: Optional[List[IoK8sApimachineryPkgApisMetaV1Condition]] = None
-    individual_job_recreates: Optional[Dict[str, StrictInt]] = Field(default=None, description="IndividualJobRecreates tracks the number of times an individual Job within the JobSet has been recreated (i.e. in case of RecreateJob or RecreateReplicatedJob failure policy).", alias="individualJobRecreates")
+    individual_job_recreates: Optional[Dict[str, StrictInt]] = Field(default=None, description="IndividualJobRecreates tracks the number of times an individual Job within the JobSet has been recreated (i.e. in case of RecreateJob failure policy).", alias="individualJobRecreates")
     replicated_jobs_status: Optional[List[JobsetV1alpha2ReplicatedJobStatus]] = Field(default=None, description="ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.", alias="replicatedJobsStatus")
     restarts: Optional[StrictInt] = Field(default=0, description="Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).")
     restarts_count_towards_max: Optional[StrictInt] = Field(default=None, description="RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.", alias="restartsCountTowardsMax")
