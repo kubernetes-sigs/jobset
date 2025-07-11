@@ -27,7 +27,6 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
 	"sigs.k8s.io/jobset/pkg/metrics"
-	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
 // actionFunctionMap relates jobset failure policy action names to the appropriate behavior during jobset reconciliation.
@@ -36,7 +35,6 @@ var actionFunctionMap = map[jobset.FailurePolicyAction]failurePolicyActionApplie
 	jobset.RestartJobSet:                     restartJobSetActionApplier,
 	jobset.RestartJobSetAndIgnoreMaxRestarts: restartJobSetAndIgnoreMaxRestartsActionApplier,
 	jobset.RecreateJob:                       recreateJobActionApplier,
-	jobset.RecreateReplicatedJob:             recreateReplicatedJobActionApplier,
 }
 
 // The source of truth for the definition of defaultFailurePolicyRuleAction is the Configurable Failure Policy KEP.
@@ -232,9 +230,9 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 	return nil
 }
 
-// recreateJobActionApplier applies the RestartJob FailurePolicyAction, marking a single
-// job for deletion and recreation by incrementing the appropriate IndexedJobRecreates
-// counter in the respective ReplicatedJobStatus.
+// recreateJobActionApplier applies the RecreateJob FailurePolicyAction, marking a single
+// job for deletion and recreation by incrementing the appropriate IndividualJobRecreates
+// entry in the JobSet status.
 var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
 	if js.Status.IndividualJobRecreates == nil {
 		js.Status.IndividualJobRecreates = map[string]int32{}
@@ -246,57 +244,14 @@ var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Conte
 	}
 	js.Status.IndividualJobRecreates[matchingFailedJob.Name] = individualRecreates + 1
 
+	js.Status.RestartsCountTowardsMax += 1
+
 	baseMessage := constants.RecreateJobActionMessage
 	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
 	event := &eventParams{
 		object:       js,
 		eventType:    corev1.EventTypeWarning,
 		eventReason:  constants.RecreateJobActionReason,
-		eventMessage: eventMessage,
-	}
-	enqueueEvent(updateStatusOpts, event)
-
-	updateStatusOpts.shouldUpdate = true
-
-	return nil
-}
-
-// recreateJobActionApplier applies the RestartReplicatedJob FailurePolicyAction, marking all Jobs
-// in the parent ReplicatedJob of the failed Job for deletion and recreation by incrementing the
-// Recreates counter in the respective ReplicatedJobStatus.
-var recreateReplicatedJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
-	rJobName, ok := ParentReplicatedJobName(matchingFailedJob)
-	if !ok {
-		return fmt.Errorf("could not find parent ReplicatedJob for Job %v", matchingFailedJob.Name)
-	}
-
-	parentRJob := jobset.ReplicatedJob{}
-	for _, rJob := range js.Spec.ReplicatedJobs {
-		if rJob.Name == rJobName {
-			parentRJob = rJob
-			break
-		}
-	}
-
-	if js.Status.IndividualJobRecreates == nil {
-		js.Status.IndividualJobRecreates = map[string]int32{}
-	}
-
-	for i := range int(parentRJob.Replicas) {
-		jobName := placement.GenJobName(js.Name, rJobName, i)
-		individualRecreates, ok := js.Status.IndividualJobRecreates[jobName]
-		if !ok {
-			individualRecreates = 0
-		}
-		js.Status.IndividualJobRecreates[jobName] = individualRecreates + 1
-	}
-
-	baseMessage := constants.RecreateReplicatedJobActionMessage
-	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
-	event := &eventParams{
-		object:       js,
-		eventType:    corev1.EventTypeWarning,
-		eventReason:  constants.RecreateReplicatedJobActionReason,
 		eventMessage: eventMessage,
 	}
 	enqueueEvent(updateStatusOpts, event)
