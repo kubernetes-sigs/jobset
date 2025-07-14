@@ -18,6 +18,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -289,9 +290,9 @@ var _ = ginkgo.Describe("JobSet", func() {
 			trainerJob := "trainer-node"
 
 			// Every ReplicatedJob runs 1 container to sleep for 10 seconds.
-			rJobModelInitializer := dependsOnTestReplicatedJob(ns, modelInitializerJob, numReplicas, nil, nil)
-			rJobDatasetInitializer := dependsOnTestReplicatedJob(ns, datasetInitializerJob, numReplicas, nil, nil)
-			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicas, nil,
+			rJobModelInitializer := dependsOnTestReplicatedJob(ns, modelInitializerJob, numReplicas, nil, 10, nil)
+			rJobDatasetInitializer := dependsOnTestReplicatedJob(ns, datasetInitializerJob, numReplicas, nil, 10, nil)
+			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicas, nil, 0,
 				[]jobset.DependsOn{
 					{
 						Name:   modelInitializerJob,
@@ -389,9 +390,9 @@ var _ = ginkgo.Describe("JobSet", func() {
 					},
 					InitialDelaySeconds: 5,
 				},
-				nil)
+				10, nil)
 
-			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicas, nil,
+			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicas, nil, 0,
 				[]jobset.DependsOn{
 					{
 						Name:   coordinatorJob,
@@ -455,9 +456,9 @@ var _ = ginkgo.Describe("JobSet", func() {
 					},
 					InitialDelaySeconds: 5,
 				},
-				nil)
+				10, nil)
 
-			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicasTrainer, nil,
+			rJobTrainer := dependsOnTestReplicatedJob(ns, trainerJob, numReplicasTrainer, nil, 0,
 				[]jobset.DependsOn{
 					{
 						Name:   launcherJob,
@@ -678,7 +679,7 @@ func dependsOnTestJobSet(ns *corev1.Namespace, rJobs []jobset.ReplicatedJob) *jo
 	return jobSet
 }
 
-func dependsOnTestReplicatedJob(ns *corev1.Namespace, jobName string, numReplicas int, startupProbe *corev1.Probe, dependsOn []jobset.DependsOn) jobset.ReplicatedJob {
+func dependsOnTestReplicatedJob(ns *corev1.Namespace, jobName string, numReplicas int, startupProbe *corev1.Probe, sleepSeconds int, dependsOn []jobset.DependsOn) jobset.ReplicatedJob {
 	return testing.MakeReplicatedJob(jobName).
 		Job(testing.MakeJobTemplate("job", ns.Name).
 			PodSpec(corev1.PodSpec{
@@ -688,7 +689,7 @@ func dependsOnTestReplicatedJob(ns *corev1.Namespace, jobName string, numReplica
 						Name:         "sleep-test-container",
 						Image:        "bash:latest",
 						Command:      []string{"bash", "-c"},
-						Args:         []string{"sleep 10"},
+						Args:         []string{"sleep " + strconv.Itoa(sleepSeconds)},
 						StartupProbe: startupProbe,
 					},
 				},
