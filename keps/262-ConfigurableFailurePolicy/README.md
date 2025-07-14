@@ -26,10 +26,7 @@ tags, and then generate with `hack/update-toc.sh`.
     - [Story 2: RestartJobSet](#story-2-restartjobset)
     - [Story 3: RestartJobSetAndIgnoreMaxRestarts](#story-3-restartjobsetandignoremaxrestarts)
     - [Story 4: Different failure policies for different replicated jobs](#story-4-different-failure-policies-for-different-replicated-jobs)
-  - [Notes/Constraints/Caveats (Optional)](#notesconstraintscaveats-optional)
-  - [Risks and Mitigations](#risks-and-mitigations)
-- [Design Details](#design-details)
-  - [Proposed Failure Policy API](#proposed-failure-policy-api)
+    - [Story 5: Recreating individual jobs on failure rather than failing JobSet (<code>RecreateJob</code>)](#story-5-recreating-individual-jobs-on-failure-rather-than-failing-jobset-)
   - [Constraints](#constraints)
   - [Implementation](#implementation)
   - [Test Plan](#test-plan)
@@ -41,8 +38,6 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Drawbacks](#drawbacks)
 - [Alternatives](#alternatives)
 - [Future Work](#future-work)
-  - [Story 1: RestartReplicatedJob](#story-1-restartreplicatedjob)
-  - [Story 2: FailJob and RestartJob](#story-2-failjob-and-restartjob)
 <!-- /toc -->
 
 
