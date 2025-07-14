@@ -164,6 +164,9 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 	// of old jobs not part of the current jobSet run.
 	js.Status.Restarts += 1
 
+	// Reset individual Job recreates counters.
+	js.Status.IndividualJobRecreates = map[string]int32{}
+
 	if shouldCountTowardsMax {
 		js.Status.RestartsCountTowardsMax += 1
 	}
