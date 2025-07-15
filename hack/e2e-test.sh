@@ -4,6 +4,7 @@ export KIND=$PWD/bin/kind
 # E2E tests for Kind can use jobset-system
 # For testing against existing clusters, one needs to set this environment variable
 export NAMESPACE="jobset-system"
+export JOBSET_E2E_TESTS_DUMP_NAMESPACE=true
 
 function cleanup {
     if [ $USE_EXISTING_CLUSTER == 'false' ] 

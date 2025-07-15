@@ -18,16 +18,20 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/cli-runtime/pkg/printers"
 	batchv1ac "k8s.io/client-go/applyconfigurations/batch/v1"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/utils/ptr"
@@ -38,6 +42,10 @@ import (
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	"sigs.k8s.io/jobset/test/util"
 )
+
+func shouldDumpNamespace() bool {
+	return os.Getenv("JOBSET_E2E_TESTS_DUMP_NAMESPACE") == "true"
+}
 
 var _ = ginkgo.Describe("JobSet", func() {
 
@@ -64,6 +72,34 @@ var _ = ginkgo.Describe("JobSet", func() {
 	})
 
 	ginkgo.AfterEach(func() {
+		// Dump the namespace content, optionally.
+		// This is only visible on failure since ginkgo.GinkgoWriter is being used.
+		if shouldDumpNamespace() {
+			var printer printers.YAMLPrinter
+
+			fmt.Fprintf(ginkgo.GinkgoWriter, "\nDumping relevant resources in namespace %s:\n\n", ns.Name)
+
+			// JobSets
+			var jobsets jobset.JobSetList
+			gomega.Expect(k8sClient.List(ctx, &jobsets)).To(gomega.Succeed())
+			for _, js := range jobsets.Items {
+				gomega.Expect(printer.PrintObj(&js, ginkgo.GinkgoWriter)).To(gomega.Succeed())
+			}
+
+			// Jobs
+			var jobs batchv1.JobList
+			gomega.Expect(k8sClient.List(ctx, &jobs)).To(gomega.Succeed())
+			for _, job := range jobs.Items {
+				// GVK is not set properly for the list items.
+				job.SetGroupVersionKind(schema.GroupVersionKind{
+					Group:   batchv1.SchemeGroupVersion.Group,
+					Version: batchv1.SchemeGroupVersion.Version,
+					Kind:    "Job",
+				})
+				gomega.Expect(printer.PrintObj(&job, ginkgo.GinkgoWriter)).To(gomega.Succeed())
+			}
+		}
+
 		// Delete test namespace after each test.
 		gomega.Expect(k8sClient.Delete(ctx, ns)).To(gomega.Succeed())
 	})
