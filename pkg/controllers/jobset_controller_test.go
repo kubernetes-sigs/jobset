@@ -1408,44 +1408,47 @@ func jobWithFailedConditionAndOpts(name string, failureTime time.Time, opts *fai
 }
 
 type makeJobArgs struct {
-	jobSetName           string
-	jobSetUID            string
-	replicatedJobName    string
-	groupName            string
-	jobName              string
-	ns                   string
-	jobLabels            map[string]string
-	jobAnnotations       map[string]string
-	podLabels            map[string]string
-	podAnnotations       map[string]string
-	replicas             int
-	jobIdx               int
-	restarts             int
-	topology             string
-	nodeSelectorStrategy bool
+	jobSetName             string
+	jobSetUID              string
+	replicatedJobName      string
+	groupName              string
+	jobName                string
+	ns                     string
+	jobLabels              map[string]string
+	jobAnnotations         map[string]string
+	podLabels              map[string]string
+	podAnnotations         map[string]string
+	replicas               int
+	jobIdx                 int
+	restarts               int
+	individualJobRecreates int
+	topology               string
+	nodeSelectorStrategy   bool
 }
 
 // Helper function to create a Job for unit testing.
 func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	labels := map[string]string{
-		jobset.JobSetNameKey:         args.jobSetName,
-		jobset.JobSetUIDKey:          args.jobSetUID,
-		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
-		jobset.GroupNameKey:          args.groupName,
-		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
-		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		constants.RestartsKey:        strconv.Itoa(args.restarts),
-		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
+		jobset.JobSetNameKey:                args.jobSetName,
+		jobset.JobSetUIDKey:                 args.jobSetUID,
+		jobset.ReplicatedJobNameKey:         args.replicatedJobName,
+		jobset.GroupNameKey:                 args.groupName,
+		jobset.ReplicatedJobReplicas:        strconv.Itoa(args.replicas),
+		jobset.JobIndexKey:                  strconv.Itoa(args.jobIdx),
+		constants.RestartsKey:               strconv.Itoa(args.restarts),
+		constants.IndividualJobRecreatesKey: strconv.Itoa(args.individualJobRecreates),
+		jobset.JobKey:                       jobHashKey(args.ns, args.jobName),
 	}
 	annotations := map[string]string{
-		jobset.JobSetNameKey:         args.jobSetName,
-		jobset.JobSetUIDKey:          args.jobSetUID,
-		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
-		jobset.GroupNameKey:          args.groupName,
-		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
-		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		constants.RestartsKey:        strconv.Itoa(args.restarts),
-		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
+		jobset.JobSetNameKey:                args.jobSetName,
+		jobset.JobSetUIDKey:                 args.jobSetUID,
+		jobset.ReplicatedJobNameKey:         args.replicatedJobName,
+		jobset.GroupNameKey:                 args.groupName,
+		jobset.ReplicatedJobReplicas:        strconv.Itoa(args.replicas),
+		jobset.JobIndexKey:                  strconv.Itoa(args.jobIdx),
+		constants.RestartsKey:               strconv.Itoa(args.restarts),
+		constants.IndividualJobRecreatesKey: strconv.Itoa(args.individualJobRecreates),
+		jobset.JobKey:                       jobHashKey(args.ns, args.jobName),
 	}
 	// Only set exclusive key if we are using exclusive placement per topology.
 	if args.topology != "" {
