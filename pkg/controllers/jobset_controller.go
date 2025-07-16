@@ -797,6 +797,15 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
 	jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 
+	individualJobRecreates := int32(0)
+	if js.Status.IndividualJobRecreates != nil {
+		var ok bool
+		individualJobRecreates, ok = js.Status.IndividualJobRecreates[jobName]
+		if !ok {
+			individualJobRecreates = 0
+		}
+	}
+
 	// Set labels on the object.
 	labels := make(map[string]string)
 	maps.Copy(labels, obj.GetLabels())
@@ -804,7 +813,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.JobSetUIDKey] = string(js.GetUID())
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	labels[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
-	labels[constants.IndividualJobRecreatesKey] = strconv.Itoa(int(js.Status.IndividualJobRecreates[jobName]))
+	labels[constants.IndividualJobRecreatesKey] = strconv.Itoa(int(individualJobRecreates))
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.GlobalReplicasKey] = globalReplicas(js)
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
@@ -820,7 +829,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.JobSetUIDKey] = string(js.GetUID())
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
-	annotations[constants.IndividualJobRecreatesKey] = strconv.Itoa(int(js.Status.IndividualJobRecreates[jobName]))
+	annotations[constants.IndividualJobRecreatesKey] = strconv.Itoa(int(individualJobRecreates))
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.GlobalReplicasKey] = globalReplicas(js)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
