@@ -550,24 +550,8 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 			continue
 		}
 
-		// Only create jobs that aren't active yet
-		jobsToCreate := []*batchv1.Job{}
-		for _, job := range jobs {
-			active := false
-			for _, ownedJob := range ownedJobs.active {
-				if job.Name == ownedJob.Name {
-					active = true
-					break
-				}
-			}
-
-			if !active {
-				jobsToCreate = append(jobsToCreate, job)
-			}
-		}
-
 		// Create jobs as necessary.
-		if err := r.createJobs(ctx, js, jobsToCreate); err != nil {
+		if err := r.createJobs(ctx, js, jobs); err != nil {
 			log.Error(err, "creating jobs")
 			return err
 		}
