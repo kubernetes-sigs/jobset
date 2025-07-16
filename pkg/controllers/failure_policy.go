@@ -141,7 +141,7 @@ func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failed
 		return false
 	}
 
-	parentReplicatedJob, exists := ParentReplicatedJobName(failedJob)
+	parentReplicatedJob, exists := parentReplicatedJobName(failedJob)
 	if !exists {
 		// If we cannot find the parent ReplicatedJob, we assume the rule does not apply.
 		log.V(2).Info(fmt.Sprintf("The failed job %v does not appear to have a parent replicatedJob.", failedJob.Name))
@@ -264,10 +264,10 @@ var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Conte
 	return nil
 }
 
-// ParentReplicatedJobName returns the name of the parent
+// parentReplicatedJobName returns the name of the parent
 // ReplicatedJob and true if it is able to retrieve the parent.
 // The empty string and false are returned otherwise.
-func ParentReplicatedJobName(job *batchv1.Job) (string, bool) {
+func parentReplicatedJobName(job *batchv1.Job) (string, bool) {
 	if job == nil {
 		return "", false
 	}
