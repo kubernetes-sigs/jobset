@@ -305,13 +305,11 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			return nil, err
 		}
-		if js.Status.IndividualJobRecreates != nil {
-			globalIndividualJobRecreates, ok := js.Status.IndividualJobRecreates[job.Name]
-			if ok && int32(individualJobRecreates) < globalIndividualJobRecreates {
-				log.V(2).Info("child Job marked for recreation as value of individual-job-recreates label is less than target", "name", job.Name, constants.IndividualJobRecreatesKey, individualJobRecreates, "target", globalIndividualJobRecreates)
-				ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
-				continue
-			}
+		targetIndividualJobRecreates := getIndividualJobRecreates(js, job.Name)
+		if int32(individualJobRecreates) < targetIndividualJobRecreates {
+			log.V(2).Info("child Job marked for recreation as value of individual-job-recreates label is less than target", "name", job.Name, constants.IndividualJobRecreatesKey, individualJobRecreates, "target", targetIndividualJobRecreates)
+			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+			continue
 		}
 
 		// Jobs with jobset.sigs.k8s.io/restart-attempt == jobset.status.restarts are part of
@@ -327,6 +325,19 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		}
 	}
 	return &ownedJobs, nil
+}
+
+// getIndividualJobRecreates returns the corresponding IndividualJobRecreates
+// entry in a JobSet's Status, defaulting to 0 if it does not exist.
+func getIndividualJobRecreates(js *jobset.JobSet, jobName string) int32 {
+	if js.Status.IndividualJobRecreates == nil {
+		return 0
+	}
+	individualJobRecreates, ok := js.Status.IndividualJobRecreates[jobName]
+	if !ok {
+		return 0
+	}
+	return individualJobRecreates
 }
 
 // updateReplicatedJobsStatuses updates the replicatedJob statuses if they have changed.
@@ -780,15 +791,7 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 //     labelled the nodes ahead of time with hack/label_nodes/label_nodes.py
 func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
 	jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
-
-	individualJobRecreates := int32(0)
-	if js.Status.IndividualJobRecreates != nil {
-		var ok bool
-		individualJobRecreates, ok = js.Status.IndividualJobRecreates[jobName]
-		if !ok {
-			individualJobRecreates = 0
-		}
-	}
+	individualJobRecreates := getIndividualJobRecreates(js, jobName)
 
 	// Set labels on the object.
 	labels := make(map[string]string)
