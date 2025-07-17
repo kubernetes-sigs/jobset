@@ -237,6 +237,17 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 // job for deletion and recreation by incrementing the appropriate IndividualJobRecreates
 // entry in the JobSet status.
 var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	// Since RecreateJob failure policy counts toward max restarts, we also have to
+	// fail the JobSet if we exceed MaxRestarts here.
+	if js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts {
+		failureBaseMessage := constants.ReachedMaxRestartsMessage
+		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
+
+		failureReason := constants.ReachedMaxRestartsReason
+		setJobSetFailedCondition(js, failureReason, failureMessage, updateStatusOpts)
+		return nil
+	}
+
 	if js.Status.IndividualJobRecreates == nil {
 		js.Status.IndividualJobRecreates = map[string]int32{}
 	}
