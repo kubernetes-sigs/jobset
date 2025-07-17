@@ -241,11 +241,7 @@ var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Conte
 		js.Status.IndividualJobRecreates = map[string]int32{}
 	}
 
-	individualRecreates, ok := js.Status.IndividualJobRecreates[matchingFailedJob.Name]
-	if !ok {
-		individualRecreates = 0
-	}
-	js.Status.IndividualJobRecreates[matchingFailedJob.Name] = individualRecreates + 1
+	js.Status.IndividualJobRecreates[matchingFailedJob.Name] = getIndividualJobRecreates(js, matchingFailedJob.Name) + 1
 
 	js.Status.RestartsCountTowardsMax += 1
 
