@@ -990,6 +990,92 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("jobset fails when number of failed RecreateJob failure policy triggers reaches MaxRestarts", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(
+						&jobset.FailurePolicy{
+							MaxRestarts: 2,
+							Rules: []jobset.FailurePolicyRule{{
+								Action: jobset.RecreateJob,
+							}},
+						},
+					)
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("fail three Jobs to trigger RecreateJob failure policy three times")
+						failJob(&jobList.Items[0])
+						failJob(&jobList.Items[1])
+						failJob(&jobList.Items[2])
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+			},
+		}),
+		ginkgo.Entry("job recreated without restarting jobset when RecreateJob failure policy applies", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(
+						&jobset.FailurePolicy{
+							MaxRestarts: 2,
+							Rules: []jobset.FailurePolicyRule{{
+								Action: jobset.RecreateJob,
+							}},
+						},
+					)
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("complete one job and fail another")
+						completeJob(&jobList.Items[0])
+						failJob(&jobList.Items[1])
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// Only a single Job failed, so we only expect a single deletion finalizer.
+						removeForegroundDeletionFinalizers(js, 1)
+					},
+				},
+				{
+					jobUpdateFn:          completeAllJobs,
+					checkJobSetCondition: testutil.JobSetCompleted,
+				},
+			},
+		}),
+		ginkgo.Entry("entire jobset recreated when RecreateJob failure policy does not apply", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(
+						&jobset.FailurePolicy{
+							MaxRestarts: 2,
+							Rules: []jobset.FailurePolicyRule{{
+								Action:               jobset.RecreateJob,
+								TargetReplicatedJobs: []string{"replicated-job-a"},
+							}},
+						},
+					)
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("fail one job from replicated-job-b not covered by RecreateJob")
+
+						failFirstMatchingJob(jobList, "replicated-job-b")
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
+			},
+		}),
 		ginkgo.Entry("jobset created in suspended state", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
