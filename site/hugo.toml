@@ -2,9 +2,8 @@ baseURL = "/"
 title = "Jobset"
 
 enableRobotsTXT = true
+googleAnalytics = ""
 
-theme = "docsy"
-themesDir = "node_modules"
 
 ###############################################################################
 # Docsy
@@ -19,7 +18,7 @@ defaultContentLanguageInSubdir = false
 # useful when translating
 enableMissingTranslationPlaceholders = true
 # disable taxonomies
-disableKinds = ["taxonomy", "taxonomyTerm"]
+disableKinds = ["taxonomy"]
 # deprecated directories
 ignoreFiles = []
 ###############################################################################
@@ -59,6 +58,7 @@ ignoreFiles = []
 # [services]
 #   [services.googleAnalytics]
 #   id = "UA-XXXXXXXXX-X"
+
 
 ###############################################################################
 # Docsy - Language configuration

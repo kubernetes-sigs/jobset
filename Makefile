@@ -380,7 +380,7 @@ yq: ## Download yq locally if necessary.
 site-install-npm-dependencies:
 	cd $(PROJECT_DIR)/site && npm install
 
-HUGO_VERSION ?= 0.92.0
+HUGO_VERSION ?= 0.148.1
 HUGO_CMD = $(PROJECT_DIR)/bin/hugo
 .PHONY: site-install-hugo
 site-install-hugo:
