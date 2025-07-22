@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Kubernetes Authors.
+Copyright 2025 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -12,12 +12,11 @@ limitations under the License.
 */
 
 // +k8s:openapi-gen=true
-package v1alpha2
+package v1
 
 import (
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
 const (
@@ -75,6 +74,9 @@ const (
 	// If a ReplicatedJob is part of a group, then its child jobs and pods have this
 	// label/annotation ranging from 0 to annotations[GroupReplicasKey] - 1
 	JobGroupIndexKey string = "jobset.sigs.k8s.io/job-group-index"
+	// StartupPolicyAnnotation is the annotation key used to store the startup policy
+	// when converting from v1alpha2 to v1.
+	StartupPolicyAnnotation = "jobset.sigs.k8s.io/startup-policy"
 )
 
 type JobSetConditionType string
@@ -87,10 +89,6 @@ const (
 	JobSetFailed JobSetConditionType = "Failed"
 	// JobSetSuspended means the job is suspended.
 	JobSetSuspended JobSetConditionType = "Suspended"
-	// JobSetStartupPolicyInProgress means the StartupPolicy is in progress.
-	JobSetStartupPolicyInProgress JobSetConditionType = "StartupPolicyInProgress"
-	// JobSetStartupPolicyCompleted means the StartupPolicy has completed.
-	JobSetStartupPolicyCompleted JobSetConditionType = "StartupPolicyCompleted"
 )
 
 // JobSetSpec defines the desired state of JobSet
@@ -119,11 +117,6 @@ type JobSetSpec struct {
 	// finished with status failed.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"`
-
-	// StartupPolicy, if set, configures in what order jobs must be started
-	// Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
 
 	// Suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"`
@@ -215,7 +208,6 @@ type ReplicatedJobStatus struct {
 // +k8s:openapi-gen=true
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="TerminalState",JSONPath=".status.terminalState",type=string,description="Final state of JobSet"
 // +kubebuilder:printcolumn:name="Restarts",JSONPath=".status.restarts",type=string,description="Number of restarts"
 // +kubebuilder:printcolumn:name="Completed",type="string",priority=0,JSONPath=".status.conditions[?(@.type==\"Completed\")].status"
@@ -406,27 +398,6 @@ type SuccessPolicy struct {
 	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
 }
 
-type StartupPolicyOptions string
-
-const (
-	// This is the default setting
-	// AnyOrder means that we will start the replicated jobs
-	// without any specific order.
-	AnyOrder StartupPolicyOptions = "AnyOrder"
-	// InOrder starts the replicated jobs in order
-	// that they are listed.
-	InOrder StartupPolicyOptions = "InOrder"
-)
-
-type StartupPolicy struct {
-	// StartupPolicyOrder determines the startup order of the ReplicatedJobs.
-	// AnyOrder means to start replicated jobs in any order.
-	// InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
-	// when all the jobs of the previous one are ready.
-	// +kubebuilder:validation:Enum=AnyOrder;InOrder
-	StartupPolicyOrder StartupPolicyOptions `json:"startupPolicyOrder"`
-}
-
 // Coordinator defines which pod can be marked as the coordinator for the JobSet workload.
 type Coordinator struct {
 	// ReplicatedJob is the name of the ReplicatedJob which contains
@@ -445,5 +416,5 @@ func init() {
 	SchemeBuilder.Register(&JobSet{}, &JobSetList{})
 }
 
-// Assert that v1alpha2.JobSet implements the Convertible interface.
-var _ conversion.Convertible = &JobSet{}
+// Hub marks this type as a conversion hub.
+func (*JobSet) Hub() {}
