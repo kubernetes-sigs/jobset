@@ -17,13 +17,11 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
 	"net/http"
 	"os"
-	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -35,7 +33,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -112,15 +109,7 @@ func main() {
 	var options manager.Options
 
 	kubeConfig := ctrl.GetConfigOrDie()
-	// Setup warning logging so that unknown field warnings are not logged.
-	// The next handler is the usual default handler.
-	kubeConfig.WarningHandlerWithContext = logutil.NewFilteringWarningHandler(log.NewKubeAPIWarningLogger(
-		log.KubeAPIWarningLoggerOptions{
-			Deduplicate: false,
-		},
-	), func(ctx context.Context, code int, agent string, text string) bool {
-		return !strings.HasPrefix(text, `unknown field`)
-	})
+	kubeConfig.WarningHandlerWithContext = logutil.NewDefaultWarningHandler()
 
 	if kubeConfig.UserAgent == "" {
 		kubeConfig.UserAgent = useragent.Default()

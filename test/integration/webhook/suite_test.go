@@ -40,6 +40,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/util/logutil"
 	"sigs.k8s.io/jobset/pkg/webhooks"
 )
 
@@ -77,6 +78,7 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
+	cfg.WarningHandlerWithContext = logutil.NewDefaultWarningHandler()
 
 	//	scheme := runtime.NewScheme()
 	err = jobset.AddToScheme(scheme.Scheme)
