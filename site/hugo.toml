@@ -2,7 +2,6 @@ baseURL = "/"
 title = "Jobset"
 
 enableRobotsTXT = true
-googleAnalytics = ""
 
 
 ###############################################################################
