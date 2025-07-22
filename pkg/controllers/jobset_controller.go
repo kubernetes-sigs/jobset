@@ -284,8 +284,9 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	// Categorize each job into a bucket: active, successful, failed, or delete.
 	ownedJobs := childJobs{}
 	for i, job := range childJobList.Items {
-		// Jobs with jobset.sigs.k8s.io/restart-attempt < jobset.status.restarts are marked for
-		// deletion, as they were part of the previous JobSet run.
+		// Jobs with jobset.sigs.k8s.io/restart-attempt < restarts or
+		// jobset.sigs.k8s.io/individual-job-recreates < individualJobRecreates[<jobName>] are marked for deletion.
+
 		jobRestarts, err := strconv.Atoi(job.Labels[constants.RestartsKey])
 		if err != nil {
 			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", constants.RestartsKey))
@@ -293,6 +294,20 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 			return nil, err
 		}
 		if int32(jobRestarts) < js.Status.Restarts {
+			log.V(2).Info("child Job marked for recreation as value of restarts label is less than target", "name", job.Name, constants.RestartsKey, jobRestarts, "target", js.Status.Restarts)
+			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+			continue
+		}
+
+		individualJobRecreates, err := strconv.Atoi(job.Labels[constants.IndividualJobRecreatesKey])
+		if err != nil {
+			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", constants.IndividualJobRecreatesKey))
+			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+			return nil, err
+		}
+		targetIndividualJobRecreates := getIndividualJobRecreates(js, job.Name)
+		if int32(individualJobRecreates) < targetIndividualJobRecreates {
+			log.V(2).Info("child Job marked for recreation as value of individual-job-recreates label is less than target", "name", job.Name, constants.IndividualJobRecreatesKey, individualJobRecreates, "target", targetIndividualJobRecreates)
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			continue
 		}
@@ -310,6 +325,19 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		}
 	}
 	return &ownedJobs, nil
+}
+
+// getIndividualJobRecreates returns the corresponding IndividualJobRecreates
+// entry in a JobSet's Status, defaulting to 0 if it does not exist.
+func getIndividualJobRecreates(js *jobset.JobSet, jobName string) int32 {
+	if js.Status.IndividualJobRecreates == nil {
+		return 0
+	}
+	individualJobRecreates, ok := js.Status.IndividualJobRecreates[jobName]
+	if !ok {
+		return 0
+	}
+	return individualJobRecreates
 }
 
 // updateReplicatedJobsStatuses updates the replicatedJob statuses if they have changed.
@@ -763,6 +791,7 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 //     labelled the nodes ahead of time with hack/label_nodes/label_nodes.py
 func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
 	jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
+	individualJobRecreates := getIndividualJobRecreates(js, jobName)
 
 	// Set labels on the object.
 	labels := make(map[string]string)
@@ -771,6 +800,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.JobSetUIDKey] = string(js.GetUID())
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	labels[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	labels[constants.IndividualJobRecreatesKey] = strconv.Itoa(int(individualJobRecreates))
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.GlobalReplicasKey] = globalReplicas(js)
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
@@ -786,6 +816,7 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.JobSetUIDKey] = string(js.GetUID())
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	annotations[constants.IndividualJobRecreatesKey] = strconv.Itoa(int(individualJobRecreates))
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.GlobalReplicasKey] = globalReplicas(js)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
