@@ -22,10 +22,10 @@ description: >
 
 Make sure the following conditions are met:
 
-- A Kubernetes cluster with version 1.21 or newer is running. Learn how to [install the Kubernetes tools](https://kubernetes.io/docs/tasks/tools/).
+- A Kubernetes cluster running one of the last 3 Kubernetes minor versions. Learn how to [install the Kubernetes tools](https://kubernetes.io/docs/tasks/tools/).
 - Your cluster has at least 1 node with 2+ CPUs and 512+ MB of memory available for the JobSet controller manager Deployment to run on. **NOTE: On some cloud providers, the default node machine type will not have sufficient resources to run the JobSet controller manager and all the required kube-system pods, so you'll need to use a larger
 machine type for your nodes.**
-- The `SuspendJob` [feature gate][feature_gate] is enabled. In Kubernetes 1.22 or newer, the feature gate is enabled by default and reached stable in Kubernetes 1.24.
+<!-- - The `SuspendJob` [feature gate][feature_gate] is enabled. In Kubernetes 1.22 or newer, the feature gate is enabled by default and reached stable in Kubernetes 1.24. -->
 - The kubectl command-line tool has communication with your cluster.
 
 <!-- Uncomment once jobset publishes metrics -->
