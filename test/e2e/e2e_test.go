@@ -517,12 +517,12 @@ var _ = ginkgo.Describe("JobSet", func() {
 					Should(gomega.Equal(numReplicasLauncher))
 			})
 
-			ginkgo.By("Wait for Launcher to be in Ready status", func() {
+			ginkgo.By("Wait for Launcher to be in Ready/Succeeded status", func() {
 				gomega.Eventually(func() int32 {
 					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
 					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
 						if rJobStatus.Name == launcherJob {
-							return rJobStatus.Ready
+							return max(rJobStatus.Ready, rJobStatus.Succeeded)
 						}
 					}
 					return 0
