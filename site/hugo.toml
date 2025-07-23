@@ -3,8 +3,6 @@ title = "Jobset"
 
 enableRobotsTXT = true
 
-theme = "docsy"
-themesDir = "node_modules"
 
 ###############################################################################
 # Docsy
@@ -19,7 +17,7 @@ defaultContentLanguageInSubdir = false
 # useful when translating
 enableMissingTranslationPlaceholders = true
 # disable taxonomies
-disableKinds = ["taxonomy", "taxonomyTerm"]
+disableKinds = ["taxonomy"]
 # deprecated directories
 ignoreFiles = []
 ###############################################################################
@@ -59,6 +57,7 @@ ignoreFiles = []
 # [services]
 #   [services.googleAnalytics]
 #   id = "UA-XXXXXXXXX-X"
+
 
 ###############################################################################
 # Docsy - Language configuration
@@ -159,3 +158,8 @@ ignoreFiles = []
     url = "https://kubernetes.slack.com/"
     icon = "fab fa-slack"
     desc = "Chat with other project developers"
+
+[module]
+proxy = "direct"
+[[module.imports]]
+path = "github.com/google/docsy"

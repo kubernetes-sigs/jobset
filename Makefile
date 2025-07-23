@@ -375,3 +375,21 @@ YQ = $(PROJECT_DIR)/bin/yq
 yq: ## Download yq locally if necessary.
 	GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/mikefarah/yq/v4@v4.45.1
 
+## Docs website development
+.PHONY: site-install-npm-dependencies
+site-install-npm-dependencies:
+	cd $(PROJECT_DIR)/site && npm install
+
+HUGO_VERSION ?= 0.148.1
+HUGO_CMD = $(PROJECT_DIR)/bin/hugo
+.PHONY: site-install-hugo
+site-install-hugo:
+	GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on CGO_ENABLED=1 $(GO_CMD) install -tags extended github.com/gohugoio/hugo@v$(HUGO_VERSION)
+
+.PHONY: site-serve
+site-serve: site-install-hugo site-install-npm-dependencies
+	cd $(PROJECT_DIR)/site && $(HUGO_CMD) serve -D
+
+.PHONY: site-build
+site-build: site-install-hugo site-install-npm-dependencies
+	cd $(PROJECT_DIR)/site && $(HUGO_CMD) --gc --minify
