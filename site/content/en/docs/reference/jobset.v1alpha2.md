@@ -417,6 +417,14 @@ It can be either Completed or Failed. Otherwise, it is empty by default.</p>
    <p>ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.</p>
 </td>
 </tr>
+<tr><td><code>individualJobRecreates</code><br/>
+<code>map[string]int32</code>
+</td>
+<td>
+   <p>IndividualJobRecreates tracks the number of times an individual Job within
+the JobSet has been recreated (i.e. in case of RecreateJob failure policy).</p>
+</td>
+</tr>
 </tbody>
 </table>
 
