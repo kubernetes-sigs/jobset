@@ -1,4 +1,7 @@
-# KEP-104: StartupPolicy
+# KEP-104: StartupPolicy [DEPRECATED]
+
+> **Note**: This KEP is deprecated. StartupPolicy has been removed from JobSet API in favor of the
+> DependsOn API. See [KEP-672](../672-serial-job-execution/README.md) for the replacement functionality.
 
 <!--
 This is the title of your KEP. Keep it short, simple, and descriptive. A good
@@ -17,6 +20,7 @@ tags, and then generate with `hack/update-toc.sh`.
 -->
 
 <!-- toc -->
+
 - [Summary](#summary)
 - [Motivation](#motivation)
   - [Goals](#goals)
@@ -32,7 +36,7 @@ tags, and then generate with `hack/update-toc.sh`.
   - [Defaulting/Validation](#defaultingvalidation)
   - [User Experience](#user-experience)
   - [Test Plan](#test-plan)
-      - [Prerequisite testing updates](#prerequisite-testing-updates)
+    - [Prerequisite testing updates](#prerequisite-testing-updates)
     - [Unit Tests](#unit-tests)
     - [Integration tests](#integration-tests)
   - [Graduation Criteria](#graduation-criteria)
@@ -43,11 +47,12 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Alternatives](#alternatives)
   - [Operate on Conditions](#operate-on-conditions)
   - [Allow for both ready and succeeded](#allow-for-both-ready-and-succeeded)
-<!-- /toc -->
+  <!-- /toc -->
 
 ## Summary
 
-This KEP adds a StartupPolicy for JobSets.  A StartupPolicy allows for some flexibility on when to start ReplicatedJobs in a JobSet.  
+This KEP adds a StartupPolicy for JobSets. A StartupPolicy allows for some flexibility on when to start ReplicatedJobs in a JobSet.
+
 <!--
 This section is incredibly important for producing high-quality, user-focused
 documentation such as release notes or a development roadmap. It should be
@@ -91,7 +96,7 @@ A Startup policy would allow a user to specify which status a replicated job sho
 
 As a user, I have one ReplicatedJob that functions as the driver and a series of worker ReplicatedJobs.  
 I want the driver to be ready before I start the worker replicated jobs.  
-This is useful for HPC/AI/ML workloads as some frameworks have a driver pod that must be ready before the workers are started.  
+This is useful for HPC/AI/ML workloads as some frameworks have a driver pod that must be ready before the workers are started.
 
 The API below would fit my purpose.
 
@@ -102,43 +107,43 @@ metadata:
   name: driver-ready-worker-start
 spec:
   startupPolicy:
-     startupPolicyOrder: InOrder
+    startupPolicyOrder: InOrder
   replicatedJobs:
-  - name: driver
-    replicas: 1
-    template:
-      spec:
-        # Set backoff limit to 0 so job will immediately fail if any pod fails.
-        backoffLimit: 0 
-        completions: 1
-        parallelism: 1
-        template:
-          spec:
-            containers:
-            - name: driver
-              image: bash:latest
-              command:
-              - bash
-              - -xc
-              - |
-                sleep 10000
-  - name: workers
-    replicas: 1
-    template:
-      spec:
-        backoffLimit: 0 
-        completions: 2
-        parallelism: 2
-        template:
-          spec:
-            containers:
-            - name: worker
-              image: bash:latest
-              command:
-              - bash
-              - -xc
-              - |
-                sleep 10
+    - name: driver
+      replicas: 1
+      template:
+        spec:
+          # Set backoff limit to 0 so job will immediately fail if any pod fails.
+          backoffLimit: 0
+          completions: 1
+          parallelism: 1
+          template:
+            spec:
+              containers:
+                - name: driver
+                  image: bash:latest
+                  command:
+                    - bash
+                    - -xc
+                    - |
+                      sleep 10000
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          backoffLimit: 0
+          completions: 2
+          parallelism: 2
+          template:
+            spec:
+              containers:
+                - name: worker
+                  image: bash:latest
+                  command:
+                    - bash
+                    - -xc
+                    - |
+                      sleep 10
 ```
 
 #### Story 2
@@ -147,7 +152,7 @@ As a user, I want my replicated jobs to start in order.
 
 One area that this could be useful is if someone has a message queue replicatedJob (e.g., Redis), followed by a driver replicatedJob, followed by a worker replicated job.
 
-In this case, I want message queue to start first, then the driver, and then finally the worker.  
+In this case, I want message queue to start first, then the driver, and then finally the worker.
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -156,71 +161,71 @@ metadata:
   name: messagequeue-driver-worker
 spec:
   startupPolicy:
-     startupPolicyOrder: InOrder
+    startupPolicyOrder: InOrder
   replicatedJobs:
-  - name: messagequeue
-    replicas: 1
-    template:
-      spec:
-        # Set backoff limit to 0 so job will immediately fail if any pod fails.
-        backoffLimit: 0 
-        completions: 1
-        parallelism: 1
-        template:
-          spec:
-            containers:
-            - name: messagequeue
-              image: bash:latest
-              command:
-              - bash
-              - -xc
-              - |
-                sleep 100
-  - name: driver
-    replicas: 2
-    template:
-      spec:
-        backoffLimit: 0 
-        completions: 2
-        parallelism: 2
-        template:
-          spec:
-            containers:
-            - name: driver
-              image: bash:latest
-              command:
-              - bash
-              - -xc
-              - |
-                sleep 10
-  - name: worker
-    replicas: 2
-    template:
-      spec:
-        backoffLimit: 0 
-        completions: 2
-        parallelism: 2
-        template:
-          spec:
-            containers:
-            - name: worker
-              image: bash:latest
-              command:
-              - bash
-              - -xc
-              - |
-                sleep 10
+    - name: messagequeue
+      replicas: 1
+      template:
+        spec:
+          # Set backoff limit to 0 so job will immediately fail if any pod fails.
+          backoffLimit: 0
+          completions: 1
+          parallelism: 1
+          template:
+            spec:
+              containers:
+                - name: messagequeue
+                  image: bash:latest
+                  command:
+                    - bash
+                    - -xc
+                    - |
+                      sleep 100
+    - name: driver
+      replicas: 2
+      template:
+        spec:
+          backoffLimit: 0
+          completions: 2
+          parallelism: 2
+          template:
+            spec:
+              containers:
+                - name: driver
+                  image: bash:latest
+                  command:
+                    - bash
+                    - -xc
+                    - |
+                      sleep 10
+    - name: worker
+      replicas: 2
+      template:
+        spec:
+          backoffLimit: 0
+          completions: 2
+          parallelism: 2
+          template:
+            spec:
+              containers:
+                - name: worker
+                  image: bash:latest
+                  command:
+                    - bash
+                    - -xc
+                    - |
+                      sleep 10
 ```
 
 ### Risks and Mitigations
 
-To avoid the JobSet become a half-baked workflow manager, the API will not allow describing DAGs. 
+To avoid the JobSet become a half-baked workflow manager, the API will not allow describing DAGs.
 The goal is to focus on supporting startup sequence that HPC and ML training jobs typically require.
 
 ## Design Details
 
 ### API Proposal
-  
+
 ```golang
 
 type StartupPolicyOptions string
@@ -229,7 +234,7 @@ const (
  // This is the default setting
  // AnyOrder means that we will start jobs without any specific order.
  AnyOrder StartupPolicyOptions = "AnyOrder"
- // InOrder starts the ReplicatedJobs in order that they are listed. Jobs within a ReplicatedJob will 
+ // InOrder starts the ReplicatedJobs in order that they are listed. Jobs within a ReplicatedJob will
  // still start in any order.
  InOrder StartupPolicyOptions = "InOrder"
 )
@@ -261,7 +266,7 @@ We will retrieve the `ReplicatedJobStatus` before each call to `createJobs` to v
 JobSet views the jobs that it owns and updates the `ReplicatedJobStatus` on each reconcile. For suspended jobs, we will view the `ReplicatedJobStatus` and resume the jobs as they are listed in the `startupPolicyOrder`.
 Suspended is also tracked by `ReplicatedJobStatus`.
 
-One area of contention is if Jobs finish fast and are deleted (ie `ttlAfterFinished` is short). 
+One area of contention is if Jobs finish fast and are deleted (ie `ttlAfterFinished` is short).
 We created [issue](https://github.com/kubernetes-sigs/jobset/issues/360) to address this.
 
 ### Defaulting/Validation
@@ -385,6 +390,8 @@ milestones with these graduation criteria:
 
 - Drafted August 2 2023
 - Updated API December 18th 2023
+- StartupPolicy API has been removed in favor of the DependsOn API: July 25th 2025
+
 <!--
 Major milestones in the lifecycle of a KEP should be tracked in this section.
 Major milestones might include:
@@ -394,31 +401,31 @@ Major milestones might include:
 - the first Kubernetes release where an initial version of the KEP was available
 - the version of Kubernetes where the KEP graduated to general availability
 - when the KEP was retired or superseded
--->
+  -->
 
 ## Drawbacks
 
 ### Poor Person Workflow Engine
 
-This startup policy can function as a poor person workflow syntax.  And there may be requests to make this more than what it is.  
+This startup policy can function as a poor person workflow syntax. And there may be requests to make this more than what it is.
 
-We ideally want to utilize other workflows engines to provide more complicated dags but I could see simple ML workflows being used for JobSet.  
+We ideally want to utilize other workflows engines to provide more complicated dags but I could see simple ML workflows being used for JobSet.
 
 ### Increase number of patches to JobSet
 
-Since we will start all jobs in a suspended state, we will have to patch the spec of all the jobs eventually.  
+Since we will start all jobs in a suspended state, we will have to patch the spec of all the jobs eventually.
 
 ## Alternatives
 
 ### Operate on Conditions
 
-We originally wanted to operate based on Conditions for Jobs.  But it turns out that there is no Ready condition.  
+We originally wanted to operate based on Conditions for Jobs. But it turns out that there is no Ready condition.  
 This means that for some cases we would support statuses and others for conditions.  
 We decided to go forward with operating on status fields for both cases.
 
 ### Allow for both ready and succeeded
 
-To avoid JobSets becoming a bad workflow engine.  We want to support startup sequence where once Jobs are ready, then go onto the next job.  
+To avoid JobSets becoming a bad workflow engine. We want to support startup sequence where once Jobs are ready, then go onto the next job.
 
 We did not add support for succeeded at this time as this is more in align with a pipeline or workflow.
 

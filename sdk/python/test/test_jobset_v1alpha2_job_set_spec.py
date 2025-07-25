@@ -154,8 +154,6 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
                                 template = jobset.models.io/k8s/api/core/v1/pod_template_spec.io.k8s.api.core.v1.PodTemplateSpec(), 
                                 ttl_seconds_after_finished = 56, ), ), )
                     ],
-                startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
-                    startup_policy_order = '', ),
                 success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
                     operator = '', 
                     target_replicated_jobs = [
