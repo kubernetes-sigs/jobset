@@ -54,6 +54,21 @@ func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (i
 	return len(jobList.Items), nil
 }
 
+func NumJobsReadyOrSucceeded(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, replicatedJobName string) (int32, error) {
+	var jobSet jobset.JobSet
+	jobSetKey := types.NamespacedName{Namespace: js.Namespace, Name: js.Name}
+	if err := k8sClient.Get(ctx, jobSetKey, &jobSet); err != nil {
+		return 0, err
+	}
+
+	for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
+		if rJobStatus.Name == replicatedJobName {
+			return max(rJobStatus.Ready, rJobStatus.Succeeded), nil
+		}
+	}
+	return 0, nil
+}
+
 func NumJobsByRestartAttempt(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (map[int]int, error) {
 	var jobList batchv1.JobList
 	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
