@@ -44,6 +44,7 @@ import (
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/cert"
+	"sigs.k8s.io/jobset/pkg/util/logutil"
 	"sigs.k8s.io/jobset/pkg/util/useragent"
 	"sigs.k8s.io/jobset/pkg/version"
 	"sigs.k8s.io/jobset/pkg/webhooks"
@@ -108,6 +109,8 @@ func main() {
 	var options manager.Options
 
 	kubeConfig := ctrl.GetConfigOrDie()
+	kubeConfig.WarningHandlerWithContext = logutil.NewDefaultWarningHandler()
+
 	if kubeConfig.UserAgent == "" {
 		kubeConfig.UserAgent = useragent.Default()
 	}

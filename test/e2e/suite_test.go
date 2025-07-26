@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/util/logutil"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -65,6 +66,7 @@ func TestAPIs(t *testing.T) {
 var _ = ginkgo.BeforeSuite(func() {
 	ctx = context.Background()
 	cfg := config.GetConfigOrDie()
+	cfg.WarningHandlerWithContext = logutil.NewDefaultWarningHandler()
 	gomega.ExpectWithOffset(1, cfg).NotTo(gomega.BeNil())
 
 	err := jobset.AddToScheme(scheme.Scheme)
