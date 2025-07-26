@@ -17,6 +17,7 @@ tags, and then generate with `hack/update-toc.sh`.
 -->
 
 <!-- toc -->
+
 - [Summary](#summary)
 - [Motivation](#motivation)
   - [Goals](#goals)
@@ -46,7 +47,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Alternatives](#alternatives)
   - [Using workflow engine to execute sequence of jobs](#using-workflow-engine-to-execute-sequence-of-jobs)
   - [Add the WaitForStatus API under ReplicatedJob](#add-the-waitforstatus-api-under-replicatedjob)
-<!-- /toc -->
+  <!-- /toc -->
 
 ## Summary
 
@@ -56,9 +57,8 @@ Complete status.
 
 ## Motivation
 
-Currently, JobSet supports the StartupPolicy API which allows to create Jobs in order after the
-first Job is in ready status. This can be useful when driver should be ready before workers.
-However, sometimes high performance computing and machine learning users want to run sequence of
+Currently, all ReplicatedJobs in a JobSet are started simultaneously. However, sometimes
+high performance computing and machine learning users want to run sequence of
 ReplicatedJobs within JobSet. For example, it is common to run pre-processing,
 distributed fine-tuning, post-processing for LLM fine-tuning.
 
@@ -450,14 +450,13 @@ In the future versions we will discuss how Kueue can enqueue group of Replicated
 and admit them. For example, when compute resources are available for the first ReplicatedJob
 the JobSet can be dispatched by Kueue.
 
-### Deprecation of StartupPolicy
+### Deprecation and Removal of StartupPolicy
 
-Since the new DependsOn API covers use-cases for the `startupPolicy: InOrder`, we will deprecate the
-StartupPolicy API in the future version of JobSet. Before deprecation, we will make
-StartupPolicy and DependsOn API mutually exclusive. Which means, user can use only
-StartupPolicy or DependsOn API.
+The StartupPolicy API has been deprecated and removed from JobSet as the DependsOn API provides
+more flexible and comprehensive functionality. The StartupPolicy API only supported simple "InOrder"
+execution where all jobs in the sequence must wait for the previous job to be ready.
 
-User should configure JobSet as follows to use the existing functionality of StartupPolicy:
+Users can achieve the same functionality as the former StartupPolicy by configuring JobSet as follows:
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -480,7 +479,6 @@ spec:
   ReplicatedJob's name (e.g. `n-1` from the list).
 - If DependsOn is set, `name` and `status` must be configured.
 - The first ReplicatedJob (e.g `n=0` in the list) can't contain DependsOn API.
-- Make DependsOn and StartupPolicy mutually exclusive.
 
 ### Test Plan
 
@@ -529,6 +527,7 @@ milestones with these graduation criteria:
 - KEP Merge: December 13th 2024
 - Implementation Merge: Janurary 27th 2025
 - Add Support for Multiple `DependsOn` Target: April 13th 2025
+- StartupPolicy API has been removed in favor of the DependsOn API: July 25th 2025
 
 ## Drawbacks
 
