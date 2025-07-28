@@ -347,25 +347,13 @@ var _ = ginkgo.Describe("JobSet", func() {
 				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
 			})
 
-			ginkgo.By("Wait for Model Initializer and Dataset Initializer to be in Ready status", func() {
-				gomega.Eventually(func() int32 {
-					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
-					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
-						if rJobStatus.Name == modelInitializerJob {
-							return rJobStatus.Ready
-						}
-					}
-					return 0
-				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
-				gomega.Eventually(func() int32 {
-					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
-					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
-						if rJobStatus.Name == datasetInitializerJob {
-							return rJobStatus.Ready
-						}
-					}
-					return 0
-				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
+			ginkgo.By("Wait for Model Initializer and Dataset Initializer to be in Ready/Succeeded status", func() {
+				gomega.Eventually(util.NumJobsReadyOrSucceeded, timeout, interval).
+					WithArguments(ctx, k8sClient, jobSet, modelInitializerJob).
+					Should(gomega.Equal(int32(numReplicas)))
+				gomega.Eventually(util.NumJobsReadyOrSucceeded, timeout, interval).
+					WithArguments(ctx, k8sClient, jobSet, datasetInitializerJob).
+					Should(gomega.Equal(int32(numReplicas)))
 			})
 
 			// We need to ensure that the E2E test reaches this check within 10 seconds of
@@ -437,7 +425,6 @@ var _ = ginkgo.Describe("JobSet", func() {
 				})
 
 			jobSet := dependsOnTestJobSet(ns, []jobset.ReplicatedJob{rJobCoordinator, rJobTrainer})
-			jobSetKey := types.NamespacedName{Name: jobSet.Name, Namespace: jobSet.Namespace}
 
 			ginkgo.By("Create a JobSet with DependsOn", func() {
 				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
@@ -451,16 +438,10 @@ var _ = ginkgo.Describe("JobSet", func() {
 			// We need to ensure that the E2E test reaches this check within 10 seconds of
 			// the JobSet being created, as the Coordinator has a 10-second sleep timer.
 			// Otherwise, it will cause this check to fail.
-			ginkgo.By("Wait for Coordinator Job to be in Ready status", func() {
-				gomega.Eventually(func() int32 {
-					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
-					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
-						if rJobStatus.Name == coordinatorJob {
-							return rJobStatus.Ready
-						}
-					}
-					return 0
-				}, timeout, interval).Should(gomega.Equal(int32(numReplicas)))
+			ginkgo.By("Wait for Coordinator Job to be in Ready/Succeeded status", func() {
+				gomega.Eventually(util.NumJobsReadyOrSucceeded, timeout, interval).
+					WithArguments(ctx, k8sClient, jobSet, coordinatorJob).
+					Should(gomega.Equal(int32(numReplicas)))
 			})
 
 			ginkgo.By("Verify that Coordinator Job and Trainer Job is created", func() {
@@ -503,7 +484,6 @@ var _ = ginkgo.Describe("JobSet", func() {
 				})
 
 			jobSet := dependsOnTestJobSet(ns, []jobset.ReplicatedJob{rJobLauncher, rJobTrainer})
-			jobSetKey := types.NamespacedName{Name: jobSet.Name, Namespace: jobSet.Namespace}
 
 			ginkgo.By("Create a JobSet with DependsOn", func() {
 				gomega.Expect(k8sClient.Create(ctx, jobSet)).Should(gomega.Succeed())
@@ -518,15 +498,9 @@ var _ = ginkgo.Describe("JobSet", func() {
 			})
 
 			ginkgo.By("Wait for Launcher to be in Ready/Succeeded status", func() {
-				gomega.Eventually(func() int32 {
-					gomega.Expect(k8sClient.Get(ctx, jobSetKey, jobSet)).Should(gomega.Succeed())
-					for _, rJobStatus := range jobSet.Status.ReplicatedJobsStatus {
-						if rJobStatus.Name == launcherJob {
-							return max(rJobStatus.Ready, rJobStatus.Succeeded)
-						}
-					}
-					return 0
-				}, timeout, interval).Should(gomega.Equal(int32(numReplicasLauncher)))
+				gomega.Eventually(util.NumJobsReadyOrSucceeded, timeout, interval).
+					WithArguments(ctx, k8sClient, jobSet, launcherJob).
+					Should(gomega.Equal(int32(numReplicasLauncher)))
 			})
 
 			// Launcher + Trainer has 6 replicas in total.
