@@ -185,10 +185,20 @@ type JobSetStatus struct {
 	// +listMapKey=name
 	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
 
-	// IndividualJobRecreates tracks the number of times an individual Job within
-	// the JobSet has been recreated (i.e. in case of RecreateJob failure policy).
+	// IndividualJobStatus tracks the status of individual Jobs within ReplicatedJobs.
 	// +optional
-	IndividualJobRecreates map[string]int32 `json:"individualJobRecreates,omitempty"`
+	// +listType=map
+	// +listMapKey=name
+	IndividualJobStatus []IndividualJobStatus `json:"individualJobStatus,omitempty"`
+}
+
+// IndividualJobStatus holds the status of an individual Job within a ReplicatedJob.
+type IndividualJobStatus struct {
+	// Name of the Job.
+	Name string `json:"name"`
+
+	// Recreates is the number of times an individual Job has been recreated.
+	Recreates int32 `json:"recreates"`
 }
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.

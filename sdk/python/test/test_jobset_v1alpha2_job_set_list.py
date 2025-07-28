@@ -131,9 +131,11 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     status = '', 
                                     type = '', )
                                 ], 
-                            individual_job_recreates = {
-                                'key' : 56
-                                }, 
+                            individual_job_status = [
+                                jobset.models.jobset_v1alpha2_individual_job_status.JobsetV1alpha2IndividualJobStatus(
+                                    name = '', 
+                                    recreates = 56, )
+                                ], 
                             replicated_jobs_status = [
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                                     active = 56, 
@@ -251,9 +253,11 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     status = '', 
                                     type = '', )
                                 ], 
-                            individual_job_recreates = {
-                                'key' : 56
-                                }, 
+                            individual_job_status = [
+                                jobset.models.jobset_v1alpha2_individual_job_status.JobsetV1alpha2IndividualJobStatus(
+                                    name = '', 
+                                    recreates = 56, )
+                                ], 
                             replicated_jobs_status = [
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                                     active = 56, 

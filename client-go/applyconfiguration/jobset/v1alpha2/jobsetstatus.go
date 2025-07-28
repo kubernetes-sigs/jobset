@@ -26,7 +26,7 @@ type JobSetStatusApplyConfiguration struct {
 	RestartsCountTowardsMax *int32                                  `json:"restartsCountTowardsMax,omitempty"`
 	TerminalState           *string                                 `json:"terminalState,omitempty"`
 	ReplicatedJobsStatus    []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
-	IndividualJobRecreates  map[string]int32                        `json:"individualJobRecreates,omitempty"`
+	IndividualJobStatus     []IndividualJobStatusApplyConfiguration `json:"individualJobStatus,omitempty"`
 }
 
 // JobSetStatusApplyConfiguration constructs a declarative configuration of the JobSetStatus type for use with
@@ -85,16 +85,15 @@ func (b *JobSetStatusApplyConfiguration) WithReplicatedJobsStatus(values ...*Rep
 	return b
 }
 
-// WithIndividualJobRecreates puts the entries into the IndividualJobRecreates field in the declarative configuration
+// WithIndividualJobStatus adds the given value to the IndividualJobStatus field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, the entries provided by each call will be put on the IndividualJobRecreates field,
-// overwriting an existing map entries in IndividualJobRecreates field with the same key.
-func (b *JobSetStatusApplyConfiguration) WithIndividualJobRecreates(entries map[string]int32) *JobSetStatusApplyConfiguration {
-	if b.IndividualJobRecreates == nil && len(entries) > 0 {
-		b.IndividualJobRecreates = make(map[string]int32, len(entries))
-	}
-	for k, v := range entries {
-		b.IndividualJobRecreates[k] = v
+// If called multiple times, values provided by each call will be appended to the IndividualJobStatus field.
+func (b *JobSetStatusApplyConfiguration) WithIndividualJobStatus(values ...*IndividualJobStatusApplyConfiguration) *JobSetStatusApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithIndividualJobStatus")
+		}
+		b.IndividualJobStatus = append(b.IndividualJobStatus, *values[i])
 	}
 	return b
 }

@@ -165,7 +165,9 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 	js.Status.Restarts += 1
 
 	// Reset individual Job recreates counters.
-	js.Status.IndividualJobRecreates = map[string]int32{}
+	for _, individualJobStatus := range js.Status.IndividualJobStatus {
+		individualJobStatus.Recreates = 0
+	}
 
 	if shouldCountTowardsMax {
 		js.Status.RestartsCountTowardsMax += 1
@@ -234,7 +236,7 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 }
 
 // recreateJobActionApplier applies the RecreateJob FailurePolicyAction, marking a single
-// job for deletion and recreation by incrementing the appropriate IndividualJobRecreates
+// job for deletion and recreation by incrementing the appropriate IndividualJobStatus.Recreates
 // entry in the JobSet status.
 var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
 	// Since RecreateJob failure policy counts toward max restarts, we also have to
@@ -248,11 +250,22 @@ var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Conte
 		return nil
 	}
 
-	if js.Status.IndividualJobRecreates == nil {
-		js.Status.IndividualJobRecreates = map[string]int32{}
+	newRecreates := getIndividualJobRecreates(js, matchingFailedJob.Name) + 1
+	found := false
+	for i, individualJobStatus := range js.Status.IndividualJobStatus {
+		if individualJobStatus.Name == matchingFailedJob.Name {
+			individualJobStatus.Recreates = newRecreates
+			js.Status.IndividualJobStatus[i] = individualJobStatus
+			found = true
+			break
+		}
 	}
-
-	js.Status.IndividualJobRecreates[matchingFailedJob.Name] = getIndividualJobRecreates(js, matchingFailedJob.Name) + 1
+	if !found {
+		js.Status.IndividualJobStatus = append(js.Status.IndividualJobStatus, jobset.IndividualJobStatus{
+			Name:      matchingFailedJob.Name,
+			Recreates: newRecreates,
+		})
+	}
 
 	js.Status.RestartsCountTowardsMax += 1
 
