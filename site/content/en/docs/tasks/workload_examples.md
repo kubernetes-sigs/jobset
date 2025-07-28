@@ -4,7 +4,7 @@ linkTitle: "Example Workloads"
 weight: 6
 date: 2025-07-23
 description: >
-    Examples of PyTorch and Tensorflow workloads using JobSet
+    Examples of PyTorch and TensorFlow workloads using JobSet
 no_list: true
 ---
 
@@ -15,9 +15,9 @@ no_list: true
 
 **Note**: Machine learning container images can be quite large so it may take some time to pull the images.
 
-## Tensorflow Example
+## TensorFlow Example
 
-- [Distributed Training of a Handwritten Digit Classifier on the MNIST dataset using Tensorflow and JobSet](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/tensorflow/mnist.yaml)
+- [Distributed Training of a Handwritten Digit Classifier on the MNIST dataset using TensorFlow and JobSet](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/tensorflow/mnist.yaml)
 
 This example runs an example job for a single epoch.
 You can view the progress of your jobs via `kubectl logs jobs/tensorflow-tensorflow-0`.
