@@ -164,10 +164,7 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 	// of old jobs not part of the current jobSet run.
 	js.Status.Restarts += 1
 
-	// Reset individual Job recreates counters.
-	for _, individualJobStatus := range js.Status.IndividualJobStatus {
-		individualJobStatus.Recreates = 0
-	}
+	resetIndividualJobRecreates(js)
 
 	if shouldCountTowardsMax {
 		js.Status.RestartsCountTowardsMax += 1
@@ -178,6 +175,14 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 	// Emit event for each JobSet restarts for observability and debugability.
 	enqueueEvent(updateStatusOpts, event)
 	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
+}
+
+// resetIndividualJobRecreates resets all individual Job recreates counters to 0.
+func resetIndividualJobRecreates(js *jobset.JobSet) {
+	for i, individualJobStatus := range js.Status.IndividualJobsStatus {
+		individualJobStatus.Recreates = 0
+		js.Status.IndividualJobsStatus[i] = individualJobStatus
+	}
 }
 
 // The type failurePolicyActionApplier applies a FailurePolicyAction and returns nil if the FailurePolicyAction was successfully applied.
@@ -251,21 +256,7 @@ var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Conte
 	}
 
 	newRecreates := getIndividualJobRecreates(js, matchingFailedJob.Name) + 1
-	found := false
-	for i, individualJobStatus := range js.Status.IndividualJobStatus {
-		if individualJobStatus.Name == matchingFailedJob.Name {
-			individualJobStatus.Recreates = newRecreates
-			js.Status.IndividualJobStatus[i] = individualJobStatus
-			found = true
-			break
-		}
-	}
-	if !found {
-		js.Status.IndividualJobStatus = append(js.Status.IndividualJobStatus, jobset.IndividualJobStatus{
-			Name:      matchingFailedJob.Name,
-			Recreates: newRecreates,
-		})
-	}
+	setIndividualJobRecreates(js, matchingFailedJob.Name, newRecreates)
 
 	js.Status.RestartsCountTowardsMax += 1
 
@@ -282,6 +273,26 @@ var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Conte
 	updateStatusOpts.shouldUpdate = true
 
 	return nil
+}
+
+// setIndividualJobRecreates sets the Recreates value of the corresponding entry
+// in js.Status.IndividualJobsStatus, creating it if it does not exist.
+func setIndividualJobRecreates(js *jobset.JobSet, jobName string, recreates int32) {
+	found := false
+	for i, individualJobStatus := range js.Status.IndividualJobsStatus {
+		if individualJobStatus.Name == jobName {
+			individualJobStatus.Recreates = recreates
+			js.Status.IndividualJobsStatus[i] = individualJobStatus
+			found = true
+			break
+		}
+	}
+	if !found {
+		js.Status.IndividualJobsStatus = append(js.Status.IndividualJobsStatus, jobset.IndividualJobStatus{
+			Name:      jobName,
+			Recreates: recreates,
+		})
+	}
 }
 
 // parentReplicatedJobName returns the name of the parent

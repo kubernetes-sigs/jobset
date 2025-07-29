@@ -250,8 +250,8 @@ func (in *JobSetStatus) DeepCopyInto(out *JobSetStatus) {
 		*out = make([]ReplicatedJobStatus, len(*in))
 		copy(*out, *in)
 	}
-	if in.IndividualJobStatus != nil {
-		in, out := &in.IndividualJobStatus, &out.IndividualJobStatus
+	if in.IndividualJobsStatus != nil {
+		in, out := &in.IndividualJobsStatus, &out.IndividualJobsStatus
 		*out = make([]IndividualJobStatus, len(*in))
 		copy(*out, *in)
 	}

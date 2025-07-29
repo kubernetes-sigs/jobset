@@ -330,7 +330,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 // getIndividualJobRecreates returns the corresponding IndividualJobStatus.Recreates
 // entry in a JobSet's Status, defaulting to 0 if it does not exist.
 func getIndividualJobRecreates(js *jobset.JobSet, jobName string) int32 {
-	for _, individualJobStatus := range js.Status.IndividualJobStatus {
+	for _, individualJobStatus := range js.Status.IndividualJobsStatus {
 		if individualJobStatus.Name == jobName {
 			return individualJobStatus.Recreates
 		}

@@ -185,11 +185,11 @@ type JobSetStatus struct {
 	// +listMapKey=name
 	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
 
-	// IndividualJobStatus tracks the status of individual Jobs within ReplicatedJobs.
+	// IndividualJobsStatus tracks the status of individual Jobs within ReplicatedJobs.
 	// +optional
 	// +listType=map
 	// +listMapKey=name
-	IndividualJobStatus []IndividualJobStatus `json:"individualJobStatus,omitempty"`
+	IndividualJobsStatus []IndividualJobStatus `json:"individualJobsStatus,omitempty"`
 }
 
 // IndividualJobStatus holds the status of an individual Job within a ReplicatedJob.

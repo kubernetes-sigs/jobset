@@ -212,7 +212,7 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             status = '', 
                             type = '', )
                         ], 
-                    individual_job_status = [
+                    individual_jobs_status = [
                         jobset.models.jobset_v1alpha2_individual_job_status.JobsetV1alpha2IndividualJobStatus(
                             name = '', 
                             recreates = 56, )
