@@ -277,21 +277,16 @@ var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Conte
 // setIndividualJobRecreates sets the Recreates value of the corresponding entry
 // in js.Status.IndividualJobsStatus, creating it if it does not exist.
 func setIndividualJobRecreates(js *jobset.JobSet, jobName string, recreates int32) {
-	found := false
 	for i, individualJobStatus := range js.Status.IndividualJobsStatus {
 		if individualJobStatus.Name == jobName {
-			individualJobStatus.Recreates = recreates
-			js.Status.IndividualJobsStatus[i] = individualJobStatus
-			found = true
-			break
+			js.Status.IndividualJobsStatus[i].Recreates = recreates
+			return
 		}
 	}
-	if !found {
-		js.Status.IndividualJobsStatus = append(js.Status.IndividualJobsStatus, jobset.IndividualJobStatus{
-			Name:      jobName,
-			Recreates: recreates,
-		})
-	}
+	js.Status.IndividualJobsStatus = append(js.Status.IndividualJobsStatus, jobset.IndividualJobStatus{
+		Name:      jobName,
+		Recreates: recreates,
+	})
 }
 
 // parentReplicatedJobName returns the name of the parent
