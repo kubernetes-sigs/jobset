@@ -179,9 +179,8 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 
 // resetIndividualJobRecreates resets all individual Job recreates counters to 0.
 func resetIndividualJobRecreates(js *jobset.JobSet) {
-	for i, individualJobStatus := range js.Status.IndividualJobsStatus {
-		individualJobStatus.Recreates = 0
-		js.Status.IndividualJobsStatus[i] = individualJobStatus
+	for i := range js.Status.IndividualJobsStatus {
+		js.Status.IndividualJobsStatus[i].Recreates = 0
 	}
 }
 
