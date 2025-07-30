@@ -197,30 +197,37 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		}
 	}
 
-	// If pod DNS hostnames are enabled, create a headless service for the JobSet
+	if jobSetSuspended(js) {
+		// Suspend child jobs. This also sets the suspended condition, so it must be called even with no jobs to suspend.
+		if err := r.suspendJobs(ctx, js, ownedJobs.active, updateStatusOpts); err != nil {
+			log.Error(err, "suspending jobset")
+			return ctrl.Result{}, err
+		}
+
+		// When the JobSet is suspended, don't do anything else.
+		// This also means that child resources are not created immediately when a suspended JobSet is created.
+		return ctrl.Result{}, nil
+	}
+
+	// Ensure the headless service exists.
+	// This only gets executed on JobSet not suspended, which should be ok,
+	// because the service is not really needed when there are no jobs running.
 	if err := r.createHeadlessSvcIfNecessary(ctx, js); err != nil {
 		log.Error(err, "creating headless service")
 		return ctrl.Result{}, err
 	}
 
-	// If job has not failed or succeeded, reconcile the state of the replicatedJobs.
-	if err := r.reconcileReplicatedJobs(ctx, js, ownedJobs, rjobStatuses, updateStatusOpts); err != nil {
+	// At this point we know the JobSet is neither finished nor suspended,
+	// so just ensure all child jobs are created as appropriate.
+	if err := r.createReplicatedJobs(ctx, js, ownedJobs, rjobStatuses, updateStatusOpts); err != nil {
 		log.Error(err, "creating jobs")
 		return ctrl.Result{}, err
 	}
 
-	// Handle suspending a jobset or resuming a suspended jobset.
-	jobsetSuspended := jobSetSuspended(js)
-	if jobsetSuspended {
-		if err := r.suspendJobs(ctx, js, ownedJobs.active, updateStatusOpts); err != nil {
-			log.Error(err, "suspending jobset")
-			return ctrl.Result{}, err
-		}
-	} else {
-		if err := r.resumeJobsIfNecessary(ctx, js, ownedJobs.active, rjobStatuses, updateStatusOpts); err != nil {
-			log.Error(err, "resuming jobset")
-			return ctrl.Result{}, err
-		}
+	// Ensure child jobs are unsuspended.
+	if err := r.resumeJobsIfNecessary(ctx, js, ownedJobs.active, rjobStatuses, updateStatusOpts); err != nil {
+		log.Error(err, "resuming jobset")
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
@@ -537,7 +544,9 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 	return r.Update(ctx, job)
 }
 
-func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
+// createReplicatedJobs makes sure relevant jobs are created. It properly handles startup policies and job dependencies.
+// It does not check whether the JobSet is suspended, though, and actually shouldn't be called at all in that case.
+func (r *JobSetReconciler) createReplicatedJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
 	log := ctrl.LoggerFrom(ctx)
 	startupPolicy := js.Spec.StartupPolicy
 
@@ -557,7 +566,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 
 		// For startup policy, if the replicatedJob is started we can skip this loop.
 		// Jobs have been created.
-		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) && allReplicasStarted(replicatedJob.Replicas, replicatedJobStatus) {
+		if inOrderStartupPolicy(startupPolicy) && allReplicasStarted(replicatedJob.Replicas, replicatedJobStatus) {
 			continue
 		}
 
@@ -570,14 +579,14 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		// If we are using inOrder StartupPolicy, then we return to wait for jobs to be ready.
 		// This updates the StartupPolicy condition and notifies that we are waiting
 		// for this replicated job to start up before moving onto the next one.
-		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
+		if inOrderStartupPolicy(startupPolicy) {
 			setInOrderStartupPolicyInProgressCondition(js, updateStatusOpts)
 			return nil
 		}
 	}
 
 	// Skip emitting a condition for StartupPolicy if JobSet is suspended
-	if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
+	if inOrderStartupPolicy(startupPolicy) {
 		setInOrderStartupPolicyCompletedCondition(js, updateStatusOpts)
 	}
 	return nil
@@ -644,7 +653,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 	log := ctrl.LoggerFrom(ctx)
 
 	// Headless service is only necessary for indexed jobs whose pods need to communicate with
-	// eachother via pod hostnames.
+	// each other via pod hostnames.
 	if !dnsHostnamesEnabled(js) {
 		return nil
 	}

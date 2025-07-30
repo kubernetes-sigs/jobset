@@ -29,6 +29,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -142,6 +143,27 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				Operator: corev1.TolerationOpExists,
 			},
 		},
+	}
+
+	checkCreatedSuspendedJobSetStep := func(jobNames ...string) *step {
+		expectedStatus := make([]jobset.ReplicatedJobStatus, len(jobNames))
+		for i := range expectedStatus {
+			expectedStatus[i].Name = jobNames[i]
+		}
+
+		return &step{
+			checkJobSetState: func(js *jobset.JobSet) {
+				ginkgo.By("checking suspended jobset replicated job status")
+				matchJobSetReplicatedStatus(js, expectedStatus)
+
+				// We can check no child jobs without Eventually here,
+				// because the previous call waits for the JobSet status to be updated.
+				// If there were any jobs to be created, they would be created at that point.
+				ginkgo.By("checking no child job exists")
+				gomega.Expect(testutil.NumJobs(ctx, k8sClient, js)).To(gomega.Equal(0))
+			},
+			checkJobSetCondition: testutil.JobSetSuspended,
+		}
 	}
 
 	ginkgo.DescribeTable("jobset is created and its jobs go through a series of updates",
@@ -1078,30 +1100,18 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("jobset created in suspended state", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testJobSet(ns).
-					Suspend(true)
+				return testJobSet(ns).Suspend(true)
 			},
+			skipCreationCheck: true,
 			steps: []*step{
+				checkCreatedSuspendedJobSetStep("replicated-job-b", "replicated-job-a"),
 				{
 					checkJobSetState: func(js *jobset.JobSet) {
-						ginkgo.By("checking all jobs are suspended")
-						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
-					},
-					checkJobSetCondition: testutil.JobSetSuspended,
-				},
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						ginkgo.By("Check ReplicatedJobStatus for suspend")
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{
-								Name:      "replicated-job-b",
-								Suspended: 3,
-							},
-							{
-								Name:      "replicated-job-a",
-								Suspended: 1,
-							},
-						})
+						ginkgo.By("checking no headless service exists")
+						var svc corev1.Service
+						err := k8sClient.Get(ctx, types.NamespacedName{Name: controllers.GetSubdomain(js), Namespace: js.Namespace}, &svc)
+						gomega.Expect(err).To(gomega.HaveOccurred())
+						gomega.Expect(apierrors.IsNotFound(err)).To(gomega.BeTrue())
 					},
 				},
 			},
@@ -1110,30 +1120,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(true)
 			},
+			skipCreationCheck: true,
 			steps: []*step{
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						ginkgo.By("checking all jobs are suspended")
-						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
-					},
-					checkJobSetCondition: testutil.JobSetSuspended,
-				},
+				checkCreatedSuspendedJobSetStep("replicated-job-b", "replicated-job-a"),
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						updatePodTemplates(js, podTemplateUpdates)
-					},
-					checkJobSetState: func(js *jobset.JobSet) {
-						ginkgo.By("Check ReplicatedJobStatus for suspend")
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{
-								Name:      "replicated-job-b",
-								Suspended: 3,
-							},
-							{
-								Name:      "replicated-job-a",
-								Suspended: 1,
-							},
-						})
 					},
 				},
 				{
@@ -1326,54 +1318,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("startupPolicy with InOrder; suspend should keep jobs suspended", &testCase{
-			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testJobSet(ns).Suspend(true).
-					StartupPolicy(&jobset.StartupPolicy{
-						StartupPolicyOrder: jobset.InOrder,
-					})
-			},
-			steps: []*step{
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{
-								Name:      "replicated-job-b",
-								Suspended: 3,
-							},
-							{
-								Name:      "replicated-job-a",
-								Suspended: 1,
-							},
-						})
-					},
-				},
-			},
-		}),
-		ginkgo.Entry("startupPolicy with AnyOrder; suspend should keep jobs suspended", &testCase{
-			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testJobSet(ns).Suspend(true).
-					StartupPolicy(&jobset.StartupPolicy{
-						StartupPolicyOrder: jobset.AnyOrder,
-					})
-			},
-			steps: []*step{
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{
-								Name:      "replicated-job-b",
-								Suspended: 3,
-							},
-							{
-								Name:      "replicated-job-a",
-								Suspended: 1,
-							},
-						})
-					},
-				},
-			},
-		}),
 		ginkgo.Entry("startupPolicy with AnyOrder; resume suspended JobSet", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(true).
@@ -1381,21 +1325,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						StartupPolicyOrder: jobset.AnyOrder,
 					})
 			},
+			skipCreationCheck: true,
 			steps: []*step{
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{
-								Name:      "replicated-job-b",
-								Suspended: 3,
-							},
-							{
-								Name:      "replicated-job-a",
-								Suspended: 1,
-							},
-						})
-					},
-				},
+				checkCreatedSuspendedJobSetStep("replicated-job-b", "replicated-job-a"),
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						suspendJobSet(js, false)
@@ -1430,41 +1362,13 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						StartupPolicyOrder: jobset.InOrder,
 					})
 			},
+			skipCreationCheck: true,
 			steps: []*step{
-				// Ensure replicated job statuses report all child jobs are suspended.
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{
-								Name:      "replicated-job-b",
-								Suspended: 3,
-							},
-							{
-								Name:      "replicated-job-a",
-								Suspended: 1,
-							},
-						})
-					},
-				},
-				// Resume jobset. Only first replicated job should be unsuspended due to in-order
-				// startup policy.
+				checkCreatedSuspendedJobSetStep("replicated-job-b", "replicated-job-a"),
+				// Resume jobset. Only first replicated job should be unsuspended due to in-order startup policy.
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						suspendJobSet(js, false)
-					},
-				},
-				{
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{
-								Name:      "replicated-job-b",
-								Suspended: 3,
-							},
-							{
-								Name:      "replicated-job-a",
-								Suspended: 0,
-							},
-						})
 					},
 				},
 				// Update first replicatedJob so all its child jobs are ready. This will allow
@@ -1472,6 +1376,10 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						readyReplicatedJob(jobList, "replicated-job-a")
+					},
+					checkJobCreation: func(js *jobset.JobSet) {
+						expectedStarts := 1
+						gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(expectedStarts))
 					},
 				},
 				{
@@ -2204,35 +2112,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			skipCreationCheck: true,
 			steps: []*step{
 				{
-					// Ensure that Replicated-Job-A is suspended.
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{
-								Name: "rjob-b",
-							},
-							{
-								Name:      "rjob-a",
-								Suspended: 1,
-							},
-						})
-					},
-				},
-				{
 					// Resume the JobSet.
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						suspendJobSet(js, false)
-					},
-					// Only the Replicated-Job-A should be unsuspended due to DependsOn order.
-					checkJobSetState: func(js *jobset.JobSet) {
-						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
-							{
-								Name: "rjob-b",
-							},
-							{
-								Name:      "rjob-a",
-								Suspended: 0,
-							},
-						})
 					},
 				},
 				{
