@@ -194,7 +194,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 
 			// Ensure the child jobs are deleted.
 			ginkgo.By("checking that all child jobs are deleted")
-			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(0))
+			gomega.Expect(util.NumJobs(ctx, k8sClient, js)).To(gomega.Equal(0))
 		})
 	})
 
