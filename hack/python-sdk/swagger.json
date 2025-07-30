@@ -124,7 +124,7 @@
           "default": ""
         },
         "recreates": {
-          "description": "Recreates is the number of times an individual Job has been recreated.",
+          "description": "Recreates is the number of times an individual Job has been recreated. This counter is reset to 0 if the parent ReplicatedJob or JobSet is restarted.",
           "type": "integer",
           "format": "int32",
           "default": 0

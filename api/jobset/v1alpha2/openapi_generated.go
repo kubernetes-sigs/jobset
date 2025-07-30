@@ -231,7 +231,7 @@ func schema_jobset_api_jobset_v1alpha2_IndividualJobStatus(ref common.ReferenceC
 					},
 					"recreates": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Recreates is the number of times an individual Job has been recreated.",
+							Description: "Recreates is the number of times an individual Job has been recreated. This counter is reset to 0 if the parent ReplicatedJob or JobSet is restarted.",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",

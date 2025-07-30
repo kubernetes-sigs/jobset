@@ -9162,8 +9162,9 @@ spec:
                       description: Name of the Job.
                       type: string
                     recreates:
-                      description: Recreates is the number of times an individual
-                        Job has been recreated.
+                      description: |-
+                        Recreates is the number of times an individual Job has been recreated.
+                        This counter is reset to 0 if the parent ReplicatedJob or JobSet is restarted.
                       format: int32
                       type: integer
                   required:

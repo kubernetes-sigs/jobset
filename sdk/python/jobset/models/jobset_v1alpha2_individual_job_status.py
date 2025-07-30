@@ -27,7 +27,7 @@ class JobsetV1alpha2IndividualJobStatus(BaseModel):
     IndividualJobStatus holds the status of an individual Job within a ReplicatedJob.
     """ # noqa: E501
     name: StrictStr = Field(description="Name of the Job.")
-    recreates: StrictInt = Field(description="Recreates is the number of times an individual Job has been recreated.")
+    recreates: StrictInt = Field(description="Recreates is the number of times an individual Job has been recreated. This counter is reset to 0 if the parent ReplicatedJob or JobSet is restarted.")
     __properties: ClassVar[List[str]] = ["name", "recreates"]
 
     model_config = ConfigDict(
