@@ -198,6 +198,7 @@ type IndividualJobStatus struct {
 	Name string `json:"name"`
 
 	// Recreates is the number of times an individual Job has been recreated.
+	// This counter is reset to 0 if the parent ReplicatedJob or JobSet is restarted.
 	Recreates int32 `json:"recreates"`
 }
 
