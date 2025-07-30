@@ -172,7 +172,29 @@ var _ = ginkgo.Describe("JobSet", func() {
 
 			// Check jobset is cleaned up after ttl seconds.
 			ginkgo.By("checking jobset is cleaned up after ttl seconds")
+		})
+	})
+
+	ginkgo.When("deleted using foreground propagation policy", func() {
+		ginkgo.It("all child jobs should be deleted", func() {
+			ctx := context.Background()
+
+			// Create a JobSet.
+			js := sleepTestJobSet(ns, 60).Obj()
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			// Delete the JobSet using the foreground propagation policy.
+			ginkgo.By("deleting the jobset using foreground propagation policy")
+			gomega.Expect(k8sClient.Delete(ctx, js, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(gomega.Succeed())
+
+			// Ensure the jobset is deleted.
+			ginkgo.By("checking that jobset deletion succeeds")
 			util.JobSetDeleted(ctx, k8sClient, js, timeout)
+
+			// Ensure the child jobs are deleted.
+			ginkgo.By("checking that all child jobs are deleted")
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(0))
 		})
 	})
 
