@@ -12,7 +12,7 @@ _As contributors and maintainers of this project, and in the interest of fosteri
 
 ## Getting Started
 
-We have full documentation on how to get started contributing [here](./development)!
+We have full documentation on how to get started contributing [here](https://jobset.sigs.k8s.io/docs/contribution_guidelines/development)!
 
 <!--
 If you're seeing this, you're viewing the contribution guidelines in the GitHub repo rather than our
