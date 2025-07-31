@@ -12,11 +12,14 @@ _As contributors and maintainers of this project, and in the interest of fosteri
 
 ## Getting Started
 
-We have full documentation on how to get started contributing here:
+We have full documentation on how to get started contributing [here](https://jobset.sigs.k8s.io/docs/contribution_guidelines/development)!
 
-<!---
-If your repo has certain guidelines for contribution, put them here ahead of the general k8s resources
+<!--
+If you're seeing this, you're viewing the contribution guidelines in the GitHub repo rather than our
+docs site (https://jobset.sigs.k8s.io). Either visit the contribution guidelines on our docs site or
+read the raw markdown files at site/content/en/docs/contribution_guidelines/. Happy to have you contributing!
 -->
+
 
 - [Contributor License Agreement](https://git.k8s.io/community/CLA.md) Kubernetes projects require that you sign a Contributor License Agreement (CLA) before we can accept your pull requests
 - [Kubernetes Contributor Guide](https://git.k8s.io/community/contributors/guide) - Main contributor documentation, or you can just jump directly to the [contributing section](https://git.k8s.io/community/contributors/guide#contributing)
