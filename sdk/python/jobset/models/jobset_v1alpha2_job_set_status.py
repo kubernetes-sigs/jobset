@@ -20,6 +20,7 @@ import json
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from jobset.models.io_k8s_apimachinery_pkg_apis_meta_v1_condition import IoK8sApimachineryPkgApisMetaV1Condition
+from jobset.models.jobset_v1alpha2_individual_job_status import JobsetV1alpha2IndividualJobStatus
 from jobset.models.jobset_v1alpha2_replicated_job_status import JobsetV1alpha2ReplicatedJobStatus
 from typing import Optional, Set
 from typing_extensions import Self
@@ -29,12 +30,12 @@ class JobsetV1alpha2JobSetStatus(BaseModel):
     JobSetStatus defines the observed state of JobSet
     """ # noqa: E501
     conditions: Optional[List[IoK8sApimachineryPkgApisMetaV1Condition]] = None
-    individual_job_recreates: Optional[Dict[str, StrictInt]] = Field(default=None, description="IndividualJobRecreates tracks the number of times an individual Job within the JobSet has been recreated (i.e. in case of RecreateJob failure policy).", alias="individualJobRecreates")
+    individual_jobs_status: Optional[List[JobsetV1alpha2IndividualJobStatus]] = Field(default=None, description="IndividualJobsStatus tracks the status of individual Jobs within ReplicatedJobs.", alias="individualJobsStatus")
     replicated_jobs_status: Optional[List[JobsetV1alpha2ReplicatedJobStatus]] = Field(default=None, description="ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.", alias="replicatedJobsStatus")
     restarts: Optional[StrictInt] = Field(default=0, description="Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).")
     restarts_count_towards_max: Optional[StrictInt] = Field(default=None, description="RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.", alias="restartsCountTowardsMax")
     terminal_state: Optional[StrictStr] = Field(default=None, description="TerminalState the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.", alias="terminalState")
-    __properties: ClassVar[List[str]] = ["conditions", "individualJobRecreates", "replicatedJobsStatus", "restarts", "restartsCountTowardsMax", "terminalState"]
+    __properties: ClassVar[List[str]] = ["conditions", "individualJobsStatus", "replicatedJobsStatus", "restarts", "restartsCountTowardsMax", "terminalState"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -82,6 +83,13 @@ class JobsetV1alpha2JobSetStatus(BaseModel):
                 if _item_conditions:
                     _items.append(_item_conditions.to_dict())
             _dict['conditions'] = _items
+        # override the default output from pydantic by calling `to_dict()` of each item in individual_jobs_status (list)
+        _items = []
+        if self.individual_jobs_status:
+            for _item_individual_jobs_status in self.individual_jobs_status:
+                if _item_individual_jobs_status:
+                    _items.append(_item_individual_jobs_status.to_dict())
+            _dict['individualJobsStatus'] = _items
         # override the default output from pydantic by calling `to_dict()` of each item in replicated_jobs_status (list)
         _items = []
         if self.replicated_jobs_status:
@@ -102,7 +110,7 @@ class JobsetV1alpha2JobSetStatus(BaseModel):
 
         _obj = cls.model_validate({
             "conditions": [IoK8sApimachineryPkgApisMetaV1Condition.from_dict(_item) for _item in obj["conditions"]] if obj.get("conditions") is not None else None,
-            "individualJobRecreates": obj.get("individualJobRecreates"),
+            "individualJobsStatus": [JobsetV1alpha2IndividualJobStatus.from_dict(_item) for _item in obj["individualJobsStatus"]] if obj.get("individualJobsStatus") is not None else None,
             "replicatedJobsStatus": [JobsetV1alpha2ReplicatedJobStatus.from_dict(_item) for _item in obj["replicatedJobsStatus"]] if obj.get("replicatedJobsStatus") is not None else None,
             "restarts": obj.get("restarts") if obj.get("restarts") is not None else 0,
             "restartsCountTowardsMax": obj.get("restartsCountTowardsMax"),
