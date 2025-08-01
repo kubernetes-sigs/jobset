@@ -86,14 +86,9 @@ const (
 	JobSetFailed JobSetConditionType = "Failed"
 	// JobSetSuspended means the job is suspended.
 	JobSetSuspended JobSetConditionType = "Suspended"
-	// JobSetStartupPolicyInProgress means the StartupPolicy is in progress.
-	JobSetStartupPolicyInProgress JobSetConditionType = "StartupPolicyInProgress"
-	// JobSetStartupPolicyCompleted means the StartupPolicy has completed.
-	JobSetStartupPolicyCompleted JobSetConditionType = "StartupPolicyCompleted"
 )
 
 // JobSetSpec defines the desired state of JobSet
-// +kubebuilder:validation:XValidation:rule="!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder == 'InOrder' && self.replicatedJobs.exists(x, has(x.dependsOn)))",message="StartupPolicy and DependsOn APIs are mutually exclusive"
 type JobSetSpec struct {
 	// ReplicatedJobs is the group of jobs that will form the set.
 	// +listType=map
@@ -118,11 +113,6 @@ type JobSetSpec struct {
 	// finished with status failed.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"`
-
-	// StartupPolicy, if set, configures in what order jobs must be started
-	// Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
 
 	// Suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"`
@@ -266,7 +256,6 @@ type ReplicatedJob struct {
 	// Currently, only a single item is supported in the DependsOn list.
 	// If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is
 	// resumed the Job sequence starts again.
-	// This API is mutually exclusive with the StartupPolicy API.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	// +kubebuilder:validation:MaxItems=5
 	// +optional
@@ -411,27 +400,6 @@ type SuccessPolicy struct {
 	// +optional
 	// +listType=atomic
 	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
-}
-
-type StartupPolicyOptions string
-
-const (
-	// This is the default setting
-	// AnyOrder means that we will start the replicated jobs
-	// without any specific order.
-	AnyOrder StartupPolicyOptions = "AnyOrder"
-	// InOrder starts the replicated jobs in order
-	// that they are listed.
-	InOrder StartupPolicyOptions = "InOrder"
-)
-
-type StartupPolicy struct {
-	// StartupPolicyOrder determines the startup order of the ReplicatedJobs.
-	// AnyOrder means to start replicated jobs in any order.
-	// InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
-	// when all the jobs of the previous one are ready.
-	// +kubebuilder:validation:Enum=AnyOrder;InOrder
-	StartupPolicyOrder StartupPolicyOptions `json:"startupPolicyOrder"`
 }
 
 // Coordinator defines which pod can be marked as the coordinator for the JobSet workload.
