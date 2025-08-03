@@ -46,9 +46,6 @@ efficiently and improve ML training goodput.
   - ✔️ Unit Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-unit-main).
   - ✔️ Integration Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-integration-main)
   - ✔️ E2E Tests for Kubernetes
-    [1.31](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-31),
-    [1.32](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-32),
-    [1.33](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-33),
     on Kind.
 - ✔️ Monitoring via [metrics](https://jobset.sigs.k8s.io/docs/reference/metrics).
 - ✔️ Security: RBAC based accessibility.
@@ -70,15 +67,7 @@ Read the [installation guide](https://jobset.sigs.k8s.io/docs/installation/) to 
 
 ## Roadmap
 
-Below is the JobSet roadmap for 2025:
-
-- [x] Execution Policy (https://github.com/kubernetes-sigs/jobset/issues/672)
-- [ ] Graduate API to v1 (https://github.com/kubernetes-sigs/jobset/issues/380)
-- [ ] In-place restarts (https://github.com/kubernetes-sigs/jobset/issues/467)
-- [ ] Autoscaling Replicated Job (https://github.com/kubernetes-sigs/jobset/issues/570)
-- [ ] Job-Level Resource Claim Templates (https://github.com/kubernetes-sigs/jobset/issues/762)
-- [ ] Terminate JobSets when using Kueue (https://github.com/kubernetes-sigs/jobset/issues/788)
-- [ ] Support Stateful JobSet (https://github.com/kubernetes-sigs/jobset/issues/572)
+See our github project for our [roadmap](https://github.com/orgs/kubernetes-sigs/projects/99/views/2)
 
 ## Troubleshooting Common Issues
 
