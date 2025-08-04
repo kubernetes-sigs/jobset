@@ -285,7 +285,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	ownedJobs := childJobs{}
 	for i, job := range childJobList.Items {
 		// Jobs with jobset.sigs.k8s.io/restart-attempt < restarts or
-		// jobset.sigs.k8s.io/individual-job-recreates < individualJobRecreates[<jobName>] are marked for deletion.
+		// jobset.sigs.k8s.io/individual-job-recreates < individualJobsStatus[<jobName>].Recreates are marked for deletion.
 
 		jobRestarts, err := strconv.Atoi(job.Labels[constants.RestartsKey])
 		if err != nil {
@@ -327,17 +327,15 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	return &ownedJobs, nil
 }
 
-// getIndividualJobRecreates returns the corresponding IndividualJobRecreates
+// getIndividualJobRecreates returns the corresponding IndividualJobStatus.Recreates
 // entry in a JobSet's Status, defaulting to 0 if it does not exist.
 func getIndividualJobRecreates(js *jobset.JobSet, jobName string) int32 {
-	if js.Status.IndividualJobRecreates == nil {
-		return 0
+	for _, individualJobStatus := range js.Status.IndividualJobsStatus {
+		if individualJobStatus.Name == jobName {
+			return individualJobStatus.Recreates
+		}
 	}
-	individualJobRecreates, ok := js.Status.IndividualJobRecreates[jobName]
-	if !ok {
-		return 0
-	}
-	return individualJobRecreates
+	return 0
 }
 
 // updateReplicatedJobsStatuses updates the replicatedJob statuses if they have changed.
@@ -562,7 +560,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		}
 
 		// Create jobs as necessary.
-		if err := r.createJobs(ctx, js, jobs); err != nil {
+		if err := r.createJobs(ctx, js, jobs, updateStatusOpts); err != nil {
 			log.Error(err, "creating jobs")
 			return err
 		}
@@ -583,7 +581,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 	return nil
 }
 
-func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jobs []*batchv1.Job) error {
+func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jobs []*batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	var lock sync.Mutex
@@ -608,6 +606,12 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jo
 			return
 		}
 		log.V(2).Info("successfully created job", "job", klog.KObj(job))
+
+		// Ensure IndividualJobsStatus entry exists and is set to 0 if this is the first time the job is being created.
+		if getIndividualJobRecreates(js, job.Name) == 0 {
+			setIndividualJobRecreates(js, job.Name, 0)
+			updateStatusOpts.shouldUpdate = true
+		}
 	})
 	allErrs := errors.Join(finalErrs...)
 	return allErrs

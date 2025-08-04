@@ -21,6 +21,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -207,6 +208,33 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		},
 		ginkgo.Entry("jobset should successfully create jobs", &testCase{
 			makeJobSet: testJobSet,
+		}),
+		ginkgo.Entry("jobset should set initial IndividualJobsStatus on job creation", &testCase{
+			makeJobSet: testJobSet,
+			steps: []*step{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetIndividualJobsStatus(js, []jobset.IndividualJobStatus{
+							{
+								Name:      "test-js-replicated-job-a-0",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-0",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-1",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-2",
+								Recreates: 0,
+							},
+						})
+					},
+				},
+			},
 		}),
 		ginkgo.Entry("jobset should succeed after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
@@ -1029,9 +1057,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			steps: []*step{
 				{
 					jobUpdateFn: func(jobList *batchv1.JobList) {
-						ginkgo.By("complete one job and fail another")
-						completeJob(&jobList.Items[0])
-						failJob(&jobList.Items[1])
+						ginkgo.By("fail a specific job")
+						for i := range jobList.Items {
+							if jobList.Items[i].Name == "test-js-replicated-job-b-1" {
+								failJob(&jobList.Items[i])
+							}
+						}
 					},
 				},
 				{
@@ -1039,10 +1070,108 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						// Only a single Job failed, so we only expect a single deletion finalizer.
 						removeForegroundDeletionFinalizers(js, 1)
 					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetIndividualJobsStatus(js, []jobset.IndividualJobStatus{
+							{
+								Name:      "test-js-replicated-job-a-0",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-0",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-1",
+								Recreates: 1,
+							},
+							{
+								Name:      "test-js-replicated-job-b-2",
+								Recreates: 0,
+							},
+						})
+					},
 				},
 				{
 					jobUpdateFn:          completeAllJobs,
 					checkJobSetCondition: testutil.JobSetCompleted,
+				},
+			},
+		}),
+		ginkgo.Entry("IndividualJobsStatus.Recreates counter reset to 0 on full jobset restart", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(
+						&jobset.FailurePolicy{
+							MaxRestarts: 3,
+							Rules: []jobset.FailurePolicyRule{{
+								Action:               jobset.RecreateJob,
+								TargetReplicatedJobs: []string{"replicated-job-a"},
+							}},
+						},
+					)
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("fail a job covered by RecreateJob")
+						failFirstMatchingJob(jobList, "replicated-job-a")
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// Only a single Job failed, so we only expect a single deletion finalizer.
+						removeForegroundDeletionFinalizers(js, 1)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetIndividualJobsStatus(js, []jobset.IndividualJobStatus{
+							{
+								Name:      "test-js-replicated-job-a-0",
+								Recreates: 1,
+							},
+							{
+								Name:      "test-js-replicated-job-b-0",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-1",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-2",
+								Recreates: 0,
+							},
+						})
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						ginkgo.By("fail a job not covered by RecreateJo")
+						failFirstMatchingJob(jobList, "replicated-job-b")
+					},
+				}, {
+
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 2)
+						matchJobSetIndividualJobsStatus(js, []jobset.IndividualJobStatus{
+							{
+								Name:      "test-js-replicated-job-a-0",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-0",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-1",
+								Recreates: 0,
+							},
+							{
+								Name:      "test-js-replicated-job-b-2",
+								Recreates: 0,
+							},
+						})
+					},
 				},
 			},
 		}),
@@ -2900,6 +3029,20 @@ func matchJobSetReplicatedStatus(js *jobset.JobSet, expectedStatus []jobset.Repl
 		}
 		sort.Slice(newJs.Status.ReplicatedJobsStatus, compareNames)
 		return newJs.Status.ReplicatedJobsStatus, nil
+	}, timeout, interval).Should(gomega.Equal(expectedStatus))
+}
+
+func matchJobSetIndividualJobsStatus(js *jobset.JobSet, expectedStatus []jobset.IndividualJobStatus) {
+	gomega.Eventually(func() ([]jobset.IndividualJobStatus, error) {
+		newJs := jobset.JobSet{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
+			return nil, err
+		}
+
+		slices.SortFunc(newJs.Status.IndividualJobsStatus, func(a, b jobset.IndividualJobStatus) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+		return newJs.Status.IndividualJobsStatus, nil
 	}, timeout, interval).Should(gomega.Equal(expectedStatus))
 }
 
