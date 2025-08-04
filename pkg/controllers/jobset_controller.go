@@ -560,7 +560,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		}
 
 		// Create jobs as necessary.
-		if err := r.createJobs(ctx, js, jobs); err != nil {
+		if err := r.createJobs(ctx, js, jobs, updateStatusOpts); err != nil {
 			log.Error(err, "creating jobs")
 			return err
 		}
@@ -581,7 +581,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 	return nil
 }
 
-func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jobs []*batchv1.Job) error {
+func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jobs []*batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	var lock sync.Mutex
@@ -606,6 +606,12 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jo
 			return
 		}
 		log.V(2).Info("successfully created job", "job", klog.KObj(job))
+
+		// Ensure IndividualJobsStatus entry exists and is set to 0 if this is the first time the job is being created.
+		if getIndividualJobRecreates(js, job.Name) == 0 {
+			setIndividualJobRecreates(js, job.Name, 0)
+			updateStatusOpts.shouldUpdate = true
+		}
 	})
 	allErrs := errors.Join(finalErrs...)
 	return allErrs
