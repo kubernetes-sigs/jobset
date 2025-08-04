@@ -403,12 +403,17 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			shouldUpdateStatusOpts: true,
 		},
 		{
-			name: "RestartJobSet when restarts < maxRestarts increments restarts cout, couts towards max, and resets individualJobRecreates",
+			name: "RestartJobSet when restarts < maxRestarts increments restarts count, counts towards max, and resets individualJobRecreates",
 			jobSet: testutils.MakeJobSet("test-js", "default").FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
 				SetStatus(jobset.JobSetStatus{
 					Restarts:                1,
 					RestartsCountTowardsMax: 1,
-					IndividualJobRecreates:  map[string]int32{"some-other-job": 1},
+					IndividualJobsStatus: []jobset.IndividualJobStatus{
+						{
+							Name:      "other-failed-job",
+							Recreates: 1,
+						},
+					},
 				}).
 				Obj(),
 			matchingFailedJob:   matchingFailedJob,
@@ -416,7 +421,12 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 2,
-				IndividualJobRecreates:  map[string]int32{},
+				IndividualJobsStatus: []jobset.IndividualJobStatus{
+					{
+						Name:      "other-failed-job",
+						Recreates: 0,
+					},
+				},
 			},
 			shouldUpdateStatusOpts: true,
 		},
@@ -446,13 +456,18 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			shouldUpdateStatusOpts: true,
 		},
 		{
-			name: "RestartJobSetAndIgnoreMaxRestarts action does not count toward max restarts",
+			name: "RestartJobSetAndIgnoreMaxRestarts action does not count toward max restarts and resets IndividualJobStatus.Recreates",
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1}).
 				SetStatus(jobset.JobSetStatus{
 					Restarts:                1,
 					RestartsCountTowardsMax: 1,
-					IndividualJobRecreates:  map[string]int32{"some-other-job": 1},
+					IndividualJobsStatus: []jobset.IndividualJobStatus{
+						{
+							Name:      "other-failed-job",
+							Recreates: 1,
+						},
+					},
 				}).
 				Obj(),
 			matchingFailedJob:   matchingFailedJob,
@@ -460,7 +475,12 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 1, // not incremented
-				IndividualJobRecreates:  map[string]int32{},
+				IndividualJobsStatus: []jobset.IndividualJobStatus{
+					{
+						Name:      "other-failed-job",
+						Recreates: 0,
+					},
+				},
 			},
 			shouldUpdateStatusOpts: true,
 		},
@@ -470,19 +490,29 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
 				SetStatus(jobset.JobSetStatus{
 					RestartsCountTowardsMax: 1,
-					IndividualJobRecreates:  map[string]int32{"failed-job": 1},
+					IndividualJobsStatus: []jobset.IndividualJobStatus{
+						{
+							Name:      "failed-job",
+							Recreates: 1,
+						},
+					},
 				}).
 				Obj(),
 			matchingFailedJob:   matchingFailedJob,
 			failurePolicyAction: jobset.RecreateJob,
 			expectedJobSetStatus: jobset.JobSetStatus{
 				RestartsCountTowardsMax: 2,
-				IndividualJobRecreates:  map[string]int32{"failed-job": 2},
+				IndividualJobsStatus: []jobset.IndividualJobStatus{
+					{
+						Name:      "failed-job",
+						Recreates: 2,
+					},
+				},
 			},
 			shouldUpdateStatusOpts: true,
 		},
 		{
-			name: "RecreateJob action assumes individualJobRecreates is 0 when nil",
+			name: "RecreateJob action assumes individualJobStatus.Recreates is 0 when entry does not exist",
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
 				SetStatus(jobset.JobSetStatus{
@@ -493,7 +523,12 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			failurePolicyAction: jobset.RecreateJob,
 			expectedJobSetStatus: jobset.JobSetStatus{
 				RestartsCountTowardsMax: 2,
-				IndividualJobRecreates:  map[string]int32{"failed-job": 1},
+				IndividualJobsStatus: []jobset.IndividualJobStatus{
+					{
+						Name:      "failed-job",
+						Recreates: 1,
+					},
+				},
 			},
 			shouldUpdateStatusOpts: true,
 		},
