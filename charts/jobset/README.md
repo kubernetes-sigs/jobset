@@ -87,7 +87,7 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | controller.nodeSelector | object | `{}` | Node selector of the jobset controller pods. |
 | controller.affinity | object | `{}` | Affinity of the jobset controller pods. |
 | controller.tolerations | list | `[]` | Tolerations of the jobset controller pods. |
-| controller.podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Security context of the jobset controller pods. |
+| controller.podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Security context of all jobset controller containers. |
 | certManager.enable | bool | `false` | Whether to use cert-manager to generate certificates for the jobset webhook. |
 | certManager.issuerRef | object | `{}` | The reference to the issuer. If empty, self-signed issuer will be created and used. |
 | prometheus.enable | bool | `false` | Whether to enable Prometheus metrics exporting. |

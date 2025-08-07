@@ -70,7 +70,7 @@ controller:
   affinity: {}
   # -- Tolerations of the jobset controller pods.
   tolerations: []
-  # -- Security context of the jobset controller pods.
+  # -- Security context of all jobset controller containers.
   podSecurityContext:
     runAsNonRoot: true
     seccompProfile:
