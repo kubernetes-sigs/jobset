@@ -777,35 +777,6 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Subdomain(jobSetName).Obj(),
 			},
 		},
-		{
-			name: "startup-policy",
-			js: testutils.MakeJobSet(jobSetName, ns).
-				StartupPolicy(&jobset.StartupPolicy{
-					StartupPolicyOrder: jobset.InOrder,
-				}).
-				EnableDNSHostnames(true).
-				NetworkSubdomain(jobSetName).
-				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
-					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
-					Subdomain(jobSetName).
-					Replicas(1).
-					GroupName("default").
-					Obj()).
-				Obj(),
-			ownedJobs: &childJobs{},
-			want: []*batchv1.Job{
-				makeJob(&makeJobArgs{
-					jobSetName:        jobSetName,
-					replicatedJobName: replicatedJobName,
-					groupName:         "default",
-					jobName:           "test-jobset-replicated-job-0",
-					ns:                ns,
-					replicas:          1,
-					jobIdx:            0}).
-					Suspend(false).
-					Subdomain(jobSetName).Obj(),
-			},
-		},
 	}
 
 	for _, tc := range tests {

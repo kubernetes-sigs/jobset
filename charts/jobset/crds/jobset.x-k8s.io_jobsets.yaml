@@ -211,7 +211,6 @@ spec:
                         Currently, only a single item is supported in the DependsOn list.
                         If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is
                         resumed the Job sequence starts again.
-                        This API is mutually exclusive with the StartupPolicy API.
                       items:
                         description: DependsOn defines the dependency on the previous
                           ReplicatedJob status.
@@ -9020,27 +9019,6 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
-              startupPolicy:
-                description: |-
-                  StartupPolicy, if set, configures in what order jobs must be started
-                  Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
-                properties:
-                  startupPolicyOrder:
-                    description: |-
-                      StartupPolicyOrder determines the startup order of the ReplicatedJobs.
-                      AnyOrder means to start replicated jobs in any order.
-                      InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
-                      when all the jobs of the previous one are ready.
-                    enum:
-                    - AnyOrder
-                    - InOrder
-                    type: string
-                required:
-                - startupPolicyOrder
-                type: object
-                x-kubernetes-validations:
-                - message: Value is immutable
-                  rule: self == oldSelf
               successPolicy:
                 description: |-
                   SuccessPolicy configures when to declare the JobSet as
@@ -9085,10 +9063,6 @@ spec:
                 minimum: 0
                 type: integer
             type: object
-            x-kubernetes-validations:
-            - message: StartupPolicy and DependsOn APIs are mutually exclusive
-              rule: '!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder
-                == ''InOrder'' && self.replicatedJobs.exists(x, has(x.dependsOn)))'
           status:
             description: JobSetStatus defines the observed state of JobSet
             properties:

@@ -69,13 +69,6 @@ const (
 	ExclusivePlacementViolationReason  = "ExclusivePlacementViolation"
 	ExclusivePlacementViolationMessage = "Pod violated JobSet exclusive placement policy"
 
-	// Event reason and messages related to startup policy.
-	InOrderStartupPolicyInProgressReason  = "InOrderStartupPolicyInProgress"
-	InOrderStartupPolicyInProgressMessage = "in order startup policy is in progress"
-
-	InOrderStartupPolicyCompletedReason  = "InOrderStartupPolicyCompleted"
-	InOrderStartupPolicyCompletedMessage = "in order startup policy has completed"
-
 	// Event reason and messages related to JobSet restarts.
 	JobSetRestartReason = "Restarting"
 
