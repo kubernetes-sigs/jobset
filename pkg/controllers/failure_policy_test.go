@@ -485,7 +485,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			shouldUpdateStatusOpts: true,
 		},
 		{
-			name: "RecreateJob action when restarts < maxRestarts increments individualJobRecreates and couts toward max restarts",
+			name: "RecreateJob action when restarts < maxRestarts increments individualJobRecreates and counts toward max restarts",
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
 				SetStatus(jobset.JobSetStatus{
