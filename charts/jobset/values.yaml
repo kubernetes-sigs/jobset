@@ -75,6 +75,7 @@ controller:
     runAsNonRoot: true
     seccompProfile:
       type: RuntimeDefault
+  # -- Run the controller/webhook Pods on the node’s network namespace instead of the overlay CNI.
   hostNetwork: false
 certManager:
   # -- Whether to use cert-manager to generate certificates for the jobset webhook.
