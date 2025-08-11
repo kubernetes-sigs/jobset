@@ -378,12 +378,11 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 	matchingFailedJob := jobWithFailedCondition("failed-job", time.Now())
 
 	testCases := []struct {
-		name                   string
-		jobSet                 *jobset.JobSet
-		matchingFailedJob      *batchv1.Job
-		failurePolicyAction    jobset.FailurePolicyAction
-		expectedJobSetStatus   jobset.JobSetStatus
-		shouldUpdateStatusOpts bool
+		name                 string
+		jobSet               *jobset.JobSet
+		matchingFailedJob    *batchv1.Job
+		failurePolicyAction  jobset.FailurePolicyAction
+		expectedJobSetStatus jobset.JobSetStatus
 	}{
 		{
 			name:                "FailJobSet action",
@@ -400,7 +399,6 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					},
 				},
 			},
-			shouldUpdateStatusOpts: true,
 		},
 		{
 			name: "RestartJobSet when restarts < maxRestarts increments restarts count, counts towards max, and resets individualJobRecreates",
@@ -428,7 +426,6 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					},
 				},
 			},
-			shouldUpdateStatusOpts: true,
 		},
 		{
 			name: "RestartJobSet action when restarts >= maxRestarts fails the jobset",
@@ -453,7 +450,6 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					},
 				},
 			},
-			shouldUpdateStatusOpts: true,
 		},
 		{
 			name: "RestartJobSetAndIgnoreMaxRestarts action does not count toward max restarts and resets IndividualJobStatus.Recreates",
@@ -482,7 +478,6 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					},
 				},
 			},
-			shouldUpdateStatusOpts: true,
 		},
 		{
 			name: "RecreateJob action when restarts < maxRestarts increments individualJobRecreates and counts toward max restarts",
@@ -509,7 +504,6 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					},
 				},
 			},
-			shouldUpdateStatusOpts: true,
 		},
 		{
 			name: "RecreateJob action assumes individualJobStatus.Recreates is 0 when entry does not exist",
@@ -530,7 +524,6 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					},
 				},
 			},
-			shouldUpdateStatusOpts: true,
 		},
 		{
 			name: "RecreateJob action when restarts >= maxRestarts fails jobset",
@@ -553,7 +546,6 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					},
 				},
 			},
-			shouldUpdateStatusOpts: true,
 		},
 	}
 
@@ -566,8 +558,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if updateStatusOpts.shouldUpdate != tc.shouldUpdateStatusOpts {
-				t.Fatalf("unexpected updateStatusOpts.shouldUpdate value: got %v, want %v", updateStatusOpts.shouldUpdate, tc.shouldUpdateStatusOpts)
+			if !updateStatusOpts.shouldUpdate {
+				t.Fatalf("unexpected updateStatusOpts.shouldUpdate value: got %v, want true", updateStatusOpts.shouldUpdate)
 			}
 
 			opts := []cmp.Option{
