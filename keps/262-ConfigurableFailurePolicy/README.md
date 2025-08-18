@@ -91,7 +91,7 @@ spec:
   # Failure Policy configured to fail the JobSet immediately if a job failure reason for any child job was NOT due to a SIGTERM (e.g. host maintenance).
   # Otherwise, restart up to 10 times.
   failurePolicy:
-    rulesjobset:
+    rules:
     - action: FailJobSet
       onJobFailureReasons: 
       - PodFailurePolicy
@@ -561,3 +561,24 @@ recreated via the normal reconciliation process.
 2) `FailJob`: To leave a particular child job in a failed state without restarting it or restarting the JobSet, the
 controller will simply do nothing, taking no action on this job.
 
+
+
+#### Which issue(s) this PR fixes:
+<!--
+*Automatically closes linked issue when PR is merged.
+Usage: `Fixes #<issue number>`, or `Fixes (paste link of issue)`.
+_If PR is about `failing-tests or flakes`, please post the related issues/tests in a comment and do not use `Fixes`_*
+-->
+Fixes #
+
+#### Special notes for your reviewer:
+
+#### Does this PR introduce a user-facing change?
+<!--
+If no, just write "NONE" in the release-note block below.
+If yes, a release note is required:
+Enter your extended release note in the block below. If the PR requires additional action from users switching to the new release, include the string "action required".
+-->
+```release-note
+
+```
