@@ -91,7 +91,7 @@ spec:
   # Failure Policy configured to fail the JobSet immediately if a job failure reason for any child job was NOT due to a SIGTERM (e.g. host maintenance).
   # Otherwise, restart up to 10 times.
   failurePolicy:
-    rules:
+    rulesjobset:
     - action: FailJobSet
       onJobFailureReasons: 
       - PodFailurePolicy
@@ -310,7 +310,46 @@ spec:
             - name: main
               image: python:3.10
               command: ["..."]
-``
+```
+
+#### Story 6: Recreating Jobs in a ReplicatedJob on failure until a backoff limit is reached
+
+This is a similar scenario to Story 5: individual worker Jobs within a ReplicatedJob can be recreated
+independently on failure without requiring a full restart of the ReplicatedJob or JobSet. In this case,
+however, we only want to attempt such individual Job recreations up to `.spec.replicatedJobs[<rJob>].spec.backoffLimit`
+times before triggering the failure policy targeting said ReplicatedJob. For example,
+the following configuration will allow up to 5 Job failures in a `workers` ReplicatedJob before the ReplicatedJob
+fails and triggers the `RestartJob` failure policy.
+
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: worker-backofflimit
+spec:
+  failurePolicy:
+    maxRestarts: 2 # How many times JobSet can be restarted.
+    rules:
+      - action: RestartJob
+        targetReplicatedJobs:
+          - workers
+  replicatedJobs:
+  - name: workers
+    replicas: 3
+    backoffLimit: 5 # Up to 5 failed Jobs before a ReplicatedJob fails.
+    template:
+      spec:
+        parallelism: 2
+        completions: 1
+        template:
+          spec:
+          restartPolicy: Never
+          containers:
+          - name: main
+            image: python:3.10
+            command: ["..."]
+```
 
 ### Notes/Constraints/Caveats (Optional)
 
