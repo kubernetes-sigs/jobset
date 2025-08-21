@@ -123,7 +123,6 @@ spec:
                           - FailJobSet
                           - RestartJobSet
                           - RestartJobSetAndIgnoreMaxRestarts
-                          - RecreateJob
                           type: string
                         name:
                           description: |-
@@ -9150,30 +9149,6 @@ spec:
                 type: array
                 x-kubernetes-list-map-keys:
                 - type
-                x-kubernetes-list-type: map
-              individualJobsStatus:
-                description: IndividualJobsStatus tracks the status of individual
-                  Jobs within ReplicatedJobs.
-                items:
-                  description: IndividualJobStatus holds the status of an individual
-                    Job within a ReplicatedJob.
-                  properties:
-                    name:
-                      description: Name of the Job.
-                      type: string
-                    recreates:
-                      description: |-
-                        Recreates is the number of times an individual Job has been recreated.
-                        This counter is reset to 0 if the parent ReplicatedJob or JobSet is restarted.
-                      format: int32
-                      type: integer
-                  required:
-                  - name
-                  - recreates
-                  type: object
-                type: array
-                x-kubernetes-list-map-keys:
-                - name
                 x-kubernetes-list-type: map
               replicatedJobsStatus:
                 description: ReplicatedJobsStatus track the number of JobsReady for

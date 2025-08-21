@@ -44,11 +44,6 @@ class TestJobsetV1alpha2JobSetStatus(unittest.TestCase):
                         status = '', 
                         type = '', )
                     ],
-                individual_jobs_status = [
-                    jobset.models.jobset_v1alpha2_individual_job_status.JobsetV1alpha2IndividualJobStatus(
-                        name = '', 
-                        recreates = 56, )
-                    ],
                 replicated_jobs_status = [
                     jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                         active = 56, 

@@ -28,10 +28,6 @@ const (
 	// the JobSet is currently on.
 	RestartsKey = "jobset.sigs.k8s.io/restart-attempt"
 
-	// IndividualJobRecreatesKey is an annotation and label key which defines how many times
-	// a specific Job has been recreated.
-	IndividualJobRecreatesKey = "jobset.sigs.k8s.io/individual-job-recreates"
-
 	// PriorityKey is a label key to record the pod priority. This is needed to enforce exclusive placement
 	// only among jobs within the same priority.
 	PriorityKey = "jobset.sigs.k8s.io/priority"

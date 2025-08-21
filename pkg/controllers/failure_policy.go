@@ -34,7 +34,6 @@ var actionFunctionMap = map[jobset.FailurePolicyAction]failurePolicyActionApplie
 	jobset.FailJobSet:                        failJobSetActionApplier,
 	jobset.RestartJobSet:                     restartJobSetActionApplier,
 	jobset.RestartJobSetAndIgnoreMaxRestarts: restartJobSetAndIgnoreMaxRestartsActionApplier,
-	jobset.RecreateJob:                       recreateJobActionApplier,
 }
 
 // The source of truth for the definition of defaultFailurePolicyRuleAction is the Configurable Failure Policy KEP.
@@ -164,8 +163,6 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 	// of old jobs not part of the current jobSet run.
 	js.Status.Restarts += 1
 
-	resetIndividualJobRecreates(js)
-
 	if shouldCountTowardsMax {
 		js.Status.RestartsCountTowardsMax += 1
 	}
@@ -175,13 +172,6 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 	// Emit event for each JobSet restarts for observability and debugability.
 	enqueueEvent(updateStatusOpts, event)
 	log.V(2).Info("attempting restart", "restart attempt", js.Status.Restarts)
-}
-
-// resetIndividualJobRecreates resets all individual Job recreates counters to 0.
-func resetIndividualJobRecreates(js *jobset.JobSet) {
-	for i := range js.Status.IndividualJobsStatus {
-		js.Status.IndividualJobsStatus[i].Recreates = 0
-	}
 }
 
 // The type failurePolicyActionApplier applies a FailurePolicyAction and returns nil if the FailurePolicyAction was successfully applied.
@@ -237,56 +227,6 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 	shouldCountTowardsMax := false
 	failurePolicyRecreateAll(ctx, js, shouldCountTowardsMax, updateStatusOpts, event)
 	return nil
-}
-
-// recreateJobActionApplier applies the RecreateJob FailurePolicyAction, marking a single
-// job for deletion and recreation by incrementing the appropriate IndividualJobStatus.Recreates
-// entry in the JobSet status.
-var recreateJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
-	// Since RecreateJob failure policy counts toward max restarts, we also have to
-	// fail the JobSet if we exceed MaxRestarts here.
-	if js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts {
-		failureBaseMessage := constants.ReachedMaxRestartsMessage
-		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
-
-		failureReason := constants.ReachedMaxRestartsReason
-		setJobSetFailedCondition(js, failureReason, failureMessage, updateStatusOpts)
-		return nil
-	}
-
-	newRecreates := getIndividualJobRecreates(js, matchingFailedJob.Name) + 1
-	setIndividualJobRecreates(js, matchingFailedJob.Name, newRecreates)
-
-	js.Status.RestartsCountTowardsMax += 1
-
-	baseMessage := constants.RecreateJobActionMessage
-	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
-	event := &eventParams{
-		object:       js,
-		eventType:    corev1.EventTypeWarning,
-		eventReason:  constants.RecreateJobActionReason,
-		eventMessage: eventMessage,
-	}
-	enqueueEvent(updateStatusOpts, event)
-
-	updateStatusOpts.shouldUpdate = true
-
-	return nil
-}
-
-// setIndividualJobRecreates sets the Recreates value of the corresponding entry
-// in js.Status.IndividualJobsStatus, creating it if it does not exist.
-func setIndividualJobRecreates(js *jobset.JobSet, jobName string, recreates int32) {
-	for i, individualJobStatus := range js.Status.IndividualJobsStatus {
-		if individualJobStatus.Name == jobName {
-			js.Status.IndividualJobsStatus[i].Recreates = recreates
-			return
-		}
-	}
-	js.Status.IndividualJobsStatus = append(js.Status.IndividualJobsStatus, jobset.IndividualJobStatus{
-		Name:      jobName,
-		Recreates: recreates,
-	})
 }
 
 // parentReplicatedJobName returns the name of the parent
