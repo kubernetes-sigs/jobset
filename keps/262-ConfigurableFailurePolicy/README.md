@@ -26,7 +26,10 @@ tags, and then generate with `hack/update-toc.sh`.
     - [Story 2: RestartJobSet](#story-2-restartjobset)
     - [Story 3: RestartJobSetAndIgnoreMaxRestarts](#story-3-restartjobsetandignoremaxrestarts)
     - [Story 4: Different failure policies for different replicated jobs](#story-4-different-failure-policies-for-different-replicated-jobs)
-    - [Story 5: Recreating individual jobs on failure rather than failing JobSet (<code>RecreateJob</code>)](#story-5-recreating-individual-jobs-on-failure-rather-than-failing-jobset-)
+  - [Notes/Constraints/Caveats (Optional)](#notesconstraintscaveats-optional)
+  - [Risks and Mitigations](#risks-and-mitigations)
+- [Design Details](#design-details)
+  - [Proposed Failure Policy API](#proposed-failure-policy-api)
   - [Constraints](#constraints)
   - [Implementation](#implementation)
   - [Test Plan](#test-plan)
@@ -273,45 +276,6 @@ spec:
                 python3 train.py
 ```
 
-#### Story 5: Recreating individual jobs on failure rather than failing JobSet (`RecreateJob`)
-
-If it is possible for individual worker Jobs within a ReplicatedJob to be restarted independently on failure
-without requiring a full restart of their parent ReplicatedJob or the entire JobSet, the `RecreateJob`
-failure policy can be used.
-
-**Example Failure Policy configuration for this use case**:
-
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: recreate-job-example
-spec:
-  # Failure Policy to restart individual jobs of the target ReplicatedJob (recoverable-workers) if they fail,
-  # without restarting the entire JobSet or other jobs in recoverable-workers.
-  failurePolicy:
-    rules:
-    - action: RecreateJob
-      targetReplicatedJobs:
-      - recoverable-workers
-    maxRestarts: 10
-  replicatedJobs:
-  - name: recoverable-workers
-    replicas: 2
-    template:
-      spec:
-        parallelism: 1
-        completions: 1
-        backoffLimit: 0
-        template:
-          spec:
-            restartPolicy: Never
-            containers:
-            - name: main
-              image: python:3.10
-              command: ["..."]
-``
-
 ### Notes/Constraints/Caveats (Optional)
 
 <!--
@@ -355,16 +319,13 @@ const (
 
   // Don't count the failure against maxRestarts.
   RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobSetAndIgnoreMaxRestarts"
-
-  // Recreate the failed Job without restarting the entire JobSet.
-  RecreateJob FailurePolicyAction = "RecreateJob"
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
 // fails due to a reason listed in OnJobFailureReasons.
 type FailurePolicyRule struct {
   // The action to take if the rule is matched.
-  // +kubebuilder:validation:Enum:=FailJobSet;RestartJobSetAndIgnoreMaxRestarts;FailJob;RecreateJob
+  // +kubebuilder:validation:Enum:=FailJobSet;RestartJobSetAndIgnoreMaxRestarts;FailJob
   Action FailurePolicyAction `json:"action"`
   // The requirement on the job failure reasons. The requirement
   // is satisfied if at least one reason matches the list.
