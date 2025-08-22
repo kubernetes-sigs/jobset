@@ -246,40 +246,6 @@ An empty list will apply to all replicatedJobs.</p>
 </tbody>
 </table>
 
-## `IndividualJobStatus`     {#jobset-x-k8s-io-v1alpha2-IndividualJobStatus}
-    
-
-**Appears in:**
-
-- [JobSetStatus](#jobset-x-k8s-io-v1alpha2-JobSetStatus)
-
-
-<p>IndividualJobStatus holds the status of an individual Job within a ReplicatedJob.</p>
-
-
-<table class="table">
-<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
-<tbody>
-    
-  
-<tr><td><code>name</code> <B>[Required]</B><br/>
-<code>string</code>
-</td>
-<td>
-   <p>Name of the Job.</p>
-</td>
-</tr>
-<tr><td><code>recreates</code> <B>[Required]</B><br/>
-<code>int32</code>
-</td>
-<td>
-   <p>Recreates is the number of times an individual Job has been recreated.
-This counter is reset to 0 if the parent ReplicatedJob or JobSet is restarted.</p>
-</td>
-</tr>
-</tbody>
-</table>
-
 ## `JobSetRestartStrategy`     {#jobset-x-k8s-io-v1alpha2-JobSetRestartStrategy}
     
 (Alias of `string`)
@@ -449,13 +415,6 @@ It can be either Completed or Failed. Otherwise, it is empty by default.</p>
 </td>
 <td>
    <p>ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.</p>
-</td>
-</tr>
-<tr><td><code>individualJobsStatus</code><br/>
-<a href="#jobset-x-k8s-io-v1alpha2-IndividualJobStatus"><code>[]IndividualJobStatus</code></a>
-</td>
-<td>
-   <p>IndividualJobsStatus tracks the status of individual Jobs within ReplicatedJobs.</p>
 </td>
 </tr>
 </tbody>

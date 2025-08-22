@@ -284,8 +284,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	// Categorize each job into a bucket: active, successful, failed, or delete.
 	ownedJobs := childJobs{}
 	for i, job := range childJobList.Items {
-		// Jobs with jobset.sigs.k8s.io/restart-attempt < restarts or
-		// jobset.sigs.k8s.io/individual-job-recreates < individualJobsStatus[<jobName>].Recreates are marked for deletion.
+		// Jobs with jobset.sigs.k8s.io/restart-attempt < restarts are marked for deletion.
 
 		jobRestarts, err := strconv.Atoi(job.Labels[constants.RestartsKey])
 		if err != nil {
