@@ -25,7 +25,10 @@ IMAGE_REGISTRY ?= $(STAGING_IMAGE_REGISTRY)/jobset
 IMAGE_NAME := jobset
 IMAGE_REPO ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME)
 IMAGE_TAG ?= $(IMAGE_REPO):$(GIT_TAG)
+
+# Helm
 HELM_CHART_REPO := $(STAGING_IMAGE_REGISTRY)/jobset/charts
+RELEASE_NAMESPACE ?= jobset-system
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
@@ -211,6 +214,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Helm
+.PHONY: sync-manifests
+sync-manifests: helm yq ## Sync Kustomize manifests from manifests templated by Helm chart.
+	RELEASE_NAME=$(RELEASE_NAME) RELEASE_NAMESPACE=$(RELEASE_NAMESPACE) HELM=$(HELM) YQ=$(YQ) hack/sync-manifests.sh
+
 .PHONY: helm-unittest
 helm-unittest: helm-unittest-plugin ## Run Helm chart unittests.
 	$(HELM) unittest $(JOBSET_CHART_DIR) --strict --file "tests/**/*_test.yaml"
@@ -283,8 +290,8 @@ HELM_DOCS_VERSION ?= v1.14.2
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
-HELM ?= $(ARTIFACTS)/helm
-HELM_DOCS ?= $(ARTIFACTS)/helm-docs
+HELM ?= $(LOCALBIN)/helm
+HELM_DOCS ?= $(LOCALBIN)/helm-docs
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
