@@ -113,9 +113,6 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	if js.Spec.SuccessPolicy == nil {
 		js.Spec.SuccessPolicy = &jobset.SuccessPolicy{Operator: jobset.OperatorAll}
 	}
-	if js.Spec.StartupPolicy == nil {
-		js.Spec.StartupPolicy = &jobset.StartupPolicy{StartupPolicyOrder: jobset.AnyOrder}
-	}
 	for i := range js.Spec.ReplicatedJobs {
 		// Default job completion mode to indexed.
 		if js.Spec.ReplicatedJobs[i].Template.Spec.CompletionMode == nil {
