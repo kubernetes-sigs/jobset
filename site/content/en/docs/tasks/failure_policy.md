@@ -35,13 +35,6 @@ In [this example](https://github.com/kubernetes-sigs/jobset/blob/main/site/stati
 
 {{< include file="/examples/failure-policy/restartjobsetandignoremaxrestarts-action.yaml" lang="yaml" >}}
 
-### `RecreateJob`
-This action recreates only the specific job that failed, leaving the rest of the JobSet running. This is useful when individual jobs are independent and can be restarted without affecting others. **Note:** Individual job recreates count towards the `maxRestarts` limit.
-
-In [this example](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/failure-policy/recreatejob-action.yaml), if a job from the `workers-a` group fails, only that specific job is recreated. Failures in `workers-b` still cause a full JobSet restart (the defaul behavior).
-
-{{< include file="/examples/failure-policy/recreatejob-action.yaml" lang="yaml" >}}
-
 ## Targeting Specific Failures
 
 You can make your failure policy rules more granular by using `targetReplicatedJobs` and `onJobFailureReasons`.

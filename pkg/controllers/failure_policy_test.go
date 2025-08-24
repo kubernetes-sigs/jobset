@@ -401,17 +401,11 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name: "RestartJobSet when restarts < maxRestarts increments restarts count, counts towards max, and resets individualJobRecreates",
+			name: "RestartJobSet when restarts < maxRestarts increments restarts count and counts towards max",
 			jobSet: testutils.MakeJobSet("test-js", "default").FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
 				SetStatus(jobset.JobSetStatus{
 					Restarts:                1,
 					RestartsCountTowardsMax: 1,
-					IndividualJobsStatus: []jobset.IndividualJobStatus{
-						{
-							Name:      "other-failed-job",
-							Recreates: 1,
-						},
-					},
 				}).
 				Obj(),
 			matchingFailedJob:   matchingFailedJob,
@@ -419,12 +413,6 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 2,
-				IndividualJobsStatus: []jobset.IndividualJobStatus{
-					{
-						Name:      "other-failed-job",
-						Recreates: 0,
-					},
-				},
 			},
 		},
 		{
@@ -452,18 +440,12 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name: "RestartJobSetAndIgnoreMaxRestarts action does not count toward max restarts and resets IndividualJobStatus.Recreates",
+			name: "RestartJobSetAndIgnoreMaxRestarts action does not count toward max restarts",
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1}).
 				SetStatus(jobset.JobSetStatus{
 					Restarts:                1,
 					RestartsCountTowardsMax: 1,
-					IndividualJobsStatus: []jobset.IndividualJobStatus{
-						{
-							Name:      "other-failed-job",
-							Recreates: 1,
-						},
-					},
 				}).
 				Obj(),
 			matchingFailedJob:   matchingFailedJob,
@@ -471,80 +453,6 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 1, // not incremented
-				IndividualJobsStatus: []jobset.IndividualJobStatus{
-					{
-						Name:      "other-failed-job",
-						Recreates: 0,
-					},
-				},
-			},
-		},
-		{
-			name: "RecreateJob action when restarts < maxRestarts increments individualJobRecreates and counts toward max restarts",
-			jobSet: testutils.MakeJobSet("test-js", "default").
-				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
-				SetStatus(jobset.JobSetStatus{
-					RestartsCountTowardsMax: 1,
-					IndividualJobsStatus: []jobset.IndividualJobStatus{
-						{
-							Name:      "failed-job",
-							Recreates: 1,
-						},
-					},
-				}).
-				Obj(),
-			matchingFailedJob:   matchingFailedJob,
-			failurePolicyAction: jobset.RecreateJob,
-			expectedJobSetStatus: jobset.JobSetStatus{
-				RestartsCountTowardsMax: 2,
-				IndividualJobsStatus: []jobset.IndividualJobStatus{
-					{
-						Name:      "failed-job",
-						Recreates: 2,
-					},
-				},
-			},
-		},
-		{
-			name: "RecreateJob action assumes individualJobStatus.Recreates is 0 when entry does not exist",
-			jobSet: testutils.MakeJobSet("test-js", "default").
-				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
-				SetStatus(jobset.JobSetStatus{
-					RestartsCountTowardsMax: 1,
-				}).
-				Obj(),
-			matchingFailedJob:   matchingFailedJob,
-			failurePolicyAction: jobset.RecreateJob,
-			expectedJobSetStatus: jobset.JobSetStatus{
-				RestartsCountTowardsMax: 2,
-				IndividualJobsStatus: []jobset.IndividualJobStatus{
-					{
-						Name:      "failed-job",
-						Recreates: 1,
-					},
-				},
-			},
-		},
-		{
-			name: "RecreateJob action when restarts >= maxRestarts fails jobset",
-			jobSet: testutils.MakeJobSet("test-js", "default").
-				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 2}).
-				SetStatus(jobset.JobSetStatus{
-					RestartsCountTowardsMax: 2,
-				}).
-				Obj(),
-			matchingFailedJob:   matchingFailedJob,
-			failurePolicyAction: jobset.RecreateJob,
-			expectedJobSetStatus: jobset.JobSetStatus{
-				RestartsCountTowardsMax: 2,
-				TerminalState:           string(jobset.JobSetFailed),
-				Conditions: []metav1.Condition{
-					{
-						Type:   string(jobset.JobSetFailed),
-						Status: metav1.ConditionTrue,
-						Reason: constants.ReachedMaxRestartsReason,
-					},
-				},
 			},
 		},
 	}

@@ -130,7 +130,6 @@ jobset/models/jobset_v1alpha2_coordinator.py
 jobset/models/jobset_v1alpha2_depends_on.py
 jobset/models/jobset_v1alpha2_failure_policy.py
 jobset/models/jobset_v1alpha2_failure_policy_rule.py
-jobset/models/jobset_v1alpha2_individual_job_status.py
 jobset/models/jobset_v1alpha2_job_set.py
 jobset/models/jobset_v1alpha2_job_set_list.py
 jobset/models/jobset_v1alpha2_job_set_spec.py
@@ -267,7 +266,6 @@ test/test_jobset_v1alpha2_coordinator.py
 test/test_jobset_v1alpha2_depends_on.py
 test/test_jobset_v1alpha2_failure_policy.py
 test/test_jobset_v1alpha2_failure_policy_rule.py
-test/test_jobset_v1alpha2_individual_job_status.py
 test/test_jobset_v1alpha2_job_set.py
 test/test_jobset_v1alpha2_job_set_list.py
 test/test_jobset_v1alpha2_job_set_spec.py

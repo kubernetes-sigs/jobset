@@ -26,7 +26,6 @@ type JobSetStatusApplyConfiguration struct {
 	RestartsCountTowardsMax *int32                                  `json:"restartsCountTowardsMax,omitempty"`
 	TerminalState           *string                                 `json:"terminalState,omitempty"`
 	ReplicatedJobsStatus    []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
-	IndividualJobsStatus    []IndividualJobStatusApplyConfiguration `json:"individualJobsStatus,omitempty"`
 }
 
 // JobSetStatusApplyConfiguration constructs a declarative configuration of the JobSetStatus type for use with
@@ -81,19 +80,6 @@ func (b *JobSetStatusApplyConfiguration) WithReplicatedJobsStatus(values ...*Rep
 			panic("nil value passed to WithReplicatedJobsStatus")
 		}
 		b.ReplicatedJobsStatus = append(b.ReplicatedJobsStatus, *values[i])
-	}
-	return b
-}
-
-// WithIndividualJobsStatus adds the given value to the IndividualJobsStatus field in the declarative configuration
-// and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, values provided by each call will be appended to the IndividualJobsStatus field.
-func (b *JobSetStatusApplyConfiguration) WithIndividualJobsStatus(values ...*IndividualJobStatusApplyConfiguration) *JobSetStatusApplyConfiguration {
-	for i := range values {
-		if values[i] == nil {
-			panic("nil value passed to WithIndividualJobsStatus")
-		}
-		b.IndividualJobsStatus = append(b.IndividualJobsStatus, *values[i])
 	}
 	return b
 }
