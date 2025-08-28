@@ -21,7 +21,7 @@ description: A Helm chart for deploying JobSet controller and webhook on Kuberne
 
 type: application
 
-version: 0.8.1
+version: 0.9.0
 
 keywords:
 - kubernetes
