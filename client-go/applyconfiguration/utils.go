@@ -48,8 +48,6 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &jobsetv1alpha2.ReplicatedJobApplyConfiguration{}
 	case v1alpha2.SchemeGroupVersion.WithKind("ReplicatedJobStatus"):
 		return &jobsetv1alpha2.ReplicatedJobStatusApplyConfiguration{}
-	case v1alpha2.SchemeGroupVersion.WithKind("StartupPolicy"):
-		return &jobsetv1alpha2.StartupPolicyApplyConfiguration{}
 	case v1alpha2.SchemeGroupVersion.WithKind("SuccessPolicy"):
 		return &jobsetv1alpha2.SuccessPolicyApplyConfiguration{}
 
