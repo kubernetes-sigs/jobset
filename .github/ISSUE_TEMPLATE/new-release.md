@@ -52,6 +52,9 @@ Please do not remove items from the checklist
        branch has been created (presumably the README update commit above), and, push the tag:
       `DEVEL=v0.$(($MAJ+1)).0-devel; git tag $DEVEL main && git push $DEVEL`
       This ensures that the devel builds on the `main` branch will have a meaningful version number.
+- [ ] For a major release, Submit a PR against [test-infra](https://github.com/kubernetes/test-infra),
+      updating `config/jobs/kubernetes-sigs/jobset` periodics to drop n - 1 release and add a periodic
+      covering the new release branch. <!-- example kubernetes/test-infra#35420-->
 - [ ] Close this issue
 
 
