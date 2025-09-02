@@ -223,27 +223,26 @@ helm-lint: ## Run Helm chart lint test.
 helm-docs: helm-docs-plugin ## Generates markdown documentation for helm charts from requirements and values files.
 	$(HELM_DOCS) --sort-values-order=file
 
-.PHONY: helm-chart-push
-helm-chart-push: yq helm
-	EXTRA_TAG="$(EXTRA_TAG)" GIT_TAG="$(GIT_TAG)" IMAGE_REGISTRY="$(IMAGE_REGISTRY)" HELM_CHART_REPO="$(HELM_CHART_REPO)" IMAGE_REPO="$(IMAGE_REPO)" HELM="$(HELM)" YQ="$(YQ)" ./hack/push-chart.sh
+.PHONY: helm-chart-package
+helm-chart-package: yq helm ## Package a chart into a versioned chart archive file.
+	DEST_CHART_DIR=$(DEST_CHART_DIR) \
+	HELM="$(HELM)" YQ="$(YQ)" GIT_TAG="$(GIT_TAG)" IMAGE_REGISTRY="$(IMAGE_REGISTRY)" \
+	HELM_CHART_PUSH=$(HELM_CHART_PUSH) \
+	./hack/helm-chart-package.sh
 
+.PHONY: helm-chart-push
+helm-chart-push: HELM_CHART_PUSH=true
+helm-chart-push: helm-chart-package
 
 ##@ Release
 .PHONY: artifacts
-artifacts: kustomize helm yq
+artifacts: kustomize helm yq helm-chart-package
 	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
 	if [ -d artifacts ]; then rm -rf artifacts; fi
 	mkdir -p artifacts
 	$(KUSTOMIZE) build config/default -o artifacts/manifests.yaml
 	$(KUSTOMIZE) build config/prometheus -o artifacts/prometheus.yaml
 	@$(call clean-manifests)
-	# Update the image tag and policy
-	$(YQ)  e  '.image.repository = "$(IMAGE_REPO)" | .image.tag = "$(GIT_TAG)" | .image.pullPolicy = "IfNotPresent"' -i charts/jobset/values.yaml
-	# create the package. TODO: consider signing it
-	$(HELM) package --version $(GIT_TAG) --app-version $(GIT_TAG) charts/jobset -d artifacts/
-	mv artifacts/jobset-$(GIT_TAG).tgz artifacts/jobset-chart-$(GIT_TAG).tgz
-	# Revert the image changes
-	$(YQ)  e  '.image.repository = "$(IMAGE_REGISTRY)/$(IMAGE_NAME)" | .image.tag="main" | .image.pullPolicy = "Always"' -i charts/jobset/values.yaml
 
 GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
 .PHONY: golangci-lint
