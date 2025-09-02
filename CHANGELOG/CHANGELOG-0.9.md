@@ -4,7 +4,6 @@ Changes since `v0.8.0`.
 
 ### New Features
 
-- Implement RecreateJob failure policy action ([#920](https://github.com/kubernetes-sigs/jobset/pull/920) by [@carreter](https://github.com/carreter))
 - feat: support multiple items in DependsOn API ([#878](https://github.com/kubernetes-sigs/jobset/pull/878) by [@Electronic-Waste](https://github.com/Electronic-Waste))
 - Enable TLS metrics ([#863](https://github.com/kubernetes-sigs/jobset/pull/863) by [@atiratree](https://github.com/atiratree))
 - Add a JobSet label for Pods with the UID of the JobSet. ([#862](https://github.com/kubernetes-sigs/jobset/pull/862) by [@giuliano-sider](https://github.com/giuliano-sider))
@@ -12,7 +11,6 @@ Changes since `v0.8.0`.
 
 ### Bug Fixes
 
-- Revert RecreateJob failure policy action addition ([#982](https://github.com/kubernetes-sigs/jobset/pull/982) by [@carreter](https://github.com/carreter))
 - fix: handle nil Completions in coordinator validation ([#931](https://github.com/kubernetes-sigs/jobset/pull/931) by [@Ladicle](https://github.com/Ladicle))
 - Fix infinite reconciliation when patching JobSets ([#927](https://github.com/kubernetes-sigs/jobset/pull/927) by [@astefanutti](https://github.com/astefanutti))
 - fix: certificate fails to find issuer ([#868](https://github.com/kubernetes-sigs/jobset/pull/868) by [@ChenYi015](https://github.com/ChenYi015))
@@ -38,7 +36,6 @@ Changes since `v0.8.0`.
 - Add dev environment setup guidelines to docs site ([#964](https://github.com/kubernetes-sigs/jobset/pull/964) by [@carreter](https://github.com/carreter))
 - Rework "Tasks" docs site section and add detailed failure policy examples ([#951](https://github.com/kubernetes-sigs/jobset/pull/951) by [@carreter](https://github.com/carreter))
 - Minor docs site cleanup + API update ([#950](https://github.com/kubernetes-sigs/jobset/pull/950) by [@carreter](https://github.com/carreter))
-- Update failure policy KEP with proposed RecreateJob behavior ([#925](https://github.com/kubernetes-sigs/jobset/pull/925) by [@carreter](https://github.com/carreter))
 - fix e2e testing list and add a 2025 roadmap ([#916](https://github.com/kubernetes-sigs/jobset/pull/916) by [@kannon92](https://github.com/kannon92))
 - Fix dead URLs in docs ([#910](https://github.com/kubernetes-sigs/jobset/pull/910) by [@carreter](https://github.com/carreter))
 - feat: add example for multiple DependsOn items. ([#895](https://github.com/kubernetes-sigs/jobset/pull/895) by [@Electronic-Waste](https://github.com/Electronic-Waste))
