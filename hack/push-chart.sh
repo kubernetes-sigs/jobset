@@ -35,11 +35,10 @@ readonly k8s_registry="registry.k8s.io/jobset"
 readonly semver_regex='^v([0-9]+)(\.[0-9]+){1,2}$'
 
 image_repository=${IMAGE_REPO}
-chart_version=${GIT_TAG}
+chart_version="${GIT_TAG/#v/}"
 if [[ ${EXTRA_TAG} =~ ${semver_regex} ]]
 then
 	image_repository=${k8s_registry}/jobset
-	chart_version=${EXTRA_TAG}
 fi
 
 default_image_repo=$(${YQ} ".image.repository" charts/jobset/values.yaml)
@@ -48,7 +47,7 @@ readonly default_image_repo
 # Update the image repo, tag and policy
 ${YQ}  e  ".image.repository = \"${image_repository}\" | .image.tag = \"${chart_version}\" | .image.pullPolicy = \"IfNotPresent\"" -i charts/jobset/values.yaml
 
-${HELM} package --version "${chart_version}" --app-version "${chart_version}" charts/jobset -d "${DEST_CHART_DIR}"
+${HELM} package --version "${chart_version}" --app-version "${GIT_TAG}" charts/jobset -d "${DEST_CHART_DIR}"
 
 # Revert the image changes
 ${YQ}  e  ".image.repository = \"${default_image_repo}\" | .image.tag = \"main\" | .image.pullPolicy = \"Always\"" -i charts/jobset/values.yaml
