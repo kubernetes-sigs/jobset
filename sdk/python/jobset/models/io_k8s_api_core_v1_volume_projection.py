@@ -22,6 +22,7 @@ from typing import Any, ClassVar, Dict, List, Optional
 from jobset.models.io_k8s_api_core_v1_cluster_trust_bundle_projection import IoK8sApiCoreV1ClusterTrustBundleProjection
 from jobset.models.io_k8s_api_core_v1_config_map_projection import IoK8sApiCoreV1ConfigMapProjection
 from jobset.models.io_k8s_api_core_v1_downward_api_projection import IoK8sApiCoreV1DownwardAPIProjection
+from jobset.models.io_k8s_api_core_v1_pod_certificate_projection import IoK8sApiCoreV1PodCertificateProjection
 from jobset.models.io_k8s_api_core_v1_secret_projection import IoK8sApiCoreV1SecretProjection
 from jobset.models.io_k8s_api_core_v1_service_account_token_projection import IoK8sApiCoreV1ServiceAccountTokenProjection
 from typing import Optional, Set
@@ -34,9 +35,10 @@ class IoK8sApiCoreV1VolumeProjection(BaseModel):
     cluster_trust_bundle: Optional[IoK8sApiCoreV1ClusterTrustBundleProjection] = Field(default=None, alias="clusterTrustBundle")
     config_map: Optional[IoK8sApiCoreV1ConfigMapProjection] = Field(default=None, alias="configMap")
     downward_api: Optional[IoK8sApiCoreV1DownwardAPIProjection] = Field(default=None, alias="downwardAPI")
+    pod_certificate: Optional[IoK8sApiCoreV1PodCertificateProjection] = Field(default=None, alias="podCertificate")
     secret: Optional[IoK8sApiCoreV1SecretProjection] = None
     service_account_token: Optional[IoK8sApiCoreV1ServiceAccountTokenProjection] = Field(default=None, alias="serviceAccountToken")
-    __properties: ClassVar[List[str]] = ["clusterTrustBundle", "configMap", "downwardAPI", "secret", "serviceAccountToken"]
+    __properties: ClassVar[List[str]] = ["clusterTrustBundle", "configMap", "downwardAPI", "podCertificate", "secret", "serviceAccountToken"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -86,6 +88,9 @@ class IoK8sApiCoreV1VolumeProjection(BaseModel):
         # override the default output from pydantic by calling `to_dict()` of downward_api
         if self.downward_api:
             _dict['downwardAPI'] = self.downward_api.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of pod_certificate
+        if self.pod_certificate:
+            _dict['podCertificate'] = self.pod_certificate.to_dict()
         # override the default output from pydantic by calling `to_dict()` of secret
         if self.secret:
             _dict['secret'] = self.secret.to_dict()
@@ -107,6 +112,7 @@ class IoK8sApiCoreV1VolumeProjection(BaseModel):
             "clusterTrustBundle": IoK8sApiCoreV1ClusterTrustBundleProjection.from_dict(obj["clusterTrustBundle"]) if obj.get("clusterTrustBundle") is not None else None,
             "configMap": IoK8sApiCoreV1ConfigMapProjection.from_dict(obj["configMap"]) if obj.get("configMap") is not None else None,
             "downwardAPI": IoK8sApiCoreV1DownwardAPIProjection.from_dict(obj["downwardAPI"]) if obj.get("downwardAPI") is not None else None,
+            "podCertificate": IoK8sApiCoreV1PodCertificateProjection.from_dict(obj["podCertificate"]) if obj.get("podCertificate") is not None else None,
             "secret": IoK8sApiCoreV1SecretProjection.from_dict(obj["secret"]) if obj.get("secret") is not None else None,
             "serviceAccountToken": IoK8sApiCoreV1ServiceAccountTokenProjection.from_dict(obj["serviceAccountToken"]) if obj.get("serviceAccountToken") is not None else None
         })

@@ -42,6 +42,11 @@ class TestIoK8sApiCoreV1EnvVarSource(unittest.TestCase):
                 field_ref = jobset.models.io/k8s/api/core/v1/object_field_selector.io.k8s.api.core.v1.ObjectFieldSelector(
                     api_version = '', 
                     field_path = '', ),
+                file_key_ref = jobset.models.io/k8s/api/core/v1/file_key_selector.io.k8s.api.core.v1.FileKeySelector(
+                    key = '', 
+                    optional = True, 
+                    path = '', 
+                    volume_name = '', ),
                 resource_field_ref = jobset.models.io/k8s/api/core/v1/resource_field_selector.io.k8s.api.core.v1.ResourceFieldSelector(
                     container_name = '', 
                     divisor = '', 

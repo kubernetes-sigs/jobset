@@ -169,6 +169,11 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                             field_ref = jobset.models.io/k8s/api/core/v1/object_field_selector.io.k8s.api.core.v1.ObjectFieldSelector(
                                                 api_version = '', 
                                                 field_path = '', ), 
+                                            file_key_ref = jobset.models.io/k8s/api/core/v1/file_key_selector.io.k8s.api.core.v1.FileKeySelector(
+                                                key = '', 
+                                                optional = True, 
+                                                path = '', 
+                                                volume_name = '', ), 
                                             resource_field_ref = jobset.models.io/k8s/api/core/v1/resource_field_selector.io.k8s.api.core.v1.ResourceFieldSelector(
                                                 container_name = '', 
                                                 divisor = '', 
@@ -254,6 +259,12 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                         'key' : ''
                                         }, ), 
                                 restart_policy = '', 
+                                restart_policy_rules = [
+                                    jobset.models.io/k8s/api/core/v1/container_restart_rule.io.k8s.api.core.v1.ContainerRestartRule(
+                                        action = '', 
+                                        exit_codes = jobset.models.io/k8s/api/core/v1/container_restart_rule_on_exit_codes.io.k8s.api.core.v1.ContainerRestartRuleOnExitCodes(
+                                            operator = '', ), )
+                                    ], 
                                 security_context = jobset.models.io/k8s/api/core/v1/security_context.io.k8s.api.core.v1.SecurityContext(
                                     allow_privilege_escalation = True, 
                                     app_armor_profile = jobset.models.io/k8s/api/core/v1/app_armor_profile.io.k8s.api.core.v1.AppArmorProfile(
@@ -348,6 +359,7 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                         host_pid = True, 
                         host_users = True, 
                         hostname = '', 
+                        hostname_override = '', 
                         image_pull_secrets = [
                             jobset.models.io/k8s/api/core/v1/local_object_reference.io.k8s.api.core.v1.LocalObjectReference(
                                 name = '', )
@@ -588,6 +600,13 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                                 optional = True, 
                                                 path = '', 
                                                 signer_name = '', ), 
+                                            pod_certificate = jobset.models.io/k8s/api/core/v1/pod_certificate_projection.io.k8s.api.core.v1.PodCertificateProjection(
+                                                certificate_chain_path = '', 
+                                                credential_bundle_path = '', 
+                                                key_path = '', 
+                                                key_type = '', 
+                                                max_expiration_seconds = 56, 
+                                                signer_name = '', ), 
                                             secret = jobset.models.io/k8s/api/core/v1/secret_projection.io.k8s.api.core.v1.SecretProjection(
                                                 name = '', 
                                                 optional = True, ), 
@@ -732,6 +751,11 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                             field_ref = jobset.models.io/k8s/api/core/v1/object_field_selector.io.k8s.api.core.v1.ObjectFieldSelector(
                                                 api_version = '', 
                                                 field_path = '', ), 
+                                            file_key_ref = jobset.models.io/k8s/api/core/v1/file_key_selector.io.k8s.api.core.v1.FileKeySelector(
+                                                key = '', 
+                                                optional = True, 
+                                                path = '', 
+                                                volume_name = '', ), 
                                             resource_field_ref = jobset.models.io/k8s/api/core/v1/resource_field_selector.io.k8s.api.core.v1.ResourceFieldSelector(
                                                 container_name = '', 
                                                 divisor = '', 
@@ -817,6 +841,12 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                         'key' : ''
                                         }, ), 
                                 restart_policy = '', 
+                                restart_policy_rules = [
+                                    jobset.models.io/k8s/api/core/v1/container_restart_rule.io.k8s.api.core.v1.ContainerRestartRule(
+                                        action = '', 
+                                        exit_codes = jobset.models.io/k8s/api/core/v1/container_restart_rule_on_exit_codes.io.k8s.api.core.v1.ContainerRestartRuleOnExitCodes(
+                                            operator = '', ), )
+                                    ], 
                                 security_context = jobset.models.io/k8s/api/core/v1/security_context.io.k8s.api.core.v1.SecurityContext(
                                     allow_privilege_escalation = True, 
                                     app_armor_profile = jobset.models.io/k8s/api/core/v1/app_armor_profile.io.k8s.api.core.v1.AppArmorProfile(
@@ -911,6 +941,7 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                         host_pid = True, 
                         host_users = True, 
                         hostname = '', 
+                        hostname_override = '', 
                         image_pull_secrets = [
                             jobset.models.io/k8s/api/core/v1/local_object_reference.io.k8s.api.core.v1.LocalObjectReference(
                                 name = '', )
@@ -1150,6 +1181,13 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                                 name = '', 
                                                 optional = True, 
                                                 path = '', 
+                                                signer_name = '', ), 
+                                            pod_certificate = jobset.models.io/k8s/api/core/v1/pod_certificate_projection.io.k8s.api.core.v1.PodCertificateProjection(
+                                                certificate_chain_path = '', 
+                                                credential_bundle_path = '', 
+                                                key_path = '', 
+                                                key_type = '', 
+                                                max_expiration_seconds = 56, 
                                                 signer_name = '', ), 
                                             secret = jobset.models.io/k8s/api/core/v1/secret_projection.io.k8s.api.core.v1.SecretProjection(
                                                 name = '', 

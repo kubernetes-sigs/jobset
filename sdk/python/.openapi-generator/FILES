@@ -35,6 +35,8 @@ jobset/models/io_k8s_api_core_v1_config_map_volume_source.py
 jobset/models/io_k8s_api_core_v1_container.py
 jobset/models/io_k8s_api_core_v1_container_port.py
 jobset/models/io_k8s_api_core_v1_container_resize_policy.py
+jobset/models/io_k8s_api_core_v1_container_restart_rule.py
+jobset/models/io_k8s_api_core_v1_container_restart_rule_on_exit_codes.py
 jobset/models/io_k8s_api_core_v1_csi_volume_source.py
 jobset/models/io_k8s_api_core_v1_downward_api_projection.py
 jobset/models/io_k8s_api_core_v1_downward_api_volume_file.py
@@ -47,6 +49,7 @@ jobset/models/io_k8s_api_core_v1_ephemeral_container.py
 jobset/models/io_k8s_api_core_v1_ephemeral_volume_source.py
 jobset/models/io_k8s_api_core_v1_exec_action.py
 jobset/models/io_k8s_api_core_v1_fc_volume_source.py
+jobset/models/io_k8s_api_core_v1_file_key_selector.py
 jobset/models/io_k8s_api_core_v1_flex_volume_source.py
 jobset/models/io_k8s_api_core_v1_flocker_volume_source.py
 jobset/models/io_k8s_api_core_v1_gce_persistent_disk_volume_source.py
@@ -76,6 +79,7 @@ jobset/models/io_k8s_api_core_v1_photon_persistent_disk_volume_source.py
 jobset/models/io_k8s_api_core_v1_pod_affinity.py
 jobset/models/io_k8s_api_core_v1_pod_affinity_term.py
 jobset/models/io_k8s_api_core_v1_pod_anti_affinity.py
+jobset/models/io_k8s_api_core_v1_pod_certificate_projection.py
 jobset/models/io_k8s_api_core_v1_pod_dns_config.py
 jobset/models/io_k8s_api_core_v1_pod_dns_config_option.py
 jobset/models/io_k8s_api_core_v1_pod_os.py
@@ -171,6 +175,8 @@ test/test_io_k8s_api_core_v1_config_map_volume_source.py
 test/test_io_k8s_api_core_v1_container.py
 test/test_io_k8s_api_core_v1_container_port.py
 test/test_io_k8s_api_core_v1_container_resize_policy.py
+test/test_io_k8s_api_core_v1_container_restart_rule.py
+test/test_io_k8s_api_core_v1_container_restart_rule_on_exit_codes.py
 test/test_io_k8s_api_core_v1_csi_volume_source.py
 test/test_io_k8s_api_core_v1_downward_api_projection.py
 test/test_io_k8s_api_core_v1_downward_api_volume_file.py
@@ -183,6 +189,7 @@ test/test_io_k8s_api_core_v1_ephemeral_container.py
 test/test_io_k8s_api_core_v1_ephemeral_volume_source.py
 test/test_io_k8s_api_core_v1_exec_action.py
 test/test_io_k8s_api_core_v1_fc_volume_source.py
+test/test_io_k8s_api_core_v1_file_key_selector.py
 test/test_io_k8s_api_core_v1_flex_volume_source.py
 test/test_io_k8s_api_core_v1_flocker_volume_source.py
 test/test_io_k8s_api_core_v1_gce_persistent_disk_volume_source.py
@@ -212,6 +219,7 @@ test/test_io_k8s_api_core_v1_photon_persistent_disk_volume_source.py
 test/test_io_k8s_api_core_v1_pod_affinity.py
 test/test_io_k8s_api_core_v1_pod_affinity_term.py
 test/test_io_k8s_api_core_v1_pod_anti_affinity.py
+test/test_io_k8s_api_core_v1_pod_certificate_projection.py
 test/test_io_k8s_api_core_v1_pod_dns_config.py
 test/test_io_k8s_api_core_v1_pod_dns_config_option.py
 test/test_io_k8s_api_core_v1_pod_os.py

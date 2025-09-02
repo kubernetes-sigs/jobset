@@ -17,7 +17,7 @@ package applyconfiguration
 import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	testing "k8s.io/client-go/testing"
+	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	internal "sigs.k8s.io/jobset/client-go/applyconfiguration/internal"
 	jobsetv1alpha2 "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1alpha2"
@@ -57,6 +57,6 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 	return nil
 }
 
-func NewTypeConverter(scheme *runtime.Scheme) *testing.TypeConverter {
-	return &testing.TypeConverter{Scheme: scheme, TypeResolver: internal.Parser()}
+func NewTypeConverter(scheme *runtime.Scheme) managedfields.TypeConverter {
+	return managedfields.NewSchemeTypeConverter(scheme, internal.Parser())
 }

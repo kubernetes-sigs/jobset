@@ -53,6 +53,11 @@ class TestIoK8sApiCoreV1EphemeralContainer(unittest.TestCase):
                             field_ref = jobset.models.io/k8s/api/core/v1/object_field_selector.io.k8s.api.core.v1.ObjectFieldSelector(
                                 api_version = '', 
                                 field_path = '', ), 
+                            file_key_ref = jobset.models.io/k8s/api/core/v1/file_key_selector.io.k8s.api.core.v1.FileKeySelector(
+                                key = '', 
+                                optional = True, 
+                                path = '', 
+                                volume_name = '', ), 
                             resource_field_ref = jobset.models.io/k8s/api/core/v1/resource_field_selector.io.k8s.api.core.v1.ResourceFieldSelector(
                                 container_name = '', 
                                 divisor = '', 
@@ -178,6 +183,15 @@ class TestIoK8sApiCoreV1EphemeralContainer(unittest.TestCase):
                         'key' : ''
                         }, ),
                 restart_policy = '',
+                restart_policy_rules = [
+                    jobset.models.io/k8s/api/core/v1/container_restart_rule.io.k8s.api.core.v1.ContainerRestartRule(
+                        action = '', 
+                        exit_codes = jobset.models.io/k8s/api/core/v1/container_restart_rule_on_exit_codes.io.k8s.api.core.v1.ContainerRestartRuleOnExitCodes(
+                            operator = '', 
+                            values = [
+                                56
+                                ], ), )
+                    ],
                 security_context = jobset.models.io/k8s/api/core/v1/security_context.io.k8s.api.core.v1.SecurityContext(
                     allow_privilege_escalation = True, 
                     app_armor_profile = jobset.models.io/k8s/api/core/v1/app_armor_profile.io.k8s.api.core.v1.AppArmorProfile(
