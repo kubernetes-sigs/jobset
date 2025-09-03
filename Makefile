@@ -33,13 +33,6 @@ BASE_IMAGE ?= gcr.io/distroless/static:nonroot
 BUILDER_IMAGE ?= golang:$(GO_VERSION)
 CGO_ENABLED ?= 0
 
-ifdef EXTRA_TAG
-IMAGE_EXTRA_TAG ?= $(IMAGE_REPO):$(EXTRA_TAG)
-endif
-ifdef IMAGE_EXTRA_TAG
-IMAGE_BUILD_EXTRA_OPTS += -t $(IMAGE_EXTRA_TAG)
-endif
-
 ARTIFACTS ?= $(PROJECT_DIR)/bin
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
