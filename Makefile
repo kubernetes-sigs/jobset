@@ -236,13 +236,16 @@ helm-chart-push: helm-chart-package
 
 ##@ Release
 .PHONY: artifacts
-artifacts: kustomize helm yq helm-chart-package
+artifacts: clean-artifacts kustomize helm yq helm-chart-package
 	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
-	if [ -d artifacts ]; then rm -rf artifacts; fi
-	mkdir -p artifacts
 	$(KUSTOMIZE) build config/default -o artifacts/manifests.yaml
 	$(KUSTOMIZE) build config/prometheus -o artifacts/prometheus.yaml
 	@$(call clean-manifests)
+
+.PHONY: clean-artifacts
+clean-artifacts: 
+	if [ -d artifacts ]; then rm -rf artifacts; fi
+	mkdir -p artifacts
 
 GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
 .PHONY: golangci-lint
