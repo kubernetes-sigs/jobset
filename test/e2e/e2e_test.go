@@ -551,7 +551,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 			patch := &unstructured.Unstructured{Object: u}
 
 			// Create the JobSet using Server-Side Apply
-			gomega.Expect(k8sClient.Patch(ctx, patch.DeepCopy(), client.Apply, client.ForceOwnership, fieldManagerName)).
+			gomega.Expect(k8sClient.Apply(ctx, client.ApplyConfigurationFromUnstructured(patch.DeepCopy()), client.ForceOwnership, fieldManagerName)).
 				To(gomega.Succeed())
 
 			// Wait for the JobSet to be created and get its initial generation
@@ -566,12 +566,12 @@ var _ = ginkgo.Describe("JobSet", func() {
 
 			ginkgo.By("Re-applying the same JobSet apply configuration once")
 			// Re-apply the original apply configuration
-			gomega.Expect(k8sClient.Patch(ctx, patch.DeepCopy(), client.Apply, client.ForceOwnership, fieldManagerName)).
+			gomega.Expect(k8sClient.Apply(ctx, client.ApplyConfigurationFromUnstructured(patch.DeepCopy()), client.ForceOwnership, fieldManagerName)).
 				To(gomega.Succeed())
 
 			ginkgo.By("Re-applying the same JobSet apply configuration twice")
 			// Re-apply the original apply configuration
-			gomega.Expect(k8sClient.Patch(ctx, patch.DeepCopy(), client.Apply, client.ForceOwnership, fieldManagerName)).
+			gomega.Expect(k8sClient.Apply(ctx, client.ApplyConfigurationFromUnstructured(patch.DeepCopy()), client.ForceOwnership, fieldManagerName)).
 				To(gomega.Succeed())
 
 			// Get the JobSet again and verify generation hasn't changed
