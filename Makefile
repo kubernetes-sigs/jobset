@@ -170,7 +170,7 @@ image-local-push: image-local-build
 
 .PHONY: image-build
 image-build:
-	$(IMAGE_BUILD_CMD) -t $(IMAGE_REPO):$(BRANCH_NAME) \
+	$(IMAGE_BUILD_CMD) -t $(IMAGE_TAG) -t $(IMAGE_REPO):$(BRANCH_NAME) \
 		--platform=$(PLATFORMS) \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) \
