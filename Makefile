@@ -15,7 +15,7 @@ GO_FMT ?= gofmt
 GO_VERSION := $(shell awk '/^go /{print $$2}' go.mod|head -n1)
 
 GIT_TAG ?= $(shell git describe --tags --dirty --always)
-BRANCH_NAME ?= $(shell git branch --show-current)
+BRANCH_NAME ?= release-0.9
 # Image URL to use all building/pushing image targets
 PLATFORMS ?= linux/amd64,linux/arm64,linux/s390x
 DOCKER_BUILDX_CMD ?= docker buildx
