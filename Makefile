@@ -15,6 +15,7 @@ GO_FMT ?= gofmt
 GO_VERSION := $(shell awk '/^go /{print $$2}' go.mod|head -n1)
 
 GIT_TAG ?= $(shell git describe --tags --dirty --always)
+BRANCH_NAME ?= $(shell git branch --show-current)
 # Image URL to use all building/pushing image targets
 PLATFORMS ?= linux/amd64,linux/arm64,linux/s390x
 DOCKER_BUILDX_CMD ?= docker buildx
@@ -169,7 +170,7 @@ image-local-push: image-local-build
 
 .PHONY: image-build
 image-build:
-	$(IMAGE_BUILD_CMD) -t $(IMAGE_TAG) \
+	$(IMAGE_BUILD_CMD) -t $(IMAGE_REPO):$(BRANCH_NAME) \
 		--platform=$(PLATFORMS) \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) \
