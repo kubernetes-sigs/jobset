@@ -282,6 +282,13 @@ class TestIoK8sApiCoreV1Volume(unittest.TestCase):
                                 name = '', 
                                 optional = True, ), 
                             downward_api = jobset.models.io/k8s/api/core/v1/downward_api_projection.io.k8s.api.core.v1.DownwardAPIProjection(), 
+                            pod_certificate = jobset.models.io/k8s/api/core/v1/pod_certificate_projection.io.k8s.api.core.v1.PodCertificateProjection(
+                                certificate_chain_path = '', 
+                                credential_bundle_path = '', 
+                                key_path = '', 
+                                key_type = '', 
+                                max_expiration_seconds = 56, 
+                                signer_name = '', ), 
                             secret = jobset.models.io/k8s/api/core/v1/secret_projection.io.k8s.api.core.v1.SecretProjection(
                                 name = '', 
                                 optional = True, ), 
