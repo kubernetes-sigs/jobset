@@ -417,25 +417,16 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 		replicatedJobToActiveJobs[replicatedJobName] = append(replicatedJobToActiveJobs[replicatedJobName], job)
 	}
 
-	startupPolicy := js.Spec.StartupPolicy
-
 	// Map where key is the Job name and value is the Job replicas.
 	rJobsReplicas := map[string]int32{}
 
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to true.
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
-		replicatedJobStatus := findReplicatedJobStatus(replicatedJobStatuses, replicatedJob.Name)
-
 		rJobsReplicas[replicatedJob.Name] = replicatedJob.Replicas
 
 		// For depends on, the ReplicatedJob is created only after the previous ReplicatedJob reached the status.
 		if !dependencyReachedStatus(replicatedJob, rJobsReplicas, replicatedJobStatuses) {
-			continue
-		}
-
-		// If this replicatedJob has already started, continue.
-		if inOrderStartupPolicy(startupPolicy) && allReplicasStarted(replicatedJob.Replicas, replicatedJobStatus) {
 			continue
 		}
 
@@ -447,12 +438,6 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 			if err := r.resumeJob(ctx, job, replicatedJobTemplateMap); err != nil {
 				return err
 			}
-		}
-		// If in order startup policy, we need to return early and allow for
-		// this replicatedJob to become ready before resuming the next.
-		if inOrderStartupPolicy(startupPolicy) {
-			setInOrderStartupPolicyInProgressCondition(js, updateStatusOpts)
-			return nil
 		}
 	}
 
@@ -512,25 +497,16 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 
 func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
 	log := ctrl.LoggerFrom(ctx)
-	startupPolicy := js.Spec.StartupPolicy
 
 	// Map where key is the Job name and value is the Job replicas.
 	rJobsReplicas := map[string]int32{}
 
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
 		jobs := constructJobsFromTemplate(js, &replicatedJob, ownedJobs)
-		replicatedJobStatus := findReplicatedJobStatus(replicatedJobStatuses, replicatedJob.Name)
-
 		rJobsReplicas[replicatedJob.Name] = replicatedJob.Replicas
 
 		// For depends on, the ReplicatedJob is created only after the previous ReplicatedJob reached the status.
 		if !dependencyReachedStatus(replicatedJob, rJobsReplicas, replicatedJobStatuses) {
-			continue
-		}
-
-		// For startup policy, if the replicatedJob is started we can skip this loop.
-		// Jobs have been created.
-		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) && allReplicasStarted(replicatedJob.Replicas, replicatedJobStatus) {
 			continue
 		}
 
@@ -540,18 +516,6 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 			return err
 		}
 
-		// If we are using inOrder StartupPolicy, then we return to wait for jobs to be ready.
-		// This updates the StartupPolicy condition and notifies that we are waiting
-		// for this replicated job to start up before moving onto the next one.
-		if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-			setInOrderStartupPolicyInProgressCondition(js, updateStatusOpts)
-			return nil
-		}
-	}
-
-	// Skip emitting a condition for StartupPolicy if JobSet is suspended
-	if !jobSetSuspended(js) && inOrderStartupPolicy(startupPolicy) {
-		setInOrderStartupPolicyCompletedCondition(js, updateStatusOpts)
 	}
 	return nil
 }
@@ -983,8 +947,7 @@ func updateCondition(js *jobset.JobSet, opts *conditionOpts) bool {
 			// If conditions are of different types, only perform an update if they are both true
 			// and they are mutually exclusive. If so, then set the existing condition status to
 			// false before adding the new condition.
-			if exclusiveConditions(currCond, newCond) &&
-				currCond.Status == metav1.ConditionTrue &&
+			if currCond.Status == metav1.ConditionTrue &&
 				newCond.Status == metav1.ConditionTrue {
 				js.Status.Conditions[i].Status = metav1.ConditionFalse
 				shouldUpdate = true
@@ -1071,16 +1034,6 @@ func replicatedJobStatusesEqual(oldStatuses, newStatuses []jobset.ReplicatedJobS
 		return newStatuses[i].Name > newStatuses[j].Name
 	})
 	return apiequality.Semantic.DeepEqual(oldStatuses, newStatuses)
-}
-
-// exclusiveConditions accepts 2 conditions and returns a boolean indicating if
-// they are mutually exclusive.
-func exclusiveConditions(cond1, cond2 metav1.Condition) bool {
-	inProgressAndCompleted := cond1.Type == string(jobset.JobSetStartupPolicyInProgress) &&
-		cond2.Type == string(jobset.JobSetStartupPolicyCompleted)
-	completedAndInProgress := cond1.Type == string(jobset.JobSetStartupPolicyCompleted) &&
-		cond2.Type == string(jobset.JobSetStartupPolicyInProgress)
-	return inProgressAndCompleted || completedAndInProgress
 }
 
 // coordinatorEndpoint returns the stable network endpoint where the coordinator pod can be reached.

@@ -44,7 +44,6 @@ type jobSetDefaultingTestCase struct {
 
 func TestJobSetDefaulting(t *testing.T) {
 	defaultSuccessPolicy := &jobset.SuccessPolicy{Operator: jobset.OperatorAll}
-	defaultStartupPolicy := &jobset.StartupPolicy{StartupPolicyOrder: jobset.AnyOrder}
 	defaultNetwork := &jobset.Network{EnableDNSHostnames: ptr.To(true), PublishNotReadyAddresses: ptr.To(true)}
 
 	jobCompletionTests := []jobSetDefaultingTestCase{
@@ -53,7 +52,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -70,7 +68,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -108,7 +105,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -132,7 +128,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -149,7 +144,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -170,7 +164,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(false)},
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -188,7 +181,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(false), PublishNotReadyAddresses: ptr.To(true)},
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -212,7 +204,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       &jobset.Network{PublishNotReadyAddresses: ptr.To(false)},
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -230,7 +221,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(true), PublishNotReadyAddresses: ptr.To(false)},
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -251,7 +241,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(false), PublishNotReadyAddresses: ptr.To(true)},
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -269,7 +258,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       &jobset.Network{EnableDNSHostnames: ptr.To(false), PublishNotReadyAddresses: ptr.To(true)},
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -293,7 +281,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -313,7 +300,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -338,7 +324,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -360,7 +345,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -387,8 +371,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			name: "success policy unset",
 			js: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
-					StartupPolicy: defaultStartupPolicy,
-					Network:       defaultNetwork,
+					Network: defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -408,7 +391,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
-					StartupPolicy: defaultStartupPolicy,
 					SuccessPolicy: defaultSuccessPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
@@ -436,64 +418,7 @@ func TestJobSetDefaulting(t *testing.T) {
 					SuccessPolicy: &jobset.SuccessPolicy{
 						Operator: jobset.OperatorAny,
 					},
-					Network:       defaultNetwork,
-					StartupPolicy: defaultStartupPolicy,
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: corev1.PodSpec{
-											RestartPolicy: corev1.RestartPolicyAlways,
-										},
-									},
-									CompletionMode: ptr.To(batchv1.IndexedCompletion),
-								},
-							},
-						},
-					},
-					ManagedBy: ptr.To(jobset.JobSetControllerName),
-				},
-			},
-			want: &jobset.JobSet{
-				Spec: jobset.JobSetSpec{
-					SuccessPolicy: &jobset.SuccessPolicy{
-						Operator: jobset.OperatorAny,
-					},
-					StartupPolicy: defaultStartupPolicy,
-					Network:       defaultNetwork,
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: corev1.PodSpec{
-											RestartPolicy: corev1.RestartPolicyAlways,
-										},
-									},
-									CompletionMode: ptr.To(batchv1.IndexedCompletion),
-								},
-							},
-						},
-					},
-					ManagedBy: ptr.To(jobset.JobSetControllerName),
-				},
-			},
-		},
-	}
-
-	startupPolicyTests := []jobSetDefaultingTestCase{
-		{
-			name: "startup policy order InOrder set",
-			js: &jobset.JobSet{
-				Spec: jobset.JobSetSpec{
-					SuccessPolicy: &jobset.SuccessPolicy{
-						Operator: jobset.OperatorAny,
-					},
 					Network: defaultNetwork,
-					StartupPolicy: &jobset.StartupPolicy{
-						StartupPolicyOrder: jobset.InOrder,
-					},
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Template: batchv1.JobTemplateSpec{
@@ -515,9 +440,6 @@ func TestJobSetDefaulting(t *testing.T) {
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: &jobset.SuccessPolicy{
 						Operator: jobset.OperatorAny,
-					},
-					StartupPolicy: &jobset.StartupPolicy{
-						StartupPolicyOrder: jobset.InOrder,
 					},
 					Network: defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
@@ -562,7 +484,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -599,7 +520,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -642,7 +562,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -689,7 +608,6 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				Spec: jobset.JobSetSpec{
 					SuccessPolicy: defaultSuccessPolicy,
-					StartupPolicy: defaultStartupPolicy,
 					Network:       defaultNetwork,
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
@@ -718,8 +636,6 @@ func TestJobSetDefaulting(t *testing.T) {
 		publishNotReadyNetworkAddresessTests,
 		podRestartTests,
 		successPolicyTests,
-		startupPolicyTests,
-		startupPolicyTests,
 		managedByTests,
 		failurePolicyRuleNameTests,
 	}

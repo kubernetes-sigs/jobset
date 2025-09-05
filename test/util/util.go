@@ -137,28 +137,6 @@ func JobSetResumed(ctx context.Context, k8sClient client.Client, js *jobset.JobS
 	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
 }
 
-func JobSetStartupPolicyComplete(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
-	ginkgo.By(fmt.Sprintf("checking jobset condition %q status is %q", jobset.JobSetStartupPolicyCompleted, metav1.ConditionTrue))
-	conditions := []metav1.Condition{
-		{
-			Type:   string(jobset.JobSetStartupPolicyCompleted),
-			Status: metav1.ConditionTrue,
-		},
-	}
-	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
-}
-
-func JobSetStartupPolicyNotFinished(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
-	ginkgo.By(fmt.Sprintf("checking jobset condition %q status is %q", jobset.JobSetStartupPolicyCompleted, metav1.ConditionFalse))
-	conditions := []metav1.Condition{
-		{
-			Type:   string(jobset.JobSetStartupPolicyInProgress),
-			Status: metav1.ConditionTrue,
-		},
-	}
-	gomega.Eventually(checkJobSetStatus, timeout, interval).WithArguments(ctx, k8sClient, js, conditions).Should(gomega.Equal(true))
-}
-
 func JobSetActive(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, timeout time.Duration) {
 	ginkgo.By("checking jobset status is active")
 	gomega.Consistently(checkJobSetActive, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(true))

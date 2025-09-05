@@ -308,14 +308,6 @@ The JobSet is always declared failed if any job in the set
 finished with status failed.</p>
 </td>
 </tr>
-<tr><td><code>startupPolicy</code> <B>[Required]</B><br/>
-<a href="#jobset-x-k8s-io-v1alpha2-StartupPolicy"><code>StartupPolicy</code></a>
-</td>
-<td>
-   <p>StartupPolicy, if set, configures in what order jobs must be started
-Deprecated: StartupPolicy is deprecated, please use the DependsOn API.</p>
-</td>
-</tr>
 <tr><td><code>suspend</code> <B>[Required]</B><br/>
 <code>bool</code>
 </td>
@@ -533,7 +525,7 @@ Note, that the first ReplicatedJob in the slice cannot use the DependsOn API.
 Currently, only a single item is supported in the DependsOn list.
 If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is
 resumed the Job sequence starts again.
-This API is mutually exclusive with the StartupPolicy API.</p>
+This API provides fine-grained control over the execution order of ReplicatedJobs.</p>
 </td>
 </tr>
 </tbody>
@@ -602,43 +594,6 @@ which are not marked for deletion.</p>
 </tr>
 </tbody>
 </table>
-
-## `StartupPolicy`     {#jobset-x-k8s-io-v1alpha2-StartupPolicy}
-    
-
-**Appears in:**
-
-- [JobSetSpec](#jobset-x-k8s-io-v1alpha2-JobSetSpec)
-
-
-
-<table class="table">
-<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
-<tbody>
-    
-  
-<tr><td><code>startupPolicyOrder</code> <B>[Required]</B><br/>
-<a href="#jobset-x-k8s-io-v1alpha2-StartupPolicyOptions"><code>StartupPolicyOptions</code></a>
-</td>
-<td>
-   <p>StartupPolicyOrder determines the startup order of the ReplicatedJobs.
-AnyOrder means to start replicated jobs in any order.
-InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
-when all the jobs of the previous one are ready.</p>
-</td>
-</tr>
-</tbody>
-</table>
-
-## `StartupPolicyOptions`     {#jobset-x-k8s-io-v1alpha2-StartupPolicyOptions}
-    
-(Alias of `string`)
-
-**Appears in:**
-
-- [StartupPolicy](#jobset-x-k8s-io-v1alpha2-StartupPolicy)
-
-
 
 
 
