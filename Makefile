@@ -259,7 +259,7 @@ clean-artifacts:
 	mkdir -p artifacts
 
 .PHONY: artifacts
-artifacts: clean-artifacts kustomize helm yq ## Generate release artifacts.
+artifacts: clean-artifacts kustomize helm yq helm-chart-package ## Generate release artifacts.
 	$(KUSTOMIZE) build config/default -o artifacts/manifests.yaml
 	$(KUSTOMIZE) build config/prometheus -o artifacts/prometheus.yaml
 	@$(call clean-manifests)
