@@ -18,7 +18,7 @@ Please do not remove items from the checklist
         `git branch release-$MAJ.$MIN main`
   - [ ] An OWNER pushes the new release branch with
         `git push release-$MAJ.$MIN`
-- [ ] Update `RELEASE_BRANCH` in the `Makefile` and set `export VERSION=vX.Y.Z`.
+- [ ] Update `BRANCH_NAME` in the `Makefile` and set `export VERSION=vX.Y.Z`.
    - [ ] Run `make prepare-release-branch` to update the assets.
    - [ ] Update the `CHANGELOG-X.Y`
    - [ ] Submit a PR with the changes against the release branch <!-- TODO (andreyvelich): Add example here>
@@ -41,7 +41,7 @@ Please do not remove items from the checklist
       to production: <!-- example https://github.com/kubernetes/k8s.io/pull/8453-->
 - [ ] Wait for the PR to be merged and verify that the image `registry.k8s.io/jobset/jobset:$VERSION` is available.
 - [ ] Wait for the PR to be merged and verify that the chart `registry.k8s.io/jobset/charts/jobset` is available. 
-      Try `helm template oci://registry.k8s.io/jobset/charts/jobset --version=$VERSION.
+      Try `helm show chart oci://registry.k8s.io/jobset/charts/jobset --version ${VERSION/#v/}
 - [ ] Publish the draft release prepared at the [Github releases page](https://github.com/kubernetes-sigs/jobset/releases).
 - [ ] Add a link to the tagged release in this issue: <!-- example https://github.com/kubernetes-sigs/jobset/releases/tag/v0.1.0 -->
 - [ ] Send an announcement email to `sig-apps@kubernetes.io`, `sig-scheduling@kubernetes.io` and `wg-batch@kubernetes.io` with the subject `[ANNOUNCE] JobSet $VERSION is released`

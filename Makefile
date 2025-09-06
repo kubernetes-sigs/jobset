@@ -182,7 +182,7 @@ image-local-push: image-local-build
 
 .PHONY: image-build
 image-build:
-	$(IMAGE_BUILD_CMD) -t $(IMAGE_TAG) -t $(IMAGE_REPO):$(RELEASE_BRANCH) \
+	$(IMAGE_BUILD_CMD) -t $(IMAGE_TAG) -t $(IMAGE_REPO):$(BRANCH_NAME) \
 		--platform=$(PLATFORMS) \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) \
@@ -242,7 +242,7 @@ helm-chart-push: helm-chart-package
 
 ##@ Release
 # Chart version should not have "v".
-CHART_VERSION := $(VERSION:v%=%)
+CHART_VERSION := $(VERSION/v%=%)
 
 .PHONY: prepare-release-branch
 prepare-release-branch: kustomize ## Prepare the release branch with the release version.
