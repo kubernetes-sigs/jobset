@@ -18,15 +18,11 @@ Please do not remove items from the checklist
         `git branch release-$MAJ.$MIN main`
   - [ ] An OWNER pushes the new release branch with
         `git push release-$MAJ.$MIN`
-- [ ] Update things like README, deployment templates, docs, configuration, test/e2e flags.
-      Submit a PR against the release branch: <!-- example #211 #214 under Kueue repo -->
-- [ ] An OWNER [prepares a draft release](https://github.com/kubernetes-sigs/jobset/releases)
-  - [ ] Write the change log into the draft release.
-  - [ ] Run
-      `make artifacts IMAGE_REGISTRY=registry.k8s.io/jobset GIT_TAG=$VERSION`
-      to generate the artifacts and upload the files in the `artifacts` folder
-      to the draft release.
-- [ ] An OWNER creates a signed tag running
+- [ ] Update `RELEASE_BRANCH` in the `Makefile` and set `export VERSION=vX.Y.Z`.
+   - [ ] Run `make prepare-release-branch` to update the assets.
+   - [ ] Update the `CHANGELOG-X.Y`
+   - [ ] Submit a PR with the changes against the release branch <!-- TODO (andreyvelich): Add example here>
+- [ ] After the above PR is merged rebase your local branch and create a signed tag running:
      `git tag -s $VERSION`
       and inserts the changelog into the tag description.
       To perform this step, you need [a PGP key registered on github](https://docs.github.com/en/authentication/managing-commit-signature-verification/checking-for-existing-gpg-keys).
@@ -34,13 +30,18 @@ Please do not remove items from the checklist
       `git push $VERSION`
   - Triggers prow to build and publish a staging container image
       `gcr.io/k8s-staging-jobset/jobset:$VERSION`
+- [ ] An OWNER [prepares a draft release](https://github.com/kubernetes-sigs/jobset/releases)
+  - [ ] Write the changelog into the draft release.
+  - [ ] Run `make artifacts IMAGE_REGISTRY=registry.k8s.io/jobset`
+      to generate the artifacts and upload the files in the `artifacts` folder
+      to the draft release.
 - [ ] Submit a PR against [k8s.io](https://github.com/kubernetes/k8s.io), 
       updating `k8s.gcr.io/images/k8s-staging-jobset/images.yaml` to
       [promote the container images](https://github.com/kubernetes/k8s.io/tree/main/k8s.gcr.io#image-promoter)
-      to production: <!-- example kubernetes/k8s.io#3612-->
+      to production: <!-- example https://github.com/kubernetes/k8s.io/pull/8453-->
 - [ ] Wait for the PR to be merged and verify that the image `registry.k8s.io/jobset/jobset:$VERSION` is available.
 - [ ] Wait for the PR to be merged and verify that the chart `registry.k8s.io/jobset/charts/jobset` is available. 
-      Try `helm template oci://registry.k8s.io/jobset/charts/jobset --version=v$VERSION.
+      Try `helm template oci://registry.k8s.io/jobset/charts/jobset --version=$VERSION.
 - [ ] Publish the draft release prepared at the [Github releases page](https://github.com/kubernetes-sigs/jobset/releases).
 - [ ] Add a link to the tagged release in this issue: <!-- example https://github.com/kubernetes-sigs/jobset/releases/tag/v0.1.0 -->
 - [ ] Send an announcement email to `sig-apps@kubernetes.io`, `sig-scheduling@kubernetes.io` and `wg-batch@kubernetes.io` with the subject `[ANNOUNCE] JobSet $VERSION is released`
