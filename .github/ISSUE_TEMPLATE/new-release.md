@@ -46,8 +46,7 @@ Please do not remove items from the checklist
 - [ ] Add a link to the tagged release in this issue: <!-- example https://github.com/kubernetes-sigs/jobset/releases/tag/v0.1.0 -->
 - [ ] Send an announcement email to `sig-apps@kubernetes.io`, `sig-scheduling@kubernetes.io` and `wg-batch@kubernetes.io` with the subject `[ANNOUNCE] JobSet $VERSION is released`
 - [ ] Add a link to the release announcement in this issue: <!-- example https://groups.google.com/a/kubernetes.io/g/wg-batch/c/-gZOrSnwDV4 -->
-- [ ] For a major or minor release, update `README.md` and `docs/setup/install.md`
-      in `main` branch: <!-- example #215 -->
+- [ ] For a major or minor release, update `README.md` in `main` branch:  <!-- TODO (andreyvelich): Add example here>
 - [ ] For a major or minor release, create an unannotated _devel_ tag in the
       `main` branch, on the first commit that gets merged after the release
        branch has been created (presumably the README update commit above), and, push the tag:
