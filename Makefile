@@ -249,7 +249,6 @@ prepare-release-branch: kustomize ## Prepare the release branch with the release
 	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_REPO}:${VERSION}
 	$(SED) -r 's|download/v[0-9]+\.[0-9]+\.[0-9]+|download/${VERSION}|g' -i README.md
 	$(SED) -r 's/v[0-9]+\.[0-9]+\.[0-9]+/${VERSION}/g' -i site/hugo.toml
-	$(SED) -r 's|download/v[0-9]+\.[0-9]+\.[0-9]+|download/${VERSION}|g' -i site/content/en/docs/overview/_index.md
 	$(SED) -r 's/[0-9]+\.[0-9]+\.[0-9]+/$(CHART_VERSION)/g' -i charts/jobset/Chart.yaml
 	make helm-docs
 
