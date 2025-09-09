@@ -274,11 +274,11 @@ spec:
     - name: ps-a
       dependsOn:
         - name: initializer
-          status: Completed
+          status: Complete
     - name: ps-b
       dependsOn:
         - name: initializer
-          status: Completed
+          status: Complete
     - name: trainer-node
       dependsOn:
         - name: ps-a
