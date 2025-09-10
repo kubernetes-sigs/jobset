@@ -39,14 +39,13 @@ then
 	IMAGE_REGISTRY=${k8s_registry}
 fi
 
-image_repository=${IMAGE_REGISTRY}
 chart_version="${GIT_TAG/#v/}"
 
 default_image_repo=$(${YQ} ".image.repository" charts/jobset/values.yaml)
 readonly default_image_repo
 
 # Update the image repo, tag and policy
-${YQ}  e  ".image.repository = \"${image_repository}\" | .image.tag = \"${GIT_TAG}\" | .image.pullPolicy = \"IfNotPresent\"" -i charts/jobset/values.yaml
+${YQ}  e  ".image.repository = \"${IMAGE_REGISTRY}/jobset\" | .image.tag = \"${GIT_TAG}\" | .image.pullPolicy = \"IfNotPresent\"" -i charts/jobset/values.yaml
 
 ${HELM} package --version "${chart_version}" --app-version "${GIT_TAG}" charts/jobset -d "${DEST_CHART_DIR}"
 
