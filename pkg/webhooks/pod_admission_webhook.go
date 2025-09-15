@@ -3,6 +3,7 @@ package webhooks
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -102,6 +103,9 @@ func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) 
 	if err := p.client.List(ctx, &podList, client.InNamespace(pod.Namespace), &client.MatchingFields{controllers.PodNameKey: leaderPodName}); err != nil {
 		return nil, err
 	}
+	podList.Items = slices.DeleteFunc(podList.Items, func(p corev1.Pod) bool {
+		return !p.DeletionTimestamp.IsZero()
+	})
 
 	// Validate there is only 1 leader pod for this job.
 	if len(podList.Items) != 1 {
