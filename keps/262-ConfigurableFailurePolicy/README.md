@@ -346,7 +346,7 @@ will allow me to support my use case. This will be possible because the new
 field `podFailurePolicy.rules[].name` will allow the value of the `reason` 
 field of the Job failure condition to be customized as `PodFailurePolicy_{name}`.
 
-**Long-Term: Example Failure Policy Configuration for this use case**:
+**Long-Term solution: Example Failure Policy Configuration for this use case**:
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -398,11 +398,11 @@ solution is to add the new field `spec.failurePolicy.rules[].onJobFailureMessage
 which will allow the value of the `message` field in the Job failure condition 
 to be matched against a pattern. Although not designed to be machine-readable, 
 the message field is stable enough (no changes since its addition 2 years ago) 
-to serve as a short-term workaround. Once the upstream solution is fully 
+to serve as a short-term solution. Once the upstream solution is fully 
 delivered, the documentation and validation webhook of JobSet can be updated 
 to encourage new JobSet YAML files to use the long-term solution.
 
-**Short-Term: Example Failure Policy Configuration for this use case**:
+**Short-Term solution: Example Failure Policy Configuration for this use case**:
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -417,12 +417,12 @@ spec:
       onJobFailureReasons:
       - PodFailurePolicy
       onJobFailureMessagePatterns: # New field
-      - ".*DisruptionTarget.*"
+      - ".*DisruptionTarget.*" # Failure message: Pod <pod namespace>/<pod name> has condition DisruptionTarget matching FailJob rule at index <index>
     - action: FailJobSet
       onJobFailureReasons:
       - PodFailurePolicy
       onJobFailureMessagePatterns: # New field
-      - ".*exit code 42.*"
+      - ".*exit code 42.*" # Failure message: Container <container name> for pod <pod namespace>/<pod name> failed with exit code 42 matching FailJob rule at index <index>
   replicatedJobs:
   - name: leader
     replicas: 1
