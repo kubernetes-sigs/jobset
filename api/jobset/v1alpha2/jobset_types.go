@@ -355,6 +355,8 @@ type FailurePolicyRule struct {
 	// An empty list applies the rule to any job failure reason.
 	// +kubebuilder:validation:UniqueItems:true
 	OnJobFailureReasons []string `json:"onJobFailureReasons,omitempty"`
+	// TODO: Add description
+	OnJobFailureMessagePatterns []string `json:"onJobFailureMessagePatterns,omitempty"`
 	// TargetReplicatedJobs are the names of the replicated jobs the operator applies to.
 	// An empty list will apply to all replicatedJobs.
 	// +optional

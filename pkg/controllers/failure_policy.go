@@ -16,6 +16,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -92,9 +93,9 @@ func findFirstFailedPolicyRuleAndJob(ctx context.Context, rules []jobset.Failure
 				continue
 			}
 
-			jobFailureTime, jobFailureReason := ptr.To(jobFailureCondition.LastTransitionTime), jobFailureCondition.Reason
+			jobFailureTime, jobFailureReason, jobFailureMessage := ptr.To(jobFailureCondition.LastTransitionTime), jobFailureCondition.Reason, jobFailureCondition.Message
 			jobFailedEarlier := matchedFailedJob == nil || jobFailureTime.Before(matchedFailureTime)
-			if ruleIsApplicable(ctx, rule, failedJob, jobFailureReason) && jobFailedEarlier {
+			if ruleIsApplicable(ctx, rule, failedJob, jobFailureReason, jobFailureMessage) && jobFailedEarlier {
 				matchedFailedJob = failedJob
 				matchedFailureTime = jobFailureTime
 			}
@@ -132,11 +133,16 @@ func applyFailurePolicyRuleAction(ctx context.Context, js *jobset.JobSet, matchi
 
 // ruleIsApplicable returns true if the failed job and job failure reason match the failure policy rule.
 // The function returns false otherwise.
-func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string) bool {
+func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string, jobFailureMessage string) bool {
 	log := ctrl.LoggerFrom(ctx)
 
 	ruleAppliesToJobFailureReason := len(rule.OnJobFailureReasons) == 0 || slices.Contains(rule.OnJobFailureReasons, jobFailureReason)
 	if !ruleAppliesToJobFailureReason {
+		return false
+	}
+
+	ruleAppliesToJobFailureMessage := len(rule.OnJobFailureMessagePatterns) == 0 || anyMatchFound(ctx, rule.OnJobFailureMessagePatterns, jobFailureMessage)
+	if !ruleAppliesToJobFailureMessage {
 		return false
 	}
 
@@ -149,6 +155,24 @@ func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failed
 
 	ruleAppliesToParentReplicatedJob := len(rule.TargetReplicatedJobs) == 0 || slices.Contains(rule.TargetReplicatedJobs, parentReplicatedJob)
 	return ruleAppliesToParentReplicatedJob
+}
+
+// TODO: Description
+func anyMatchFound(ctx context.Context, patterns []string, message string) bool {
+	log := ctrl.LoggerFrom(ctx)
+
+	for _, pattern := range patterns {
+		match, err := regexp.MatchString(pattern, message)
+		if err != nil {
+			log.Error(err, "invalid regex for onJobFailureMessagePatterns", "pattern", pattern)
+			continue
+		}
+		if match {
+			return true
+		}
+	}
+
+	return false
 }
 
 // failurePolicyRecreateAll triggers a JobSet restart for the next reconcillation loop.

@@ -79,6 +79,7 @@ func TestFindFirstFailedJob(t *testing.T) {
 	}
 }
 
+// TODO: Update test
 func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 	var (
 		replicatedJobName1 = "test-replicated-job-1"
@@ -92,11 +93,12 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 	)
 
 	tests := []struct {
-		name             string
-		rule             jobset.FailurePolicyRule
-		failedJob        *batchv1.Job
-		jobFailureReason string
-		expected         bool
+		name              string
+		rule              jobset.FailurePolicyRule
+		failedJob         *batchv1.Job
+		jobFailureReason  string
+		jobFailureMessage string
+		expected          bool
 	}{
 		{
 			name: "a job has failed and the failure policy rule matches all possible parent replicated jobs and matches all possible job failure reasons",
@@ -210,7 +212,7 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := ruleIsApplicable(context.TODO(), tc.rule, tc.failedJob, tc.jobFailureReason)
+			actual := ruleIsApplicable(context.TODO(), tc.rule, tc.failedJob, tc.jobFailureReason, tc.jobFailureMessage)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}
