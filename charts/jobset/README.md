@@ -1,6 +1,6 @@
 # jobset
 
-![Version: 0.9.0](https://img.shields.io/badge/Version-0.9.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
+![Version: 0.9.1](https://img.shields.io/badge/Version-0.9.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
 
 A Helm chart for deploying JobSet controller and webhook on Kubernetes.
 
@@ -22,7 +22,7 @@ This Helm chart installs the JobSet controller and webhook to your Kubernetes cl
 You can obtain the helm chart from `registry.k8s.io`.
 
 ```shell
-helm install oci://registry.k8s.io/jobset/charts/jobset --version 0.9.0
+helm install oci://registry.k8s.io/jobset/charts/jobset --version 0.9.1
 ```
 
 The version is necessary as there is not a latest tag in this repository.

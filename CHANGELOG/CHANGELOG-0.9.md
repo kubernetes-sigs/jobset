@@ -1,3 +1,11 @@
+## v0.9.1
+
+Changes since `v0.9.0`.
+
+### Bug Fixes
+
+- \[release-0.9\] Filter out terminating leader Pods ([#1026](https://github.com/kubernetes-sigs/jobset/pull/1026) / [#1022](https://github.com/kubernetes-sigs/jobset/pull/1022)) by [@k8s-infra-cherrypick-robot](https://github.com/k8s-infra-cherrypick-robot) / [@PBundyra](https://github.com/PBundyra)
+
 ## v0.9.0
 
 Changes since `v0.8.0`.
