@@ -79,7 +79,6 @@ func TestFindFirstFailedJob(t *testing.T) {
 	}
 }
 
-// TODO: Update test
 func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 	var (
 		replicatedJobName1 = "test-replicated-job-1"
@@ -207,6 +206,54 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 			).Obj(),
 			jobFailureReason: jobFailureReason2,
 			expected:         false,
+		},
+		{
+			name: "a job has failed and the failure policy rule matches the job failure message pattern",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureMessagePatterns: []string{"^job failed because.*"},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureMessage: "job failed because of a bug",
+			expected:          true,
+		},
+		{
+			name: "a job has failed and the failure policy rule does not match the job failure message pattern",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureMessagePatterns: []string{"^job failed because.*"},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureMessage: "another error message",
+			expected:          false,
+		},
+		{
+			name: "a job has failed and the failure policy rule matches both the job failure reason and message pattern",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureReasons:         []string{jobFailureReason1},
+				OnJobFailureMessagePatterns: []string{".*bug.*"},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureReason:  jobFailureReason1,
+			jobFailureMessage: "job failed because of a bug",
+			expected:          true,
+		},
+		{
+			name: "a job has failed and the failure policy rule matches the job failure reason but not the message pattern",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureReasons:         []string{jobFailureReason1},
+				OnJobFailureMessagePatterns: []string{".*bug.*"},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureReason:  jobFailureReason1,
+			jobFailureMessage: "job failed due to something else",
+			expected:          false,
 		},
 	}
 
