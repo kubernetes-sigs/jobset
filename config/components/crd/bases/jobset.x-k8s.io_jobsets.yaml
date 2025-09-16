@@ -130,6 +130,15 @@ spec:
                             The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
                             The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
                           type: string
+                        onJobFailureMessagePatterns:
+                          description: |-
+                            The requirement on the job failure message. The requirement
+                            is satisfied if at least one pattern matches the job failure message.
+                            The rules are evaluated in order, and the first matching
+                            rule is executed.
+                          items:
+                            type: string
+                          type: array
                         onJobFailureReasons:
                           description: |-
                             The requirement on the job failure reasons. The requirement
