@@ -75,34 +75,37 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func SetupPodIndexes(ctx context.Context, indexer client.FieldIndexer) error {
 	// Build index where key is the hash of the namespaced job name of the job that owns this pod,
 	// and value is the pod itself.
-	if err := indexer.IndexField(ctx, &corev1.Pod{}, podJobKey, func(obj client.Object) []string {
-		pod := obj.(*corev1.Pod)
-		// Make sure the pod is part of a JobSet using exclusive placement.
-		if _, exists := pod.Annotations[jobset.ExclusiveKey]; !exists {
-			return nil
-		}
-		jobKey, exists := pod.Labels[jobset.JobKey]
-		if !exists {
-			return nil
-		}
-		return []string{jobKey}
-	}); err != nil {
+	if err := indexer.IndexField(ctx, &corev1.Pod{}, podJobKey, IndexPodJob); err != nil {
 		return err
 	}
-
 	// Build index where the key is the pod name (without the random suffix), and the value is the pod itself.
-	return indexer.IndexField(ctx, &corev1.Pod{}, PodNameKey, func(obj client.Object) []string {
-		pod := obj.(*corev1.Pod)
-		// Make sure the pod is part of a JobSet using exclusive placement.
-		if _, exists := pod.Annotations[jobset.ExclusiveKey]; !exists {
-			return nil
-		}
-		podName, err := removePodNameSuffix(pod.Name)
-		if err != nil {
-			return nil
-		}
-		return []string{podName}
-	})
+	return indexer.IndexField(ctx, &corev1.Pod{}, PodNameKey, IndexPodName)
+}
+
+func IndexPodJob(obj client.Object) []string {
+	pod := obj.(*corev1.Pod)
+	// Make sure the pod is part of a JobSet using exclusive placement.
+	if _, exists := pod.Annotations[jobset.ExclusiveKey]; !exists {
+		return nil
+	}
+	jobKey, exists := pod.Labels[jobset.JobKey]
+	if !exists {
+		return nil
+	}
+	return []string{jobKey}
+}
+
+func IndexPodName(obj client.Object) []string {
+	pod := obj.(*corev1.Pod)
+	// Make sure the pod is part of a JobSet using exclusive placement.
+	if _, exists := pod.Annotations[jobset.ExclusiveKey]; !exists {
+		return nil
+	}
+	podName, err := removePodNameSuffix(pod.Name)
+	if err != nil {
+		return nil
+	}
+	return []string{podName}
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update;patch
