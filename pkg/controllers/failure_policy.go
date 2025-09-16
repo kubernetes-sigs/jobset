@@ -157,7 +157,8 @@ func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failed
 	return ruleAppliesToParentReplicatedJob
 }
 
-// TODO: Description
+// anyMatchFound returns true if any of the provided regex patterns matches the message.
+// The function returns false otherwise.
 func anyMatchFound(ctx context.Context, patterns []string, message string) bool {
 	log := ctrl.LoggerFrom(ctx)
 
