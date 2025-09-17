@@ -392,8 +392,8 @@ spec:
 ```
 
 While welcome, the upstream change will take time to be delivered. In the best 
-case scenario, the change will be included in Kubernetes 1.34 as alpha (ETA 
-January 2026) and become stable in 1.36 (ETA September 2026). A short-term 
+case scenario, the change will be included in Kubernetes 1.35 as alpha (ETA 
+January 2026) and become stable in 1.37 (ETA September 2026). A short-term 
 solution is to add the new field `spec.failurePolicy.rules[].onJobFailureMessagePatterns`, 
 which will allow the value of the `message` field in the Job failure condition 
 to be matched against a pattern. Although not designed to be machine-readable, 
