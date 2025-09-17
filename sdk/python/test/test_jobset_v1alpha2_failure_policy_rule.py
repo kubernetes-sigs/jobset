@@ -37,6 +37,9 @@ class TestJobsetV1alpha2FailurePolicyRule(unittest.TestCase):
             return JobsetV1alpha2FailurePolicyRule(
                 action = '',
                 name = '',
+                on_job_failure_message_patterns = [
+                    ''
+                    ],
                 on_job_failure_reasons = [
                     ''
                     ],

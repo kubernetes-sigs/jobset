@@ -186,6 +186,21 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref common.ReferenceCal
 							},
 						},
 					},
+					"onJobFailureMessagePatterns": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The requirement on the job failure message. The requirement is satisfied if at least one pattern matches the job failure message. The rules are evaluated in order, and the first matching rule is executed.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 					"targetReplicatedJobs": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{

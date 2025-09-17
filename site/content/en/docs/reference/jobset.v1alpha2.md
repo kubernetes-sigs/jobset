@@ -235,6 +235,16 @@ rule is executed.
 An empty list applies the rule to any job failure reason.</p>
 </td>
 </tr>
+<tr><td><code>onJobFailureMessagePatterns</code> <B>[Required]</B><br/>
+<code>[]string</code>
+</td>
+<td>
+   <p>The requirement on the job failure message. The requirement
+is satisfied if at least one pattern matches the job failure message.
+The rules are evaluated in order, and the first matching
+rule is executed.</p>
+</td>
+</tr>
 <tr><td><code>targetReplicatedJobs</code><br/>
 <code>[]string</code>
 </td>
