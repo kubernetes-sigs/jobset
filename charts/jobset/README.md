@@ -22,7 +22,7 @@ This Helm chart installs the JobSet controller and webhook to your Kubernetes cl
 You can obtain the helm chart from `registry.k8s.io`.
 
 ```shell
-helm install oci://registry.k8s.io/jobset/charts/jobset --version v0.9.0
+helm install oci://registry.k8s.io/jobset/charts/jobset --version 0.9.0
 ```
 
 The version is necessary as there is not a latest tag in this repository.
