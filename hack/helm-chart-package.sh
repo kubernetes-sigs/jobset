@@ -18,7 +18,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-DEST_CHART_DIR=${DEST_CHART_DIR:-bin/}
+DEST_CHART_DIR=${DEST_CHART_DIR:-artifacts/}
 
 GIT_TAG=${GIT_TAG:-$(git describe --tags --dirty --always)}
 
