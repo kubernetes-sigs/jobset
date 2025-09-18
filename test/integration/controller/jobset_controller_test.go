@@ -479,7 +479,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("[failure policy] jobset does not fail immediately with FailJobSet failure policy action as the rule is not matched.", &testCase{
+		ginkgo.Entry("[failure policy] jobset does not fail immediately with FailJobSet failure policy action as the failure reason is not matched.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -510,6 +510,136 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						// For a restart, all jobs will be deleted and recreated, so we expect a
 						// foreground deletion finalizer for every job.
 						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset does not fail immediately with FailJobSet failure policy action as the failure message is not matched.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:                      jobset.FailJobSet,
+								OnJobFailureReasons:         []string{},
+								OnJobFailureMessagePatterns: []string{"some message"},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy), message: "some critical error with a message"})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset does not fail immediately with FailJobSet failure policy action as the failure message is not matched, even if reason is matched.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:                      jobset.FailJobSet,
+								OnJobFailureReasons:         []string{batchv1.JobReasonPodFailurePolicy},
+								OnJobFailureMessagePatterns: []string{"some message"},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy), message: "some critical error with a message"})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 1)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset fails immediately with FailJobSet failure policy action as the failure reason and message are matched.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:                      jobset.FailJobSet,
+								OnJobFailureReasons:         []string{batchv1.JobReasonPodFailurePolicy},
+								OnJobFailureMessagePatterns: []string{"some message"},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy), message: "some message"})
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 0)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset fails immediately with FailJobSet failure policy action as the failure reason and message are matched, even if message string is not exactly equal to pattern string.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:                      jobset.FailJobSet,
+								OnJobFailureReasons:         []string{batchv1.JobReasonPodFailurePolicy},
+								OnJobFailureMessagePatterns: []string{"some message"},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy), message: "this is some message with critical error"})
+					},
+					checkJobSetCondition: testutil.JobSetFailed,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 0)
+						matchJobSetRestartsCountTowardsMax(js, 0)
 					},
 				},
 			},
@@ -2542,7 +2672,8 @@ func updateJobStatus(job *batchv1.Job, status batchv1.JobStatus) {
 }
 
 type failJobOptions struct {
-	reason *string
+	reason  *string
+	message string
 }
 
 func failJobWithOptions(job *batchv1.Job, failJobOpts *failJobOptions) {
@@ -2557,9 +2688,10 @@ func failJobWithOptions(job *batchv1.Job, failJobOpts *failJobOptions) {
 				Status: corev1.ConditionTrue,
 			},
 			{
-				Type:   batchv1.JobFailed,
-				Status: corev1.ConditionTrue,
-				Reason: ptr.Deref(failJobOpts.reason, ""),
+				Type:    batchv1.JobFailed,
+				Status:  corev1.ConditionTrue,
+				Reason:  ptr.Deref(failJobOpts.reason, ""),
+				Message: failJobOpts.message,
 			},
 		}...),
 	}
