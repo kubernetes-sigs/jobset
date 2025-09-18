@@ -88,6 +88,9 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                             jobset.models.jobset_v1alpha2_failure_policy_rule.JobsetV1alpha2FailurePolicyRule(
                                 action = '', 
                                 name = '', 
+                                on_job_failure_message_patterns = [
+                                    ''
+                                    ], 
                                 on_job_failure_reasons = [
                                     ''
                                     ], 

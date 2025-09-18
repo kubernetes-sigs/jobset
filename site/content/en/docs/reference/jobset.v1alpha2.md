@@ -200,7 +200,10 @@ a given FailurePolicyRule.</p>
 
 
 <p>FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
-fails due to a reason listed in OnJobFailureReasons.</p>
+fails due to a reason listed in OnJobFailureReasons and a message pattern
+listed in OnJobFailureMessagePatterns. The rule must match both the job
+failure reason and the job failure message. The rules are evaluated in
+order and the first matching rule is executed.</p>
 
 
 <table class="table">
@@ -228,11 +231,23 @@ The name must match the regular expression &quot;^<a href="%5BA-Za-z0-9_,:%5D*%5
 <code>[]string</code>
 </td>
 <td>
-   <p>The requirement on the job failure reasons. The requirement
-is satisfied if at least one reason matches the list.
-The rules are evaluated in order, and the first matching
-rule is executed.
-An empty list applies the rule to any job failure reason.</p>
+   <p>The requirement on the job failure reasons. The requirement is satisfied
+if at least one reason matches the list. An empty list matches any job
+failure reason.</p>
+</td>
+</tr>
+<tr><td><code>onJobFailureMessagePatterns</code> <B>[Required]</B><br/>
+<code>[]string</code>
+</td>
+<td>
+   <p>The requirement on the job failure message. The requirement is satisfied
+if at least one pattern (regex) matches the job failure message. An
+empty list matches any job failure message.
+The syntax of the regular expressions accepted is the same general
+syntax used by Perl, Python, and other languages. More precisely, it is
+the syntax accepted by RE2 and described at https://golang.org/s/re2syntax,
+except for \C. For an overview of the syntax, see
+https://pkg.go.dev/regexp/syntax.</p>
 </td>
 </tr>
 <tr><td><code>targetReplicatedJobs</code><br/>

@@ -92,11 +92,12 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 	)
 
 	tests := []struct {
-		name             string
-		rule             jobset.FailurePolicyRule
-		failedJob        *batchv1.Job
-		jobFailureReason string
-		expected         bool
+		name              string
+		rule              jobset.FailurePolicyRule
+		failedJob         *batchv1.Job
+		jobFailureReason  string
+		jobFailureMessage string
+		expected          bool
 	}{
 		{
 			name: "a job has failed and the failure policy rule matches all possible parent replicated jobs and matches all possible job failure reasons",
@@ -206,11 +207,59 @@ func TestFailurePolicyRuleIsApplicable(t *testing.T) {
 			jobFailureReason: jobFailureReason2,
 			expected:         false,
 		},
+		{
+			name: "a job has failed and the failure policy rule matches the job failure message pattern",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureMessagePatterns: []string{"^job failed because.*"},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureMessage: "job failed because of a bug",
+			expected:          true,
+		},
+		{
+			name: "a job has failed and the failure policy rule does not match the job failure message pattern",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureMessagePatterns: []string{"^job failed because.*"},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureMessage: "another error message",
+			expected:          false,
+		},
+		{
+			name: "a job has failed and the failure policy rule matches both the job failure reason and message pattern",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureReasons:         []string{jobFailureReason1},
+				OnJobFailureMessagePatterns: []string{".*bug.*"},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureReason:  jobFailureReason1,
+			jobFailureMessage: "job failed because of a bug",
+			expected:          true,
+		},
+		{
+			name: "a job has failed and the failure policy rule matches the job failure reason but not the message pattern",
+			rule: jobset.FailurePolicyRule{
+				OnJobFailureReasons:         []string{jobFailureReason1},
+				OnJobFailureMessagePatterns: []string{".*bug.*"},
+			},
+			failedJob: testutils.MakeJob(jobName, ns).JobLabels(
+				map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName1},
+			).Obj(),
+			jobFailureReason:  jobFailureReason1,
+			jobFailureMessage: "job failed due to something else",
+			expected:          false,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := ruleIsApplicable(context.TODO(), tc.rule, tc.failedJob, tc.jobFailureReason)
+			actual := ruleIsApplicable(context.TODO(), tc.rule, tc.failedJob, tc.jobFailureReason, tc.jobFailureMessage)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("unexpected finished value (+got/-want): %s", diff)
 			}
