@@ -93,7 +93,9 @@ func findFirstFailedPolicyRuleAndJob(ctx context.Context, rules []jobset.Failure
 				continue
 			}
 
-			jobFailureTime, jobFailureReason, jobFailureMessage := ptr.To(jobFailureCondition.LastTransitionTime), jobFailureCondition.Reason, jobFailureCondition.Message
+			jobFailureTime := ptr.To(jobFailureCondition.LastTransitionTime)
+			jobFailureReason := jobFailureCondition.Reason
+			jobFailureMessage := jobFailureCondition.Message
 			jobFailedEarlier := matchedFailedJob == nil || jobFailureTime.Before(matchedFailureTime)
 			if ruleIsApplicable(ctx, rule, failedJob, jobFailureReason, jobFailureMessage) && jobFailedEarlier {
 				matchedFailedJob = failedJob
