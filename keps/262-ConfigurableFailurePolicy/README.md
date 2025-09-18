@@ -501,33 +501,33 @@ const (
 // failure reason and the job failure message. The rules are evaluated in
 // order and the first matching rule is executed.
 type FailurePolicyRule struct {
-	// The name of the failure policy rule.
-	// The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
-	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
-	Name string `json:"name"`
-	// The action to take if the rule is matched.
-	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts
-	Action FailurePolicyAction `json:"action"`
-	// The requirement on the job failure reasons. The requirement is satisfied
-	// if at least one reason matches the list. An empty list matches any job
-	// failure reason.
-	// +kubebuilder:validation:UniqueItems:true
-	OnJobFailureReasons []string `json:"onJobFailureReasons,omitempty"`
-	// The requirement on the job failure message. The requirement is satisfied
-	// if at least one pattern (regex) matches the job failure message. An
-	// empty list matches any job failure message.
-	// The syntax of the regular expressions accepted is the same general
-	// syntax used by Perl, Python, and other languages. More precisely, it is
-	// the syntax accepted by RE2 and described at https://golang.org/s/re2syntax,
-	// except for \C. For an overview of the syntax, see
-	// https://pkg.go.dev/regexp/syntax.
-	// +kubebuilder:validation:UniqueItems:true
-	OnJobFailureMessagePatterns []string `json:"onJobFailureMessagePatterns,omitempty"`
-	// TargetReplicatedJobs are the names of the replicated jobs the operator applies to.
-	// An empty list will apply to all replicatedJobs.
-	// +optional
-	// +listType=atomic
-	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
+  // The name of the failure policy rule.
+  // The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
+  // The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
+  Name string `json:"name"`
+  // The action to take if the rule is matched.
+  // +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts
+  Action FailurePolicyAction `json:"action"`
+  // The requirement on the job failure reasons. The requirement is satisfied
+  // if at least one reason matches the list. An empty list matches any job
+  // failure reason.
+  // +kubebuilder:validation:UniqueItems:true
+  OnJobFailureReasons []string `json:"onJobFailureReasons,omitempty"`
+  // The requirement on the job failure message. The requirement is satisfied
+  // if at least one pattern (regex) matches the job failure message. An
+  // empty list matches any job failure message.
+  // The syntax of the regular expressions accepted is the same general
+  // syntax used by Perl, Python, and other languages. More precisely, it is
+  // the syntax accepted by RE2 and described at https://golang.org/s/re2syntax,
+  // except for \C. For an overview of the syntax, see
+  // https://pkg.go.dev/regexp/syntax.
+  // +kubebuilder:validation:UniqueItems:true
+  OnJobFailureMessagePatterns []string `json:"onJobFailureMessagePatterns,omitempty"`
+  // TargetReplicatedJobs are the names of the replicated jobs the operator applies to.
+  // An empty list will apply to all replicatedJobs.
+  // +optional
+  // +listType=atomic
+  TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
 }
 
 type FailurePolicy struct {
