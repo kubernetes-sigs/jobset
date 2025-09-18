@@ -131,7 +131,7 @@ func applyFailurePolicyRuleAction(ctx context.Context, js *jobset.JobSet, matchi
 	return nil
 }
 
-// ruleIsApplicable returns true if the failed job and job failure reason match the failure policy rule.
+// ruleIsApplicable returns true if the failed job, job failure reason and job failure message match the failure policy rule.
 // The function returns false otherwise.
 func ruleIsApplicable(ctx context.Context, rule jobset.FailurePolicyRule, failedJob *batchv1.Job, jobFailureReason string, jobFailureMessage string) bool {
 	log := ctrl.LoggerFrom(ctx)
