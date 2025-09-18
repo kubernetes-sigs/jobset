@@ -26,6 +26,7 @@ tags, and then generate with `hack/update-toc.sh`.
     - [Story 2: RestartJobSet](#story-2-restartjobset)
     - [Story 3: RestartJobSetAndIgnoreMaxRestarts](#story-3-restartjobsetandignoremaxrestarts)
     - [Story 4: Different failure policies for different replicated jobs](#story-4-different-failure-policies-for-different-replicated-jobs)
+    - [Story 5: Distinguishing retriable from non retriable Pod failure policies](#story-5-distinguishing-retriable-from-non-retriable-pod-failure-policies)
   - [Notes/Constraints/Caveats (Optional)](#notesconstraintscaveats-optional)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Design Details](#design-details)
