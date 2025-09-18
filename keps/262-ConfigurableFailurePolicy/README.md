@@ -26,6 +26,7 @@ tags, and then generate with `hack/update-toc.sh`.
     - [Story 2: RestartJobSet](#story-2-restartjobset)
     - [Story 3: RestartJobSetAndIgnoreMaxRestarts](#story-3-restartjobsetandignoremaxrestarts)
     - [Story 4: Different failure policies for different replicated jobs](#story-4-different-failure-policies-for-different-replicated-jobs)
+    - [Story 5: Distinguishing retriable from non retriable Pod failure policies](#story-5-distinguishing-retriable-from-non-retriable-pod-failure-policies)
   - [Notes/Constraints/Caveats (Optional)](#notesconstraintscaveats-optional)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Design Details](#design-details)
@@ -276,6 +277,179 @@ spec:
                 python3 train.py
 ```
 
+#### Story 5: Distinguishing retriable from non retriable Pod failure policies
+
+As a user, I have a workload that can fail for three different reasons:
+
+1. The main container exits with exit code `1`. This is a case that is worth 
+retrying, so I want my JobSet workload to be restarted and count towards 
+`maxRestarts`.
+2. The main container exits with the special exit code `42`. This is a case 
+that is not retriable. If the workload is restarted, it will exit again with 
+exit code `42`. Therefore, I want my JobSet to ignore `maxRestarts` and fail 
+immediately.
+3. The Pod is evicted due to maintenance on the VM. This is a case that is 
+well worth retrying, so I want my JobSet workload to be restarted, but do not 
+count towards `maxRestarts`.
+
+Currently, there is no way to distinguish failure (2) from failure (3). This 
+is because a Job that has failed due to a matching rule in 
+`podFailurePolicy.rules[]` will always have the reason `PodFailurePolicy` in 
+its failure condition. Consequently, the JobSet controller has no way to 
+determine which rule in `podFailurePolicy.rules[]` caused the Job to fail.
+
+**Current implementation of JobSet: Example Failure Policy Configuration for this use case**:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: jobset-example
+spec:
+  failurePolicy:
+    maxRestarts: 5
+    rules:
+    # The first rule will always be executed, even if the main container exits with code 42
+    - action: RestartJobSetAndIgnoreMaxRestarts
+      onJobFailureReasons:
+      - PodFailurePolicy
+    - action: FailJobSet
+      onJobFailureReasons:
+      - PodFailurePolicy
+  replicatedJobs:
+  - name: leader
+    replicas: 1
+    template:
+      spec:
+        backoffLimit: 0
+        completions: 1
+        parallelism: 1
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              ...
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onPodConditions:
+            - type: DisruptionTarget
+          - action: FailJob
+            onExitCodes:
+              containerName: main
+              operator: In
+              values: [42]
+```
+
+The upstream change to the Job API described in [KEP-4443](https://github.com/kubernetes/enhancements/pull/4479) 
+will allow me to support my use case. This will be possible because the new 
+field `podFailurePolicy.rules[].name` will allow the value of the `reason` 
+field of the Job failure condition to be customized as `PodFailurePolicy_{name}`.
+
+**Long-Term solution: Example Failure Policy Configuration for this use case**:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: jobset-example-long-term
+spec:
+  failurePolicy:
+    maxRestarts: 5
+    rules:
+    - action: RestartJobSetAndIgnoreMaxRestarts
+      onJobFailureReasons:
+      - PodFailurePolicy_DisruptionTarget # Custom reason for the failure Job condition
+    - action: FailJobSet
+      onJobFailureReasons:
+      - PodFailurePolicy_ExitCode42 # Custom reason for the failure Job condition
+  replicatedJobs:
+  - name: leader
+    replicas: 1
+    template:
+      spec:
+        backoffLimit: 0
+        completions: 1
+        parallelism: 1
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              ...
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            name: DisruptionTarget # New field from the upstream change
+            onPodConditions:
+            - type: DisruptionTarget
+          - action: FailJob
+            name: ExitCode42 # New field from the upstream change
+            onExitCodes:
+              containerName: main
+              operator: In
+              values: [42]
+```
+
+While welcome, the upstream change will take time to be delivered. In the best 
+case scenario, the change will be included in Kubernetes 1.35 as alpha (ETA 
+January 2026) and become stable in 1.37 (ETA September 2026). A short-term 
+solution is to add the new field `spec.failurePolicy.rules[].onJobFailureMessagePatterns`, 
+which will allow the value of the `message` field in the Job failure condition 
+to be matched against a pattern. Although not designed to be machine-readable, 
+the message field is stable enough (no changes since its addition 2 years ago) 
+to serve as a short-term solution. Once the upstream solution is fully 
+delivered, the documentation and validation webhook of JobSet can be updated 
+to encourage new JobSet YAML files to use the long-term solution.
+
+**Short-Term solution: Example Failure Policy Configuration for this use case**:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: jobset-example
+spec:
+  failurePolicy:
+    maxRestarts: 5
+    rules:
+    - action: RestartJobSetAndIgnoreMaxRestarts
+      onJobFailureReasons:
+      - PodFailurePolicy
+      onJobFailureMessagePatterns: # New field
+      - ".*DisruptionTarget.*" # Failure message: Pod <pod namespace>/<pod name> has condition DisruptionTarget matching FailJob rule at index <index>
+    - action: FailJobSet
+      onJobFailureReasons:
+      - PodFailurePolicy
+      onJobFailureMessagePatterns: # New field
+      - ".*exit code 42.*" # Failure message: Container <container name> for pod <pod namespace>/<pod name> failed with exit code 42 matching FailJob rule at index <index>
+  replicatedJobs:
+  - name: leader
+    replicas: 1
+    template:
+      spec:
+        backoffLimit: 0
+        completions: 1
+        parallelism: 1
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              ...
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onPodConditions:
+            - type: DisruptionTarget
+          - action: FailJob
+            onExitCodes:
+              containerName: main
+              operator: In
+              values: [42]
+```
+
 ### Notes/Constraints/Caveats (Optional)
 
 <!--
@@ -322,23 +496,37 @@ const (
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
-// fails due to a reason listed in OnJobFailureReasons.
+// fails due to a reason listed in OnJobFailureReasons and a message pattern
+// listed in OnJobFailureMessagePatterns. The rule must match both the job
+// failure reason and the job failure message. The rules are evaluated in
+// order and the first matching rule is executed.
 type FailurePolicyRule struct {
+  // The name of the failure policy rule.
+  // The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
+  // The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
+  Name string `json:"name"`
   // The action to take if the rule is matched.
-  // +kubebuilder:validation:Enum:=FailJobSet;RestartJobSetAndIgnoreMaxRestarts;FailJob
+  // +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts
   Action FailurePolicyAction `json:"action"`
-  // The requirement on the job failure reasons. The requirement
-  // is satisfied if at least one reason matches the list.
-  // The rules are evaluated in order, and the first matching
-  // rule is executed.
-  // An empty list applies the rule to any job failure reason.
+  // The requirement on the job failure reasons. The requirement is satisfied
+  // if at least one reason matches the list. An empty list matches any job
+  // failure reason.
   // +kubebuilder:validation:UniqueItems:true
-  OnJobFailureReasons []string `json:"onJobFailureReasons"`
+  OnJobFailureReasons []string `json:"onJobFailureReasons,omitempty"`
+  // The requirement on the job failure message. The requirement is satisfied
+  // if at least one pattern (regex) matches the job failure message. An
+  // empty list matches any job failure message.
+  // The syntax of the regular expressions accepted is the same general
+  // syntax used by Perl, Python, and other languages. More precisely, it is
+  // the syntax accepted by RE2 and described at https://golang.org/s/re2syntax,
+  // except for \C. For an overview of the syntax, see
+  // https://pkg.go.dev/regexp/syntax.
+  // +kubebuilder:validation:UniqueItems:true
+  OnJobFailureMessagePatterns []string `json:"onJobFailureMessagePatterns,omitempty"`
   // TargetReplicatedJobs are the names of the replicated jobs the operator applies to.
   // An empty list will apply to all replicatedJobs.
   // +optional
   // +listType=atomic
-  // +kubebuilder:validation:UniqueItems
   TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
 }
 
