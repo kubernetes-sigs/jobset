@@ -1,9 +1,23 @@
-# Release Process
+# Release process
 
-The Kubernetes Template Project is released on an as-needed basis. The process is as follows:
+To begin the process, open an [issue](https://github.com/kubernetes-sigs/jobset/issues/new/choose)
+using the **New Release** template.
 
-1. An issue is proposing a new release with a changelog since the last release
-2. All [OWNERS](OWNERS) must LGTM this release
-3. An OWNER runs `git tag -s $VERSION` and inserts the changelog and pushes the tag with `git push $VERSION`
-4. The release issue is closed
-5. An announcement email is sent to `dev@kubernetes.io` with the subject `[ANNOUNCE] kubernetes-template-project $VERSION is released`
+## Release cycle
+
+- JobSet aims for one minor release every four months.
+- The release cadence is not rigid and we allow a release may slip, for example,
+  due to waiting for an important feature or bug-fixes. However, we strive it
+  does not slip more than two weeks.
+- When a release slips it does not impact the target release date for the next
+  minor release.
+
+## Patch releases
+
+When working on the next N-th minor version of JobSet we continue to maintain
+N-1 release. The release branches corresponding to the next patch
+releases are regularly tested by CI. Patch releases are released on as-needed
+basis.
+
+We follow the Kubernetes cherry-pick [principles](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-release/cherry-picks.md#what-kind-of-prs-are-good-for-cherry-picks).
+We will allow cherry-picks for alpha features.
