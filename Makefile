@@ -242,15 +242,14 @@ helm-chart-push: HELM_CHART_PUSH=true
 helm-chart-push: helm-chart-package
 
 ##@ Release
-# Chart version should not have "v".
-CHART_VERSION := $(VERSION/v%=%)
 
+# Chart version should not have "v".
 .PHONY: prepare-release-branch
 prepare-release-branch: kustomize ## Prepare the release branch with the release version.
 	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_REPO}:${VERSION}
-	$(SED) -r 's|download/v[0-9]+\.[0-9]+\.[0-9]+|download/${VERSION}|g' -i README.md
-	$(SED) -r 's/v[0-9]+\.[0-9]+\.[0-9]+/${VERSION}/g' -i site/hugo.toml
-	$(SED) -r 's/[0-9]+\.[0-9]+\.[0-9]+/$(CHART_VERSION)/g' -i charts/jobset/Chart.yaml
+	$(SED) -r "s|download/v[0-9]+\.[0-9]+\.[0-9]+|download/${VERSION}|g" -i README.md
+	$(SED) -r "s/v[0-9]+\.[0-9]+\.[0-9]+/${VERSION}/g" -i site/hugo.toml
+	$(SED) -r "s/[0-9]+\.[0-9]+\.[0-9]+/$(shell echo ${VERSION} | sed 's/^v//')/g" -i charts/jobset/Chart.yaml
 	make helm-docs
 
 .PHONY: clean-artifacts
