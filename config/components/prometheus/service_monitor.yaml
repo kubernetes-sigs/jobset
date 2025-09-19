@@ -1,0 +1,36 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jobset-metrics-service-monitor
+  namespace: jobset-system
+  labels:
+    app.kubernetes.io/managed-by: Kustomize
+    app.kubernetes.io/version: "0.8.1"
+    app.kubernetes.io/name: jobset
+    app.kubernetes.io/instance: jobset
+    app.kubernetes.io/component: controller
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jobset
+      app.kubernetes.io/instance: jobset
+      app.kubernetes.io/component: controller
+  endpoints:
+    - port: https
+      path: /metrics
+      scheme: https
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        ca:
+          secret:
+            key: ca.crt
+            name: jobset-metrics-server-cert
+        cert:
+          secret:
+            key: tls.crt
+            name: jobset-metrics-server-cert
+        insecureSkipVerify: false
+        keySecret:
+          key: tls.key
+          name: jobset-metrics-server-cert
+        serverName: jobset-metrics-service.jobset-system.svc
