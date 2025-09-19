@@ -14,8 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// +k8s:openapi-gen=true
-// +kubebuilder:object:generate=true
-// +groupName=jobset.x-k8s.io
+/*
+This file is needed for kubernetes/code-generator/kube_codegen.sh script used in hack/update-codegen.sh.
+*/
 
-package v1alpha2
+package v1
+
+//+genclient
