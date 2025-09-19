@@ -7,6 +7,7 @@ Changes since `v0.9.0`.
 - \[release-0.9\] fix(charts): Fix the JobSet image name ([#1019](https://github.com/kubernetes-sigs/jobset/pull/1019) / [#1018](https://github.com/kubernetes-sigs/jobset/pull/1018) by [@k8s-infra-cherrypick-robot](https://github.com/k8s-infra-cherrypick-robot)) / [@andreyvelich](https://github.com/andreyvelich)
 - \[release-0.9\] Filter out terminating leader Pods ([#1026](https://github.com/kubernetes-sigs/jobset/pull/1026) / [#1022](https://github.com/kubernetes-sigs/jobset/pull/1022)) by [@k8s-infra-cherrypick-robot](https://github.com/k8s-infra-cherrypick-robot) / [@PBundyra](https://github.com/PBundyra)
 - \[release-0.9\] Use version without v for helm ([#1035](https://github.com/kubernetes-sigs/jobset/pull/1035) / [#1034](https://github.com/kubernetes-sigs/jobset/pull/1034)) by [@k8s-infra-cherrypick-robot](https://github.com/k8s-infra-cherrypick-robot) / [@kannon92](https://github.com/kannon92)
+- \[release-0.9\] fix(ci): Fix Chart version in the prepare-release-script ([#1038](https://github.com/kubernetes-sigs/jobset/pull/1038) / [#1037](https://github.com/kubernetes-sigs/jobset/pull/1037)) by [@k8s-infra-cherrypick-robot](https://github.com/k8s-infra-cherrypick-robot)) / [@andreyvelich](https://github.com/andreyvelich)
 
 ### Development & Tooling
 
