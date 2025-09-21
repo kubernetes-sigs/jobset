@@ -5,7 +5,7 @@ using the **New Release** template.
 
 ## Release cycle
 
-- JobSet aims for one minor release every four months.
+- JobSet aims for at least one minor release every four months, but may release more frequently if important features or bug fixes are ready.
 - The release cadence is not rigid and we allow a release may slip, for example,
   due to waiting for an important feature or bug-fixes. However, we strive it
   does not slip more than two weeks.
