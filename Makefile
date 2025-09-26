@@ -140,8 +140,16 @@ vet: ## Run go vet against code.
 	$(GO_CMD) vet ./...
 
 .PHONY: ci-lint
-ci-lint: golangci-lint
+ci-lint: golangci-lint 
 	$(GOLANGCI_LINT) run --timeout 15m0s
+
+.PHONY: lint-api
+lint-api: golangci-lint-kal
+	$(GOLANGCI_LINT_KAL) run -v --config $(PROJECT_DIR)/.golangci-kal.yml
+	
+.PHONY: lint-api-fix
+lint-api-fix: golangci-lint-kal
+	$(GOLANGCI_LINT_KAL) run -v --config $(PROJECT_DIR)/.golangci-kal.yml --fix
 
 .PHONY: test
 test: manifests fmt vet envtest gotestsum test-python-sdk
@@ -153,7 +161,7 @@ test-python-sdk:
 	./hack/python-sdk/test-sdk.sh
 
 .PHONY: verify
-verify: vet fmt-verify ci-lint manifests generate helm-verify toc-verify generate-apiref
+verify: vet fmt-verify ci-lint lint-api manifests generate helm-verify toc-verify generate-apiref
 	git --no-pager diff --exit-code config api client-go sdk charts
 
 
@@ -265,9 +273,14 @@ artifacts: clean-artifacts kustomize helm yq helm-chart-package ## Generate rele
 	@$(call clean-manifests)
 
 GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
+GOLANGCI_LINT_KAL = $(PROJECT_DIR)/bin/golangci-lint-kube-api-linter
 .PHONY: golangci-lint
 golangci-lint: ## Download golangci-lint locally if necessary.
 	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.5
+
+.PHONY: golangci-lint-kal
+golangci-lint-kal: golangci-lint ## Build golangci-lint-kal from custom configuration.
+	cd $(PROJECT_DIR)/hack/golangci-kal; $(GOLANGCI_LINT) custom; mv bin/golangci-lint-kube-api-linter $(PROJECT_DIR)/bin/
 
 GOTESTSUM = $(shell pwd)/bin/gotestsum
 .PHONY: gotestsum

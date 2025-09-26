@@ -174,10 +174,12 @@ type JobSetStatus struct {
 	Restarts int32 `json:"restarts"`
 
 	// restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.
+	// +optional
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 
 	// terminalState the state of the JobSet when it finishes execution.
 	// It can be either Completed or Failed. Otherwise, it is empty by default.
+	// +optional
 	TerminalState string `json:"terminalState,omitempty"`
 
 	// replicatedJobsStatus track the number of JobsReady for each replicatedJob.
@@ -223,10 +225,13 @@ type ReplicatedJobStatus struct {
 
 // JobSet is the Schema for the jobsets API
 type JobSet struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	// metadata is the object metadata for JobSet
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              JobSetSpec   `json:"spec,omitempty"`
-	Status            JobSetStatus `json:"status,omitempty"`
+	// spec is the specification for jobset
+	Spec JobSetSpec `json:"spec,omitempty"`
+	// status is the status of the jobset
+	Status JobSetStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
