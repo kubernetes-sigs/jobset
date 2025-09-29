@@ -1,3 +1,9 @@
+## v0.10.1
+
+### Bug Fixes
+
+- update crd in helm chart([#1048](https://github.com/kubernetes-sigs/jobset/pull/1048))
+
 ## v0.10.0
 
 Changes since `v0.9.x`.
