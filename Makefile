@@ -102,6 +102,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
 		webhook output:webhook:artifacts:config=config/components/webhook\
 		paths="./pkg/..."
+	cp -f ./config/components/crd/bases/jobset.x-k8s.io_jobsets.yaml ./charts/jobset/crds/
 
 .PHONY: generate
 generate: manifests controller-gen code-generator openapi-gen helm helm-docs ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.
