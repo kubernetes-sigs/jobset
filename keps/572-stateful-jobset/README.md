@@ -60,7 +60,7 @@ require persistent storage for checkpoints, datasets, models, or intermediate re
 ### Goals
 
 - Automate PVC creation similar to StatefulSet capability.
-- Support per ReplicatedJob and shared volume patterns withing a single JobSet.
+- Support volume per ReplicatedJob and shared volume for all ReplicatedJobs within a single JobSet.
 - Design configurable retention policy for created PVCs.
 
 ### Non-Goals
