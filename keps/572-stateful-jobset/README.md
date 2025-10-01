@@ -43,7 +43,7 @@
 
 ## Summary
 
-This KEP proposes adding VolumePolicies API to support stateful JobSets, enabling automated creation
+This KEP proposes adding the VolumeClaimPolicies API to support stateful JobSets, enabling automated creation
 and management of PersistentVolumeClaims (PVCs) for stateful batch workloads. The feature addresses two
 primary use cases: per-job persistent storage (similar to StatefulSet VolumeClaimTemplates) and
 shared storage across multiple ReplicatedJobs within a JobSet. This enhancement bridges the gap
