@@ -796,6 +796,7 @@ func (r *JobSetReconciler) deletePVCsForPolicy(ctx context.Context, js *jobset.J
 - All `targetReplicatedJobs` references must exist in the JobSet specification
 - Retention policy values must be valid (`Delete` or `Retain`)
 - Default values are applied when not specified: `Retain`
+- if `retentionPolicy` API is omitted, the `Retain` default values will be set for each event.
 
 The webhook is enhanced with comprehensive validation for VolumeClaimPolicies:
 
