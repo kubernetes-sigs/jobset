@@ -1,7 +1,6 @@
 # KEP-572: VolumeClaimPolicies API for Stateful JobSet
 
 <!-- toc -->
-
 - [Summary](#summary)
 - [Motivation](#motivation)
   - [Goals](#goals)
@@ -9,7 +8,7 @@
 - [Proposal](#proposal)
   - [User Stories](#user-stories)
     - [Story 1: Distributed ML Training with Per-Worker Checkpoints](#story-1-distributed-ml-training-with-per-worker-checkpoints)
-    - [Story 2: Shared model and dataset across workers.](#story-2-shared-model-and-dataset-across-workers)
+    - [Story 2: Shared model and dataset across nodes.](#story-2-shared-model-and-dataset-across-nodes)
     - [Story 3: Hybrid Storage Pattern for Complex Pipelines](#story-3-hybrid-storage-pattern-for-complex-pipelines)
     - [Story 4: HPC Workloads with Node-Local Storage](#story-4-hpc-workloads-with-node-local-storage)
   - [Risks and Mitigations](#risks-and-mitigations)
@@ -38,7 +37,6 @@
   - [Alternative 1: Job-level VolumeClaimTemplates](#alternative-1-job-level-volumeclaimtemplates)
   - [Alternative 2: External Volume Management](#alternative-2-external-volume-management)
   - [Alternative 3: Pre-created PVC References](#alternative-3-pre-created-pvc-references)
-
 <!-- /toc -->
 
 ## Summary
@@ -976,6 +974,9 @@ VolumeClaimTemplates, similar to how StatefulSets work.
 This is a solid long-term approach, but it requires changes to Kubernetes core APIs, which implies
 a longer development timeline. Furthermore, it does not solve the need for a shared PVC across all
 ReplicatedJobs - an essential requirement for distributed AI workloads.
+
+With the stateful JobSet, we aim to demonstrate user demand for this feature, which could drive
+Kubernetes core changes to the Job controller if necessary.
 
 ### Alternative 2: External Volume Management
 
