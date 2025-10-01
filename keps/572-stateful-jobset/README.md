@@ -52,7 +52,7 @@ computing workloads, particularly in AI training and HPC domains.
 
 ## Motivation
 
-Current JobSet implementation provides no native volume management capabilities, requiring users to
+The current JobSet implementation provides no native volume management capabilities, requiring users to
 manually create and manage PVCs for stateful workloads. This limitation creates significant
 operational overhead and prevents efficient resource utilization for distributed workloads that
 require persistent storage for checkpoints, datasets, models, or intermediate results.
@@ -77,7 +77,7 @@ require persistent storage for checkpoints, datasets, models, or intermediate re
 
 #### Story 1: Distributed ML Training with Per-Worker Checkpoints
 
-As AI practitioner, I want to run my Kubeflow TrainJob distributed workloads where each node
+As an AI practitioner, I want to run my Kubeflow TrainJob distributed workloads where each node
 maintains its own checkpoint storage, allowing for fault tolerance and efficient restart capabilities.
 
 ```yaml
@@ -124,11 +124,11 @@ spec:
 ```
 
 **Expected Behavior**: Creates 8 individual PVCs named `checkpoint-storage-distributed-trainjob-node-{0-3}-{0-1}`,
-each mounted to the corresponding pod for independent checkpoint storage.
+each mounted to the corresponding pod for independent checkpoint storage. Every PVC might
 
 #### Story 2: Shared model and dataset across nodes.
 
-As an AI practitioner, I want to initialize model and dataset before distributed fine-tuning,
+As an AI practitioner, I want to initialize a model and dataset before distributed fine-tuning,
 using shared ReadWriteMany volumes.
 
 ```yaml
