@@ -77,8 +77,8 @@ require persistent storage for checkpoints, datasets, models, or intermediate re
 
 #### Story 1: Distributed ML Training with Per-Worker Checkpoints
 
-As AI practitioner, I want to run distributed training workloads where each worker maintains its
-own checkpoint storage, allowing for fault tolerance and efficient restart capabilities.
+As AI practitioner, I want to run my Kubeflow TrainJob distributed workloads where each node
+maintains its own checkpoint storage, allowing for fault tolerance and efficient restart capabilities.
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -124,9 +124,9 @@ spec:
 ```
 
 **Expected Behavior**: Creates 8 individual PVCs named `checkpoint-storage-distributed-trainjob-node-{0-3}-{0-1}`,
-each mounted to the corresponding worker pod for independent checkpoint storage.
+each mounted to the corresponding pod for independent checkpoint storage.
 
-#### Story 2: Shared model and dataset across workers.
+#### Story 2: Shared model and dataset across nodes.
 
 As an AI practitioner, I want to initialize model and dataset before distributed fine-tuning,
 using shared ReadWriteMany volumes.
@@ -425,7 +425,7 @@ type VolumeClaimPolicy struct {
     // - If targeting all ReplicatedJobs (empty list): <claim-name>-<jobset-name>
     //
     // Examples:
-    // - "checkpoint-storage-training-worker-0-0" (per-job volume for worker replica 0 and pod index 0)
+    // - "checkpoint-storage-training-node-0-0" (per-job volume for node replica 0 and pod index 0)
     // - "model-cache-training" (volume across all ReplicatedJobs)
     Templates []corev1.PersistentVolumeClaim `json:"templates,omitempty"`
 
