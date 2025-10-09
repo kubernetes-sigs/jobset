@@ -1,6 +1,7 @@
 # KEP-572: VolumeClaimPolicies API for Stateful JobSet
 
 <!-- toc -->
+
 - [Summary](#summary)
 - [Motivation](#motivation)
   - [Goals](#goals)
@@ -37,7 +38,7 @@
   - [Alternative 1: Job-level VolumeClaimTemplates](#alternative-1-job-level-volumeclaimtemplates)
   - [Alternative 2: External Volume Management](#alternative-2-external-volume-management)
   - [Alternative 3: Pre-created PVC References](#alternative-3-pre-created-pvc-references)
-<!-- /toc -->
+  <!-- /toc -->
 
 ## Summary
 
@@ -98,8 +99,6 @@ spec:
                 storage: 100Gi
             storageClassName: fast-ssd
       retentionPolicy:
-        whenComplete: Retain
-        whenFailed: Retain
         whenDeleted: Retain
   replicatedJobs:
     - name: node
@@ -149,8 +148,6 @@ spec:
                 storage: 50Gi
             storageClassName: nfs-storage
       retentionPolicy:
-        whenComplete: Delete
-        whenFailed: Delete
         whenDeleted: Delete
   replicatedJobs:
     - name: dataset-initializer
@@ -240,8 +237,6 @@ spec:
                 storage: 100Gi
             storageClassName: shared-storage
       retentionPolicy:
-        whenComplete: Delete
-        whenFailed: Retain
         whenDeleted: Delete
     # Per-job scratch space for data-loader and trainer
     - targetReplicatedJobs: ["data-loader", "trainer"]
@@ -255,8 +250,6 @@ spec:
                 storage: 20Gi
             storageClassName: local-ssd
       retentionPolicy:
-        whenComplete: Retain
-        whenFailed: Retain
         whenDeleted: Retain
   replicatedJobs:
     - name: data-loader
@@ -339,8 +332,6 @@ spec:
                 storage: 200Gi
             storageClassName: local-nvme
       retentionPolicy:
-        whenComplete: Retain
-        whenFailed: Retain
         whenDeleted: Retain
   replicatedJobs:
     - name: compute-node
@@ -433,24 +424,12 @@ type VolumeClaimPolicy struct {
 
 // VolumeRetentionPolicy defines the retention policy for PVCs created by the JobSet.
 type VolumeRetentionPolicy struct {
-    // WhenComplete specifies what happens to PVCs when jobs complete successfully.
-    // Defaults to "Retain".
-    WhenComplete *RetentionPolicyType `json:"whenComplete,omitempty"`
-
-    // WhenFailed specifies what happens to PVCs when jobs fail.
-    // Defaults to "Retain".
-    WhenFailed *RetentionPolicyType `json:"whenFailed,omitempty"`
-
-    // WhenDeleted specifies what happens to PVCs when the jobs are deleted.
-    // Defaults to "Retain".
+    // WhenDeleted specifies what happens to PVCs when the JobSet is deleted.
+    // Defaults to "Delete".
     WhenDeleted *RetentionPolicyType `json:"whenDeleted,omitempty"`
 }
 
 // RetentionPolicyType defines the retention policy for PVCs.
-// For shared PVCs (targeting all ReplicatedJobs with empty list), the policy is applied when
-// the entire JobSet reaches event (Complete, Failed, or Deleted).
-// For targeted PVCs (specific ReplicatedJobs),the policy is applied when all targeted
-// ReplicatedJobs reach event (Complete, Failed, or Deleted).
 type RetentionPolicyType string
 
 const (
@@ -488,13 +467,6 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
     result, err := r.reconcileJobs(ctx, js)
     if err != nil {
         return result, err
-    }
-
-    // Handle retention policy for completed/failed JobSets
-    if len(js.Spec.VolumeClaimPolicies) > 0 {
-        if err := r.handleVolumeClaimPolicies(ctx, js); err != nil {
-            return ctrl.Result{}, err
-        }
     }
 
     return result, nil
@@ -710,76 +682,29 @@ func generateSharedPVCName(claimName, jobsetName string) string {
 
 #### 5. Retention Policy Enforcement
 
-Retention policies are enforced through two mechanisms:
-
-1. **Deletion Policy (`whenDeleted`)**: Handled automatically via Kubernetes garbage collection by setting owner references on PVCs when `whenDeleted: Delete` is configured.
-
-2. **Completion/Failure Policies (`whenComplete`/`whenFailed`)**: Handled explicitly by the controller when JobSet reaches terminal states.
+Retention policy is enforced through Kubernetes garbage collection by setting owner references on PVCs when `whenDeleted: Delete` is configured. When the JobSet is deleted, Kubernetes automatically deletes any PVCs that have the JobSet as their owner.
 
 ```go
-func (r *JobSetReconciler) handleVolumeClaimPolicies(ctx context.Context, js *jobset.JobSet) error {
-    var allErrors []error
+func (r *JobSetReconciler) ensurePVCExists(ctx context.Context, js *jobset.JobSet, pvcName string, template *corev1.PersistentVolumeClaim, policy *jobset.VolumeClaimPolicy) error {
+    // ... existing code ...
 
-    // Process each volume claim policy
-    for _, policy := range js.Spec.VolumeClaimPolicies {
-        var shouldDelete bool
-
-        // Check if we should delete PVCs based on JobSet status
-        if r.isJobSetCompleted(js) && policy.RetentionPolicy.WhenComplete != nil &&
-           *policy.RetentionPolicy.WhenComplete == jobset.RetentionPolicyDelete {
-            shouldDelete = true
-        } else if r.isJobSetFailed(js) && policy.RetentionPolicy.WhenFailed != nil &&
-                  *policy.RetentionPolicy.WhenFailed == jobset.RetentionPolicyDelete {
-            shouldDelete = true
-        }
-
-        if shouldDelete {
-            if err := r.deletePVCsForPolicy(ctx, js, &policy); err != nil {
-                allErrors = append(allErrors, err)
-            }
+    // Set owner reference if whenDeleted is Delete
+    if policy.RetentionPolicy != nil && policy.RetentionPolicy.WhenDeleted != nil &&
+       *policy.RetentionPolicy.WhenDeleted == jobset.RetentionPolicyDelete {
+        pvc.OwnerReferences = []metav1.OwnerReference{
+            *metav1.NewControllerRef(js, jobset.GroupVersion.WithKind("JobSet")),
         }
     }
 
-    return errors.Join(allErrors...)
-}
-
-func (r *JobSetReconciler) deletePVCsForPolicy(ctx context.Context, js *jobset.JobSet, policy *jobset.VolumeClaimPolicy) error {
-    var allErrors []error
-
-    for _, template := range policy.Templates {
-        // Determine which PVCs to delete based on policy targeting
-        if len(policy.TargetReplicatedJobs) == 0 {
-            // Delete shared PVC
-            pvcName := generateSharedPVCName(template.Name, js.Name)
-            if err := r.deletePVCIfExists(ctx, js.Namespace, pvcName); err != nil {
-                allErrors = append(allErrors, err)
-            }
-        } else {
-            // Delete per-job PVCs
-            for _, targetJobName := range policy.TargetReplicatedJobs {
-                rjob := r.findReplicatedJob(js, targetJobName)
-                if rjob == nil {
-                    continue
-                }
-
-                for replicaIdx := 0; replicaIdx < int(rjob.Replicas); replicaIdx++ {
-                    parallelism := 1
-                    if rjob.Template.Spec.Parallelism != nil {
-                        parallelism = int(*rjob.Template.Spec.Parallelism)
-                    }
-
-                    for podIdx := 0; podIdx < parallelism; podIdx++ {
-                        pvcName := generatePerJobPVCName(template.Name, js.Name, targetJobName, replicaIdx, podIdx)
-                        if err := r.deletePVCIfExists(ctx, js.Namespace, pvcName); err != nil {
-                            allErrors = append(allErrors, err)
-                        }
-                    }
-                }
-            }
-        }
+    if err := r.Create(ctx, pvc); err != nil {
+        r.Record.Eventf(js, corev1.EventTypeWarning, "FailedCreatePVC",
+            "Failed to create PVC %s: %v", pvcName, err)
+        return err
     }
 
-    return errors.Join(allErrors...)
+    r.Record.Eventf(js, corev1.EventTypeNormal, "SuccessfulCreatePVC",
+        "Created PVC %s", pvcName)
+    return nil
 }
 ```
 
@@ -793,8 +718,8 @@ func (r *JobSetReconciler) deletePVCsForPolicy(ctx context.Context, js *jobset.J
 - Generated PVC names must not exceed Kubernetes name length limits
 - All `targetReplicatedJobs` references must exist in the JobSet specification
 - Retention policy values must be valid (`Delete` or `Retain`)
-- Default values are applied when not specified: `Retain`
-- if `retentionPolicy` API is omitted, the `Retain` default values will be set for each event.
+- Default value is `Delete` when not specified
+- If `retentionPolicy` API is omitted, the `Retain` default value will be set for `whenDeleted`.
 
 The webhook is enhanced with comprehensive validation for VolumeClaimPolicies:
 
