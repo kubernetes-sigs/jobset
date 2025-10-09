@@ -34,6 +34,15 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - update
+  - watch
 {{- if .Values.controller.leaderElection.enable }}
 - apiGroups:
   - coordination.k8s.io
