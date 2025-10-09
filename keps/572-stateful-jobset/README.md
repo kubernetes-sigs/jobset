@@ -682,7 +682,8 @@ func generateSharedPVCName(claimName, jobsetName string) string {
 
 #### 5. Retention Policy Enforcement
 
-Retention policy is enforced through Kubernetes garbage collection by setting owner references on PVCs when `whenDeleted: Delete` is configured. When the JobSet is deleted, Kubernetes automatically deletes any PVCs that have the JobSet as their owner.
+Retention policy is enforced through Kubernetes garbage collection by setting owner references on PVCs
+when `whenDeleted: Delete` is configured. When the JobSet is deleted, Kubernetes automatically deletes any PVCs that have the JobSet as their owner.
 
 ```go
 func (r *JobSetReconciler) ensurePVCExists(ctx context.Context, js *jobset.JobSet, pvcName string, template *corev1.PersistentVolumeClaim, policy *jobset.VolumeClaimPolicy) error {
