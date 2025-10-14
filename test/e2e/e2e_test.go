@@ -630,7 +630,7 @@ func pingTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 					Containers: []corev1.Container{
 						{
 							Name:    "ping-test-container",
-							Image:   "bash:latest",
+							Image:   "docker.io/library/bash:latest",
 							Command: []string{"bash", "-c"},
 							Args:    []string{cmd},
 						},
@@ -665,7 +665,7 @@ func pingTestJobSetSubdomain(ns *corev1.Namespace) *testing.JobSetWrapper {
 					Containers: []corev1.Container{
 						{
 							Name:    "ping-test-container",
-							Image:   "bash:latest",
+							Image:   "docker.io/library/bash:latest",
 							Command: []string{"bash", "-c"},
 							Args:    []string{cmd},
 						},
@@ -687,7 +687,7 @@ func sleepTestJobSet(ns *corev1.Namespace, durationSeconds int32) *testing.JobSe
 					Containers: []corev1.Container{
 						{
 							Name:    "sleep-test-container",
-							Image:   "bash:latest",
+							Image:   "docker.io/library/bash:latest",
 							Command: []string{"bash", "-c"},
 							Args:    []string{fmt.Sprintf("sleep %d", durationSeconds)},
 						},
@@ -712,7 +712,7 @@ func dependsOnTestReplicatedJob(ns *corev1.Namespace, jobName string, numReplica
 				Containers: []corev1.Container{
 					{
 						Name:         "sleep-test-container",
-						Image:        "bash:latest",
+						Image:        "docker.io/library/bash:latest",
 						Command:      []string{"bash", "-c"},
 						Args:         []string{"sleep " + strconv.Itoa(sleepSeconds)},
 						StartupProbe: startupProbe,
@@ -738,7 +738,7 @@ func serverSideApplyTestJobSet(ns *corev1.Namespace, name string) *jobsetv1alpha
 								WithRestartPolicy(corev1.RestartPolicyNever).
 								WithContainers(corev1ac.Container().
 									WithName("test-container").
-									WithImage("bash:latest").
+									WithImage("docker.io/library/bash:latest").
 									WithCommand("bash", "-c").
 									WithArgs("echo 'Hello from server-side apply test'; sleep 5"),
 								),
