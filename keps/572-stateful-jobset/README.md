@@ -121,7 +121,7 @@ spec:
 ```
 
 **Expected Behavior**: Creates 8 individual PVCs named `checkpoint-storage-distributed-trainjob-node-{0-3}-{0-1}`,
-each mounted to the corresponding pod for independent checkpoint storage. Every PVC might
+each mounted to the corresponding pod for independent checkpoint storage.
 
 #### Story 2: Shared model and dataset across nodes.
 
