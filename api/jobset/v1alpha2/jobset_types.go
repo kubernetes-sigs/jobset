@@ -125,7 +125,7 @@ type JobSetSpec struct {
 	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
 
 	// suspend suspends all running child Jobs when set to true.
-	Suspend *bool `json:"suspend,omitempty"`
+	Suspend *bool `json:"suspend,omitempty"` //nolint
 
 	// coordinator can be used to assign a specific pod as the coordinator for
 	// the JobSet. If defined, an annotation will be added to all Jobs and pods with
@@ -303,7 +303,7 @@ type Network struct {
 	// Pods will be reachable using the fully qualified pod hostname:
 	// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>
 	// +optional
-	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
+	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"` //nolint
 
 	// subdomain is an explicit choice for a network subdomain name
 	// When set, any replicated job in the set is added to this network.
@@ -314,7 +314,7 @@ type Network struct {
 	// publishNotReadyAddresses indicates if DNS records of pods should be published before the pods are ready.
 	// Defaults to True.
 	// +optional
-	PublishNotReadyAddresses *bool `json:"publishNotReadyAddresses,omitempty"`
+	PublishNotReadyAddresses *bool `json:"publishNotReadyAddresses,omitempty"` //nolint
 }
 
 // Operator defines the target of a SuccessPolicy or FailurePolicy.
