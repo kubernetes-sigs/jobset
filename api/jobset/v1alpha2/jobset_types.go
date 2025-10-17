@@ -16,6 +16,7 @@ package v1alpha2
 
 import (
 	batchv1 "k8s.io/api/batch/v1"
+	schedulingv1alpha "k8s.io/api/scheduling/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -123,6 +124,11 @@ type JobSetSpec struct {
 	// Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
+
+	// gangPolicy configures gang scheduling policy
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +optional
+	GangPolicy *GangPolicy `json:"gangPolicy,omitempty"`
 
 	// suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"` //nolint
@@ -442,6 +448,15 @@ type StartupPolicy struct {
 	// when all the jobs of the previous one are ready.
 	// +kubebuilder:validation:Enum=AnyOrder;InOrder
 	StartupPolicyOrder StartupPolicyOptions `json:"startupPolicyOrder"`
+}
+
+type GangPolicy struct {
+	// workloadTemplate provides a Workload template to create on JobSet creation.
+	// When specified, the JobSet controller will create this Workload object
+	// and link it to the JobSet for gang scheduling.
+	// The Workload's podGroups define how pods should be grouped for gang scheduling.
+	// +optional
+	WorkloadTemplate *schedulingv1alpha.WorkloadSpec `json:"workloadTemplate,omitempty"`
 }
 
 // Coordinator defines which pod can be marked as the coordinator for the JobSet workload.

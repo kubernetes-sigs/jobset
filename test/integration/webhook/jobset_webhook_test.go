@@ -24,6 +24,7 @@ import (
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha1 "k8s.io/api/scheduling/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -552,6 +553,89 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 							PodSpec(testing.TestPodSpec).
 							Obj()).
 						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		// Gang policy validation tests
+		ginkgo.Entry("gang policy with valid workloadTemplate should succeed", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("gang-template", ns.Name).
+					EnableDNSHostnames(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj()).
+					GangPolicy(&jobset.GangPolicy{
+						WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+							PodGroups: []schedulingv1alpha1.PodGroup{
+								{
+									Name: "custom-pod-group",
+									Policy: schedulingv1alpha1.PodGroupPolicy{
+										Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+											MinCount: 5,
+										},
+									},
+								},
+							},
+						},
+					})
+			},
+			jobSetCreationShouldFail: false,
+		}),
+		ginkgo.Entry("gang policy without workloadTemplate should be rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("gang-no-template", ns.Name).
+					EnableDNSHostnames(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj()).
+					GangPolicy(&jobset.GangPolicy{})
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("gang policy with empty podGroups should be rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("gang-template-empty", ns.Name).
+					EnableDNSHostnames(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj()).
+					GangPolicy(&jobset.GangPolicy{
+						WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+							PodGroups: []schedulingv1alpha1.PodGroup{},
+						},
+					})
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("gang policy with invalid minCount (minCount <= 0) should be rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("gang-template-invalid", ns.Name).
+					EnableDNSHostnames(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj()).
+					GangPolicy(&jobset.GangPolicy{
+						WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+							PodGroups: []schedulingv1alpha1.PodGroup{
+								{
+									Name: "pod-group",
+									Policy: schedulingv1alpha1.PodGroupPolicy{
+										Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+											MinCount: 0,
+										},
+									},
+								},
+							},
+						},
+					})
 			},
 			jobSetCreationShouldFail: true,
 		}),

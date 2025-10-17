@@ -173,6 +173,97 @@ spec:
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
+              gangPolicy:
+                description: gangPolicy configures gang scheduling policy
+                properties:
+                  workloadTemplate:
+                    description: |-
+                      workloadTemplate provides a Workload template to create on JobSet creation.
+                      When specified, the JobSet controller will create this Workload object
+                      and link it to the JobSet for gang scheduling.
+                      The Workload's podGroups define how pods should be grouped for gang scheduling.
+                    properties:
+                      controllerRef:
+                        description: |-
+                          ControllerRef is an optional reference to the controlling object, such as a
+                          Deployment or Job. This field is intended for use by tools like CLIs
+                          to provide a link back to the original workload definition.
+                          When set, it cannot be changed.
+                        properties:
+                          apiGroup:
+                            description: |-
+                              APIGroup is the group for the resource being referenced.
+                              If APIGroup is empty, the specified Kind must be in the core API group.
+                              For any other third-party types, setting APIGroup is required.
+                              It must be a DNS subdomain.
+                            type: string
+                          kind:
+                            description: |-
+                              Kind is the type of resource being referenced.
+                              It must be a path segment name.
+                            type: string
+                          name:
+                            description: |-
+                              Name is the name of resource being referenced.
+                              It must be a path segment name.
+                            type: string
+                        required:
+                        - kind
+                        - name
+                        type: object
+                      podGroups:
+                        description: |-
+                          PodGroups is the list of pod groups that make up the Workload.
+                          The maximum number of pod groups is 8. This field is immutable.
+                        items:
+                          description: PodGroup represents a set of pods with a common
+                            scheduling policy.
+                          properties:
+                            name:
+                              description: |-
+                                Name is a unique identifier for the PodGroup within the Workload.
+                                It must be a DNS label. This field is immutable.
+                              type: string
+                            policy:
+                              description: Policy defines the scheduling policy for
+                                this PodGroup.
+                              properties:
+                                basic:
+                                  description: |-
+                                    Basic specifies that the pods in this group should be scheduled using
+                                    standard Kubernetes scheduling behavior.
+                                  type: object
+                                gang:
+                                  description: |-
+                                    Gang specifies that the pods in this group should be scheduled using
+                                    all-or-nothing semantics.
+                                  properties:
+                                    minCount:
+                                      description: |-
+                                        MinCount is the minimum number of pods that must be schedulable or scheduled
+                                        at the same time for the scheduler to admit the entire group.
+                                        It must be a positive integer.
+                                      format: int32
+                                      type: integer
+                                  required:
+                                  - minCount
+                                  type: object
+                              type: object
+                          required:
+                          - name
+                          - policy
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                    required:
+                    - podGroups
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               managedBy:
                 description: |-
                   managedBy is used to indicate the controller or entity that manages a JobSet.

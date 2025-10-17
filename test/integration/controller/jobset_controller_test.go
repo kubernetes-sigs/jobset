@@ -28,6 +28,7 @@ import (
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha1 "k8s.io/api/scheduling/v1alpha1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -39,6 +40,7 @@ import (
 	"sigs.k8s.io/jobset/pkg/constants"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/util/testing"
+	"sigs.k8s.io/jobset/pkg/workload"
 	testutil "sigs.k8s.io/jobset/test/util"
 )
 
@@ -3059,3 +3061,581 @@ func testJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 			Replicas(3).
 			Obj())
 }
+
+var _ = ginkgo.Describe("Gang scheduling", func() {
+	ginkgo.When("A JobSet is created with WorkloadTemplate gang policy", ginkgo.Ordered, func() {
+		var (
+			ns *corev1.Namespace
+			js *jobset.JobSet
+		)
+
+		ginkgo.BeforeAll(func() {
+			ns = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			// Create a JobSet with a WorkloadTemplate
+			js = testing.MakeJobSet("gang-template", ns.Name).
+				SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+				EnableDNSHostnames(true).
+				ReplicatedJob(testing.MakeReplicatedJob("workers").
+					Job(testing.MakeJobTemplate("worker-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(2).
+					Obj()).
+				ReplicatedJob(testing.MakeReplicatedJob("ps").
+					Job(testing.MakeJobTemplate("ps-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(1).
+					Obj()).
+				GangPolicy(&jobset.GangPolicy{
+					WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+						PodGroups: []schedulingv1alpha1.PodGroup{
+							{
+								Name: "all-pods",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 3,
+									},
+								},
+							},
+						},
+					},
+				}).
+				Obj()
+
+			ginkgo.By(fmt.Sprintf("creating JobSet %s/%s with WorkloadTemplate gang policy", js.Namespace, js.Name))
+			gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+		})
+
+		ginkgo.AfterAll(func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("Should create a Workload resource from the WorkloadTemplate", func() {
+			ginkgo.By("checking that the Workload is created")
+			workloadName := workload.GenWorkloadName(js)
+			var wl schedulingv1alpha1.Workload
+
+			gomega.Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("verifying the Workload has proper labels")
+			gomega.Expect(wl.Labels[jobset.JobSetNameKey]).To(gomega.Equal(js.Name))
+			gomega.Expect(wl.Labels[jobset.JobSetUIDKey]).To(gomega.Equal(string(js.UID)))
+
+			ginkgo.By("verifying the Workload has PodGroups from the template")
+			gomega.Expect(wl.Spec.PodGroups).To(gomega.HaveLen(1))
+			gomega.Expect(wl.Spec.PodGroups[0].Name).To(gomega.Equal("all-pods"))
+			gomega.Expect(wl.Spec.PodGroups[0].Policy.Gang).NotTo(gomega.BeNil())
+			gomega.Expect(wl.Spec.PodGroups[0].Policy.Gang.MinCount).To(gomega.Equal(int32(3)))
+
+			ginkgo.By("verifying the Workload has owner reference to the JobSet")
+			gomega.Expect(wl.OwnerReferences).To(gomega.HaveLen(1))
+			gomega.Expect(wl.OwnerReferences[0].Name).To(gomega.Equal(js.Name))
+			gomega.Expect(wl.OwnerReferences[0].Kind).To(gomega.Equal("JobSet"))
+		})
+	})
+
+	ginkgo.When("A JobSet is created with WorkloadTemplate having multiple PodGroups", ginkgo.Ordered, func() {
+		var (
+			ns *corev1.Namespace
+			js *jobset.JobSet
+		)
+
+		ginkgo.BeforeAll(func() {
+			ns = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			// Create a JobSet with multiple PodGroups in the WorkloadTemplate
+			js = testing.MakeJobSet("gang-multi-pg", ns.Name).
+				SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+				EnableDNSHostnames(true).
+				ReplicatedJob(testing.MakeReplicatedJob("workers").
+					Job(testing.MakeJobTemplate("worker-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(2).
+					Obj()).
+				ReplicatedJob(testing.MakeReplicatedJob("ps").
+					Job(testing.MakeJobTemplate("ps-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(1).
+					Obj()).
+				GangPolicy(&jobset.GangPolicy{
+					WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+						PodGroups: []schedulingv1alpha1.PodGroup{
+							{
+								Name: "workers",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 2,
+									},
+								},
+							},
+							{
+								Name: "ps",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 1,
+									},
+								},
+							},
+						},
+					},
+				}).
+				Obj()
+
+			ginkgo.By(fmt.Sprintf("creating JobSet %s/%s with multiple PodGroups", js.Namespace, js.Name))
+			gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+		})
+
+		ginkgo.AfterAll(func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("Should create a Workload resource with multiple PodGroups", func() {
+			ginkgo.By("checking that the Workload is created")
+			workloadName := workload.GenWorkloadName(js)
+			var wl schedulingv1alpha1.Workload
+
+			gomega.Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("verifying the Workload has proper labels")
+			gomega.Expect(wl.Labels[jobset.JobSetNameKey]).To(gomega.Equal(js.Name))
+
+			ginkgo.By("verifying the Workload has 2 PodGroups")
+			gomega.Expect(wl.Spec.PodGroups).To(gomega.HaveLen(2))
+
+			ginkgo.By("verifying each PodGroup has the correct name and MinCount")
+			podGroupsByName := make(map[string]schedulingv1alpha1.PodGroup)
+			for _, pg := range wl.Spec.PodGroups {
+				podGroupsByName[pg.Name] = pg
+			}
+
+			workersPG, found := podGroupsByName["workers"]
+			gomega.Expect(found).To(gomega.BeTrue())
+			gomega.Expect(workersPG.Policy.Gang).NotTo(gomega.BeNil())
+			gomega.Expect(workersPG.Policy.Gang.MinCount).To(gomega.Equal(int32(2)))
+
+			psPG, found := podGroupsByName["ps"]
+			gomega.Expect(found).To(gomega.BeTrue())
+			gomega.Expect(psPG.Policy.Gang).NotTo(gomega.BeNil())
+			gomega.Expect(psPG.Policy.Gang.MinCount).To(gomega.Equal(int32(1)))
+		})
+	})
+
+	ginkgo.When("A JobSet without gang policy is created", ginkgo.Ordered, func() {
+		var (
+			ns *corev1.Namespace
+			js *jobset.JobSet
+		)
+
+		ginkgo.BeforeAll(func() {
+			ns = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			// Create a JobSet without gang policy
+			js = testing.MakeJobSet("no-gang-policy", ns.Name).
+				SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+				EnableDNSHostnames(true).
+				ReplicatedJob(testing.MakeReplicatedJob("workers").
+					Job(testing.MakeJobTemplate("worker-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(2).
+					Obj()).
+				Obj()
+
+			ginkgo.By(fmt.Sprintf("creating JobSet %s/%s without gang policy", js.Namespace, js.Name))
+			gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+		})
+
+		ginkgo.AfterAll(func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("Should not create a Workload resource", func() {
+			ginkgo.By("checking that no Workload is created")
+			workloadName := workload.GenWorkloadName(js)
+			var wl schedulingv1alpha1.Workload
+
+			gomega.Consistently(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+				return err != nil
+			}, timeout, interval).Should(gomega.BeTrue())
+		})
+	})
+
+	ginkgo.When("A JobSet with gang policy has owner reference set correctly", ginkgo.Ordered, func() {
+		var (
+			ns *corev1.Namespace
+			js *jobset.JobSet
+		)
+
+		ginkgo.BeforeAll(func() {
+			ns = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			// Create a JobSet with gang policy
+			js = testing.MakeJobSet("gang-delete", ns.Name).
+				SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+				EnableDNSHostnames(true).
+				ReplicatedJob(testing.MakeReplicatedJob("workers").
+					Job(testing.MakeJobTemplate("worker-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(2).
+					Obj()).
+				GangPolicy(&jobset.GangPolicy{
+					WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+						PodGroups: []schedulingv1alpha1.PodGroup{
+							{
+								Name: "workers",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 2,
+									},
+								},
+							},
+						},
+					},
+				}).
+				Obj()
+
+			ginkgo.By(fmt.Sprintf("creating JobSet %s/%s with gang policy", js.Namespace, js.Name))
+			gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+		})
+
+		ginkgo.AfterAll(func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("Should have proper owner reference on Workload for garbage collection", func() {
+			ginkgo.By("checking that the Workload is created")
+			workloadName := workload.GenWorkloadName(js)
+			var wl schedulingv1alpha1.Workload
+
+			gomega.Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("verifying the Workload has owner reference to the JobSet")
+			gomega.Expect(wl.OwnerReferences).To(gomega.HaveLen(1))
+			gomega.Expect(wl.OwnerReferences[0].Name).To(gomega.Equal(js.Name))
+			gomega.Expect(wl.OwnerReferences[0].Kind).To(gomega.Equal("JobSet"))
+			gomega.Expect(wl.OwnerReferences[0].APIVersion).To(gomega.Equal("jobset.x-k8s.io/v1alpha2"))
+			gomega.Expect(ptr.Deref(wl.OwnerReferences[0].Controller, false)).To(gomega.BeTrue())
+			gomega.Expect(ptr.Deref(wl.OwnerReferences[0].BlockOwnerDeletion, false)).To(gomega.BeTrue())
+			// Note: envtest does not run the garbage collector, so we can only verify
+			// that the owner reference is correctly set, which ensures garbage collection
+			// will work in a real Kubernetes cluster.
+		})
+	})
+
+	ginkgo.When("A JobSet is created in suspended state with gang policy", ginkgo.Ordered, func() {
+		var (
+			ns *corev1.Namespace
+			js *jobset.JobSet
+		)
+
+		ginkgo.BeforeAll(func() {
+			ns = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			// Create a suspended JobSet with gang policy
+			js = testing.MakeJobSet("gang-suspended", ns.Name).
+				SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+				EnableDNSHostnames(true).
+				ReplicatedJob(testing.MakeReplicatedJob("workers").
+					Job(testing.MakeJobTemplate("worker-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(2).
+					Obj()).
+				GangPolicy(&jobset.GangPolicy{
+					WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+						PodGroups: []schedulingv1alpha1.PodGroup{
+							{
+								Name: "workers",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 2,
+									},
+								},
+							},
+						},
+					},
+				}).
+				Suspend(true).
+				Obj()
+
+			ginkgo.By(fmt.Sprintf("creating suspended JobSet %s/%s with gang policy", js.Namespace, js.Name))
+			gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+		})
+
+		ginkgo.AfterAll(func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("Should not create a Workload resource while suspended", func() {
+			ginkgo.By("checking that no Workload is created while JobSet is suspended")
+			workloadName := workload.GenWorkloadName(js)
+			var wl schedulingv1alpha1.Workload
+
+			gomega.Consistently(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+				return err != nil
+			}, timeout, interval).Should(gomega.BeTrue())
+		})
+
+		ginkgo.It("Should create a Workload resource when resumed", func() {
+			ginkgo.By("resuming the JobSet")
+			gomega.Eventually(func() error {
+				var jsGet jobset.JobSet
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jsGet); err != nil {
+					return err
+				}
+				jsGet.Spec.Suspend = ptr.To(false)
+				return k8sClient.Update(ctx, &jsGet)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking that the Workload is created after resuming")
+			workloadName := workload.GenWorkloadName(js)
+			var wl schedulingv1alpha1.Workload
+
+			gomega.Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("verifying the Workload has proper labels")
+			gomega.Expect(wl.Labels[jobset.JobSetNameKey]).To(gomega.Equal(js.Name))
+		})
+	})
+
+	ginkgo.When("A running JobSet with gang policy is suspended", ginkgo.Ordered, func() {
+		var (
+			ns *corev1.Namespace
+			js *jobset.JobSet
+		)
+
+		ginkgo.BeforeAll(func() {
+			ns = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			// Create a running JobSet with gang policy
+			js = testing.MakeJobSet("gang-suspend-running", ns.Name).
+				SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+				EnableDNSHostnames(true).
+				ReplicatedJob(testing.MakeReplicatedJob("workers").
+					Job(testing.MakeJobTemplate("worker-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(2).
+					Obj()).
+				GangPolicy(&jobset.GangPolicy{
+					WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+						PodGroups: []schedulingv1alpha1.PodGroup{
+							{
+								Name: "workers",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 2,
+									},
+								},
+							},
+						},
+					},
+				}).
+				Obj()
+
+			ginkgo.By(fmt.Sprintf("creating JobSet %s/%s with gang policy", js.Namespace, js.Name))
+			gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+		})
+
+		ginkgo.AfterAll(func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("Should delete the Workload when JobSet is suspended", func() {
+			ginkgo.By("checking that the Workload is initially created")
+			workloadName := workload.GenWorkloadName(js)
+			var wl schedulingv1alpha1.Workload
+
+			gomega.Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("suspending the JobSet")
+			gomega.Eventually(func() error {
+				var jsGet jobset.JobSet
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jsGet); err != nil {
+					return err
+				}
+				jsGet.Spec.Suspend = ptr.To(true)
+				return k8sClient.Update(ctx, &jsGet)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking that the Workload is deleted after suspending")
+			gomega.Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+				return err != nil
+			}, timeout, interval).Should(gomega.BeTrue())
+		})
+
+		ginkgo.It("Should recreate the Workload when JobSet is resumed", func() {
+			ginkgo.By("resuming the JobSet")
+			gomega.Eventually(func() error {
+				var jsGet jobset.JobSet
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jsGet); err != nil {
+					return err
+				}
+				jsGet.Spec.Suspend = ptr.To(false)
+				return k8sClient.Update(ctx, &jsGet)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking that the Workload is recreated after resuming")
+			workloadName := workload.GenWorkloadName(js)
+			var wl schedulingv1alpha1.Workload
+
+			gomega.Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("verifying the Workload has proper labels")
+			gomega.Expect(wl.Labels[jobset.JobSetNameKey]).To(gomega.Equal(js.Name))
+		})
+	})
+
+	ginkgo.When("A JobSet with JobSetGangPerReplicatedJob policy is suspended and resumed", ginkgo.Ordered, func() {
+		var (
+			ns *corev1.Namespace
+			js *jobset.JobSet
+		)
+
+		ginkgo.BeforeAll(func() {
+			ns = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			// Create a JobSet with JobSetGangPerReplicatedJob policy
+			js = testing.MakeJobSet("gang-per-rjob-suspend", ns.Name).
+				SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+				EnableDNSHostnames(true).
+				ReplicatedJob(testing.MakeReplicatedJob("workers").
+					Job(testing.MakeJobTemplate("worker-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(2).
+					Obj()).
+				ReplicatedJob(testing.MakeReplicatedJob("ps").
+					Job(testing.MakeJobTemplate("ps-job", ns.Name).PodSpec(testing.TestPodSpec).Obj()).
+					Replicas(1).
+					Obj()).
+				GangPolicy(&jobset.GangPolicy{
+					WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+						PodGroups: []schedulingv1alpha1.PodGroup{
+							{
+								Name: "workers",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 2,
+									},
+								},
+							},
+							{
+								Name: "ps",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 1,
+									},
+								},
+							},
+						},
+					},
+				}).
+				Obj()
+
+			ginkgo.By(fmt.Sprintf("creating JobSet %s/%s with JobSetGangPerReplicatedJob policy", js.Namespace, js.Name))
+			gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+		})
+
+		ginkgo.AfterAll(func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("Should handle suspend/resume correctly with multiple PodGroups", func() {
+			ginkgo.By("checking that the Workload is initially created with multiple PodGroups")
+			workloadName := workload.GenWorkloadName(js)
+			var wl schedulingv1alpha1.Workload
+
+			gomega.Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			gomega.Expect(wl.Spec.PodGroups).To(gomega.HaveLen(2))
+
+			ginkgo.By("suspending the JobSet")
+			gomega.Eventually(func() error {
+				var jsGet jobset.JobSet
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jsGet); err != nil {
+					return err
+				}
+				jsGet.Spec.Suspend = ptr.To(true)
+				return k8sClient.Update(ctx, &jsGet)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking that the Workload is deleted after suspending")
+			gomega.Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+				return err != nil
+			}, timeout, interval).Should(gomega.BeTrue())
+
+			ginkgo.By("resuming the JobSet")
+			gomega.Eventually(func() error {
+				var jsGet jobset.JobSet
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jsGet); err != nil {
+					return err
+				}
+				jsGet.Spec.Suspend = ptr.To(false)
+				return k8sClient.Update(ctx, &jsGet)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking that the Workload is recreated with correct PodGroups")
+			gomega.Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: js.Namespace}, &wl)
+			}, timeout, interval).Should(gomega.Succeed())
+
+			gomega.Expect(wl.Spec.PodGroups).To(gomega.HaveLen(2))
+
+			podGroupsByName := make(map[string]schedulingv1alpha1.PodGroup)
+			for _, pg := range wl.Spec.PodGroups {
+				podGroupsByName[pg.Name] = pg
+			}
+
+			workersPG, found := podGroupsByName["workers"]
+			gomega.Expect(found).To(gomega.BeTrue())
+			gomega.Expect(workersPG.Policy.Gang).NotTo(gomega.BeNil())
+			gomega.Expect(workersPG.Policy.Gang.MinCount).To(gomega.Equal(int32(2)))
+
+			psPG, found := podGroupsByName["ps"]
+			gomega.Expect(found).To(gomega.BeTrue())
+			gomega.Expect(psPG.Policy.Gang).NotTo(gomega.BeNil())
+			gomega.Expect(psPG.Policy.Gang.MinCount).To(gomega.Equal(int32(1)))
+		})
+	})
+})

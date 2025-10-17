@@ -29,6 +29,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha1 "k8s.io/api/scheduling/v1alpha1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,9 +44,11 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
+	"sigs.k8s.io/jobset/pkg/workload"
 )
 
 var apiGVStr = jobset.GroupVersion.String()
@@ -100,6 +103,8 @@ func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record re
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get;patch;update
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=scheduling.k8s.io,resources=workloads,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=scheduling.k8s.io,resources=workloads/status,verbs=get;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -203,6 +208,14 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
+	// Reconcile gang scheduling workload if gang policy is configured and feature gate is enabled
+	if features.Enabled(features.JobSetGang) {
+		if err := r.reconcileGangPolicy(ctx, js); err != nil {
+			log.Error(err, "reconciling gang policy")
+			return ctrl.Result{}, err
+		}
+	}
+
 	// If job has not failed or succeeded, reconcile the state of the replicatedJobs.
 	if err := r.reconcileReplicatedJobs(ctx, js, ownedJobs, rjobStatuses, updateStatusOpts); err != nil {
 		log.Error(err, "creating jobs")
@@ -227,11 +240,20 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&jobset.JobSet{}).
-		Owns(&batchv1.Job{}).
-		Owns(&corev1.Service{}).
-		Complete(r)
+	if features.Enabled(features.JobSetGang) {
+		return ctrl.NewControllerManagedBy(mgr).
+			For(&jobset.JobSet{}).
+			Owns(&batchv1.Job{}).
+			Owns(&corev1.Service{}).
+			Owns(&schedulingv1alpha1.Workload{}).
+			Complete(r)
+	} else {
+		return ctrl.NewControllerManagedBy(mgr).
+			For(&jobset.JobSet{}).
+			Owns(&batchv1.Job{}).
+			Owns(&corev1.Service{}).
+			Complete(r)
+	}
 }
 
 func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error {
@@ -725,6 +747,15 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) *ba
 	// if Suspend is set, then we assume all jobs will be suspended also.
 	jobsetSuspended := jobSetSuspended(js)
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
+
+	// If gang policy is set and feature gate is enabled, add WorkloadRef to the pod template so that pods
+	// reference the Workload and PodGroup they belong to for gang scheduling.
+	if features.Enabled(features.JobSetGang) && js.Spec.GangPolicy != nil && js.Spec.GangPolicy.WorkloadTemplate != nil {
+		job.Spec.Template.Spec.WorkloadRef = &corev1.WorkloadReference{
+			Name:     workload.GenWorkloadName(js),
+			PodGroup: rjob.Name, // PodGroup name matches the replicated job name
+		}
+	}
 
 	return job
 }

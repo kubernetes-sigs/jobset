@@ -40,6 +40,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/webhooks"
 )
 
@@ -71,6 +72,9 @@ var _ = BeforeSuite(func() {
 			Paths: []string{filepath.Join("..", "..", "..", "config", "components", "webhook")},
 		},
 	}
+
+	// Enable the JobSetGang feature gate for JobSet webhook
+	Expect(features.SetEnable(features.JobSetGang, true)).NotTo(HaveOccurred())
 
 	var err error
 	// cfg is defined in this file globally.

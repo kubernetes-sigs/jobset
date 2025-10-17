@@ -36,6 +36,8 @@ type JobSetSpecApplyConfiguration struct {
 	// startupPolicy configures in what order jobs must be started
 	// Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
 	StartupPolicy *StartupPolicyApplyConfiguration `json:"startupPolicy,omitempty"`
+	// gangPolicy configures gang scheduling policy
+	GangPolicy *GangPolicyApplyConfiguration `json:"gangPolicy,omitempty"`
 	// suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"`
 	// coordinator can be used to assign a specific pod as the coordinator for
@@ -114,6 +116,14 @@ func (b *JobSetSpecApplyConfiguration) WithFailurePolicy(value *FailurePolicyApp
 // If called multiple times, the StartupPolicy field is set to the value of the last call.
 func (b *JobSetSpecApplyConfiguration) WithStartupPolicy(value *StartupPolicyApplyConfiguration) *JobSetSpecApplyConfiguration {
 	b.StartupPolicy = value
+	return b
+}
+
+// WithGangPolicy sets the GangPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the GangPolicy field is set to the value of the last call.
+func (b *JobSetSpecApplyConfiguration) WithGangPolicy(value *GangPolicyApplyConfiguration) *JobSetSpecApplyConfiguration {
+	b.GangPolicy = value
 	return b
 }
 

@@ -37,6 +37,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
@@ -269,6 +270,17 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		allErrs = append(allErrs, validateCoordinator(js))
 		allErrs = append(allErrs, validateCoordinatorLabelValue(js))
 	}
+
+	// Validate gang policy, if set.
+	if js.Spec.GangPolicy != nil {
+		if !features.Enabled(features.JobSetGang) {
+			allErrs = append(allErrs, fmt.Errorf("gangPolicy is specified but the %s feature gate is not enabled", features.JobSetGang))
+		} else {
+			gangPolicyErrors := validateGangPolicy(js.Spec.GangPolicy)
+			allErrs = append(allErrs, gangPolicyErrors...)
+		}
+	}
+
 	return nil, errors.Join(allErrs...)
 }
 
@@ -418,4 +430,36 @@ func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.Replic
 		}
 	}
 	return nil
+}
+
+// validateGangPolicy validates the gang policy configuration.
+func validateGangPolicy(gangPolicy *jobset.GangPolicy) []error {
+	var allErrs []error
+
+	if gangPolicy == nil {
+		return allErrs
+	}
+
+	// Validate that workloadTemplate is set
+	if gangPolicy.WorkloadTemplate == nil {
+		allErrs = append(allErrs, fmt.Errorf("gangPolicy.workloadTemplate must be set"))
+		return allErrs
+	}
+
+	// Validate workload spec
+	if len(gangPolicy.WorkloadTemplate.PodGroups) == 0 {
+		allErrs = append(allErrs, fmt.Errorf("gangPolicy.workloadTemplate.podGroups must not be empty"))
+	}
+
+	// Validate each PodGroup has a valid policy
+	for i, pg := range gangPolicy.WorkloadTemplate.PodGroups {
+		if pg.Policy.Basic == nil && pg.Policy.Gang == nil {
+			allErrs = append(allErrs, fmt.Errorf("gangPolicy.workloadTemplate.podGroups[%d].policy must have either basic or gang scheduling policy set", i))
+		}
+		if pg.Policy.Gang != nil && pg.Policy.Gang.MinCount <= 0 {
+			allErrs = append(allErrs, fmt.Errorf("gangPolicy.workloadTemplate.podGroups[%d].policy.gang.minCount must be greater than 0", i))
+		}
+	}
+
+	return allErrs
 }

@@ -36,11 +36,13 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha1 "k8s.io/api/scheduling/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
@@ -1900,6 +1902,140 @@ func TestGroupReplicas(t *testing.T) {
 			actualGroupReplicas := groupReplicas(tc.jobSet, tc.groupName)
 			if diff := cmp.Diff(tc.expectedGroupReplicas, actualGroupReplicas); diff != "" {
 				t.Errorf("unexpected group replicas (-want/+got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestConstructJobWithWorkloadRef(t *testing.T) {
+	// Enable the JobSetGang feature gate for this test
+	features.SetFeatureGateDuringTest(t, features.JobSetGang, true)
+
+	var (
+		jobSetName        = "test-jobset"
+		replicatedJobName = "worker"
+		ns                = "default"
+	)
+
+	tests := []struct {
+		name                 string
+		js                   *jobset.JobSet
+		rjobName             string
+		expectWorkloadRef    bool
+		expectedWorkloadName string
+		expectedPodGroupName string
+	}{
+		{
+			name: "no gang policy - no WorkloadRef",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate("job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			rjobName:          replicatedJobName,
+			expectWorkloadRef: false,
+		},
+		{
+			name: "gang policy with WorkloadTemplate - WorkloadRef set",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				GangPolicy(&jobset.GangPolicy{
+					WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+						PodGroups: []schedulingv1alpha1.PodGroup{
+							{
+								Name: replicatedJobName,
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 2,
+									},
+								},
+							},
+						},
+					},
+				}).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate("job", ns).Obj()).
+					Replicas(2).
+					Obj()).Obj(),
+			rjobName:             replicatedJobName,
+			expectWorkloadRef:    true,
+			expectedWorkloadName: jobSetName,
+			expectedPodGroupName: replicatedJobName,
+		},
+		{
+			name: "gang policy with multiple pod groups",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				GangPolicy(&jobset.GangPolicy{
+					WorkloadTemplate: &schedulingv1alpha1.WorkloadSpec{
+						PodGroups: []schedulingv1alpha1.PodGroup{
+							{
+								Name: "leader",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 1,
+									},
+								},
+							},
+							{
+								Name: "worker",
+								Policy: schedulingv1alpha1.PodGroupPolicy{
+									Gang: &schedulingv1alpha1.GangSchedulingPolicy{
+										MinCount: 4,
+									},
+								},
+							},
+						},
+					},
+				}).
+				ReplicatedJob(testutils.MakeReplicatedJob("leader").
+					Job(testutils.MakeJobTemplate("job", ns).Obj()).
+					Replicas(1).
+					Obj()).
+				ReplicatedJob(testutils.MakeReplicatedJob("worker").
+					Job(testutils.MakeJobTemplate("job", ns).Obj()).
+					Replicas(4).
+					Obj()).Obj(),
+			rjobName:             "leader",
+			expectWorkloadRef:    true,
+			expectedWorkloadName: jobSetName,
+			expectedPodGroupName: "leader", // Each rjob uses its own name
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Find the replicated job
+			var rjob *jobset.ReplicatedJob
+			for i := range tc.js.Spec.ReplicatedJobs {
+				if tc.js.Spec.ReplicatedJobs[i].Name == tc.rjobName {
+					rjob = &tc.js.Spec.ReplicatedJobs[i]
+					break
+				}
+			}
+			if rjob == nil {
+				t.Fatalf("replicated job %q not found in jobset", tc.rjobName)
+			}
+
+			// Construct the job
+			job := constructJob(tc.js, rjob, 0)
+
+			// Check WorkloadRef
+			if tc.expectWorkloadRef {
+				if job.Spec.Template.Spec.WorkloadRef == nil {
+					t.Errorf("expected WorkloadRef to be set, but it was nil")
+					return
+				}
+				if job.Spec.Template.Spec.WorkloadRef.Name != tc.expectedWorkloadName {
+					t.Errorf("expected WorkloadRef.Name to be %q, got %q",
+						tc.expectedWorkloadName, job.Spec.Template.Spec.WorkloadRef.Name)
+				}
+				if job.Spec.Template.Spec.WorkloadRef.PodGroup != tc.expectedPodGroupName {
+					t.Errorf("expected WorkloadRef.PodGroup to be %q, got %q",
+						tc.expectedPodGroupName, job.Spec.Template.Spec.WorkloadRef.PodGroup)
+				}
+			} else {
+				if job.Spec.Template.Spec.WorkloadRef != nil {
+					t.Errorf("expected WorkloadRef to be nil, but got %+v", job.Spec.Template.Spec.WorkloadRef)
+				}
 			}
 		})
 	}

@@ -118,6 +118,15 @@
         }
       }
     },
+    "jobset.v1alpha2.GangPolicy": {
+      "type": "object",
+      "properties": {
+        "workloadTemplate": {
+          "description": "workloadTemplate provides a Workload template to create on JobSet creation. When specified, the JobSet controller will create this Workload object and link it to the JobSet for gang scheduling. The Workload's podGroups define how pods should be grouped for gang scheduling.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha1.WorkloadSpec"
+        }
+      }
+    },
     "jobset.v1alpha2.JobSet": {
       "description": "JobSet is the Schema for the jobsets API",
       "type": "object",
@@ -186,6 +195,10 @@
         "failurePolicy": {
           "description": "failurePolicy configures when to declare the JobSet as failed. The JobSet is always declared failed if any job in the set finished with status failed.",
           "$ref": "#/definitions/jobset.v1alpha2.FailurePolicy"
+        },
+        "gangPolicy": {
+          "description": "gangPolicy configures gang scheduling policy",
+          "$ref": "#/definitions/jobset.v1alpha2.GangPolicy"
         },
         "managedBy": {
           "description": "managedBy is used to indicate the controller or entity that manages a JobSet. The built-in JobSet controller reconciles JobSets which don't have this field at all or the field value is the reserved string `jobset.sigs.k8s.io/jobset-controller`, but skips reconciling JobSets with a custom value for this field.\n\nThe value must be a valid domain-prefixed path (e.g. acme.io/foo) - all characters before the first \"/\" must be a valid subdomain as defined by RFC 1123. All characters trailing the first \"/\" must be valid HTTP Path characters as defined by RFC 3986. The value cannot exceed 63 characters. The field is immutable.",

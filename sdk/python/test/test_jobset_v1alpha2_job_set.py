@@ -98,6 +98,20 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                                     ''
                                     ], )
                             ], ), 
+                    gang_policy = jobset.models.jobset_v1alpha2_gang_policy.JobsetV1alpha2GangPolicy(
+                        workload_template = jobset.models.io/k8s/api/scheduling/v1alpha1/workload_spec.io.k8s.api.scheduling.v1alpha1.WorkloadSpec(
+                            controller_ref = jobset.models.io/k8s/api/scheduling/v1alpha1/typed_local_object_reference.io.k8s.api.scheduling.v1alpha1.TypedLocalObjectReference(
+                                api_group = '', 
+                                kind = '', 
+                                name = '', ), 
+                            pod_groups = [
+                                jobset.models.io/k8s/api/scheduling/v1alpha1/pod_group.io.k8s.api.scheduling.v1alpha1.PodGroup(
+                                    name = '', 
+                                    policy = jobset.models.io/k8s/api/scheduling/v1alpha1/pod_group_policy.io.k8s.api.scheduling.v1alpha1.PodGroupPolicy(
+                                        basic = jobset.models.io/k8s/api/scheduling/v1alpha1/basic_scheduling_policy.io.k8s.api.scheduling.v1alpha1.BasicSchedulingPolicy(), 
+                                        gang = jobset.models.io/k8s/api/scheduling/v1alpha1/gang_scheduling_policy.io.k8s.api.scheduling.v1alpha1.GangSchedulingPolicy(
+                                            min_count = 56, ), ), )
+                                ], ), ), 
                     managed_by = '', 
                     network = jobset.models.jobset_v1alpha2_network.JobsetV1alpha2Network(
                         enable_dns_hostnames = True, 
