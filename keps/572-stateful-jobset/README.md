@@ -43,11 +43,9 @@
 ## Summary
 
 This KEP proposes adding the VolumeClaimPolicies API to support stateful JobSets, enabling automated creation
-and management of PersistentVolumeClaims (PVCs) for stateful batch workloads. The feature addresses two
-primary use cases: per-job persistent storage (similar to StatefulSet VolumeClaimTemplates) and
-shared storage across multiple ReplicatedJobs within a JobSet. This enhancement bridges the gap
-between stateless batch processing and stateful storage requirements for modern distributed
-computing workloads, particularly in AI training and HPC domains.
+and management of shared PersistentVolumeClaims (PVCs) across multiple ReplicatedJobs within a JobSet.
+This enhancement bridges the gap between stateless batch processing and stateful storage requirements
+for modern distributed computing workloads, particularly in AI training and HPC domains.
 
 ## Motivation
 
@@ -58,14 +56,15 @@ require persistent storage for checkpoints, datasets, models, or intermediate re
 
 ### Goals
 
-- Automate PVC creation similar to StatefulSet capability.
-- Support volume per ReplicatedJob and shared volume for all ReplicatedJobs within a single JobSet.
+- Automate shared PVC creation for ReplicatedJobs within a single JobSet.
 - Design configurable retention policy for created PVCs.
 
 ### Non-Goals
 
 - Storage performance tuning and optimization features are not covered.
 - Support per Job index volume claim templates.
+- Support per-job persistent storage (similar to StatefulSet VolumeClaimTemplates). This KEP can
+  be extended to support such use-cases in the future.
 - Cross-JobSet volume sharing. Sharing volumes between different JobSet instances is out of scope.
 - Orchestration for PersistentVolumes. JobSet users should rely on StorageClasses to provision
   and delete PVs.
@@ -74,56 +73,7 @@ require persistent storage for checkpoints, datasets, models, or intermediate re
 
 ### User Stories
 
-#### Story 1: Distributed ML Training with Per-Worker Checkpoints
-
-As an AI practitioner, I want to run my Kubeflow TrainJob distributed workloads where each node
-maintains its own checkpoint storage, allowing for fault tolerance and efficient restart capabilities.
-
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: distributed-trainjob
-spec:
-  volumeClaimPolicies:
-    - targetReplicatedJobs: ["node"]
-      templates:
-        - metadata:
-            name: checkpoint-storage
-            labels:
-              storage-type: checkpoint
-          spec:
-            accessModes: ["ReadWriteOnce"]
-            resources:
-              requests:
-                storage: 100Gi
-            storageClassName: fast-ssd
-      retentionPolicy:
-        whenDeleted: Retain
-  replicatedJobs:
-    - name: node
-      replicas: 4
-      template:
-        spec:
-          parallelism: 2
-          completions: 2
-          template:
-            spec:
-              containers:
-                - name: node
-                  image: ghcr.io/kubeflow/trainer/deepspeed-runtime
-                  volumeMounts:
-                    - name: checkpoint-storage
-                      mountPath: /checkpoints
-                  env:
-                    - name: CHECKPOINT_PATH
-                      value: /checkpoints
-```
-
-**Expected Behavior**: Creates 8 individual PVCs named `checkpoint-storage-distributed-trainjob-node-{0-3}-{0-1}`,
-each mounted to the corresponding pod for independent checkpoint storage.
-
-#### Story 2: Shared model and dataset across nodes.
+#### Story 1: Shared model and dataset across nodes.
 
 As an AI practitioner, I want to initialize a model and dataset before distributed fine-tuning,
 using shared ReadWriteMany volumes.
@@ -135,8 +85,7 @@ metadata:
   name: trainjob-qwen2.5
 spec:
   volumeClaimPolicies:
-    - targetReplicatedJobs: []
-      templates:
+    - templates:
         - metadata:
             name: initializer
             labels:
@@ -205,110 +154,7 @@ spec:
 **Expected Behavior**: Creates one shared PVC `initializer-trainjob-qwen2.5` mounted to all pods
 in dataset-initializer, model-initializer, and node ReplicatedJob.
 
-#### Story 3: Hybrid Storage Pattern for Complex Pipelines
-
-As a research engineer, I want to combine both shared datasets and per-worker scratch space in a
-complex training pipeline with multiple stages.
-
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: hybrid-training
-spec:
-  volumeClaimPolicies:
-    # Shared volumes for dataset and results
-    - targetReplicatedJobs: [] # All jobs
-      templates:
-        - metadata:
-            name: dataset-cache
-          spec:
-            accessModes: ["ReadWriteMany"]
-            resources:
-              requests:
-                storage: 500Gi
-            storageClassName: shared-storage
-        - metadata:
-            name: results-storage
-          spec:
-            accessModes: ["ReadWriteMany"]
-            resources:
-              requests:
-                storage: 100Gi
-            storageClassName: shared-storage
-      retentionPolicy:
-        whenDeleted: Delete
-    # Per-job scratch space for data-loader and trainer
-    - targetReplicatedJobs: ["data-loader", "trainer"]
-      templates:
-        - metadata:
-            name: worker-scratch
-          spec:
-            accessModes: ["ReadWriteOnce"]
-            resources:
-              requests:
-                storage: 20Gi
-            storageClassName: local-ssd
-      retentionPolicy:
-        whenDeleted: Retain
-  replicatedJobs:
-    - name: data-loader
-      replicas: 4
-      template:
-        spec:
-          template:
-            spec:
-              containers:
-                - name: loader
-                  image: data-loader:v1.2
-                  volumeMounts:
-                    - name: worker-scratch
-                      mountPath: /scratch
-                    - name: dataset-cache
-                      mountPath: /data
-    - name: trainer
-      replicas: 3
-      template:
-        spec:
-          parallelism: 6
-          completions: 6
-          template:
-            spec:
-              containers:
-                - name: trainer
-                  image: training-worker:v2.0
-                  volumeMounts:
-                    - name: worker-scratch
-                      mountPath: /scratch
-                    - name: dataset-cache
-                      mountPath: /data
-                    - name: results-storage
-                      mountPath: /results
-    - name: evaluator
-      replicas: 2
-      template:
-        spec:
-          template:
-            spec:
-              containers:
-                - name: evaluator
-                  image: model-evaluator:v1.1
-                  volumeMounts:
-                    - name: results-storage
-                      mountPath: /results
-```
-
-**Expected Behavior**: Creates per-job scratch storage for each data-loader and trainer pod, plus
-shared dataset and results storage accessible by appropriate ReplicatedJobs.
-
-Two shared PVC with names `dataset-cache-hybrid` and `results-storage-hybrid`.
-
-Worker scratch PVCs:
-
-- 4 PVCs with names `worker-scratch-data-loader-{0-3}-{0}` for data-loader ReplicatedJob
-- 12 PVCs with names `worker-scratch-trainer-{0-2}-{0-5}` for trainer ReplicatedJob
-
-#### Story 4: HPC Workloads with Node-Local Storage
+#### Story 2: HPC Workloads with Node-Local Storage
 
 As an HPC researcher, I want to utilize node-local storage for high-performance simulation
 workloads while maintaining data persistence across pod restarts.
@@ -321,8 +167,7 @@ metadata:
   namespace: hpc
 spec:
   volumeClaimPolicies:
-    - targetReplicatedJobs: ["compute-node"]
-      templates:
+    - templates:
         - metadata:
             name: simulation-data
           spec:
@@ -334,6 +179,15 @@ spec:
       retentionPolicy:
         whenDeleted: Retain
   replicatedJobs:
+    - name: coordinator
+      replicas: 1
+      template:
+        spec:
+          template:
+            spec:
+              containers:
+                - name: coordinator
+                  image: coordinator:v1.0
     - name: compute-node
       replicas: 16
       template:
@@ -355,8 +209,8 @@ spec:
                       mountPath: /simulation
 ```
 
-**Expected Behavior**: Creates 16 individual PVCs named `simulation-data-hpc-simulation-compute-node-{0-15}-{0}`
-with node-local storage for high-performance simulation data, persisting across pod failures and restarts.
+**Expected Behavior**: Creates one shared PVC `simulation-data-hpc-simulation` mounted to all pods
+in compute-node ReplicatedJob.
 
 ### Risks and Mitigations
 
@@ -397,25 +251,18 @@ type JobSetSpec struct {
     VolumeClaimPolicies []VolumeClaimPolicy `json:"volumeClaimPolicies,omitempty"`
 }
 
-// VolumeClaimPolicy defines volume claim templates and lifecycle management for targeted ReplicatedJobs.
+// VolumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.
 type VolumeClaimPolicy struct {
-    // TargetReplicatedJobs specifies which ReplicatedJobs this policy applies to.
-    // If empty, the policy applies to all ReplicatedJobs in the JobSet.
-    TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
-
-    // Templates is a list of claims that the targeted ReplicatedJobs are allowed to reference.
-    // The JobSet controller is responsible for mapping volume identities to claims in a way that
-    // maintains the identity of the jobs. Every claim in this list must have a matching (by name)
-    // volumeMount in one container in the job template. ReplicatedJob template must not have
-    // volumes with the same name as defined in this template.
+    // Templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference.
+    // The JobSet controller is responsible for creating shared PVCs that can be mounted by
+    // multiple ReplicatedJobs. Every claim in this list must have a matching (by name)
+    // volumeMount in one container in at least one ReplicatedJob template. ReplicatedJob template
+    // must not have volumes with the same name as defined in this template.
     //
-    // Generated PVC naming convention depends on TargetReplicatedJobs:
-    // - If targeting specific ReplicatedJobs: <claim-name>-<jobset-name>-<replicated-job-name>-<replica-index>-<pod-index>
-    // - If targeting all ReplicatedJobs (empty list): <claim-name>-<jobset-name>
+    // Generated PVC naming convention: <claim-name>-<jobset-name>
     //
-    // Examples:
-    // - "checkpoint-storage-training-node-0-0" (per-job volume for node replica 0 and pod index 0)
-    // - "model-cache-training" (volume across all ReplicatedJobs)
+    // Example:
+    // - "model-cache-training" (shared volume across all ReplicatedJobs)
     Templates []corev1.PersistentVolumeClaim `json:"templates,omitempty"`
 
     // RetentionPolicy defines the retention policy for PVCs created from this policy's templates.
@@ -479,39 +326,10 @@ func (r *JobSetReconciler) reconcileVolumeClaimPolicies(ctx context.Context, js 
     for _, policy := range js.Spec.VolumeClaimPolicies {
         // Process each PVC template in the policy
         for _, template := range policy.Templates {
-            // Check if this is a shared volume (empty targetReplicatedJobs targets all)
-            isSharedVolume := len(policy.TargetReplicatedJobs) == 0
-
-            if isSharedVolume {
-                // Create single shared PVC
-                pvcName := generateSharedPVCName(template.Name, js.Name)
-                if err := r.ensurePVCExists(ctx, js, pvcName, &template, &policy); err != nil {
-                    allErrors = append(allErrors, err)
-                }
-            } else {
-                // Create per-job PVCs for each targeted ReplicatedJob
-                for _, targetJobName := range policy.TargetReplicatedJobs {
-                    rjob := r.findReplicatedJob(js, targetJobName)
-                    if rjob == nil {
-                        allErrors = append(allErrors, fmt.Errorf("target ReplicatedJob %s not found", targetJobName))
-                        continue
-                    }
-
-                    // Create PVC for each replica and pod index combination
-                    for replicaIdx := 0; replicaIdx < int(rjob.Replicas); replicaIdx++ {
-                        parallelism := 1
-                        if rjob.Template.Spec.Parallelism != nil {
-                            parallelism = int(*rjob.Template.Spec.Parallelism)
-                        }
-
-                        for podIdx := 0; podIdx < parallelism; podIdx++ {
-                            pvcName := generatePerJobPVCName(template.Name, js.Name, targetJobName, replicaIdx, podIdx)
-                            if err := r.ensurePVCExists(ctx, js, pvcName, &template, &policy); err != nil {
-                                allErrors = append(allErrors, err)
-                            }
-                        }
-                    }
-                }
+            // Create single shared PVC
+            pvcName := generateSharedPVCName(template.Name, js.Name)
+            if err := r.ensurePVCExists(ctx, js, pvcName, &template, &policy); err != nil {
+                allErrors = append(allErrors, err)
             }
         }
     }
@@ -593,26 +411,14 @@ func constructJobWithVolumes(js *jobset.JobSet, rjob *jobset.ReplicatedJob, repl
 
 func addVolumes(job *batchv1.Job, js *jobset.JobSet, rjob *jobset.ReplicatedJob, replicaIdx, podIdx int) {
     for _, policy := range js.Spec.VolumeClaimPolicies {
-        // Check if this policy targets this ReplicatedJob
-        if !isPolicyTargetingJob(policy, rjob.Name) {
-            continue
-        }
-
         for _, template := range policy.Templates {
             // Verify that the ReplicatedJob has a corresponding volumeMount
             if !hasVolumeMount(rjob, template.Name) {
                 continue // Skip this template if no matching volumeMount found
             }
 
-            // Determine PVC name based on targeting
-            var pvcName string
-            if len(policy.TargetReplicatedJobs) == 0 {
-                // Shared volume across all ReplicatedJobs
-                pvcName = generateSharedPVCName(template.Name, js.Name)
-            } else {
-                // Per-job volume for specific ReplicatedJob
-                pvcName = generatePerJobPVCName(template.Name, js.Name, rjob.Name, replicaIdx, podIdx)
-            }
+            // Shared volume across all ReplicatedJobs
+            pvcName := generateSharedPVCName(template.Name, js.Name)
 
             // Add volume to job template
             volume := corev1.Volume{
@@ -626,19 +432,6 @@ func addVolumes(job *batchv1.Job, js *jobset.JobSet, rjob *jobset.ReplicatedJob,
             job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, volume)
         }
     }
-}
-
-func isPolicyTargetingJob(policy jobset.VolumeClaimPolicy, jobName string) bool {
-    if len(policy.TargetReplicatedJobs) == 0 {
-        return true // Empty list targets all jobs
-    }
-
-    for _, target := range policy.TargetReplicatedJobs {
-        if target == jobName {
-            return true
-        }
-    }
-    return false
 }
 
 func hasVolumeMount(rjob *jobset.ReplicatedJob, volumeName string) bool {
@@ -667,12 +460,6 @@ func hasVolumeMount(rjob *jobset.ReplicatedJob, volumeName string) bool {
 #### 4. Naming Conventions
 
 ```go
-// generatePerJobPVCName creates a unique name for per-job PVCs
-// Format: <claim-name>-<jobset-name>-<replicated-job-name>-<replica-index>-<pod-index>
-func generatePerJobPVCName(claimName, jobsetName, replicatedJobName string, replicaIdx, podIdx int) string {
-    return fmt.Sprintf("%s-%s-%s-%d-%d", claimName, jobsetName, replicatedJobName, replicaIdx, podIdx)
-}
-
 // generateSharedPVCName creates a name for shared PVCs
 // Format: <claim-name>-<jobset-name>
 func generateSharedPVCName(claimName, jobsetName string) string {
@@ -717,7 +504,6 @@ func (r *JobSetReconciler) ensurePVCExists(ctx context.Context, js *jobset.JobSe
 - Template names must be unique within each policy
 - Template names must be valid DNS-1123 subdomain names
 - Generated PVC names must not exceed Kubernetes name length limits
-- All `targetReplicatedJobs` references must exist in the JobSet specification
 - Retention policy values must be valid (`Delete` or `Retain`)
 - Default value is `Delete` when not specified
 - If `retentionPolicy` API is omitted, the `Retain` default value will be set for `whenDeleted`.
@@ -734,11 +520,6 @@ func (w *JobSetWebhook) validateVolumeClaimPolicies(js *jobset.JobSet) error {
 
     // Validate each volume claim policy
     for _, policy := range js.Spec.VolumeClaimPolicies {
-        // Validate target ReplicatedJobs exist
-        if err := w.validateTargetReplicatedJobs(js, policy.TargetReplicatedJobs); err != nil {
-            allErrors = append(allErrors, err)
-        }
-
         // Validate PVC templates
         if err := w.validatePVCTemplates(js, policy.Templates); err != nil {
             allErrors = append(allErrors, err)
@@ -751,30 +532,6 @@ func (w *JobSetWebhook) validateVolumeClaimPolicies(js *jobset.JobSet) error {
     }
 
     return errors.Join(allErrors...)
-}
-
-func (w *JobSetWebhook) validateTargetReplicatedJobs(js *jobset.JobSet, targets []string) error {
-    if len(targets) == 0 {
-        return nil // Empty list targets all ReplicatedJobs
-    }
-
-    replicatedJobNames := make(map[string]bool)
-    for _, rjob := range js.Spec.ReplicatedJobs {
-        replicatedJobNames[rjob.Name] = true
-    }
-
-    var invalidTargets []string
-    for _, target := range targets {
-        if !replicatedJobNames[target] {
-            invalidTargets = append(invalidTargets, target)
-        }
-    }
-
-    if len(invalidTargets) > 0 {
-        return fmt.Errorf("targetReplicatedJobs reference non-existent ReplicatedJobs: %v", invalidTargets)
-    }
-
-    return nil
 }
 
 func (w *JobSetWebhook) validatePVCTemplates(js *jobset.JobSet, templates []corev1.PersistentVolumeClaim) error {
@@ -845,13 +602,9 @@ Unit tests will be added to the following packages with target coverage:
 
 Integration tests will be added to verify end-to-end functionality:
 
-1. **Basic VolumeClaimTemplate Test**: Create JobSet with per-job volume claims, verify PVCs
-   are created and mounted correctly.
-2. **Shared Volume Test**: Create JobSet with shared volumes, verify single PVC is mounted to
+1. **Shared Volume Test**: Create JobSet with shared volumes, verify single PVC is mounted to
    multiple jobs.
-3. **Hybrid Pattern Test**: Combine per-job and shared volumes in
-   single JobSet.
-4. **Retention Policy Test**: Verify PVC cleanup behavior with different retention policies.
+2. **Retention Policy Test**: Verify PVC cleanup behavior with different retention policies.
 
 ### Graduation Criteria
 
