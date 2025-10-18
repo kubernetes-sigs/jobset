@@ -283,7 +283,7 @@ const (
     // RetentionPolicyDelete indicates that PVCs should be deleted.
     RetentionPolicyDelete RetentionPolicyType = "Delete"
 
-    // RetentionPolicyDelete indicates that PVCs should be retained.
+    // RetentionPolicyRetain indicates that PVCs should be retained.
     RetentionPolicyRetain RetentionPolicyType = "Retain"
 )
 ```
@@ -506,7 +506,7 @@ func (r *JobSetReconciler) ensurePVCExists(ctx context.Context, js *jobset.JobSe
 - Generated PVC names must not exceed Kubernetes name length limits
 - Retention policy values must be valid (`Delete` or `Retain`)
 - Default value is `Delete` when not specified
-- If `retentionPolicy` API is omitted, the `Retain` default value will be set for `whenDeleted`.
+- If `retentionPolicy` API is omitted, the default value for `whenDeleted` will be `Delete`.
 
 The webhook is enhanced with comprehensive validation for VolumeClaimPolicies:
 
@@ -538,7 +538,7 @@ func (w *JobSetWebhook) validatePVCTemplates(js *jobset.JobSet, templates []core
     var allErrors []error
 
     templateNames := make(map[string]bool)
-    for i, template := range templates {
+    for _, template := range templates {
 
         // Validate template namespace
         if template.Namespace != nil {
@@ -637,7 +637,7 @@ adds additional overhead to troubleshoot volume-related issues.
 
 ### Storage Dependencies
 
-Stateful JobSet becomes dependant on underlying storage infrastructure and provisioners
+Stateful JobSet becomes dependent on underlying storage infrastructure and provisioners
 
 ### Resource Management Overhead
 
@@ -663,7 +663,7 @@ Delegate volume lifecycle management to external operators or tools (such as the
 Operator). In this model, JobSet metadata could include labels or annotations that signal the
 external operator to create PVCs.
 
-This option avoids changes to the JobSet API and preserves a clear separation of concerns
+This option avoids changes to the JobSet API and preserves a clear separation of concerns.
 However, it introduces operational overhead: platform administrators must manage PVC
 lifecycles outside of the JobSet API, increasing complexity.
 
