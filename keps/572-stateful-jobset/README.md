@@ -327,7 +327,7 @@ func (r *JobSetReconciler) reconcileVolumeClaimPolicies(ctx context.Context, js 
         // Process each PVC template in the policy
         for _, template := range policy.Templates {
             // Create single shared PVC
-            pvcName := generateSharedPVCName(template.Name, js.Name)
+            pvcName := getPVCName(template.Name, js.Name)
             if err := r.ensurePVCExists(ctx, js, pvcName, &template, &policy); err != nil {
                 allErrors = append(allErrors, err)
             }
@@ -342,127 +342,16 @@ func (r *JobSetReconciler) reconcileVolumeClaimPolicies(ctx context.Context, js 
 
 ```go
 func (r *JobSetReconciler) ensurePVCExists(ctx context.Context, js *jobset.JobSet, pvcName string, template *corev1.PersistentVolumeClaim, policy *jobset.VolumeClaimPolicy) error {
-    // Check if PVC already exists
-    existingPVC := &corev1.PersistentVolumeClaim{}
-    err := r.Get(ctx, types.NamespacedName{
-        Name:      pvcName,
-        Namespace: js.Namespace,
-    }, existingPVC)
-
-    if err == nil {
-        // PVC already exists, nothing to do
-        return nil
-    }
-
-    if !apierrors.IsNotFound(err) {
-        return err
-    }
-
-    // Create labels starting with template labels
-    labels := make(map[string]string)
-    maps.Copy(labels, template.Labels)
-    labels["jobset.sigs.k8s.io/jobset-name"] = js.Name
-
-    // Create new PVC based on template
-    pvc := &corev1.PersistentVolumeClaim{
-        ObjectMeta: metav1.ObjectMeta{
-            Name:        pvcName,
-            Namespace:   js.Namespace,
-            Labels:      labels,
-            Annotations: template.Annotations,
-        },
-        Spec: template.Spec,
-    }
-
-    // Set owner reference before creation if whenDeleted is Delete
-    if policy.RetentionPolicy != nil && policy.RetentionPolicy.WhenDeleted != nil &&
-       *policy.RetentionPolicy.WhenDeleted == jobset.RetentionPolicyDelete {
-        pvc.OwnerReferences = []metav1.OwnerReference{
-            *metav1.NewControllerRef(js, jobset.GroupVersion.WithKind("JobSet")),
-        }
-    }
-
-    if err := r.Create(ctx, pvc); err != nil {
-        r.Record.Eventf(js, corev1.EventTypeWarning, "FailedCreatePVC",
-            "Failed to create PVC %s: %v", pvcName, err)
-        return err
-    }
-
-    r.Record.Eventf(js, corev1.EventTypeNormal, "SuccessfulCreatePVC",
-        "Created PVC %s", pvcName)
-    return nil
+    // Logic of PVC creation.
 }
 ```
 
-#### 3. Job Template Enhancement
-
-The `constructJob` function is enhanced to inject volume references:
+#### 3. Naming Conventions
 
 ```go
-func constructJobWithVolumes(js *jobset.JobSet, rjob *jobset.ReplicatedJob, replicaIdx, podIdx int) *batchv1.Job {
-    job := constructJob(js, rjob, replicaIdx, podIdx) // Existing logic
-
-    if len(js.Spec.VolumeClaimPolicies) > 0 {
-        addVolumes(job, js, rjob, replicaIdx, podIdx)
-    }
-
-    return job
-}
-
-func addVolumes(job *batchv1.Job, js *jobset.JobSet, rjob *jobset.ReplicatedJob, replicaIdx, podIdx int) {
-    for _, policy := range js.Spec.VolumeClaimPolicies {
-        for _, template := range policy.Templates {
-            // Verify that the ReplicatedJob has a corresponding volumeMount
-            if !hasVolumeMount(rjob, template.Name) {
-                continue // Skip this template if no matching volumeMount found
-            }
-
-            // Shared volume across all ReplicatedJobs
-            pvcName := generateSharedPVCName(template.Name, js.Name)
-
-            // Add volume to job template
-            volume := corev1.Volume{
-                Name: template.Name,
-                VolumeSource: corev1.VolumeSource{
-                    PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-                        ClaimName: pvcName,
-                    },
-                },
-            }
-            job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, volume)
-        }
-    }
-}
-
-func hasVolumeMount(rjob *jobset.ReplicatedJob, volumeName string) bool {
-    // Check all containers in the ReplicatedJob template
-    for _, container := range rjob.Template.Spec.Template.Spec.Containers {
-        for _, volumeMount := range container.VolumeMounts {
-            if volumeMount.Name == volumeName {
-                return true
-            }
-        }
-    }
-
-    // Check all init containers
-    for _, container := range rjob.Template.Spec.Template.Spec.InitContainers {
-        for _, volumeMount := range container.VolumeMounts {
-            if volumeMount.Name == volumeName {
-                return true
-            }
-        }
-    }
-
-    return false
-}
-```
-
-#### 4. Naming Conventions
-
-```go
-// generateSharedPVCName creates a name for shared PVCs
+// getPVCName creates a name for shared PVCs
 // Format: <claim-name>-<jobset-name>
-func generateSharedPVCName(claimName, jobsetName string) string {
+func getPVCName(claimName, jobsetName string) string {
     return fmt.Sprintf("%s-%s", claimName, jobsetName)
 }
 ```
@@ -470,31 +359,8 @@ func generateSharedPVCName(claimName, jobsetName string) string {
 #### 5. Retention Policy Enforcement
 
 Retention policy is enforced through Kubernetes garbage collection by setting owner references on PVCs
-when `whenDeleted: Delete` is configured. When the JobSet is deleted, Kubernetes automatically deletes any PVCs that have the JobSet as their owner.
-
-```go
-func (r *JobSetReconciler) ensurePVCExists(ctx context.Context, js *jobset.JobSet, pvcName string, template *corev1.PersistentVolumeClaim, policy *jobset.VolumeClaimPolicy) error {
-    // ... existing code ...
-
-    // Set owner reference if whenDeleted is Delete
-    if policy.RetentionPolicy != nil && policy.RetentionPolicy.WhenDeleted != nil &&
-       *policy.RetentionPolicy.WhenDeleted == jobset.RetentionPolicyDelete {
-        pvc.OwnerReferences = []metav1.OwnerReference{
-            *metav1.NewControllerRef(js, jobset.GroupVersion.WithKind("JobSet")),
-        }
-    }
-
-    if err := r.Create(ctx, pvc); err != nil {
-        r.Record.Eventf(js, corev1.EventTypeWarning, "FailedCreatePVC",
-            "Failed to create PVC %s: %v", pvcName, err)
-        return err
-    }
-
-    r.Record.Eventf(js, corev1.EventTypeNormal, "SuccessfulCreatePVC",
-        "Created PVC %s", pvcName)
-    return nil
-}
-```
+when `whenDeleted: Delete` is configured. When the JobSet is deleted, Kubernetes automatically deletes
+any PVCs that have the JobSet as their owner.
 
 ### Defaulting/Validation
 
@@ -507,86 +373,6 @@ func (r *JobSetReconciler) ensurePVCExists(ctx context.Context, js *jobset.JobSe
 - Retention policy values must be valid (`Delete` or `Retain`)
 - Default value is `Delete` when not specified
 - If `retentionPolicy` API is omitted, the default value for `whenDeleted` will be `Delete`.
-
-The webhook is enhanced with comprehensive validation for VolumeClaimPolicies:
-
-```go
-func (w *JobSetWebhook) validateVolumeClaimPolicies(js *jobset.JobSet) error {
-    if len(js.Spec.VolumeClaimPolicies) == 0 {
-        return nil
-    }
-
-    var allErrors []error
-
-    // Validate each volume claim policy
-    for _, policy := range js.Spec.VolumeClaimPolicies {
-        // Validate PVC templates
-        if err := w.validatePVCTemplates(js, policy.Templates); err != nil {
-            allErrors = append(allErrors, err)
-        }
-
-        // Validate retention policy
-        if err := w.validateRetentionPolicy(policy.RetentionPolicy); err != nil {
-            allErrors = append(allErrors, err)
-        }
-    }
-
-    return errors.Join(allErrors...)
-}
-
-func (w *JobSetWebhook) validatePVCTemplates(js *jobset.JobSet, templates []corev1.PersistentVolumeClaim) error {
-    var allErrors []error
-
-    templateNames := make(map[string]bool)
-    for _, template := range templates {
-
-        // Validate template namespace
-        if template.Namespace != nil {
-           allErrors = append(allErrors, fmt.Errorf("namespace cannot be set for volumeClaimTemplate %v", template))
-        }
-
-        // Validate template name uniqueness within policy
-        if templateNames[template.Name] {
-            allErrors = append(allErrors, fmt.Errorf("duplicate template name %q", template.Name))
-        }
-        templateNames[template.Name] = true
-
-        // Validate DNS-1123 subdomain name
-        if errs := validation.IsDNS1123Subdomain(template.Name); len(errs) > 0 {
-            allErrors = append(allErrors, fmt.Errorf("invalid template name %q: %v", template.Name, errs))
-        }
-
-        // Validate PVC name length limits
-        maxNameLength := 63 // Kubernetes name limit
-        estimatedNameLength := len(template.Name) + len(js.Name) + 50 // Buffer for indices and separators
-        if estimatedNameLength > maxNameLength {
-            allErrors = append(allErrors, fmt.Errorf("generated PVC name may exceed length limit"))
-        }
-
-        // Validate that template has corresponding volumeMount in at least one container
-        if err := w.validateVolumeMountExists(js, template.Name); err != nil {
-            allErrors = append(allErrors, err)
-        }
-    }
-
-    return errors.Join(allErrors...)
-}
-
-func (w *JobSetWebhook) validateVolumeMountExists(js *jobset.JobSet, templateName string) error {
-    // Check if any ReplicatedJob has a volumeMount with this name
-    for _, rjob := range js.Spec.ReplicatedJobs {
-        for _, container := range rjob.Template.Spec.Template.Spec.Containers {
-            for _, vm := range container.VolumeMounts {
-                if vm.Name == templateName {
-                    return nil // Found matching volumeMount
-                }
-            }
-        }
-    }
-
-    return fmt.Errorf("template %q has no corresponding volumeMount in any container", templateName)
-}
-```
 
 ### Test Plan
 
