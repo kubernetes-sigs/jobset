@@ -94,9 +94,7 @@ spec:
                 - name: initializer
                   image: busybox
                   command:
-                    - /bin/sh
-                    - -c
-                    - "echo 'initializer runs for 10 seconds' && sleep 10"
+                    ...
     - name: replicated-job-2
       replicas: 2
       template:
@@ -109,15 +107,7 @@ spec:
                 - name: launcher
                   image: busybox
                   command:
-                    - /bin/sh
-                    - -c
-                    - "echo 'launcher runs for 20 seconds' && sleep 20"
-                  startupProbe:
-                    exec:
-                      command:
-                        - echo
-                        - "started"
-                    initialDelaySeconds: 5
+                   ...
 ```
 
 #### Story 2
@@ -146,9 +136,7 @@ spec:
                 - name: initializer
                   image: busybox
                   command:
-                    - /bin/sh
-                    - -c
-                    - "echo 'initializer runs for 10 seconds' && sleep 10"
+                    ...
     - name: replicated-job-2
       replicas: 1
       scheduleAtOnce: true
@@ -165,15 +153,7 @@ spec:
                 - name: launcher
                   image: busybox
                   command:
-                    - /bin/sh
-                    - -c
-                    - "echo 'launcher runs for 20 seconds' && sleep 20"
-                  startupProbe:
-                    exec:
-                      command:
-                        - echo
-                        - "started"
-                    initialDelaySeconds: 5
+                    ...
 ```
 
 #### Story 3
@@ -203,9 +183,7 @@ spec:
                 - name: initializer
                   image: busybox
                   command:
-                    - /bin/sh
-                    - -c
-                    - "echo 'initializer runs for 10 seconds' && sleep 10"
+                    ...
     - name: replicated-job-2
       replicas: 3
       scheduleAtOnce: true
@@ -220,15 +198,7 @@ spec:
                 - name: launcher
                   image: busybox
                   command:
-                    - /bin/sh
-                    - -c
-                    - "echo 'launcher runs for 20 seconds' && sleep 20"
-                  startupProbe:
-                    exec:
-                      command:
-                        - echo
-                        - "started"
-                    initialDelaySeconds: 5
+                    ...
 ```
 
 ### Risks and Mitigations
@@ -314,9 +284,7 @@ spec:
                 - name: initializer
                   image: busybox
                   command:
-                    - /bin/sh
-                    - -c
-                    - "echo 'initializer runs for 10 seconds' && sleep 10"
+                    ...
     - name: replicated-job-2
       replicas: 2
       template:
@@ -332,15 +300,7 @@ spec:
                 - name: launcher
                   image: busybox
                   command:
-                    - /bin/sh
-                    - -c
-                    - "echo 'launcher runs for 20 seconds' && sleep 20"
-                  startupProbe:
-                    exec:
-                      command:
-                        - echo
-                        - "started"
-                    initialDelaySeconds: 5
+                    ...
 ```
 
 User-created Workload:
@@ -361,7 +321,7 @@ spec:
       policy:
         kind: PodGroupPolicyKindGang
         gang:
-          // minCount = #ReplicatedJobs X #replicas X #parallelism
+          # minCount = num ReplicatedJobs X num replicas X parallelism
           minCount: 2 X 2 X 4
 ```
 
@@ -400,6 +360,339 @@ When the JobSet is deleted, the JobSet controller will also delete the Workload 
 
 - `jobSetSpec.GangConfig.GangMode` and `replicatedJob.GangConfig.GangMode` cannot be specified at once (except to `GangModeOff`).
 - `jobSetSpec.GangConfig.GangMode` and `replicatedJob.GangConfig.GangMode` are immutable.
+
+### Translating JobSet Workloads to Workloads
+
+#### JobSet Level Gang
+
+JobSet:
+
+```
+apiVersion: jobset.x-k8s.io/v1
+kind: JobSet
+metadata:
+  name: sample-jobset
+spec:
+  gangConfig:
+    gangMode: Gang
+  replicatedJobs:
+    - name: replicated-job-1
+      replicas: 2
+      template:
+        spec:
+          parallelism: 4
+          completions: 4
+          template:
+            spec:
+              containers:
+                - name: initializer
+                  image: busybox
+                  command:
+                    ...
+    - name: replicated-job-2
+      replicas: 2
+      template:
+      spec:
+          parallelism: 4
+          completions: 4
+          template:
+            spec:
+              containers:
+                - name: launcher
+                  image: busybox
+                  command:
+                   ...
+```
+
+Generated Workload:
+
+```
+apiVersion: scheduling/v1alpha1  
+kind: Workload
+metadata:
+  name: w-sample-jobset
+spec:
+  controllerRef:
+    name: sample-jobset
+    kind: JobSet
+    apiGroup: jobset.x-k8s.io
+  podGroups: 
+    - name: "pg-sample-jobset"
+      replicas: 1
+      policy:
+        kind: PodGroupPolicyKindGang
+        gang:
+          # minCount = num ReplicatedJobs X num replicas X parallelism
+          minCount: 2 X 2 X 4
+```
+
+Generated WorkloadRef in Pod Spec:
+
+```
+apiVersion: v1
+kind: Pod
+name:
+  sample-jobset-job-1-abc123
+spec:
+  ...
+  workload:
+    name: w-sample-jobset
+    podGroup: pg-sample-jobset
+  ...
+```
+
+#### ReplicatedJob Level Gang
+
+JobSet:
+
+```
+apiVersion: jobset.x-k8s.io/v1
+kind: JobSet
+metadata:
+  name: sample-jobset
+spec:
+    replicatedJobs:
+    - name: replicated-job-1
+      replicas: 2
+      gangConfig:
+        gangMode: Gang
+      template:
+        spec:
+          parallelism: 4
+          completions: 4
+          template:
+            spec:
+              containers:
+                - name: initializer
+                  image: busybox
+                  command:
+                    ...
+    - name: replicated-job-2
+      replicas: 1
+      gangConfig:
+        gangMode: Gang
+      dependsOn:
+        - name: replicated-job-1
+          status: Complete
+      template:
+        spec:
+          parallelism: 3
+          completions: 3
+          template:
+            spec:
+              containers:
+                - name: launcher
+                  image: busybox
+                  command:
+                    ...
+```
+
+Generated Workload:
+
+```
+apiVersion: scheduling/v1alpha1  
+kind: Workload
+metadata:
+  name: w-sample-jobset
+spec:
+  controllerRef:
+    name: sample-jobset
+    kind: JobSet
+    apiGroup: jobset.x-k8s.io
+  podGroups: 
+    - name: "pg-replicated-job-1"
+      replicas: 1
+      policy:
+        kind: PodGroupPolicyKindGang
+        gang:
+          # minCount = num replicas X parallelism for for replicated-job-1
+          minCount: 2 X 4
+    - name: "pg-replicated-job-2"
+      replicas: 1
+      policy:
+        kind: PodGroupPolicyKindGang
+        gang:
+          # minCount = num replicas X parallelism for replicated-job-2
+          minCount: 1 X 3
+```
+Generated WorkloadRef in Pod Spec:
+
+For replicated-job-1’s pods:
+```
+apiVersion: v1
+kind: Pod
+name:
+  sample-jobset-job-1-abc123
+spec:
+  ...
+  workload:
+    name: w-sample-jobset
+    podGroup: pg-replicated-job-1
+  ...
+```
+
+For replicated-job-2’s pods:
+```
+apiVersion: v1
+kind: Pod
+name:
+  sample-jobset-job-5-abc123
+spec:
+  ...
+  workload:
+    name: w-sample-jobset
+    podGroup: pg-replicated-job-2
+  ...
+```
+
+#### Replica Level Gang
+
+JobSet:
+
+```
+apiVersion: jobset.x-k8s.io/v1
+kind: JobSet
+metadata:
+  name: sample-jobset
+spec:
+  replicatedJobs:
+    - name: replicated-job-1
+      replicas: 2
+      gangConfig:
+        gangMode: ReplicatedGang
+      template:
+        spec:
+          parallelism: 4
+          completions: 4
+          template:
+            spec:
+              containers:
+                - name: initializer
+                  image: busybox
+                  command:
+                    ...
+    - name: replicated-job-2
+      replicas: 3
+      gangConfig:
+        gangMode: ReplicatedGang
+      template:
+        spec:
+          parallelism: 3
+          completions: 3
+          template:
+            spec:
+              containers:
+                - name: launcher
+                  image: busybox
+                  command:
+                    ...
+```
+
+Generated Workload:
+
+```
+apiVersion: scheduling/v1alpha1  
+kind: Workload
+metadata:
+  name: w-sample-jobset
+spec:
+  controllerRef:
+    name: sample-jobset
+    kind: JobSet
+    apiGroup: jobset.x-k8s.io
+  podGroups: 
+    - name: "pg-replicated-job-1"
+      replicas: 2
+      policy:
+        kind: PodGroupPolicyKindGang
+        gang:
+          # minCount = parallelism for replicated-job-1 replica
+          minCount: 4
+    - name: "pg-replicated-job-2"
+      replicas: 3
+      policy:
+        kind: PodGroupPolicyKindGang
+        gang:
+          # minCount =  parallelism for replicated-job-2 replica
+          minCount: 3
+```
+
+Generated WorkloadRef in Pod Spec:
+
+For replica 1 of replicated-job-1’s pods:
+```
+apiVersion: v1
+kind: Pod
+name:
+  sample-jobset-job-1-abc123
+spec:
+  ...
+  workload:
+    name: w-sample-jobset
+    podGroup: pg-replicated-job-1
+    podGroupReplicaIndex: 1
+  ...
+```
+
+For replica 2 of replicated-job-1’s pods:
+```
+apiVersion: v1
+kind: Pod
+name:
+  sample-jobset-job-1-abc456
+spec:
+  ...
+  workload:
+    name: w-sample-jobset
+    podGroup: pg-replicated-job-1
+    podGroupReplicaIndex: 2
+  ...
+```
+
+For replica 1 of replicated-job-2’s pods:
+```
+apiVersion: v1
+kind: Pod
+name:
+  sample-jobset-job-5-abc123
+spec:
+  ...
+  workload:
+    name: w-sample-jobset
+    podGroup: pg-replicated-job-2
+    podGroupReplicaIndex: 1
+  ...
+```
+
+For replica 2 of replicated-job-2’s pods:
+```
+apiVersion: v1
+kind: Pod
+name:
+  sample-jobset-job-5-abc345
+spec:
+  ...
+  workload:
+    name: w-sample-jobset
+    podGroup: pg-replicated-job-2
+    podGroupReplicaIndex: 2
+  ...
+```
+
+For replica 3 of replicated-job-2’s pods:
+```
+apiVersion: v1
+kind: Pod
+name:
+  sample-jobset-job-5-abc678
+spec:
+  ...
+  workload:
+    name: w-sample-jobset
+    podGroup: pg-replicated-job-2
+    podGroupReplicaIndex: 3
+  ...
+```
 
 ### Test Plan
 
