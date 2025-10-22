@@ -131,9 +131,12 @@ toc-verify:
 	./hack/verify-toc.sh
 
 .PHONY: helm-verify
-helm-verify: helm-unittest helm-lint
-	${HELM} template charts/jobset
-
+helm-verify: helm-unittest helm-lint helm-docs
+	@if ! git diff --quiet -- $(JOBSET_CHART_DIR)/README.md; then \
+	    echo "Need to run 'make helm-docs' and commit the changes."; \
+	    false; \
+	fi
+	${HELM} template $(JOBSET_CHART_DIR)
 
 .PHONY: vet
 vet: ## Run go vet against code.
@@ -227,6 +230,7 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Helm
+
 .PHONY: helm-unittest
 helm-unittest: helm-unittest-plugin ## Run Helm chart unittests.
 	$(HELM) unittest $(JOBSET_CHART_DIR) --strict --file "tests/**/*_test.yaml"
@@ -315,8 +319,8 @@ HELM_DOCS_VERSION ?= v1.14.2
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
-HELM ?= $(ARTIFACTS)/helm
-HELM_DOCS ?= $(ARTIFACTS)/helm-docs
+HELM ?= $(LOCALBIN)/helm
+HELM_DOCS ?= $(LOCALBIN)/helm-docs
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -385,19 +389,18 @@ test-e2e-kind: manifests kustomize fmt vet envtest ginkgo kind-image-build
 prometheus:
 	kubectl apply --server-side -k config/prometheus
 
-HELM = $(PROJECT_DIR)/bin/helm
 .PHONY: helm
-helm: ## Download helm locally if necessary.
+helm: $(HELM) ## Download helm locally if necessary.
+$(HELM): $(LOCALBIN)
 	GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install helm.sh/helm/v3/cmd/helm@$(HELM_VERSION)
 
 .PHONY: helm-unittest-plugin
 helm-unittest-plugin: helm ## Download helm unittest plugin locally if necessary.
-	if [ -z "$(shell $(HELM) plugin list | grep unittest)" ]; then \
+	@if [ -z "$(shell $(HELM) plugin list | grep unittest)" ]; then \
 		echo "Installing helm unittest plugin"; \
 		$(HELM) plugin install https://github.com/helm-unittest/helm-unittest.git --version $(HELM_UNITTEST_VERSION); \
 	fi
 
-HELM_DOCS= $(PROJECT_DIR)/bin/helm-docs
 .PHONY: helm-docs-plugin
 helm-docs-plugin:
 	GOBIN=$(LOCALBIN) $(GO_CMD) install github.com/norwoodj/helm-docs/cmd/helm-docs@$(HELM_DOCS_VERSION)
