@@ -423,7 +423,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 	rJobsReplicas := map[string]int32{}
 
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
-	// unsuspended and update the suspend condition to true.
+	// unsuspended and update the suspend condition to false.
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
 		replicatedJobStatus := findReplicatedJobStatus(replicatedJobStatuses, replicatedJob.Name)
 
@@ -1103,7 +1103,7 @@ func coordinatorEndpoint(js *jobset.JobSet) string {
 // |                             my-jobset                             |
 // |        replicated job A         |        replicated job B         |
 // |    job index 0 |   job index 1  |   job index 0  | job index 1    |
-// | global index 0 | global index 2 | global index 3 | global index 4 |
+// | global index 0 | global index 1 | global index 2 | global index 3 |
 //
 // Returns an empty string if the parent replicated Job does not exist,
 // although this should never happen in practice.
