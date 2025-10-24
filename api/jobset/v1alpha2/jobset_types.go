@@ -98,7 +98,7 @@ type JobSetSpec struct {
 	// replicatedJobs is the group of jobs that will form the set.
 	// +listType=map
 	// +listMapKey=name
-	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
+	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"` // nolint:kubeapilinter
 
 	// network defines the networking options for the jobset.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
@@ -110,19 +110,19 @@ type JobSetSpec struct {
 	// The JobSet is always declared succeeded if all jobs in the set
 	// finished with status complete.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	SuccessPolicy *SuccessPolicy `json:"successPolicy,omitempty"`
+	SuccessPolicy *SuccessPolicy `json:"successPolicy,omitempty"` // nolint:kubeapilinter
 
 	// failurePolicy configures when to declare the JobSet as
 	// failed.
 	// The JobSet is always declared failed if any job in the set
 	// finished with status failed.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"`
+	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"` // nolint:kubeapilinter
 
 	// startupPolicy configures in what order jobs must be started
 	// Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
+	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"` // nolint:kubeapilinter
 
 	// suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"` //nolint
@@ -147,7 +147,7 @@ type JobSetSpec struct {
 	// characters as defined by RFC 3986. The value cannot exceed 63 characters.
 	// The field is immutable.
 	// +optional
-	ManagedBy *string `json:"managedBy,omitempty"`
+	ManagedBy *string `json:"managedBy,omitempty"` // nolint:kubeapilinter
 
 	// ttlSecondsAfterFinished limits the lifetime of a JobSet that has finished
 	// execution (either Complete or Failed). If this field is set,
@@ -167,50 +167,50 @@ type JobSetStatus struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=type
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"` // nolint:kubeapilinter
 
 	// restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
 	// +optional
-	Restarts int32 `json:"restarts"`
+	Restarts int32 `json:"restarts"` // nolint:kubeapilinter
 
 	// restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.
 	// +optional
-	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
+	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"` // nolint:kubeapilinter
 
 	// terminalState the state of the JobSet when it finishes execution.
 	// It can be either Completed or Failed. Otherwise, it is empty by default.
 	// +optional
-	TerminalState string `json:"terminalState,omitempty"`
+	TerminalState string `json:"terminalState,omitempty"` // nolint:kubeapilinter
 
 	// replicatedJobsStatus track the number of JobsReady for each replicatedJob.
 	// +optional
 	// +listType=map
 	// +listMapKey=name
-	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
+	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"` // nolint:kubeapilinter
 }
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
 type ReplicatedJobStatus struct {
 	// name of the ReplicatedJob.
-	Name string `json:"name"`
+	Name string `json:"name"` // nolint:kubeapilinter
 
 	// ready is the number of child Jobs where the number of ready pods and completed pods
 	// is greater than or equal to the total expected pod count for the Job (i.e., the minimum
 	// of job.spec.parallelism and job.spec.completions).
-	Ready int32 `json:"ready"`
+	Ready int32 `json:"ready"` // nolint:kubeapilinter
 
 	// succeeded is the number of successfully completed child Jobs.
-	Succeeded int32 `json:"succeeded"`
+	Succeeded int32 `json:"succeeded"` // nolint:kubeapilinter
 
 	// failed is the number of failed child Jobs.
-	Failed int32 `json:"failed"`
+	Failed int32 `json:"failed"` // nolint:kubeapilinter
 
 	// active is the number of child Jobs with at least 1 pod in a running or pending state
 	// which are not marked for deletion.
-	Active int32 `json:"active"`
+	Active int32 `json:"active"` // nolint:kubeapilinter
 
 	// suspended is the number of child Jobs which are in a suspended state.
-	Suspended int32 `json:"suspended"`
+	Suspended int32 `json:"suspended"` // nolint:kubeapilinter
 }
 
 // +genclient
@@ -227,11 +227,11 @@ type ReplicatedJobStatus struct {
 type JobSet struct {
 	metav1.TypeMeta `json:",inline"`
 	// metadata is the object metadata for JobSet
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata,omitempty"` // nolint:kubeapilinter
 	// spec is the specification for jobset
-	Spec JobSetSpec `json:"spec,omitempty"`
+	Spec JobSetSpec `json:"spec,omitempty"` // nolint:kubeapilinter
 	// status is the status of the jobset
-	Status JobSetStatus `json:"status,omitempty"`
+	Status JobSetStatus `json:"status,omitempty"` // nolint:kubeapilinter
 }
 
 // +kubebuilder:object:root=true
@@ -245,19 +245,19 @@ type JobSetList struct {
 type ReplicatedJob struct {
 	// name is the name of the entry and will be used as a suffix
 	// for the Job name.
-	Name string `json:"name"`
+	Name string `json:"name"` // nolint:kubeapilinter
 
 	// groupName defines the name of the group this ReplicatedJob belongs to. Defaults to "default"
 	// +kubebuilder:default=default
-	GroupName string `json:"groupName,omitempty"`
+	GroupName string `json:"groupName,omitempty"` // nolint:kubeapilinter
 
 	// template defines the template of the Job that will be created.
-	Template batchv1.JobTemplateSpec `json:"template"`
+	Template batchv1.JobTemplateSpec `json:"template"` // nolint:kubeapilinter
 
 	// replicas is the number of jobs that will be created from this ReplicatedJob's template.
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
-	Replicas int32 `json:"replicas,omitempty"`
+	Replicas int32 `json:"replicas,omitempty"` // nolint:kubeapilinter
 
 	// dependsOn is an optional list that specifies the preceding ReplicatedJobs upon which
 	// the current ReplicatedJob depends. If specified, the ReplicatedJob will be created
@@ -279,11 +279,11 @@ type ReplicatedJob struct {
 // DependsOn defines the dependency on the previous ReplicatedJob status.
 type DependsOn struct {
 	// name of the previous ReplicatedJob.
-	Name string `json:"name"`
+	Name string `json:"name"` // nolint:kubeapilinter
 
 	// status defines the condition for the ReplicatedJob. Only Ready or Complete status can be set.
 	// +kubebuilder:validation:Enum=Ready;Complete
-	Status DependsOnStatus `json:"status"`
+	Status DependsOnStatus `json:"status"` // nolint:kubeapilinter
 }
 
 type DependsOnStatus string
@@ -309,7 +309,7 @@ type Network struct {
 	// When set, any replicated job in the set is added to this network.
 	// Defaults to <jobSet.name> if not set.
 	// +optional
-	Subdomain string `json:"subdomain,omitempty"`
+	Subdomain string `json:"subdomain,omitempty"` // nolint:kubeapilinter
 
 	// publishNotReadyAddresses indicates if DNS records of pods should be published before the pods are ready.
 	// Defaults to True.
@@ -353,16 +353,16 @@ type FailurePolicyRule struct {
 	// name of the failure policy rule.
 	// The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
 	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
-	Name string `json:"name"`
+	Name string `json:"name"` // nolint:kubeapilinter
 	// action to take if the rule is matched.
 	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts
-	Action FailurePolicyAction `json:"action"`
+	Action FailurePolicyAction `json:"action"` // nolint:kubeapilinter
 	// onJobFailureReasons is a list of job failures reasons.
 	// The requirement is satisfied
 	// if at least one reason matches the list. An empty list matches any job
 	// failure reason.
 	// +kubebuilder:validation:UniqueItems:true
-	OnJobFailureReasons []string `json:"onJobFailureReasons,omitempty"`
+	OnJobFailureReasons []string `json:"onJobFailureReasons,omitempty"` // nolint:kubeapilinter
 	// onJobFailureMessagePatterns is a requirement on the job failure messages.
 	// The requirement is satisfied
 	// if at least one pattern (regex) matches the job failure message. An
@@ -373,30 +373,30 @@ type FailurePolicyRule struct {
 	// except for \C. For an overview of the syntax, see
 	// https://pkg.go.dev/regexp/syntax.
 	// +kubebuilder:validation:UniqueItems:true
-	OnJobFailureMessagePatterns []string `json:"onJobFailureMessagePatterns,omitempty"`
+	OnJobFailureMessagePatterns []string `json:"onJobFailureMessagePatterns,omitempty"` // nolint:kubeapilinter
 	// targetReplicatedJobs are the names of the replicated jobs the operator applies to.
 	// An empty list will apply to all replicatedJobs.
 	// +optional
 	// +listType=atomic
-	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
+	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"` // nolint:kubeapilinter
 }
 
 type FailurePolicy struct {
 	// maxRestarts defines the limit on the number of JobSet restarts.
 	// A restart is achieved by recreating all active child jobs.
-	MaxRestarts int32 `json:"maxRestarts,omitempty"`
+	MaxRestarts int32 `json:"maxRestarts,omitempty"` // nolint:kubeapilinter
 
 	// restartStrategy defines the strategy to use when restarting the JobSet.
 	// Defaults to Recreate.
 	// +optional
 	// +kubebuilder:default=Recreate
-	RestartStrategy JobSetRestartStrategy `json:"restartStrategy,omitempty"`
+	RestartStrategy JobSetRestartStrategy `json:"restartStrategy,omitempty"` // nolint:kubeapilinter
 
 	// rules is a list of failure policy rules for this JobSet.
 	// For a given Job failure, the rules will be evaluated in order,
 	// and only the first matching rule will be executed.
 	// If no matching rule is found, the RestartJobSet action is applied.
-	Rules []FailurePolicyRule `json:"rules,omitempty"`
+	Rules []FailurePolicyRule `json:"rules,omitempty"` // nolint:kubeapilinter
 }
 
 // +kubebuilder:validation:Enum=Recreate;BlockingRecreate
@@ -414,13 +414,13 @@ const (
 type SuccessPolicy struct {
 	// operator determines either All or Any of the selected jobs should succeed to consider the JobSet successful
 	// +kubebuilder:validation:Enum=All;Any
-	Operator Operator `json:"operator"`
+	Operator Operator `json:"operator"` // nolint:kubeapilinter
 
 	// targetReplicatedJobs are the names of the replicated jobs the operator will apply to.
 	// A null or empty list will apply to all replicatedJobs.
 	// +optional
 	// +listType=atomic
-	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
+	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"` // nolint:kubeapilinter
 }
 
 type StartupPolicyOptions string
@@ -441,21 +441,21 @@ type StartupPolicy struct {
 	// InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
 	// when all the jobs of the previous one are ready.
 	// +kubebuilder:validation:Enum=AnyOrder;InOrder
-	StartupPolicyOrder StartupPolicyOptions `json:"startupPolicyOrder"`
+	StartupPolicyOrder StartupPolicyOptions `json:"startupPolicyOrder"` // nolint:kubeapilinter
 }
 
 // Coordinator defines which pod can be marked as the coordinator for the JobSet workload.
 type Coordinator struct {
 	// replicatedJob is the name of the ReplicatedJob which contains
 	// the coordinator pod.
-	ReplicatedJob string `json:"replicatedJob"`
+	ReplicatedJob string `json:"replicatedJob"` // nolint:kubeapilinter
 
 	// jobIndex is the index of Job which contains the coordinator pod
 	// (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1).
-	JobIndex int `json:"jobIndex,omitempty"`
+	JobIndex int `json:"jobIndex,omitempty"` // nolint:kubeapilinter
 
 	// podIndex is the Job completion index of the coordinator pod.
-	PodIndex int `json:"podIndex,omitempty"`
+	PodIndex int `json:"podIndex,omitempty"` // nolint:kubeapilinter
 }
 
 func init() {
