@@ -76,6 +76,9 @@ func (p *podWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	// placement feature.
 	// See https://github.com/kubernetes-sigs/jobset/issues/1057 for more details.
 	if pod.Spec.Priority != nil {
+		if pod.Labels == nil {
+			pod.Labels = make(map[string]string)
+		}
 		pod.Labels[constants.PriorityKey] = fmt.Sprint(*pod.Spec.Priority)
 	}
 	// If the parent JobSet is using the exclusive placement feature, patch the Pod accordingly
