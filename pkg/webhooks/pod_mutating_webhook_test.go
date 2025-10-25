@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -29,8 +28,6 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
-	"sigs.k8s.io/jobset/pkg/constants"
 	"sigs.k8s.io/jobset/pkg/controllers"
 )
 
@@ -60,8 +57,8 @@ func TestDefault(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "p",
 					Annotations: map[string]string{
-						jobset.JobSetNameKey:           "js",
-						jobset.NodeSelectorStrategyKey: "",
+						"jobset.sigs.k8s.io/jobset-name":         "js",
+						"alpha.jobset.sigs.k8s.io/node-selector": "",
 					},
 				},
 			},
@@ -69,8 +66,8 @@ func TestDefault(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "p",
 					Annotations: map[string]string{
-						jobset.JobSetNameKey:           "js",
-						jobset.NodeSelectorStrategyKey: "",
+						"jobset.sigs.k8s.io/jobset-name":         "js",
+						"alpha.jobset.sigs.k8s.io/node-selector": "",
 					},
 				},
 			},
@@ -81,7 +78,7 @@ func TestDefault(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "p",
 					Annotations: map[string]string{
-						jobset.JobSetNameKey: "js",
+						"jobset.sigs.k8s.io/jobset-name": "js",
 					},
 				},
 			},
@@ -89,7 +86,7 @@ func TestDefault(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "p",
 					Annotations: map[string]string{
-						jobset.JobSetNameKey: "js",
+						"jobset.sigs.k8s.io/jobset-name": "js",
 					},
 				},
 			},
@@ -100,7 +97,7 @@ func TestDefault(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "p",
 					Annotations: map[string]string{
-						jobset.JobSetNameKey: "js",
+						"jobset.sigs.k8s.io/jobset-name": "js",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -111,10 +108,10 @@ func TestDefault(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "p",
 					Annotations: map[string]string{
-						jobset.JobSetNameKey: "js",
+						"jobset.sigs.k8s.io/jobset-name": "js",
 					},
 					Labels: map[string]string{
-						constants.PriorityKey: "100",
+						"jobset.sigs.k8s.io/priority": "100",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -128,14 +125,14 @@ func TestDefault(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "p-leader",
 					Labels: map[string]string{
-						jobset.JobKey: "js-rjob-0",
+						"jobset.sigs.k8s.io/job-key": "js-rjob-0",
 					},
 					Annotations: map[string]string{
-						jobset.JobSetNameKey:                 "js",
-						jobset.ExclusiveKey:                  "topology.kubernetes.io/zone",
-						batchv1.JobCompletionIndexAnnotation: "0",
-						jobset.ReplicatedJobNameKey:          "rjob",
-						jobset.JobIndexKey:                   "0",
+						"jobset.sigs.k8s.io/jobset-name":              "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+						"batch.kubernetes.io/job-completion-index":    "0",
+						"jobset.sigs.k8s.io/replicatedjob-name":       "rjob",
+						"jobset.sigs.k8s.io/job-index":                "0",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -146,15 +143,15 @@ func TestDefault(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "p-leader",
 					Labels: map[string]string{
-						jobset.JobKey:         "js-rjob-0",
-						constants.PriorityKey: "100",
+						"jobset.sigs.k8s.io/job-key":  "js-rjob-0",
+						"jobset.sigs.k8s.io/priority": "100",
 					},
 					Annotations: map[string]string{
-						jobset.JobSetNameKey:                 "js",
-						jobset.ExclusiveKey:                  "topology.kubernetes.io/zone",
-						batchv1.JobCompletionIndexAnnotation: "0",
-						jobset.ReplicatedJobNameKey:          "rjob",
-						jobset.JobIndexKey:                   "0",
+						"jobset.sigs.k8s.io/jobset-name":              "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+						"batch.kubernetes.io/job-completion-index":    "0",
+						"jobset.sigs.k8s.io/replicatedjob-name":       "rjob",
+						"jobset.sigs.k8s.io/job-index":                "0",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -165,8 +162,8 @@ func TestDefault(t *testing.T) {
 								{
 									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 										{
-											Key:      jobset.JobKey,
-											Operator: metav1.LabelSelectorOpIn,
+											Key:      "jobset.sigs.k8s.io/job-key",
+											Operator: "In",
 											Values:   []string{"js-rjob-0"},
 										},
 									}},
@@ -180,17 +177,17 @@ func TestDefault(t *testing.T) {
 								{
 									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 										{
-											Key:      jobset.JobKey,
-											Operator: metav1.LabelSelectorOpExists,
+											Key:      "jobset.sigs.k8s.io/job-key",
+											Operator: "Exists",
 										},
 										{
-											Key:      jobset.JobKey,
-											Operator: metav1.LabelSelectorOpNotIn,
+											Key:      "jobset.sigs.k8s.io/job-key",
+											Operator: "NotIn",
 											Values:   []string{"js-rjob-0"},
 										},
 										{
-											Key:      constants.PriorityKey,
-											Operator: metav1.LabelSelectorOpIn,
+											Key:      "jobset.sigs.k8s.io/priority",
+											Operator: "In",
 											Values:   []string{"100"},
 										},
 									}},
@@ -210,14 +207,14 @@ func TestDefault(t *testing.T) {
 					Name:      "js-rjob-0-1-follower",
 					Namespace: "default",
 					Labels: map[string]string{
-						jobset.JobSetNameKey:        "js",
-						jobset.ReplicatedJobNameKey: "rjob",
-						jobset.JobIndexKey:          "0",
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
 					},
 					Annotations: map[string]string{
-						jobset.JobSetNameKey:                 "js",
-						jobset.ExclusiveKey:                  "topology.kubernetes.io/zone",
-						batchv1.JobCompletionIndexAnnotation: "1",
+						"jobset.sigs.k8s.io/jobset-name":              "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+						"batch.kubernetes.io/job-completion-index":    "1",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
@@ -233,13 +230,13 @@ func TestDefault(t *testing.T) {
 						Name:      "js-rjob-0-0-leader",
 						Namespace: "default",
 						Labels: map[string]string{
-							jobset.JobSetNameKey:        "js",
-							jobset.ReplicatedJobNameKey: "rjob",
-							jobset.JobIndexKey:          "0",
+							"jobset.sigs.k8s.io/jobset-name":        "js",
+							"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+							"jobset.sigs.k8s.io/job-index":          "0",
 						},
 						Annotations: map[string]string{
-							jobset.ExclusiveKey:                  "topology.kubernetes.io/zone",
-							batchv1.JobCompletionIndexAnnotation: "0",
+							"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+							"batch.kubernetes.io/job-completion-index":    "0",
 						},
 						OwnerReferences: []metav1.OwnerReference{
 							{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
@@ -252,15 +249,15 @@ func TestDefault(t *testing.T) {
 					Name:      "js-rjob-0-1-follower",
 					Namespace: "default",
 					Labels: map[string]string{
-						jobset.JobSetNameKey:        "js",
-						jobset.ReplicatedJobNameKey: "rjob",
-						jobset.JobIndexKey:          "0",
-						constants.PriorityKey:       "100",
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+						"jobset.sigs.k8s.io/priority":           "100",
 					},
 					Annotations: map[string]string{
-						jobset.JobSetNameKey:                 "js",
-						jobset.ExclusiveKey:                  "topology.kubernetes.io/zone",
-						batchv1.JobCompletionIndexAnnotation: "1",
+						"jobset.sigs.k8s.io/jobset-name":              "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+						"batch.kubernetes.io/job-completion-index":    "1",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
@@ -278,14 +275,14 @@ func TestDefault(t *testing.T) {
 					Name:      "js-rjob-0-1-follower",
 					Namespace: "default",
 					Labels: map[string]string{
-						jobset.JobSetNameKey:        "js",
-						jobset.ReplicatedJobNameKey: "rjob",
-						jobset.JobIndexKey:          "0",
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
 					},
 					Annotations: map[string]string{
-						jobset.JobSetNameKey:                 "js",
-						jobset.ExclusiveKey:                  "topology.kubernetes.io/zone",
-						batchv1.JobCompletionIndexAnnotation: "1",
+						"jobset.sigs.k8s.io/jobset-name":              "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+						"batch.kubernetes.io/job-completion-index":    "1",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
@@ -301,13 +298,13 @@ func TestDefault(t *testing.T) {
 						Name:      "js-rjob-0-0-leader",
 						Namespace: "default",
 						Labels: map[string]string{
-							jobset.JobSetNameKey:        "js",
-							jobset.ReplicatedJobNameKey: "rjob",
-							jobset.JobIndexKey:          "0",
+							"jobset.sigs.k8s.io/jobset-name":        "js",
+							"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+							"jobset.sigs.k8s.io/job-index":          "0",
 						},
 						Annotations: map[string]string{
-							jobset.ExclusiveKey:                  "topology.kubernetes.io/zone",
-							batchv1.JobCompletionIndexAnnotation: "0",
+							"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+							"batch.kubernetes.io/job-completion-index":    "0",
 						},
 						OwnerReferences: []metav1.OwnerReference{
 							{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
@@ -331,15 +328,15 @@ func TestDefault(t *testing.T) {
 					Name:      "js-rjob-0-1-follower",
 					Namespace: "default",
 					Labels: map[string]string{
-						jobset.JobSetNameKey:        "js",
-						jobset.ReplicatedJobNameKey: "rjob",
-						jobset.JobIndexKey:          "0",
-						constants.PriorityKey:       "100",
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+						"jobset.sigs.k8s.io/priority":           "100",
 					},
 					Annotations: map[string]string{
-						jobset.JobSetNameKey:                 "js",
-						jobset.ExclusiveKey:                  "topology.kubernetes.io/zone",
-						batchv1.JobCompletionIndexAnnotation: "1",
+						"jobset.sigs.k8s.io/jobset-name":              "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+						"batch.kubernetes.io/job-completion-index":    "1",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
@@ -365,7 +362,7 @@ func TestDefault(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().
 				WithScheme(scheme).
 				WithRuntimeObjects(tc.existingObjs...).
-				WithIndex(&corev1.Pod{}, controllers.PodNameKey, controllers.IndexPodName).
+				WithIndex(&corev1.Pod{}, "podName", controllers.IndexPodName).
 				Build()
 
 			p := &podWebhook{client: fakeClient}
