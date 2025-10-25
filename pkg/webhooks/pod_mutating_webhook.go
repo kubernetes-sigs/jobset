@@ -192,11 +192,10 @@ func (p *podWebhook) topologyFromPod(ctx context.Context, pod *corev1.Pod, topol
 	log := ctrl.LoggerFrom(ctx)
 
 	nodeName := pod.Spec.NodeName
-	ns := pod.Namespace
 
 	// Get node the leader pod is running on.
 	var node corev1.Node
-	if err := p.client.Get(ctx, types.NamespacedName{Name: nodeName, Namespace: ns}, &node); err != nil {
+	if err := p.client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
 		// We'll ignore not-found errors, since there is nothing we can do here.
 		// A node may not exist temporarily due to a maintenance event or other scenarios.
 		log.Error(err, fmt.Sprintf("getting node %s", nodeName))
