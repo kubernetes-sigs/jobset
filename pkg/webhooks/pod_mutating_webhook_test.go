@@ -359,9 +359,6 @@ func TestDefault(t *testing.T) {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatalf("failed to add corev1 to scheme: %v", err)
 	}
-	if err := jobset.AddToScheme(scheme); err != nil {
-		t.Fatalf("failed to add jobset to scheme: %v", err)
-	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
