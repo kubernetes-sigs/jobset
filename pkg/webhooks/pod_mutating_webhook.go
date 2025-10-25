@@ -57,35 +57,44 @@ func (p *podWebhook) InjectDecoder(d *admission.Decoder) error {
 	return nil
 }
 
-// Default will mutate pods being created in the following ways:
-//  1. For leader pods (job completion index 0), pod affinities/anti-affinities for
-//     exclusive placement per topology are injected.
-//  2. For follower pods (job completion index != 0), nodeSelectors for the same topology
-//     as their leader pod are injected.
+// Default mutates pods that are part of a JobSet
 func (p *podWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return nil
 	}
-	// If this pod is part of a JobSet that is NOT using the exclusive placement feature,
-	// or if this jobset is using the node selector exclusive placement strategy (running
-	// the hack/label_nodes.py script beforehand), we don't need to mutate the pod here.
-	_, usingExclusivePlacement := pod.Annotations[jobset.ExclusiveKey]
-	_, usingNodeSelectorStrategy := pod.Annotations[jobset.NodeSelectorStrategyKey]
-	if !usingExclusivePlacement || usingNodeSelectorStrategy {
+	// If this pod is not part of a JobSet, skip it.
+	if _, isJobSetPod := pod.Annotations[jobset.JobSetNameKey]; !isJobSetPod {
 		return nil
 	}
-	return p.patchPod(ctx, pod)
-}
-
-// patchPod will add exclusive affinites to pod index 0, and for all pods
-// it will add a nodeSelector selecting the same topology as pod index 0 is
-// scheduled on.
-func (p *podWebhook) patchPod(ctx context.Context, pod *corev1.Pod) error {
-	log := ctrl.LoggerFrom(ctx)
+	// If the parent JobSet is using the node selector exclusive placement strategy (running
+	// the hack/label_nodes.py script beforehand), skip it.
+	if _, usingNodeSelectorStrategy := pod.Annotations[jobset.NodeSelectorStrategyKey]; usingNodeSelectorStrategy {
+		return nil
+	}
+	// Add the priority label to make sure the Pod is compatible with other pods using the exclusive
+	// placement feature.
+	// See https://github.com/kubernetes-sigs/jobset/issues/1057 for more details.
 	if pod.Spec.Priority != nil {
+		if pod.Labels == nil {
+			pod.Labels = make(map[string]string)
+		}
 		pod.Labels[constants.PriorityKey] = fmt.Sprint(*pod.Spec.Priority)
 	}
+	// If the parent JobSet is using the exclusive placement feature, patch the Pod accordingly
+	if _, usingExclusivePlacement := pod.Annotations[jobset.ExclusiveKey]; usingExclusivePlacement {
+		return p.patchPod(ctx, pod)
+	}
+	return nil
+}
+
+// patchPod will mutate pods in the following ways:
+//  1. For leader pods (job completion index 0), pod affinities/anti-affinities for
+//     exclusive placement per topology are injected.
+//  2. For follower pods (job completion index != 0), nodeSelectors for the same topology
+//     as their leader pod are injected.
+func (p *podWebhook) patchPod(ctx context.Context, pod *corev1.Pod) error {
+	log := ctrl.LoggerFrom(ctx)
 	if pod.Annotations[batchv1.JobCompletionIndexAnnotation] == "0" {
 		log.V(3).Info(fmt.Sprintf("pod webhook: setting exclusive affinities for pod: %s", pod.Name))
 		setExclusiveAffinities(pod)
@@ -183,11 +192,10 @@ func (p *podWebhook) topologyFromPod(ctx context.Context, pod *corev1.Pod, topol
 	log := ctrl.LoggerFrom(ctx)
 
 	nodeName := pod.Spec.NodeName
-	ns := pod.Namespace
 
 	// Get node the leader pod is running on.
 	var node corev1.Node
-	if err := p.client.Get(ctx, types.NamespacedName{Name: nodeName, Namespace: ns}, &node); err != nil {
+	if err := p.client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
 		// We'll ignore not-found errors, since there is nothing we can do here.
 		// A node may not exist temporarily due to a maintenance event or other scenarios.
 		log.Error(err, fmt.Sprintf("getting node %s", nodeName))
