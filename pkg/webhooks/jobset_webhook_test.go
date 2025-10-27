@@ -1612,7 +1612,7 @@ func TestValidateCreate(t *testing.T) {
 					SuccessPolicy: &jobset.SuccessPolicy{},
 				},
 			},
-			want: fmt.Errorf("coordinator spec will lead to invalid coordinator label value"),
+			want: fmt.Errorf("spec will lead to invalid label value"),
 		},
 	}
 

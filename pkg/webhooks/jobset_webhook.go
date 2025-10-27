@@ -398,13 +398,13 @@ func validateCoordinator(js *jobset.JobSet) error {
 	return nil
 }
 
-// If coordinator spec will lead to invalid label value, return error
+// If spec will lead to invalid coordinator label value, return error
 // This usually happens when the JobSet name is too long
 func validateCoordinatorLabel(js *jobset.JobSet) error {
 	coordinatorLabel := controllers.CoordinatorEndpoint(js)
 	errs := validation.IsValidLabelValue(coordinatorLabel)
 	if len(errs) > 0 {
-		return fmt.Errorf("coordinator spec will lead to invalid coordinator label value %q (long JobSet / ReplicatedJob / SubDomain name?): %s", coordinatorLabel, strings.Join(errs, ", "))
+		return fmt.Errorf("spec will lead to invalid label value %q for coordinator label %q (long JobSet / ReplicatedJob / SubDomain name?): %s", coordinatorLabel, jobset.CoordinatorKey, strings.Join(errs, ", "))
 	}
 	return nil
 }
