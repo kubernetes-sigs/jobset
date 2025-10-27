@@ -798,8 +798,8 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 
 	// Apply coordinator annotation/label if a coordinator is defined in the JobSet spec.
 	if js.Spec.Coordinator != nil {
-		labels[jobset.CoordinatorKey] = coordinatorEndpoint(js)
-		annotations[jobset.CoordinatorKey] = coordinatorEndpoint(js)
+		labels[jobset.CoordinatorKey] = CoordinatorEndpoint(js)
+		annotations[jobset.CoordinatorKey] = CoordinatorEndpoint(js)
 	}
 
 	// Check for JobSet level exclusive placement.
@@ -837,7 +837,7 @@ func GetSubdomain(js *jobset.JobSet) string {
 	// This must be done in the controller rather than in the request-time defaulting, since if a JobSet
 	// uses generateName rather than setting the name explicitly, the JobSet name will still be an empty
 	// string at that time.
-	if js.Spec.Network.Subdomain != "" {
+	if js.Spec.Network != nil && js.Spec.Network.Subdomain != "" {
 		return js.Spec.Network.Subdomain
 	}
 	return js.Name
@@ -1083,9 +1083,9 @@ func exclusiveConditions(cond1, cond2 metav1.Condition) bool {
 	return inProgressAndCompleted || completedAndInProgress
 }
 
-// coordinatorEndpoint returns the stable network endpoint where the coordinator pod can be reached.
+// CoordinatorEndpoint returns the stable network endpoint where the coordinator pod can be reached.
 // This function assumes the caller has validated that jobset.Spec.Coordinator != nil.
-func coordinatorEndpoint(js *jobset.JobSet) string {
+func CoordinatorEndpoint(js *jobset.JobSet) string {
 	return fmt.Sprintf("%s-%s-%d-%d.%s", js.Name, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex, js.Spec.Coordinator.PodIndex, GetSubdomain(js))
 }
 

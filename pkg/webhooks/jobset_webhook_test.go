@@ -1583,6 +1583,37 @@ func TestValidateCreate(t *testing.T) {
 				fmt.Errorf("coordinator pod index 2 is invalid for replicatedJob replicatedjob-a job index 0"),
 			),
 		},
+		{
+			name: "coordinator label is too long",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: strings.Repeat("a", 60),
+				},
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "replicatedjob-a",
+						JobIndex:      0,
+						PodIndex:      0,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "replicatedjob-a",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: fmt.Errorf("coordinator spec will lead to invalid coordinator label value"),
+		},
 	}
 
 	dependsOnTests := []validationTestCase{
