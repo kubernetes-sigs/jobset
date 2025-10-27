@@ -267,7 +267,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	// Validate coordinator, if set.
 	if js.Spec.Coordinator != nil {
 		allErrs = append(allErrs, validateCoordinator(js))
-		allErrs = append(allErrs, validateCoordinatorLabel(js))
+		allErrs = append(allErrs, validateCoordinatorLabelValue(js))
 	}
 	return nil, errors.Join(allErrs...)
 }
@@ -400,11 +400,11 @@ func validateCoordinator(js *jobset.JobSet) error {
 
 // If spec will lead to invalid coordinator label value, return error
 // This usually happens when the JobSet name is too long
-func validateCoordinatorLabel(js *jobset.JobSet) error {
-	coordinatorLabel := controllers.CoordinatorEndpoint(js)
-	errs := validation.IsValidLabelValue(coordinatorLabel)
+func validateCoordinatorLabelValue(js *jobset.JobSet) error {
+	labelValue := controllers.CoordinatorEndpoint(js)
+	errs := validation.IsValidLabelValue(labelValue)
 	if len(errs) > 0 {
-		return fmt.Errorf("spec will lead to invalid label value %q for coordinator label %q (long JobSet / ReplicatedJob / SubDomain name?): %s", coordinatorLabel, jobset.CoordinatorKey, strings.Join(errs, ", "))
+		return fmt.Errorf("spec will lead to invalid label value %q for coordinator label %q (long JobSet / ReplicatedJob / SubDomain name?): %s", labelValue, jobset.CoordinatorKey, strings.Join(errs, ", "))
 	}
 	return nil
 }
