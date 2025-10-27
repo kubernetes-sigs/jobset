@@ -539,7 +539,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			jobSetCreationShouldFail: false,
 		}),
-		ginkgo.Entry("spec that will lead to invalid coordinator label value (in this case too long) should be rejected", &testCase{
+		ginkgo.Entry("spec that will lead to invalid coordinator label value (in this case too long due to long JobSet name) should be rejected", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet(strings.Repeat("a", 60), ns.Name).
 					Coordinator(&jobset.Coordinator{
