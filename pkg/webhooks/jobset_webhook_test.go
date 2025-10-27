@@ -1584,12 +1584,77 @@ func TestValidateCreate(t *testing.T) {
 			),
 		},
 		{
-			name: "coordinator label is too long",
+			name: "coordinator label value is too long due to long JobSet name",
 			js: &jobset.JobSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: strings.Repeat("a", 60),
 				},
 				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "replicatedjob-a",
+						JobIndex:      0,
+						PodIndex:      0,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "replicatedjob-a",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: fmt.Errorf("spec will lead to invalid label value"),
+		},
+		{
+			name: "coordinator label value is too long due to long ReplicatedJob name",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "jobset",
+				},
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: strings.Repeat("a", 60),
+						JobIndex:      0,
+						PodIndex:      0,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      strings.Repeat("a", 60),
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: fmt.Errorf("spec will lead to invalid label value"),
+		},
+		{
+			name: "coordinator label value is too long due to long SubDomain",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "jobset",
+				},
+				Spec: jobset.JobSetSpec{
+					Network: &jobset.Network{
+						Subdomain: strings.Repeat("a", 60),
+					},
 					Coordinator: &jobset.Coordinator{
 						ReplicatedJob: "replicatedjob-a",
 						JobIndex:      0,
