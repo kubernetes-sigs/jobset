@@ -17,6 +17,7 @@ package webhooktest
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -537,6 +538,22 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				return testing.MakeJobSet("depends-on", ns.Name)
 			},
 			jobSetCreationShouldFail: false,
+		}),
+		ginkgo.Entry("spec that will lead to invalid coordinator label value (in this case too long) should be rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet(strings.Repeat("a", 60), ns.Name).
+					Coordinator(&jobset.Coordinator{
+						ReplicatedJob: "rjob-a",
+						JobIndex:      0,
+						PodIndex:      0,
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob-a").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
 		}),
 	) // end of DescribeTable
 }) // end of Describe
