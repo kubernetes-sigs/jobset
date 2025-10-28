@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to AI assistents (Claude, Gemini, etc).
+This file provides guidance to AI assistants (Claude, Gemini, etc).
 
 ## Project Overview
 
