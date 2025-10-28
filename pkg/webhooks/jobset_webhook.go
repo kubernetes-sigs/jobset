@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
@@ -266,6 +267,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	// Validate coordinator, if set.
 	if js.Spec.Coordinator != nil {
 		allErrs = append(allErrs, validateCoordinator(js))
+		allErrs = append(allErrs, validateCoordinatorLabelValue(js))
 	}
 	return nil, errors.Join(allErrs...)
 }
@@ -392,6 +394,17 @@ func validateCoordinator(js *jobset.JobSet) error {
 	// Validate Pod index.
 	if js.Spec.Coordinator.PodIndex < 0 || js.Spec.Coordinator.PodIndex >= int(*replicatedJob.Template.Spec.Completions) {
 		return fmt.Errorf("coordinator pod index %d is invalid for replicatedJob %s job index %d", js.Spec.Coordinator.PodIndex, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex)
+	}
+	return nil
+}
+
+// If spec will lead to invalid coordinator label value, return error
+// This usually happens when the JobSet name is too long
+func validateCoordinatorLabelValue(js *jobset.JobSet) error {
+	labelValue := controllers.CoordinatorEndpoint(js)
+	errs := validation.IsValidLabelValue(labelValue)
+	if len(errs) > 0 {
+		return fmt.Errorf("spec will lead to invalid label value %q for coordinator label %q (long JobSet / ReplicatedJob / SubDomain name?): %s", labelValue, jobset.CoordinatorKey, strings.Join(errs, ", "))
 	}
 	return nil
 }
