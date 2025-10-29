@@ -31,6 +31,10 @@ webhooks:
       path: /mutate--v1-pod
   failurePolicy: Fail
   name: mpod.kb.io
+  objectSelector:
+    matchExpressions:
+    - key: jobset.sigs.k8s.io/jobset-name
+      operator: Exists
   rules:
   - apiGroups:
     - ""
