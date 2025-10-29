@@ -1,6 +1,7 @@
 resources:
-- manifests.yaml
 - service.yaml
+- mutating_webhook_configuration.yaml
+- validating_webhook_configuration.yaml
 
 configurations:
 - kustomizeconfig.yaml
