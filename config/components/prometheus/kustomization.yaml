@@ -1,6 +1,7 @@
 resources:
-- monitor.yaml
 - role.yaml
+- role_binding.yaml
+- service_monitor.yaml
 
 # [PROMETHEUS WITH CERTMANAGER] The following patch configures the ServiceMonitor in ../prometheus
 # to securely reference certificates created and managed by cert-manager.
