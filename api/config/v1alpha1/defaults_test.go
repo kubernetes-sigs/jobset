@@ -51,6 +51,11 @@ func TestSetDefaults_Configuration(t *testing.T) {
 		Health: ControllerHealth{
 			HealthProbeBindAddress: DefaultHealthProbeBindAddress,
 		},
+		Events: ControllerEvents{
+			ThrottlingWindowSize:         &metav1.Duration{Duration: DefaultEventThrottlingWindowSize},
+			ThrottlingCacheSize:          ptr.To(DefaultEventThrottlingCacheSize),
+			ThrottlingCacheResetInterval: &metav1.Duration{Duration: DefaultEventThrottlingCacheResetInterval},
+		},
 	}
 	defaultClientConnection := &ClientConnection{
 		QPS:   ptr.To(DefaultClientConnectionQPS),
@@ -105,6 +110,11 @@ func TestSetDefaults_Configuration(t *testing.T) {
 						ResourceLock:  DefaultResourceLock,
 						ResourceName:  DefaultLeaderElectionID,
 					},
+					Events: ControllerEvents{
+						ThrottlingWindowSize:         &metav1.Duration{Duration: DefaultEventThrottlingWindowSize},
+						ThrottlingCacheSize:          ptr.To(DefaultEventThrottlingCacheSize),
+						ThrottlingCacheResetInterval: &metav1.Duration{Duration: DefaultEventThrottlingCacheResetInterval},
+					},
 				},
 				InternalCertManagement: &InternalCertManagement{
 					Enable: ptr.To(false),
@@ -156,6 +166,11 @@ func TestSetDefaults_Configuration(t *testing.T) {
 						ResourceLock:  DefaultResourceLock,
 						ResourceName:  overwriteLeaderElectionID,
 					},
+					Events: ControllerEvents{
+						ThrottlingWindowSize:         &metav1.Duration{Duration: DefaultEventThrottlingWindowSize},
+						ThrottlingCacheSize:          ptr.To(DefaultEventThrottlingCacheSize),
+						ThrottlingCacheResetInterval: &metav1.Duration{Duration: DefaultEventThrottlingCacheResetInterval},
+					},
 				},
 				InternalCertManagement: &InternalCertManagement{
 					Enable: ptr.To(false),
@@ -192,6 +207,11 @@ func TestSetDefaults_Configuration(t *testing.T) {
 						RetryPeriod:   metav1.Duration{Duration: DefaultLeaderElectionRetryPeriod},
 						ResourceLock:  DefaultResourceLock,
 						ResourceName:  DefaultLeaderElectionID,
+					},
+					Events: ControllerEvents{
+						ThrottlingWindowSize:         &metav1.Duration{Duration: DefaultEventThrottlingWindowSize},
+						ThrottlingCacheSize:          ptr.To(DefaultEventThrottlingCacheSize),
+						ThrottlingCacheResetInterval: &metav1.Duration{Duration: DefaultEventThrottlingCacheResetInterval},
 					},
 				},
 				InternalCertManagement: &InternalCertManagement{

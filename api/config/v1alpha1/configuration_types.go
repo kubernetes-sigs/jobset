@@ -54,6 +54,20 @@ type ControllerManager struct {
 	// Health contains the controller health configuration
 	// +optional
 	Health ControllerHealth `json:"health,omitempty"`
+
+	// Events contains the controller event emitting configuration.
+	Events ControllerEvents `json:"events,omitempty"`
+}
+
+type ControllerEvents struct {
+	// ThrottlingWindowSize specified the time window during which a particular event is emitted at most once.
+	ThrottlingWindowSize *metav1.Duration `json:"throttlingWindowSize,omitempty"`
+
+	// ThrottlingCacheSize specified the number of unique events being tracked in the throttling cache.
+	ThrottlingCacheSize *int `json:"throttlingCacheSize,omitempty"`
+
+	// ThrottlingCacheResetInterval specified the interval for resetting the throttling cache.
+	ThrottlingCacheResetInterval *metav1.Duration `json:"throttlingCacheResetInterval,omitempty"`
 }
 
 // ControllerWebhook defines the webhook server for the controller.

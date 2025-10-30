@@ -19,23 +19,27 @@ package v1alpha1
 import (
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	configv1alpha1 "k8s.io/component-base/config/v1alpha1"
 	"k8s.io/utils/ptr"
 )
 
 const (
-	DefaultWebhookServiceName                  = "jobset-webhook-service"
-	DefaultWebhookSecretName                   = "jobset-webhook-server-cert"
-	DefaultWebhookPort                         = 9443
-	DefaultHealthProbeBindAddress              = ":8081"
-	DefaultMetricsBindAddress                  = ":8443"
-	DefaultLeaderElectionID                    = "6d4f6a47.jobset.x-k8s.io"
-	DefaultLeaderElectionLeaseDuration         = 15 * time.Second
-	DefaultLeaderElectionRenewDeadline         = 10 * time.Second
-	DefaultLeaderElectionRetryPeriod           = 2 * time.Second
-	DefaultResourceLock                        = "leases"
-	DefaultClientConnectionQPS         float32 = 500
-	DefaultClientConnectionBurst       int32   = 500
+	DefaultWebhookServiceName                        = "jobset-webhook-service"
+	DefaultWebhookSecretName                         = "jobset-webhook-server-cert"
+	DefaultWebhookPort                               = 9443
+	DefaultHealthProbeBindAddress                    = ":8081"
+	DefaultMetricsBindAddress                        = ":8443"
+	DefaultLeaderElectionID                          = "6d4f6a47.jobset.x-k8s.io"
+	DefaultLeaderElectionLeaseDuration               = 15 * time.Second
+	DefaultLeaderElectionRenewDeadline               = 10 * time.Second
+	DefaultLeaderElectionRetryPeriod                 = 2 * time.Second
+	DefaultResourceLock                              = "leases"
+	DefaultClientConnectionQPS               float32 = 500
+	DefaultClientConnectionBurst             int32   = 500
+	DefaultEventThrottlingWindowSize                 = 1 * time.Minute
+	DefaultEventThrottlingCacheSize                  = 10000
+	DefaultEventThrottlingCacheResetInterval         = 5 * time.Minute
 )
 
 // SetDefaults_Configuration sets default values for ComponentConfig.
@@ -86,5 +90,15 @@ func SetDefaults_Configuration(cfg *Configuration) {
 	}
 	if cfg.ClientConnection.Burst == nil {
 		cfg.ClientConnection.Burst = ptr.To(DefaultClientConnectionBurst)
+	}
+
+	if cfg.Events.ThrottlingWindowSize == nil {
+		cfg.Events.ThrottlingWindowSize = &metav1.Duration{Duration: DefaultEventThrottlingWindowSize}
+	}
+	if cfg.Events.ThrottlingCacheSize == nil {
+		cfg.Events.ThrottlingCacheSize = ptr.To(DefaultEventThrottlingCacheSize)
+	}
+	if cfg.Events.ThrottlingCacheResetInterval == nil {
+		cfg.Events.ThrottlingCacheResetInterval = &metav1.Duration{Duration: DefaultEventThrottlingCacheResetInterval}
 	}
 }

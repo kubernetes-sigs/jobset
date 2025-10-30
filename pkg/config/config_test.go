@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -179,6 +180,27 @@ webhook:
   port: 9443
 internalCertManagement:
   enable: false
+`), os.FileMode(0600)); err != nil {
+		t.Fatal(err)
+	}
+
+	eventsConfig := filepath.Join(tmpDir, "events.yaml")
+	if err := os.WriteFile(eventsConfig, []byte(`
+apiVersion: config.jobset.x-k8s.io/v1alpha1
+kind: Configuration
+health:
+  healthProbeBindAddress: :8081
+metrics:
+  bindAddress: :8443
+leaderElection:
+  leaderElect: true
+  resourceName: 6d4f6a47.jobset.x-k8s.io
+webhook:
+  port: 9443
+events:
+  throttlingWindowSize: 10m
+  throttlingCacheSize: 100
+  throttlingCacheResetInterval: 30m
 `), os.FileMode(0600)); err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +469,6 @@ webhook:
 				},
 			},
 		},
-
 		{
 			name:       "metrics cert config with external certs",
 			configFile: metricsCertWithExternalCertsConfig,
@@ -481,6 +502,26 @@ webhook:
 					},
 				},
 			},
+		},
+		{
+			name:       "events config",
+			configFile: eventsConfig,
+			wantConfiguration: configapi.Configuration{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: configapi.GroupVersion.String(),
+					Kind:       "Configuration",
+				},
+				InternalCertManagement: enableDefaultInternalCertManagement,
+				ClientConnection:       defaultClientConnection,
+				ControllerManager: configapi.ControllerManager{
+					Events: configapi.ControllerEvents{
+						ThrottlingWindowSize:         &metav1.Duration{Duration: 10 * time.Minute},
+						ThrottlingCacheSize:          ptr.To(100),
+						ThrottlingCacheResetInterval: &metav1.Duration{Duration: 30 * time.Minute},
+					},
+				},
+			},
+			wantOptions: defaultControlOptions,
 		},
 		{
 			name:       "invalid config",
@@ -540,6 +581,7 @@ func TestEncode(t *testing.T) {
 				"health":     map[string]any{},
 				"metrics":    map[string]any{},
 				"webhook":    map[string]any{},
+				"events":     map[string]any{},
 			},
 		},
 		{
@@ -575,6 +617,11 @@ func TestEncode(t *testing.T) {
 				"clientConnection": map[string]any{
 					"burst": int64(configapi.DefaultClientConnectionBurst),
 					"qps":   int64(configapi.DefaultClientConnectionQPS),
+				},
+				"events": map[string]any{
+					"throttlingWindowSize":         configapi.DefaultEventThrottlingWindowSize.String(),
+					"throttlingCacheSize":          int64(configapi.DefaultEventThrottlingCacheSize),
+					"throttlingCacheResetInterval": configapi.DefaultEventThrottlingCacheResetInterval.String(),
 				},
 			},
 		},

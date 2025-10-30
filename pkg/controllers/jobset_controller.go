@@ -25,8 +25,6 @@ import (
 	"strconv"
 	"sync"
 
-	"k8s.io/utils/clock"
-
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -37,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,12 +49,17 @@ import (
 
 var apiGVStr = jobset.GroupVersion.String()
 
+type ThrottledEventRecorder interface {
+	RecordThrottledEvent(eventKey string, hashObject any, object runtime.Object, eventType, reason, messageFmt string, args ...interface{})
+}
+
 // JobSetReconciler reconciles a JobSet object
 type JobSetReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Record record.EventRecorder
-	clock  clock.Clock
+	Scheme          *runtime.Scheme
+	Record          record.EventRecorder
+	throttledRecord ThrottledEventRecorder
+	clock           clock.Clock
 }
 
 type childJobs struct {
@@ -89,8 +93,14 @@ type eventParams struct {
 	eventMessage string
 }
 
-func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *JobSetReconciler {
-	return &JobSetReconciler{Client: client, Scheme: scheme, Record: record, clock: clock.RealClock{}}
+func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder, throttledRecord ThrottledEventRecorder) *JobSetReconciler {
+	return &JobSetReconciler{
+		Client:          client,
+		Scheme:          scheme,
+		Record:          record,
+		throttledRecord: throttledRecord,
+		clock:           clock.RealClock{},
+	}
 }
 
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update;patch
@@ -537,6 +547,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		// Create jobs as necessary.
 		if err := r.createJobs(ctx, js, jobs); err != nil {
 			log.Error(err, "creating jobs")
+			r.recordJobCreationFailed(js, err)
 			return err
 		}
 
@@ -554,6 +565,12 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		setInOrderStartupPolicyCompletedCondition(js, updateStatusOpts)
 	}
 	return nil
+}
+
+func (r *JobSetReconciler) recordJobCreationFailed(js *jobset.JobSet, err error) {
+	key := types.NamespacedName{Namespace: js.GetNamespace(), Name: js.GetName()}.String()
+	r.throttledRecord.RecordThrottledEvent(
+		key, js.Spec.ReplicatedJobs, js, corev1.EventTypeWarning, constants.JobCreationFailedReason, err.Error())
 }
 
 func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jobs []*batchv1.Job) error {
