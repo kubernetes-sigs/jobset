@@ -1,4 +1,4 @@
-# KEP-NNNN: Your short, descriptive title
+# KEP-467 Your short, descriptive title
 
 <!--
 This is the title of your KEP. Keep it short, simple, and descriptive. A good
