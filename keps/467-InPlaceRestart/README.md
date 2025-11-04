@@ -36,6 +36,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Implementation History](#implementation-history)
 - [Drawbacks](#drawbacks)
 - [Alternatives](#alternatives)
+- [Future work](#future-work)
 <!-- /toc -->
 
 ## Summary
@@ -741,7 +742,7 @@ Currently, there is no way to do that. The `RestartPod` action can only be trigg
 
 ### Use gRPC instead of the API server to establish communication between the JobSet controller and the agent sidecars
 
-Using the API server with a declarative Pod annotation for the epoch is better practice from the [Kubernetes API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status).
+Using the API server with a declarative Pod annotation for the epoch is a better practice from the [Kubernetes API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status).
 
 ### Use the annotation `jobset.sigs.k8s.io/restart-attempt` instead of `jobset.sigs.k8s.io/epoch`
 
@@ -753,7 +754,7 @@ This is technically possible, but it adds little overhead while allowing the des
 
 ### Restart only specified Pods instead of all of them
 
-Currently JobSet only supports restarting the whole workload. Partial restart like restarting only a single Job or a group of ReplicatedJobs is desirable but it is still being [discussed upstream](https://github.com/kubernetes-sigs/jobset/issues/918). 
+Currently JobSet only supports restarting the whole workload. Partial restart like restarting only a single Job or a group of ReplicatedJobs is desirable but it is still being [discussed](https://github.com/kubernetes-sigs/jobset/issues/918). 
 
 ## Future work
 
@@ -763,7 +764,7 @@ The addition of agent sidecar makes the JobSet spec long and complex. It could b
 
 ### Recreate only failed Jobs
 
-When the JobSet failure policy is updated to support the recreation of only failed Jobs. In place restart should be updated to support it.
+When the JobSet failure policy is updated to support the recreation of only failed Jobs, in place restart should be updated to support it.
 
 ### Speed up failure detection
 
