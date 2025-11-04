@@ -583,7 +583,7 @@ def reconcileEpochs(jobSet):
 
   # Check if all worker Pods are at the same epoch
   # If so, make sure syncedEpoch is equal to this common value
-  # (represented here by `generations[0]`)
+  # (represented here by `epochs[0]`)
   # This makes sure the Pod barriers are lifted
   if len(epochs) == expectedEpochsLength and allEqual(epochs):
     jobSet.status.syncedEpoch = epochs[0] # Idempotent
@@ -618,7 +618,7 @@ The highlights are:
 
 * Only run in place restart logic for JobSet objects that have in place restart enabled (i.e., the field `jobSet.spec.failurePolicy.restartStrategy` is set to `InPlaceRestart`)  
 * If all child Pods exist and have the same epoch, it means they are in sync and should have their barriers lifted, so set `jobSet.status.syncedEpoch = epochs[0]` (equivalent to `jobSet.status.syncedEpoch += 1`). The agent sidecars will get this new synced epoch value and lift their barriers  
-* If the Pods are still not in sync (there is a mismatch in their epochs), make sure to deprecate all epochs that are not the most recent with `jobSet.status.deprecatedEpoch = max(epochs) - 1` (equivalent to `syncedEpoch`). This makes sure all agent sidecars that are not at the most recent epoch will restart in place to reach the new epoch
+* If the Pods are still not in sync (there is a mismatch in their epochs), make sure to deprecate all epochs that are not the most recent with `jobSet.status.deprecatedEpoch = max(epochs) - 1` (equivalent to `deprecatedEpoch = syncedEpoch`). This makes sure all agent sidecars that are not at the most recent epoch will restart in place to reach the new epoch
 
 Besides the mentioned changes to the reconciliation loop, we also require to:
 
