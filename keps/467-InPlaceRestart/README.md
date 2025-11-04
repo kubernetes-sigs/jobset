@@ -1,4 +1,4 @@
-# KEP-467 Your short, descriptive title
+# KEP-467: Fast failure recovery with in place restarts
 
 <!--
 This is the title of your KEP. Keep it short, simple, and descriptive. A good
