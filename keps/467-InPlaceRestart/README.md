@@ -110,7 +110,7 @@ spec:
 
 In this case, when a failure happens like a worker container exiting non-zero or a Node failing, the associated Pod will fail. Since `backoffLimit = 0`, the parent Job will fail. Because `rules = []`, the default action `RestartJobSet` will be triggered, which restarts the JobSet. As `restartStrategy = Recreate`, the JobSet will be restarted by recreating all Jobs. That is, the JobSet controller will recreate all child Jobs, which causes all child Pods to be recreated.
 
-While failure recovery can be done by recreating all child Pods, it introduces significant overhead for large workloads (>= 1,000 Nodes). The process of terminating, rescheduling, and re-initializing thousands of Pods can take several minutes per restart. At large scales, failures are common, with a mean time to failure (MTTF) measured in hours. Consequently, these time-consuming restarts occur frequently, leading to a substantial loss of productive compute time. This downtime is especially costly for workloads that rely on expensive hardware accelerators like GPUs or TPUs. For a 10,000-node cluster, each minute of restart overhead can translate to [$1 million per month in wasted resources](https://docs.google.com/document/d/16zexVooHKPc80F4dVtUjDYK9DOpkVPRNfSv0zRtfFpk/edit?tab=t.0#heading=h.xhhuoh80qqw).
+While failure recovery can be done by recreating all child Pods, it introduces significant overhead for large workloads (>= 1,000 Nodes). The process of terminating, rescheduling, and re-initializing thousands of Pods can take several minutes per restart. At large scales, failures are common, with a mean time to failure (MTTF) measured in hours. Consequently, these time-consuming restarts occur frequently, leading to a substantial loss of productive compute time. This downtime is especially costly for workloads that rely on expensive hardware accelerators like GPUs or TPUs. For a 10,000 Node cluster, each minute of restart overhead can translate to [$1 million per month in wasted resources](https://docs.google.com/document/d/16zexVooHKPc80F4dVtUjDYK9DOpkVPRNfSv0zRtfFpk/edit?tab=t.0#heading=h.xhhuoh80qqw).
 
 An alternative is to skip the Pod recreation and instead restart only the containers while keeping the Pods running. We refer to this process as "in place restart". Currently, this can be achieved by setting `restartPolicy = OnFailure` in the Pod spec, but it is limited to restarting only the failed container and can be triggered by only the failed container.
 
@@ -255,19 +255,19 @@ spec:
                 google.com/tpu: 4 # Use all TPU chips in the Node
 ```
 
-#### Story 2: Combining In Place Restart with Immediate Failure for Unrecoverable Errors
+#### Story 2: Combining In Place Restart With The Failure API for Unrecoverable Errors
 
-As a user, my training workload can fail for two reasons: recoverable issues and fatal non-retriable issues (e.g., a misconfigured dataset path) that causes the worker to exit with exit code `Y`. I want to use fast in place restarts for transient issues but fail the entire JobSet immediately if the non-retriable errors occur to avoid wasting resources on pointless restarts.
+As a user, my training workload can fail for two reasons: recoverable issues and fatal unrecoverable errors (e.g., a misconfigured dataset path) that causes the worker to exit with exit code `Y`. I want to use fast in place restarts for transient issues but fail the entire JobSet immediately if the unrecoverable errors occur to avoid wasting resources on pointless restarts.
 
 **Example JobSet Configuration for this use case**:
 
 Summary of how exit codes are handled:
 
-* If agent sidecar exits X: restart Pod in place (on demand in place restart)
-* If agent sidecar exits anything but X: fail the Pod without failing the parent Job (failure in agent, recreate the Pod individually)
-* If worker container exits 0: succeed the Pod to complete the workload (workload finished successfully)
-* If worker container exits Y: fail the JobSet no matter the number of restarts so far (unrecoverable failure)
-* If worker container exits Z: fail the Pod without failing the parent Job (worker failure that is recoverable with Pod recreation but not Pod in place restart)
+* If agent sidecar exits `X`: restart Pod in place (on demand in place restart)
+* If agent sidecar exits anything but `X`: fail the Pod without failing the parent Job (failure in agent, recreate the Pod individually)
+* If worker container exits `0`: succeed the Pod to complete the workload (workload finished successfully)
+* If worker container exits `Y`: fail the JobSet no matter the number of restarts so far (unrecoverable failure)
+* If worker container exits `Z`: fail the Pod without failing the parent Job (worker failure that is recoverable with Pod recreation but not Pod in place restart)
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
