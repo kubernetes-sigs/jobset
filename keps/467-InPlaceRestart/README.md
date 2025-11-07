@@ -495,7 +495,7 @@ type JobSetStatus struct {
   //
   // +optional
   // +kubebuilder:default=0
-  SyncedEpoch int32 `json:"syncedEpoch,omitempty"`
+  SyncedEpoch *int32 `json:"syncedEpoch,omitempty"`
 }
 ```
 
