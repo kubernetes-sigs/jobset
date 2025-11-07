@@ -637,6 +637,7 @@ The highlights are:
 
 Besides the mentioned changes to the reconciliation loop, we also require to:
 
+* Set up a feature flag
 * Change the JobSet controller to watch child Pods for reconciliation  
 * Change the JobSet controller to index child Pods for efficient listing  
 * If the worker epochs ever exceed `jobset.spec.failurePolicy.maxRestarts`, fail the JobSet
