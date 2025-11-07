@@ -485,7 +485,7 @@ type JobSetStatus struct {
   //
   // +optional
   // +kubebuilder:default=0
-  DeprecatedEpoch int32 `json:"deprecatedEpoch,omitempty"`
+  DeprecatedEpoch *int32 `json:"deprecatedEpoch,omitempty"`
 
   // The most recent synced epoch of the JobSet.
   //
