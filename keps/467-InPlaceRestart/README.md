@@ -738,12 +738,16 @@ milestones with these graduation criteria:
 
 #### Alpha
 
-- Feature implemented behind a feature flag
-- Initial unit and e2e tests are implemented
+- Add the agent code and image to the JobSet repo to support Pods being restarted in place on demand
+- Change the JobSet controller to orchestrate in place restarts. Implemented behing a feature flag
+- Add extra validation to the JobSet webhook to validate JobSet manifests that have in place restart enabled
+- Add tests for in place restart
+- Add documentation for in place restart
 
 #### Beta
 
 - Address reviews and bug reports from alpha users
+- Add a way to automatically build and release the agent sidecar image
 - Add a way to add the agent sidecar automatically
 
 #### GA
