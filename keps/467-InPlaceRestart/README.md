@@ -722,6 +722,21 @@ milestones with these graduation criteria:
 [deprecation-policy]: https://kubernetes.io/docs/reference/using-api/deprecation-policy/
 -->
 
+#### Alpha
+
+- Feature implemented behind a feature flag
+- Initial unit and e2e tests are implemented
+
+#### Beta
+
+- Address reviews and bug reports from alpha users
+- Add a way to add the agent sidecar automatically
+
+#### GA
+
+- Address reviews and bug reports from beta users
+- Feature flag enabled by default
+
 ## Implementation History
 
 <!--
