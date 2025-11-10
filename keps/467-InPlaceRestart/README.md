@@ -574,6 +574,8 @@ The highlights are:
 
 When `RestartPod` is used, the barrier lift can be done by setting up a startup probe for the agent sidecar and making sure the agent sidecar creates the specified endpoint when the barrier must be lifted. If `restartPolicy = OnFailure` is used instead, the barrier lift can be done starting the worker process command when the barrier must be lifted.
 
+The image of the agent sidecar will be buildable from code in the JobSet repo (e.g., available in a new folder `agent/`). New versions of this image will be released in the JobSet releases.
+
 ### Implementation - JobSet controller
 
 The changes to the JobSet controller are responsible for orchestrating the group restarts of JobSet workloads when using in place restart. This boils down to updating the `jobSet.status.deprecatedEpoch` and `jobSet.status.syncedEpoch` fields based on the epochs of the worker Pods. 
