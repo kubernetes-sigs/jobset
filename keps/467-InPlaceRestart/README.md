@@ -704,6 +704,14 @@ Make sure the following cases are covered:
 - All Pods were in sync but one restarted into a new epoch: JobSet controller should update `deprecatedEpoch`
 - Pods just lost sync and a second Pod restarted into the new epoch but not all yet: JobSet controller should not update the JobSet status
 
+#### e2e tests
+
+The e2e test should make sure a group restart succeeds when in place restart is enabled. The test should work as following:
+
+- Create a JobSet that has 2 worker Pods. Each worker Pod should have the agent sidecar and a worker container. The worker container should exit non-zero on demand. This could be done by checking for the existence of a file, k8s resource or an HTTP request
+- Once all worker processes are running, force one of them to exit non zero
+- Check the Pod and JobSet manifests to make sure the group restart succeeded. If so, succeed the test. Otherwise, after a timeout period has passed, fail the test
+
 ### Graduation Criteria
 
 <!--
