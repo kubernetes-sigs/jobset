@@ -537,6 +537,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		// Create jobs as necessary.
 		if err := r.createJobs(ctx, js, jobs); err != nil {
 			log.Error(err, "creating jobs")
+			r.Record.Eventf(js, corev1.EventTypeWarning, constants.JobCreationFailedReason, err.Error())
 			return err
 		}
 

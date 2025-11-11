@@ -30,6 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -2495,6 +2496,74 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					return false
 				}
 				return !fresh1.DeletionTimestamp.IsZero() && fresh2.DeletionTimestamp.IsZero()
+			}, timeout, interval).Should(gomega.BeTrue())
+		})
+	})
+
+	ginkgo.When("a JobSet is created with an invalid Job template", func() {
+		ginkgo.It("should emit a warning event", func() {
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "jobset-ns-",
+				},
+			}
+
+			ginkgo.By("creating namespace")
+			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+			defer func() {
+				gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+			}()
+
+			ginkgo.By("creating jobset with an invalid job template")
+			podSpec := testing.TestPodSpec
+			podSpec.Containers[0].Image = ""
+
+			js := testing.MakeJobSet("invalid-jobset", ns.Name).
+				ReplicatedJob(testing.MakeReplicatedJob("replicated-job-a").
+					Job(testing.MakeJobTemplate("test-job-A", ns.Name).PodSpec(podSpec).Obj()).
+					Replicas(1).
+					Obj()).
+				Obj()
+
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			ginkgo.By("checking that a warning event is emitted")
+			gomega.Eventually(func() (bool, error) {
+				var events corev1.EventList
+				if err := k8sClient.List(ctx, &events, client.InNamespace(ns.Name), client.MatchingFieldsSelector{
+					Selector: fields.AndSelectors(
+						fields.OneTermEqualSelector("involvedObject.kind", "JobSet"),
+						fields.OneTermEqualSelector("involvedObject.name", js.Name),
+						fields.OneTermEqualSelector("reason", "JobCreationFailed"),
+					),
+				}); err != nil {
+					return false, err
+				}
+
+				if len(events.Items) < 1 {
+					return false, nil
+				}
+
+				event := events.Items[0]
+				gomega.Expect(event.Type).To(gomega.Equal(corev1.EventTypeWarning))
+				return true, nil
+			}, timeout, interval).Should(gomega.BeTrue())
+
+			ginkgo.By("checking that the events are accumulated")
+			gomega.Eventually(func() (bool, error) {
+				var events corev1.EventList
+				if err := k8sClient.List(ctx, &events, client.InNamespace(ns.Name), client.MatchingFieldsSelector{
+					Selector: fields.AndSelectors(
+						fields.OneTermEqualSelector("involvedObject.kind", "JobSet"),
+						fields.OneTermEqualSelector("involvedObject.name", js.Name),
+						fields.OneTermEqualSelector("reason", "JobCreationFailed"),
+					),
+				}); err != nil {
+					return false, err
+				}
+
+				return len(events.Items) == 1 && events.Items[0].Count > 1, nil
 			}, timeout, interval).Should(gomega.BeTrue())
 		})
 	})
