@@ -32,6 +32,7 @@ tags, and then generate with `hack/update-toc.sh`.
   - [Implementation - Documentation](#implementation---documentation)
   - [Implementation - Webhook validation](#implementation---webhook-validation)
   - [Implementation - Agent sidecar](#implementation---agent-sidecar)
+  - [Implementation - Permissions for the agent sidecar](#implementation---permissions-for-the-agent-sidecar)
   - [Implementation - JobSet controller](#implementation---jobset-controller)
   - [Test Plan](#test-plan)
       - [Prerequisite testing updates](#prerequisite-testing-updates)
