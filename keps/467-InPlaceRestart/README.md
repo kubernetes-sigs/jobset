@@ -576,6 +576,100 @@ When `RestartPod` is used, the barrier lift can be done by setting up a startup 
 
 The image of the agent sidecar will be buildable from code in the JobSet repo (e.g., available in a new folder `agent/`). New versions of this image will be released in the JobSet releases.
 
+### Implementation - Permissions for the agent sidecar
+
+The agent sidecar requires permissions to watch its parent JobSet. It also requires permissions to update its Pod epoch, which can be integrated with a validating admission policy to make sure only the epoch annotation can be modified. The following manifest shows an example of how a service account can be set up for the worker Pod. It will be part of the documentation of in place restart since it's up to the user to integrate these extra permissions to any existing service account.
+
+```yaml
+# Service account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: in-place-restart-sa
+---
+# JobSet watcher role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jobset-watcher
+  namespace: default
+rules:
+- apiGroups: ["jobset.x-k8s.io"]
+  resources: ["jobsets"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bind-in-place-restart-sa-to-jobset-watcher
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: in-place-restart-sa
+  namespace: default
+roleRef:
+  kind: Role
+  name: jobset-watcher
+  apiGroup: rbac.authorization.k8s.io
+---
+# Pod patcher role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-patcher-role
+  namespace: default
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bind-in-place-restart-sa-to-pod-patcher-role
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: in-place-restart-sa
+  namespace: default
+roleRef:
+  kind: Role
+  name: pod-patcher-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Allow only the pod annotation "jobset.sigs.k8s.io/epoch" to be updated
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: update-only-epoch-pod-annotation
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   [""]
+      apiVersions: ["v1"]
+      operations:  ["UPDATE"]
+      resources:   ["pods"]
+  validations:
+  - expression: >
+      request.userInfo.username != 'system:serviceaccount:default:in-place-restart-sa' ||
+      (
+        oldObject.spec == object.spec &&
+        oldObject.metadata.labels == object.metadata.labels &&
+        oldObject.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/epoch' || (key in object.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key])) &&
+        object.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/epoch' || (key in oldObject.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key]))
+      )
+    message: "ServiceAccount 'in-place-restart-sa' can only update the Pod annotation 'jobset.sigs.k8s.io/epoch'."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: update-only-epoch-pod-annotation-binding
+spec:
+  policyName: update-only-epoch-pod-annotation
+  validationActions: [Deny]
+```
+
 ### Implementation - JobSet controller
 
 The changes to the JobSet controller are responsible for orchestrating the group restarts of JobSet workloads when using in place restart. This boils down to updating the `jobSet.status.deprecatedEpoch` and `jobSet.status.syncedEpoch` fields based on the epochs of the worker Pods. 
