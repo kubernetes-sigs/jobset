@@ -42,7 +42,6 @@ efficiently and improve ML training goodput.
   - ✔️ Unit Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-unit-main).
   - ✔️ Integration Test [testgrid](https://testgrid.k8s.io/sig-apps#pull-jobset-test-integration-main)
   - ✔️ E2E Tests for Kubernetes
-    [1.31](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-31)
     [1.32](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-32)
     [1.33](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-33)
     [1.34](https://testgrid.k8s.io/sig-apps#pull-jobset-test-e2e-main-1-34)
