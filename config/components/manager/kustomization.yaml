@@ -1,5 +1,6 @@
 resources:
-- manager.yaml
+- namespace.yaml
+- deployment.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
