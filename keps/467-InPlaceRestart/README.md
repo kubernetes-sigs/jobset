@@ -48,7 +48,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Alternatives](#alternatives)
   - [Use the JobSet controller to directly restart the Pods in place instead of using the agent sidecar](#use-the-jobset-controller-to-directly-restart-the-pods-in-place-instead-of-using-the-agent-sidecar)
   - [Use gRPC instead of the API server to establish communication between the JobSet controller and the agent sidecars](#use-grpc-instead-of-the-api-server-to-establish-communication-between-the-jobset-controller-and-the-agent-sidecars)
-  - [Use the annotation <code>jobset.sigs.k8s.io/restart-attempt</code> instead of <code>jobset.sigs.k8s.io/epoch</code>](#use-the-annotation--instead-of-)
+  - [Use the annotation <code>jobset.sigs.k8s.io/restart-attempt</code> instead of <code>jobset.sigs.k8s.io/in-place-restart-attempt</code>](#use-the-annotation--instead-of-)
   - [Make the barrier optional](#make-the-barrier-optional)
   - [Restart only specified Pods instead of all of them](#restart-only-specified-pods-instead-of-all-of-them)
 - [Future work](#future-work)
@@ -478,29 +478,29 @@ const (
 Changes to the JobSet status.
 
 ```go
-// README: Add new fields `deprecatedEpoch` and `syncedEpoch`.
+// README: Add new fields `deprecatedInPlaceRestartAttempt` and `syncedInPlaceRestartAttempt`.
 type JobSetStatus struct {
   // ... Other fields
 
-  // The most recent deprecated epoch of the JobSet.
+  // The most recent deprecated in place restart attempt of the JobSet.
   //
-  // Healthy Pods that have an epoch smaller than or equal to this value should be restarted in place.
+  // Healthy Pods that have an in place restart attempt smaller than or equal to this value should be restarted in place.
   //
   // This is written by the JobSet controller and read by the agent sidecars.
   //
   // +optional
   // +kubebuilder:default=0
-  DeprecatedEpoch *int32 `json:"deprecatedEpoch,omitempty"`
+  DeprecatedInPlaceRestartAttempt *int32 `json:"deprecatedInPlaceRestartAttempt,omitempty"`
 
-  // The most recent synced epoch of the JobSet.
+  // The most recent synced in place restart attempt of the JobSet.
   //
-  // Pods that have an epoch equal to this value should lift their barrier to allow the worker containers to start running.
+  // Pods that have an in place restart attempt equal to this value should lift their barrier to allow the worker containers to start running.
   //
   // This is written by the JobSet controller and read by the agent sidecars.
   //
   // +optional
   // +kubebuilder:default=0
-  SyncedEpoch *int32 `json:"syncedEpoch,omitempty"`
+  SyncedInPlaceRestartAttempt *int32 `json:"syncedInPlaceRestartAttempt,omitempty"`
 }
 ```
 
@@ -512,16 +512,16 @@ const (
   
   // Meant to be used as a Pod annotation for worker Pods.
   //
-  // Its value is the epoch of the worker Pod and should be treated as int32.
+  // Its value is the in place restart attempt of the worker Pod and should be treated as int32.
   //
   // This is written by the agent sidecar and read by the JobSet controller.
   //
-  // If the epoch of any worker Pod exceeds jobSet.spec.failurePolicy.maxRestarts, fail the JobSet.
+  // If the in place restart attempt of any worker Pod exceeds jobSet.spec.failurePolicy.maxRestarts, fail the JobSet.
   //
-  // If the epoch of the worker Pod is smaller than or equal to `deprecatedEpoch`, restart the Pod in place.
+  // If the in place restart attempt of the worker Pod is smaller than or equal to `deprecatedInPlaceRestartAttempt`, restart the Pod in place.
   //
-  // If the epoch of the worker Pod is equal to `syncedEpoch`, lift the Pod barrier to allow the worker container to start running.
-  EpochKey string = "jobset.sigs.k8s.io/epoch"
+  // If the in place restart attempt of the worker Pod is equal to `syncedInPlaceRestartAttempt`, lift the Pod barrier to allow the worker container to start running.
+  InPlaceRestartAttemptKey string = "jobset.sigs.k8s.io/in-place-restart-attempt"
 )
 ```
 
@@ -546,32 +546,32 @@ The high level structure of the agent sidecar is the following.
 ```python
 # Initialize
 parentJobSet = getJobSet(env.namespace, env.jobSetName)
-mostRecentSyncedEpoch = jobset.status.syncedEpoch
-epoch = mostRecentSyncedEpoch + 1
-patch = {"metadata" : {"annotations" : {"jobset.sigs.k8s.io/epoch" : epoch}}}
+mostRecentSyncedInPlaceRestartAttempt = jobset.status.syncedInPlaceRestartAttempt
+inPlaceRestartAttempt = mostRecentSyncedInPlaceRestartAttempt + 1
+patch = {"metadata" : {"annotations" : {"jobset.sigs.k8s.io/in-place-restart-attempt" : inPlaceRestartAttempt}}}
 patchPod(env.namespace, env.podName, patch)
 
 # Watch
 for event in watchJobSet(env.namespace, env.jobSetName):
-  mostRecentDeprecatedEpoch = event.jobSet.status.deprecatedEpoch
-  mostRecentSyncedEpoch = event.jobSet.status.syncedEpoch
+  mostRecentDeprecatedInPlaceRestartAttempt = event.jobSet.status.deprecatedInPlaceRestartAttempt
+  mostRecentSyncedInPlaceRestartAttempt = event.jobSet.status.syncedInPlaceRestartAttempt
 
-  # Check if Pod must be restarted in place because its epoch has been deprecated
+  # Check if Pod must be restarted in place because its in place restart attempt has been deprecated
   # If so, exit specified exit code to trigger RestartPod action
-  if epoch <= mostRecentDeprecatedEpoch:
+  if inPlaceRestartAttempt <= mostRecentDeprecatedInPlaceRestartAttempt:
     exit(env.restartInPlaceExitCode)
 
-  # Check if Pod barrier must be lifted because its epoch has been marked as synced
+  # Check if Pod barrier must be lifted because its in place restart attempt has been marked as synced
   # If so, create endpoint "/barrier-is-lifted" to succeed startup probe 
-  if epoch == mostRecentSyncedEpoch:
+  if inPlaceRestartAttempt == mostRecentSyncedInPlaceRestartAttempt:
     createEndpoint("/barrier-is-lifted") # Idempotent
 ```
 
 The highlights are:
 
-- Calculate the Pod epoch at start up as `jobSet.status.syncedEpoch + 1`. This makes sure the worker container will start running only when the JobSet controller updates `jobSet.status.syncedEpoch`. This is done only when all worker Pods are at the same epoch
-- Restart the Pod in place if its epoch has been deprecated by `checking epoch <= jobSet.status.deprecatedEpoch`. This is done only when a group restart is necessary
-- Lift the Pod barrier if its epoch has been marked as synced by checking `epoch == mostRecentSyncedEpoch`. This is done only when all worker Pods are at the same epoch
+- Calculate the Pod in place restart attempt at start up as `jobSet.status.syncedInPlaceRestartAttempt + 1`. This makes sure the worker container will start running only when the JobSet controller updates `jobSet.status.syncedInPlaceRestartAttempt`. This is done only when all worker Pods are at the same in place restart attempt
+- Restart the Pod in place if its in place restart attempt has been deprecated by checking `inPlaceRestartAttempt <= jobSet.status.deprecatedInPlaceRestartAttempt`. This is done only when a group restart is necessary
+- Lift the Pod barrier if its in place restart attempt has been marked as synced by checking `inPlaceRestartAttempt == mostRecentSyncedInPlaceRestartAttempt`. This is done only when all worker Pods are at the same in place restart attempt
 
 When `RestartPod` is used, the barrier lift can be done by setting up a startup probe for the agent sidecar and making sure the agent sidecar creates the specified endpoint when the barrier must be lifted. If `restartPolicy = OnFailure` is used instead, the barrier lift can be done starting the worker process command when the barrier must be lifted.
 
@@ -579,7 +579,7 @@ The image of the agent sidecar will be buildable from code in the JobSet repo (e
 
 ### Implementation - Permissions for the agent sidecar
 
-The agent sidecar requires permissions to watch its parent JobSet. It also requires permissions to update its Pod epoch, which can be integrated with a validating admission policy to make sure only the epoch annotation can be modified. The following manifest shows an example of how a service account can be set up for the worker Pod. It will be part of the documentation of in place restart since it's up to the user to integrate these extra permissions to any existing service account.
+The agent sidecar requires permissions to watch its parent JobSet. It also requires permissions to update its Pod in place restart attempt, which can be integrated with a validating admission policy to make sure only the in place restart attempt annotation can be modified. The following manifest shows an example of how a service account can be set up for the worker Pod. It will be part of the documentation of in place restart since it's up to the user to integrate these extra permissions to any existing service account.
 
 ```yaml
 # Service account
@@ -638,11 +638,11 @@ roleRef:
   name: pod-patcher-role
   apiGroup: rbac.authorization.k8s.io
 ---
-# Allow only the pod annotation "jobset.sigs.k8s.io/epoch" to be updated
+# Allow only the pod annotation "jobset.sigs.k8s.io/in-place-restart-attempt" to be updated
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
-  name: update-only-epoch-pod-annotation
+  name: update-only-in-place-restart-attempt-pod-annotation
 spec:
   failurePolicy: Fail
   matchConstraints:
@@ -657,23 +657,23 @@ spec:
       (
         oldObject.spec == object.spec &&
         oldObject.metadata.labels == object.metadata.labels &&
-        oldObject.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/epoch' || (key in object.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key])) &&
-        object.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/epoch' || (key in oldObject.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key]))
+        oldObject.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/in-place-restart-attempt' || (key in object.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key])) &&
+        object.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/in-place-restart-attempt' || (key in oldObject.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key]))
       )
-    message: "ServiceAccount 'in-place-restart-sa' can only update the Pod annotation 'jobset.sigs.k8s.io/epoch'."
+    message: "ServiceAccount 'in-place-restart-sa' can only update the Pod annotation 'jobset.sigs.k8s.io/in-place-restart-attempt'."
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
 metadata:
-  name: update-only-epoch-pod-annotation-binding
+  name: update-only-in-place-restart-attempt-pod-annotation-binding
 spec:
-  policyName: update-only-epoch-pod-annotation
+  policyName: update-only-in-place-restart-attempt-pod-annotation
   validationActions: [Deny]
 ```
 
 ### Implementation - JobSet controller
 
-The changes to the JobSet controller are responsible for orchestrating the group restarts of JobSet workloads when using in place restart. This boils down to updating the `jobSet.status.deprecatedEpoch` and `jobSet.status.syncedEpoch` fields based on the epochs of the worker Pods. 
+The changes to the JobSet controller are responsible for orchestrating the group restarts of JobSet workloads when using in place restart. This boils down to updating the `jobSet.status.deprecatedInPlaceRestartAttempt` and `jobSet.status.syncedInPlaceRestartAttempt` fields based on the in place restart attempts of the worker Pods. 
 
 The high level structure of the changes to the JobSet reconciliation are the following.
 
@@ -685,40 +685,40 @@ def reconcile(jobSet):
 
   # New code
   if isInPlaceRestartEnabled(jobSet):
-    reconcileEpochs(jobSet)
+    reconcileInPlaceRestartAttempts(jobSet)
 
 # Check if in place restart is enabled
 def isInPlaceRestartEnabled(jobSet):
   return jobSet.spec.failurePolicy.restartStrategy == "InPlaceRestart"
 
 # Reconcile only in place restart fields
-def reconcileEpochs(jobSet):
+def reconcileInPlaceRestartAttempts(jobSet):
   childPods = listChildPods(jobSet.metadata.namespace, jobSet.metadata.name)
-  epochs = extractEpochs(childPods)
-  expectedEpochLength = countExpectedChildPods(jobSet)
+  inPlaceRestartAttempts = extractInPlaceRestartAttempts(childPods)
+  expectedInPlaceRestartAttemptLength = countExpectedChildPods(jobSet)
 
-  # Check if all worker Pods are at the same epoch
-  # If so, make sure syncedEpoch is equal to this common value
-  # (represented here by `epochs[0]`)
+  # Check if all worker Pods are at the same in place restart attempt
+  # If so, make sure syncedInPlaceRestartAttempt is equal to this common value
+  # (represented here by `inPlaceRestartAttempts[0]`)
   # This makes sure the Pod barriers are lifted
-  if len(epochs) == expectedEpochsLength and allEqual(epochs):
-    jobSet.status.syncedEpoch = epochs[0] # Idempotent
+  if len(inPlaceRestartAttempts) == expectedInPlaceRestartAttemptsLength and allEqual(inPlaceRestartAttempts):
+    jobSet.status.syncedInPlaceRestartAttempt = inPlaceRestartAttempts[0] # Idempotent
 
   # Otherwise, it means that the worker Pods are not in sync
-  # If so, make sure deprecatedEpoch is equal to max(epochs) - 1
-  # This makes sure all Pods that are not at the last epoch will be restarted in place
+  # If so, make sure deprecatedInPlaceRestartAttempt is equal to max(inPlaceRestartAttempts) - 1
+  # This makes sure all Pods that are not at the last in place restart attempt will be restarted in place
   else:
-    jobSet.status.deprecatedEpoch = max(epochs) - 1 # Idempotent
+    jobSet.status.deprecatedInPlaceRestartAttempt = max(inPlaceRestartAttempts) - 1 # Idempotent
 
-# Extract values of jobset.sigs.k8s.io/epoch annotations
-def extractEpochs(pods):
-  epochs = []
+# Extract values of jobset.sigs.k8s.io/in-place-restart-attempt annotations
+def extractInPlaceRestartAttempts(pods):
+  inPlaceRestartAttempts = []
   for pod in pods:
-    rawEpoch = pod.metadata.annotations["jobset.sigs.k8s.io/epoch"]
-    epoch = int(rawEpoch)
-    epochs.append(epoch)
+    rawInPlaceRestartAttempt = pod.metadata.annotations["jobset.sigs.k8s.io/in-place-restart-attempt"]
+    inPlaceRestartAttempt = int(rawInPlaceRestartAttempt)
+    inPlaceRestartAttempts.append(inPlaceRestartAttempt)
 
-  return epochs
+  return inPlaceRestartAttempts
 
 # Count expected number of child Pods
 def countExpectedChildPods(jobSet):
@@ -733,15 +733,15 @@ def countExpectedChildPods(jobSet):
 The highlights are:
 
 * Only run in place restart logic for JobSet objects that have in place restart enabled (i.e., the field `jobSet.spec.failurePolicy.restartStrategy` is set to `InPlaceRestart`)  
-* If all child Pods exist and have the same epoch, it means they are in sync and should have their barriers lifted, so set `jobSet.status.syncedEpoch = epochs[0]` (equivalent to `jobSet.status.syncedEpoch += 1`). The agent sidecars will get this new synced epoch value and lift their barriers  
-* If the Pods are still not in sync (there is a mismatch in their epochs), make sure to deprecate all epochs that are not the most recent with `jobSet.status.deprecatedEpoch = max(epochs) - 1` (equivalent to `deprecatedEpoch = syncedEpoch`). This makes sure all agent sidecars that are not at the most recent epoch will restart in place to reach the new epoch
+* If all child Pods exist and have the same in place restart attempt, it means they are in sync and should have their barriers lifted, so set `jobSet.status.syncedInPlaceRestartAttempt = inPlaceRestartAttempts[0]` (equivalent to `jobSet.status.syncedInPlaceRestartAttempt += 1`). The agent sidecars will get this new synced in place restart attempt value and lift their barriers  
+* If the Pods are still not in sync (there is a mismatch in their in place restart attempts), make sure to deprecate all in place restart attempts that are not the most recent with `jobSet.status.deprecatedInPlaceRestartAttempt = max(inPlaceRestartAttempts) - 1` (equivalent to `deprecatedInPlaceRestartAttempt = syncedInPlaceRestartAttempt`). This makes sure all agent sidecars that are not at the most recent in place restart attempt will restart in place to reach the new in place restart attempt
 
 Besides the mentioned changes to the reconciliation loop, we also require to:
 
 * Set up a feature flag
 * Change the JobSet controller to watch child Pods for reconciliation  
 * Change the JobSet controller to index child Pods for efficient listing  
-* If the worker epochs ever exceed `jobset.spec.failurePolicy.maxRestarts`, fail the JobSet
+* If the worker in place restart attempts ever exceed `jobset.spec.failurePolicy.maxRestarts`, fail the JobSet
 
 ### Test Plan
 
@@ -788,7 +788,7 @@ extending the production code to implement this enhancement.
 
 - `controllers`: `11/03/2025` - `55.6%`
 
-Unit tests will be added to both the JobSet controller and the new agent image. For the JobSet controller, the objective is to test the core logic of how the JobSet controller should react given the child Pod epochs. For the agent, the objective is to test the core logic of how the agent should react given the parent JobSet status.
+Unit tests will be added to both the JobSet controller and the new agent image. For the JobSet controller, the objective is to test the core logic of how the JobSet controller should react given the child Pod in place restart attempts. For the agent, the objective is to test the core logic of how the agent should react given the parent JobSet status.
 
 #### Integration tests
 
@@ -801,9 +801,9 @@ After the implementation PR is merged, add the names of the tests here.
 Make sure the following cases are covered:
 
 - All Pods in sync: JobSet controller should not update the JobSet status
-- All Pods just became in sync: JobSet controller should update `syncedEpoch`
-- All Pods were in sync but one restarted into a new epoch: JobSet controller should update `deprecatedEpoch`
-- Pods just lost sync and a second Pod restarted into the new epoch but not all yet: JobSet controller should not update the JobSet status
+- All Pods just became in sync: JobSet controller should update `syncedInPlaceRestartAttempt`
+- All Pods were in sync but one restarted into a new in place restart attempt: JobSet controller should update `deprecatedInPlaceRestartAttempt`
+- Pods just lost sync and a second Pod restarted into the new in place restart attempt but not all yet: JobSet controller should not update the JobSet status
 
 #### e2e tests
 
@@ -885,9 +885,9 @@ Currently, there is no way to do that. The `RestartPod` action can only be trigg
 
 ### Use gRPC instead of the API server to establish communication between the JobSet controller and the agent sidecars
 
-Using the API server with a declarative Pod annotation for the epoch is a better practice from the [Kubernetes API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status).
+Using the API server with a declarative Pod annotation for the in place restart attempt is a better practice from the [Kubernetes API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status).
 
-### Use the annotation `jobset.sigs.k8s.io/restart-attempt` instead of `jobset.sigs.k8s.io/epoch`
+### Use the annotation `jobset.sigs.k8s.io/restart-attempt` instead of `jobset.sigs.k8s.io/in-place-restart-attempt`
 
 The annotation `jobset.sigs.k8s.io/restart-attempt` is technically written by the JobSet controller through the Pod template, so changing it with the agent sidecar would be an anti-pattern. Besides, the annotation `jobset.sigs.k8s.io/restart-attempt` in Pods is already heavily used for observability and changing its semantics would also be problematic.
 
@@ -911,7 +911,7 @@ When the JobSet failure policy is updated to support the recreation of only fail
 
 ### Speed up failure detection
 
-In the proposed design, the JobSet controller can only detect that a failure occurred when the agent sidecar of the failed worker is started again and updates the epoch annotation. A best effort optimization can be done by triggering a group restart when any worker container of the most recent epoch terminates. This optimization saves the time between the worker container failing and its agent sidecar starting again.
+In the proposed design, the JobSet controller can only detect that a failure occurred when the agent sidecar of the failed worker is started again and updates the in place restart attempt annotation. A best effort optimization can be done by triggering a group restart when any worker container of the most recent in place restart attempt terminates. This optimization saves the time between the worker container failing and its agent sidecar starting again.
 
 ### Restart only specified containers to skip the overhead of recreating all watches
 
