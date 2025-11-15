@@ -304,6 +304,8 @@ $(LOCALBIN):
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.2.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.2
+# ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script.
+ENVTEST_VERSION ?= $(shell $(GO_CMD) list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 # ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries.
 ENVTEST_K8S_VERSION ?= $(shell $(GO_CMD) list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 HELM_VERSION ?= v3.17.1
@@ -352,9 +354,9 @@ openapi-gen:
 	$(PROJECT_DIR)/bin/openapi-gen --go-header-file hack/boilerplate.go.txt --output-dir api/jobset/v1alpha2 --output-pkg api/jobset/v1alpha2 --output-file openapi_generated.go --alsologtostderr ./api/jobset/v1alpha2
 
 .PHONY: envtest
-envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
+envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) $(GO_CMD) install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) $(GO_CMD) install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
 
 GINKGO = $(shell pwd)/bin/ginkgo
 .PHONY: ginkgo
