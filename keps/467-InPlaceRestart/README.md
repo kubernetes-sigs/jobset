@@ -573,7 +573,7 @@ The highlights are:
 - Restart the Pod in-place if its in-place restart attempt is outdated by checking `inPlaceRestartAttempt <= jobSet.status.previousInPlaceRestartAttempt`. This is done only when a group restart is necessary
 - Lift the Pod barrier if its in-place restart attempt has been marked as current by checking `inPlaceRestartAttempt == currentInPlaceRestartAttempt`. This is done only when all worker Pods are at the same in-place restart attempt
 
-When `RestartPod` is used, the barrier lift can be done by setting up a startup probe for the agent sidecar and making sure the agent sidecar creates the specified endpoint when the barrier must be lifted. If `restartPolicy = OnFailure` is used instead, the barrier lift can be done starting the worker process command when the barrier must be lifted.
+When `RestartPod` is used, lifting the barrier can be done by setting up a startup probe for the agent sidecar and making sure the agent sidecar creates the specified endpoint when the barrier must be lifted. If `restartPolicy = OnFailure` is used instead, lifting the barrier can be done starting the worker process command when the barrier must be lifted.
 
 The image of the agent sidecar will be buildable from code in the JobSet repo (e.g., available in a new folder `agent/`). New versions of this image will be released in the JobSet releases.
 
