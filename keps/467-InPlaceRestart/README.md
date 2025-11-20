@@ -1,4 +1,4 @@
-# KEP-467: Fast failure recovery with in place restarts
+# KEP-467: Fast failure recovery with in-place restarts
 
 <!--
 This is the title of your KEP. Keep it short, simple, and descriptive. A good
@@ -24,7 +24,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Proposal](#proposal)
   - [User Stories (Optional)](#user-stories-optional)
     - [Story 1: Fast Recovery for Large Scale ML Training](#story-1-fast-recovery-for-large-scale-ml-training)
-    - [Story 2: Combining In Place Restart With The Failure API for Unrecoverable Errors](#story-2-combining-in-place-restart-with-the-failure-api-for-unrecoverable-errors)
+    - [Story 2: Combining In-Place Restart With The Failure API for Unrecoverable Errors](#story-2-combining-in-place-restart-with-the-failure-api-for-unrecoverable-errors)
   - [Notes/Constraints/Caveats (Optional)](#notesconstraintscaveats-optional)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Design Details](#design-details)
@@ -46,7 +46,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Implementation History](#implementation-history)
 - [Drawbacks](#drawbacks)
 - [Alternatives](#alternatives)
-  - [Use the JobSet controller to directly restart the Pods in place instead of using the agent sidecar](#use-the-jobset-controller-to-directly-restart-the-pods-in-place-instead-of-using-the-agent-sidecar)
+  - [Use the JobSet controller to directly restart the Pods in-place instead of using the agent sidecar](#use-the-jobset-controller-to-directly-restart-the-pods-in-place-instead-of-using-the-agent-sidecar)
   - [Use gRPC instead of the API server to establish communication between the JobSet controller and the agent sidecars](#use-grpc-instead-of-the-api-server-to-establish-communication-between-the-jobset-controller-and-the-agent-sidecars)
   - [Use the annotation <code>jobset.sigs.k8s.io/restart-attempt</code> instead of <code>jobset.sigs.k8s.io/in-place-restart-attempt</code>](#use-the-annotation--instead-of-)
   - [Make the barrier optional](#make-the-barrier-optional)
@@ -79,7 +79,7 @@ updates.
 [documentation style guide]: https://github.com/kubernetes/community/blob/master/contributors/guide/style-guide.md
 -->
 
-This KEP proposes the new restart strategy `InPlaceRestart` for JobSet. The objective is to speed up the restart time of distributed ML model training, which is traditionally done by recreating all Pods. This is especially important for large scales, where frequent failures that take longer to recover can cost millions. The proposal leverages the incoming `RestartPod` action to enable in place restart of Pods for JobSet workloads, which avoids the overhead of recreating Pods and significantly reduces recovery time. The solution involves adding an agent sidecar to each worker Pod to allow Pods to be restarted in place on demand and updating the JobSet controller to orchestrate group restarts by restarting healthy Pods in place while allowing the Job controller to recreate failed Pods.
+This KEP proposes the new restart strategy `InPlaceRestart` for JobSet. The objective is to speed up the restart time of distributed ML model training, which is traditionally done by recreating all Pods. This is especially important for large scales, where frequent failures that take longer to recover can cost millions. The proposal leverages the incoming `RestartPod` action to enable in-place restart of Pods for JobSet workloads, which avoids the overhead of recreating Pods and significantly reduces recovery time. The solution involves adding an agent sidecar to each worker Pod to allow Pods to be restarted in-place on demand and updating the JobSet controller to orchestrate group restarts by restarting healthy Pods in-place while allowing the Job controller to recreate failed Pods.
 
 ## Motivation
 
@@ -132,11 +132,11 @@ In this case, when a failure happens like a worker container exiting non-zero or
 
 While failure recovery can be done by recreating all child Pods, it introduces significant overhead for large workloads (>= 1,000 Nodes). The process of terminating, rescheduling, and re-initializing thousands of Pods can take several minutes per restart. At large scales, failures are common, with a mean time to failure (MTTF) measured in hours. Consequently, these time-consuming restarts occur frequently, leading to a substantial loss of productive compute time. This downtime is especially costly for workloads that rely on expensive hardware accelerators like GPUs or TPUs. For a 10,000 Node cluster, each minute of restart overhead can translate to [$1 million per month in wasted resources](https://docs.google.com/document/d/16zexVooHKPc80F4dVtUjDYK9DOpkVPRNfSv0zRtfFpk/edit?tab=t.0#heading=h.xhhuoh80qqw).
 
-An alternative is to skip the Pod recreation and instead restart only the containers while keeping the Pods running. We refer to this process as "in place restart". Currently, this can be achieved by setting `restartPolicy = OnFailure` in the Pod spec, but it is limited to restarting only the failed container and can be triggered by only the failed container.
+An alternative is to skip the Pod recreation and instead restart only the containers while keeping the Pods running. We refer to this process as "in-place restart". Currently, this can be achieved by setting `restartPolicy = OnFailure` in the Pod spec, but it is limited to restarting only the failed container and can be triggered by only the failed container.
 
-A more comprehensive API is the `RestartPod` action which will extend the new `restartPolicyRules` API (released in version 1.34) and is planned to be released soon (ETA version 1.35). The `RestartPod` action can be triggered by any container exiting a specified exit code and causes all containers to terminate and start in order. In other words, instead of deleting a Pod and creating a new one to replace it, an in place restart can be achieved by forcing one of the containers to exit with a specified exit code to trigger `RestartPod` and cause all containers to be restarted while the Pod is still running in the same Node.
+A more comprehensive API is the `RestartPod` action which will extend the new `restartPolicyRules` API (released in version 1.34) and is planned to be released soon (ETA version 1.35). The `RestartPod` action can be triggered by any container exiting a specified exit code and causes all containers to terminate and start in order. In other words, instead of deleting a Pod and creating a new one to replace it, an in-place restart can be achieved by forcing one of the containers to exit with a specified exit code to trigger `RestartPod` and cause all containers to be restarted while the Pod is still running in the same Node.
 
-The only missing piece for achieving efficient restarts is native support from JobSet controller for restarting JobSet objects by restarting the Pods in place instead of recreating them. This is what we aim to fix in this proposal.
+The only missing piece for achieving efficient restarts is native support from JobSet controller for restarting JobSet objects by restarting the Pods in-place instead of recreating them. This is what we aim to fix in this proposal.
 
 ### Goals
 
@@ -145,9 +145,9 @@ List the specific goals of the KEP. What is it trying to achieve? How will we
 know that this has succeeded?
 -->
 
-- Introduce the new restart strategy `InPlaceRestart` to the JobSet API to significantly reduce recovery time from failures at large scales. This will be achieved by restarting the healthy Pods in place instead of recreating them
-- Ensure that in place restart is compatible with all sources of failures currently supported (container failure, Pod failure, Node failure, Job failure, etc)
-- Ensure that in place restart is compatible with and can be configured alongside the existing Failure Policy API
+- Introduce the new restart strategy `InPlaceRestart` to the JobSet API to significantly reduce recovery time from failures at large scales. This will be achieved by restarting the healthy Pods in-place instead of recreating them
+- Ensure that in-place restart is compatible with all sources of failures currently supported (container failure, Pod failure, Node failure, Job failure, etc)
+- Ensure that in-place restart is compatible with and can be configured alongside the existing Failure Policy API
 
 ### Non-Goals
 
@@ -157,7 +157,7 @@ and make progress.
 -->
 
 - Improve performance of JobSet restarts by default and for all scales
-- Implement partial restarts. [Restarting single Jobs is an ongoing discussion in JobSet](https://github.com/kubernetes-sigs/jobset/issues/976) and can be incorporated later to in place restart
+- Implement partial restarts. [Restarting single Jobs is an ongoing discussion in JobSet](https://github.com/kubernetes-sigs/jobset/issues/976) and can be incorporated later to in-place restart
 
 ## Proposal
 
@@ -170,12 +170,12 @@ The "Design Details" section below is for the real
 nitty-gritty.
 -->
 
-We propose a new restart strategy to JobSet called `InPlaceRestart`. When enabled, this strategy will recover from failures by restarting the healthy Pods in place and recreating the Failed Pods (expected to be none or only a few in the case of failed Nodes). 
+We propose a new restart strategy to JobSet called `InPlaceRestart`. When enabled, this strategy will recover from failures by restarting the healthy Pods in-place and recreating the Failed Pods (expected to be none or only a few in the case of failed Nodes). 
 
-When enabled, in place restarts are achieved with 3 main changes:
+When enabled, in-place restarts are achieved with 3 main changes:
 
-- Forcing `backoffLimit = 2147483647` (`MaxInt32`) so that Pod failures lead to individual Pod recreations, while the other Pods are restarted in place
-- Adding a new "agent" sidecar to be used only with `InPlaceRestart`. Its objective is to restart its Pod in place on demand by exiting specified exit codes to trigger the `RestartPod` action
+- Forcing `backoffLimit = 2147483647` (`MaxInt32`) so that Pod failures lead to individual Pod recreations, while the other Pods are restarted in-place
+- Adding a new "agent" sidecar to be used only with `InPlaceRestart`. Its objective is to restart its Pod in-place on demand by exiting specified exit codes to trigger the `RestartPod` action
 - Changing the JobSet controller to support the `InPlaceRestart` strategy. For instance, the JobSet controller needs to broadcast restart signals to the agent sidecars during group restarts
 
 ### User Stories (Optional)
@@ -189,7 +189,7 @@ bogged down.
 
 #### Story 1: Fast Recovery for Large Scale ML Training
 
-As a user running large scale ML training workloads on thousands of expensive accelerator Nodes, I face frequent recoverable failures. Each failure triggers a full JobSet restart, which takes several minutes to recreate all Pods,  leading to significant downtime and wasted cost. I want to configure my JobSet to recover from these failures in seconds, not minutes, by restarting the worker Pods in place.
+As a user running large scale ML training workloads on thousands of expensive accelerator Nodes, I face frequent recoverable failures. Each failure triggers a full JobSet restart, which takes several minutes to recreate all Pods,  leading to significant downtime and wasted cost. I want to configure my JobSet to recover from these failures in seconds, not minutes, by restarting the worker Pods in-place.
 
 **Example JobSet Configuration for this use case**:
 
@@ -204,7 +204,7 @@ metadata:
 spec:
   failurePolicy:
     maxRestarts: ... # Maximum number of full restarts
-    restartStrategy: InPlaceRestart # Enable in place restart
+    restartStrategy: InPlaceRestart # Enable in-place restart
   replicatedJobs:
   - name: workers
     replicas: ... # Number of Node pools
@@ -220,7 +220,7 @@ spec:
             # Agent sidecar
             - name: agent
               image: ... # Should be buildable from new code in the JobSet repo
-              # Restart Pod in place if agent exits with exit code X
+              # Restart Pod in-place if agent exits with exit code X
               # Otherwise, fail Pod
               restartPolicy: Always # Necessary for sidecar
               restartPolicyRules:
@@ -261,7 +261,7 @@ spec:
             containers:
             # Worker container
             - name: worker
-              # Restart Pod in place if worker exits non-zero exit code
+              # Restart Pod in-place if worker exits non-zero exit code
               # Otherwise succeed the Pod
               restartPolicy: Never
               restartPolicyRules:
@@ -275,19 +275,19 @@ spec:
                 google.com/tpu: 4 # Use all TPU chips in the Node
 ```
 
-#### Story 2: Combining In Place Restart With The Failure API for Unrecoverable Errors
+#### Story 2: Combining In-Place Restart With The Failure API for Unrecoverable Errors
 
-As a user, my training workload can fail for two reasons: recoverable issues and fatal unrecoverable errors (e.g., a misconfigured dataset path) that causes the worker to exit with exit code `Y`. I want to use fast in place restarts for transient issues but fail the entire JobSet immediately if the unrecoverable errors occur to avoid wasting resources on pointless restarts.
+As a user, my training workload can fail for two reasons: recoverable issues and fatal unrecoverable errors (e.g., a misconfigured dataset path) that causes the worker to exit with exit code `Y`. I want to use fast in-place restarts for transient issues but fail the entire JobSet immediately if the unrecoverable errors occur to avoid wasting resources on pointless restarts.
 
 **Example JobSet Configuration for this use case**:
 
 Summary of how exit codes are handled:
 
-* If agent sidecar exits `X`: restart Pod in place (on demand in place restart)
+* If agent sidecar exits `X`: restart Pod in-place (on demand in-place restart)
 * If agent sidecar exits anything but `X`: fail the Pod without failing the parent Job (failure in agent, recreate the Pod individually)
 * If worker container exits `0`: succeed the Pod to complete the workload (workload finished successfully)
 * If worker container exits `Y`: fail the JobSet no matter the number of restarts so far (unrecoverable failure)
-* If worker container exits `Z`: fail the Pod without failing the parent Job (worker failure that is recoverable with Pod recreation but not Pod in place restart)
+* If worker container exits `Z`: fail the Pod without failing the parent Job (worker failure that is recoverable with Pod recreation but not Pod in-place restart)
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -300,7 +300,7 @@ metadata:
 Spec:
   failurePolicy:
     maxRestarts: ... # Maximum number of full restarts
-    restartStrategy: InPlaceRestart # Enable in place restart
+    restartStrategy: InPlaceRestart # Enable in-place restart
     # Fail JobSet if Job fails with reason PodFailurePolicy
     # Equivalently, fail JobSet if a worker container exits with exit code Y
     rules:
@@ -330,7 +330,7 @@ Spec:
             # Agent sidecar
             - name: agent
               image: ... # Should be buildable from new code in the JobSet repo
-              # Restart Pod in place if agent exits with exit code X
+              # Restart Pod in-place if agent exits with exit code X
               # Otherwise, fail Pod
               restartPolicy: Always # Necessary for sidecar
               restartPolicyRules:
@@ -372,7 +372,7 @@ Spec:
             - name: worker
               # Complete Pod if worker exits 0
               # Fail Pod if worker exits with exit code Y or Z
-              # Otherwise, restart Pod in place
+              # Otherwise, restart Pod in-place
               restartPolicy: Never
               restartPolicyRules:
               - action: Terminate
@@ -467,7 +467,7 @@ const (
   // before creating new Jobs.
   BlockingRecreate JobSetRestartStrategy = "BlockingRecreate"
 
-  // When no Job has failed, restart the JobSet by restarting healthy Pods in place 
+  // When no Job has failed, restart the JobSet by restarting healthy Pods in-place 
   // and recreating failed Pods.
   //
   // When a Job has failed, fall back to action `Recreate` and execute the matching failure policy rule.
@@ -482,9 +482,9 @@ Changes to the JobSet status.
 type JobSetStatus struct {
   // ... Other fields
 
-  // The previous in place restart attempt of the JobSet.
+  // The previous in-place restart attempt of the JobSet.
   //
-  // Healthy Pods that have an in place restart attempt smaller than or equal to this value should be restarted in place.
+  // Healthy Pods that have an in-place restart attempt smaller than or equal to this value should be restarted in-place.
   //
   // This is written by the JobSet controller and read by the agent sidecars.
   //
@@ -492,9 +492,9 @@ type JobSetStatus struct {
   // +kubebuilder:default=0
   PreviousInPlaceRestartAttempt *int32 `json:"previousInPlaceRestartAttempt,omitempty"`
 
-  // The current in place restart attempt of the JobSet.
+  // The current in-place restart attempt of the JobSet.
   //
-  // Pods that have an in place restart attempt equal to this value should lift their barrier to allow the worker containers to start running.
+  // Pods that have an in-place restart attempt equal to this value should lift their barrier to allow the worker containers to start running.
   //
   // This is written by the JobSet controller and read by the agent sidecars.
   //
@@ -512,34 +512,34 @@ const (
   
   // Meant to be used as a Pod annotation for worker Pods.
   //
-  // Its value is the in place restart attempt of the worker Pod and should be treated as int32.
+  // Its value is the in-place restart attempt of the worker Pod and should be treated as int32.
   //
   // This is written by the agent sidecar and read by the JobSet controller.
   //
-  // If the in place restart attempt of any worker Pod exceeds jobSet.spec.failurePolicy.maxRestarts, fail the JobSet.
+  // If the in-place restart attempt of any worker Pod exceeds jobSet.spec.failurePolicy.maxRestarts, fail the JobSet.
   //
-  // If the in place restart attempt of the worker Pod is smaller than or equal to `previousInPlaceRestartAttempt`, restart the Pod in place.
+  // If the in-place restart attempt of the worker Pod is smaller than or equal to `previousInPlaceRestartAttempt`, restart the Pod in-place.
   //
-  // If the in place restart attempt of the worker Pod is equal to `currentInPlaceRestartAttempt`, lift the Pod barrier to allow the worker container to start running.
+  // If the in-place restart attempt of the worker Pod is equal to `currentInPlaceRestartAttempt`, lift the Pod barrier to allow the worker container to start running.
   InPlaceRestartAttemptKey string = "jobset.sigs.k8s.io/in-place-restart-attempt"
 )
 ```
 
 ### Implementation - Documentation
 
-In place restart is a complex feature with a complex set up. Therefore, we propose to add documentation to the JobSet website to explain the feature, its requirements and set up.
+In-place restart is a complex feature with a complex set up. Therefore, we propose to add documentation to the JobSet website to explain the feature, its requirements and set up.
 
 ### Implementation - Webhook validation
 
-When in place restart is enabled (i.e., the field `jobSet.spec.failurePolicy.restartStrategy` is set to `InPlaceRestart`), the following should be validated by the JobSet webhook:
+When in-place restart is enabled (i.e., the field `jobSet.spec.failurePolicy.restartStrategy` is set to `InPlaceRestart`), the following should be validated by the JobSet webhook:
 
-* `jobSet.spec.replicatedJobs[].template.spec.backOffLimit` should be set to `MaxInt32` (i.e., `2147483647`) to avoid unnecessarily failing Jobs if a child Pod fails individually or a Pod is restarted in place  
+* `jobSet.spec.replicatedJobs[].template.spec.backOffLimit` should be set to `MaxInt32` (i.e., `2147483647`) to avoid unnecessarily failing Jobs if a child Pod fails individually or a Pod is restarted in-place  
 * `jobSet.spec.replicatedJobs[].template.spec.podReplacementPolicy` should be set to `Failed` to make sure the replacement Pod is created only after the original Pod has fully failed  
-* `jobSet.spec.replicatedJobs[].template.spec.template.spec.initContainers` should contain the agent sidecar to handle in place restart operations at the worker Pod level for the JobSet controller. This is partially verified by checking for the existence of a sidecar that contains the `RestartPod` rule
+* `jobSet.spec.replicatedJobs[].template.spec.template.spec.initContainers` should contain the agent sidecar to handle in-place restart operations at the worker Pod level for the JobSet controller. This is partially verified by checking for the existence of a sidecar that contains the `RestartPod` rule
 
 ### Implementation - Agent sidecar
 
-The only way to trigger the `RestartPod` action on demand is by making one container exit with a specified exit code. Therefore, we propose to add a new container image that will be buildable from new code in the JobSet repo. The container should be added by the user to the JobSet manifest as the “agent sidecar”. The agent sidecar is responsible for handling in place restart operations at the worker Pod level for the JobSet controller.
+The only way to trigger the `RestartPod` action on demand is by making one container exit with a specified exit code. Therefore, we propose to add a new container image that will be buildable from new code in the JobSet repo. The container should be added by the user to the JobSet manifest as the “agent sidecar”. The agent sidecar is responsible for handling in-place restart operations at the worker Pod level for the JobSet controller.
 
 The high level structure of the agent sidecar is the following.
 
@@ -556,12 +556,12 @@ for event in watchJobSet(env.namespace, env.jobSetName):
   previousInPlaceRestartAttempt = event.jobSet.status.previousInPlaceRestartAttempt
   currentInPlaceRestartAttempt = event.jobSet.status.currentInPlaceRestartAttempt
 
-  # Check if Pod must be restarted in place because its in place restart attempt is outdated
+  # Check if Pod must be restarted in-place because its in-place restart attempt is outdated
   # If so, exit specified exit code to trigger RestartPod action
   if inPlaceRestartAttempt <= previousInPlaceRestartAttempt:
     exit(env.restartInPlaceExitCode)
 
-  # Check if Pod barrier must be lifted because its in place restart attempt has been marked as current
+  # Check if Pod barrier must be lifted because its in-place restart attempt has been marked as current
   # If so, create endpoint "/barrier-is-lifted" to succeed startup probe 
   if inPlaceRestartAttempt == currentInPlaceRestartAttempt:
     createEndpoint("/barrier-is-lifted") # Idempotent
@@ -569,9 +569,9 @@ for event in watchJobSet(env.namespace, env.jobSetName):
 
 The highlights are:
 
-- Calculate the Pod in place restart attempt at start up as `jobSet.status.currentInPlaceRestartAttempt + 1`. This makes sure the worker container will start running only when the JobSet controller updates `jobSet.status.currentInPlaceRestartAttempt`. This is done only when all worker Pods are at the same in place restart attempt
-- Restart the Pod in place if its in place restart attempt is outdated by checking `inPlaceRestartAttempt <= jobSet.status.previousInPlaceRestartAttempt`. This is done only when a group restart is necessary
-- Lift the Pod barrier if its in place restart attempt has been marked as current by checking `inPlaceRestartAttempt == currentInPlaceRestartAttempt`. This is done only when all worker Pods are at the same in place restart attempt
+- Calculate the Pod in-place restart attempt at start up as `jobSet.status.currentInPlaceRestartAttempt + 1`. This makes sure the worker container will start running only when the JobSet controller updates `jobSet.status.currentInPlaceRestartAttempt`. This is done only when all worker Pods are at the same in-place restart attempt
+- Restart the Pod in-place if its in-place restart attempt is outdated by checking `inPlaceRestartAttempt <= jobSet.status.previousInPlaceRestartAttempt`. This is done only when a group restart is necessary
+- Lift the Pod barrier if its in-place restart attempt has been marked as current by checking `inPlaceRestartAttempt == currentInPlaceRestartAttempt`. This is done only when all worker Pods are at the same in-place restart attempt
 
 When `RestartPod` is used, the barrier lift can be done by setting up a startup probe for the agent sidecar and making sure the agent sidecar creates the specified endpoint when the barrier must be lifted. If `restartPolicy = OnFailure` is used instead, the barrier lift can be done starting the worker process command when the barrier must be lifted.
 
@@ -579,7 +579,7 @@ The image of the agent sidecar will be buildable from code in the JobSet repo (e
 
 ### Implementation - Permissions for the agent sidecar
 
-The agent sidecar requires permissions to watch its parent JobSet. It also requires permissions to update its Pod in place restart attempt, which can be integrated with a validating admission policy to make sure only the in place restart attempt annotation can be modified. The following manifest shows an example of how a service account can be set up for the worker Pod. It will be part of the documentation of in place restart since it's up to the user to integrate these extra permissions to any existing service account.
+The agent sidecar requires permissions to watch its parent JobSet. It also requires permissions to update its Pod in-place restart attempt, which can be integrated with a validating admission policy to make sure only the in-place restart attempt annotation can be modified. The following manifest shows an example of how a service account can be set up for the worker Pod. It will be part of the documentation of in-place restart since it's up to the user to integrate these extra permissions to any existing service account.
 
 ```yaml
 # Service account
@@ -673,7 +673,7 @@ spec:
 
 ### Implementation - JobSet controller
 
-The changes to the JobSet controller are responsible for orchestrating the group restarts of JobSet workloads when using in place restart. This boils down to updating the `jobSet.status.previousInPlaceRestartAttempt` and `jobSet.status.currentInPlaceRestartAttempt` fields based on the in place restart attempts of the worker Pods. 
+The changes to the JobSet controller are responsible for orchestrating the group restarts of JobSet workloads when using in-place restart. This boils down to updating the `jobSet.status.previousInPlaceRestartAttempt` and `jobSet.status.currentInPlaceRestartAttempt` fields based on the in-place restart attempts of the worker Pods. 
 
 The high level structure of the changes to the JobSet reconciliation are the following.
 
@@ -687,17 +687,17 @@ def reconcile(jobSet):
   if isInPlaceRestartEnabled(jobSet):
     reconcileInPlaceRestartAttempts(jobSet)
 
-# Check if in place restart is enabled
+# Check if in-place restart is enabled
 def isInPlaceRestartEnabled(jobSet):
   return jobSet.spec.failurePolicy.restartStrategy == "InPlaceRestart"
 
-# Reconcile only in place restart fields
+# Reconcile only in-place restart fields
 def reconcileInPlaceRestartAttempts(jobSet):
   childPods = listChildPods(jobSet.metadata.namespace, jobSet.metadata.name)
   inPlaceRestartAttempts = extractInPlaceRestartAttempts(childPods)
   expectedInPlaceRestartAttemptLength = countExpectedChildPods(jobSet)
 
-  # Check if all worker Pods are at the same in place restart attempt
+  # Check if all worker Pods are at the same in-place restart attempt
   # If so, make sure currentInPlaceRestartAttempt is equal to this common value
   # (represented here by `inPlaceRestartAttempts[0]`)
   # This makes sure the Pod barriers are lifted
@@ -706,7 +706,7 @@ def reconcileInPlaceRestartAttempts(jobSet):
 
   # Otherwise, it means that the worker Pods are not in sync
   # If so, make sure previousInPlaceRestartAttempt is equal to max(inPlaceRestartAttempts) - 1
-  # This makes sure all Pods that are not at the last in place restart attempt will be restarted in place
+  # This makes sure all Pods that are not at the last in-place restart attempt will be restarted in-place
   else:
     jobSet.status.previousInPlaceRestartAttempt = max(inPlaceRestartAttempts) - 1 # Idempotent
 
@@ -732,16 +732,16 @@ def countExpectedChildPods(jobSet):
 
 The highlights are:
 
-* Only run in place restart logic for JobSet objects that have in place restart enabled (i.e., the field `jobSet.spec.failurePolicy.restartStrategy` is set to `InPlaceRestart`)  
-* If all child Pods exist and have the same in place restart attempt, it means they are in sync and should have their barriers lifted, so set `jobSet.status.currentInPlaceRestartAttempt = inPlaceRestartAttempts[0]` (equivalent to `jobSet.status.currentInPlaceRestartAttempt += 1`). The agent sidecars will get this new current in place restart attempt value and lift their barriers  
-* If the Pods are still not in sync (there is a mismatch in their in place restart attempts), make sure to outdate all in place restart attempts that are not the newest with `jobSet.status.previousInPlaceRestartAttempt = max(inPlaceRestartAttempts) - 1` (equivalent to `previousInPlaceRestartAttempt = currentInPlaceRestartAttempt`). This makes sure all agent sidecars that are not at the newest in place restart attempt will restart in place to reach the new in place restart attempt
+* Only run in-place restart logic for JobSet objects that have in-place restart enabled (i.e., the field `jobSet.spec.failurePolicy.restartStrategy` is set to `InPlaceRestart`)  
+* If all child Pods exist and have the same in-place restart attempt, it means they are in sync and should have their barriers lifted, so set `jobSet.status.currentInPlaceRestartAttempt = inPlaceRestartAttempts[0]` (equivalent to `jobSet.status.currentInPlaceRestartAttempt += 1`). The agent sidecars will get this new current in-place restart attempt value and lift their barriers  
+* If the Pods are still not in sync (there is a mismatch in their in-place restart attempts), make sure to outdate all in-place restart attempts that are not the newest with `jobSet.status.previousInPlaceRestartAttempt = max(inPlaceRestartAttempts) - 1` (equivalent to `previousInPlaceRestartAttempt = currentInPlaceRestartAttempt`). This makes sure all agent sidecars that are not at the newest in-place restart attempt will restart in-place to reach the new in-place restart attempt
 
 Besides the mentioned changes to the reconciliation loop, we also require to:
 
 * Set up a feature flag
 * Change the JobSet controller to watch child Pods for reconciliation  
 * Change the JobSet controller to index child Pods for efficient listing  
-* If the worker in place restart attempts ever exceed `jobset.spec.failurePolicy.maxRestarts`, fail the JobSet
+* If the worker in-place restart attempts ever exceed `jobset.spec.failurePolicy.maxRestarts`, fail the JobSet
 
 ### Test Plan
 
@@ -788,7 +788,7 @@ extending the production code to implement this enhancement.
 
 - `controllers`: `11/03/2025` - `55.6%`
 
-Unit tests will be added to both the JobSet controller and the new agent image. For the JobSet controller, the objective is to test the core logic of how the JobSet controller should react given the child Pod in place restart attempts. For the agent, the objective is to test the core logic of how the agent should react given the parent JobSet status.
+Unit tests will be added to both the JobSet controller and the new agent image. For the JobSet controller, the objective is to test the core logic of how the JobSet controller should react given the child Pod in-place restart attempts. For the agent, the objective is to test the core logic of how the agent should react given the parent JobSet status.
 
 #### Integration tests
 
@@ -802,12 +802,12 @@ Make sure the following cases are covered:
 
 - All Pods in sync: JobSet controller should not update the JobSet status
 - All Pods just became in sync: JobSet controller should update `currentInPlaceRestartAttempt`
-- All Pods were in sync but one restarted into a new in place restart attempt: JobSet controller should update `previousInPlaceRestartAttempt`
-- Pods just lost sync and a second Pod restarted into the new in place restart attempt but not all yet: JobSet controller should not update the JobSet status
+- All Pods were in sync but one restarted into a new in-place restart attempt: JobSet controller should update `previousInPlaceRestartAttempt`
+- Pods just lost sync and a second Pod restarted into the new in-place restart attempt but not all yet: JobSet controller should not update the JobSet status
 
 #### e2e tests
 
-The e2e test should make sure a group restart succeeds when in place restart is enabled. The test should work as following:
+The e2e test should make sure a group restart succeeds when in-place restart is enabled. The test should work as following:
 
 - Create a JobSet that has 2 worker Pods. Each worker Pod should have the agent sidecar and a worker container. The worker container should exit non-zero on demand. This could be done by checking for the existence of a file, k8s resource or an HTTP request
 - Once all worker processes are running, force one of them to exit non zero
@@ -833,11 +833,11 @@ milestones with these graduation criteria:
 
 #### Alpha
 
-- Add the agent code and image to the JobSet repo to support Pods being restarted in place on demand
-- Change the JobSet controller to orchestrate in place restarts. Implemented behing a feature flag
-- Add extra validation to the JobSet webhook to validate JobSet manifests that have in place restart enabled
-- Add tests for in place restart
-- Add documentation for in place restart
+- Add the agent code and image to the JobSet repo to support Pods being restarted in-place on demand
+- Change the JobSet controller to orchestrate in-place restarts. Implemented behing a feature flag
+- Add extra validation to the JobSet webhook to validate JobSet manifests that have in-place restart enabled
+- Add tests for in-place restart
+- Add documentation for in-place restart
 
 #### Beta
 
@@ -879,13 +879,13 @@ not need to be as detailed as the proposal, but should include enough
 information to express the idea and why it was not acceptable.
 -->
 
-### Use the JobSet controller to directly restart the Pods in place instead of using the agent sidecar
+### Use the JobSet controller to directly restart the Pods in-place instead of using the agent sidecar
 
 Currently, there is no way to do that. The `RestartPod` action can only be triggered by a container exiting with a specified exit code. Alternatively, a new ideal upstream API could be created but the `RestartPod` action is the path of least resistance.
 
 ### Use gRPC instead of the API server to establish communication between the JobSet controller and the agent sidecars
 
-Using the API server with a declarative Pod annotation for the in place restart attempt is a better practice from the [Kubernetes API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status).
+Using the API server with a declarative Pod annotation for the in-place restart attempt is a better practice from the [Kubernetes API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status).
 
 ### Use the annotation `jobset.sigs.k8s.io/restart-attempt` instead of `jobset.sigs.k8s.io/in-place-restart-attempt`
 
@@ -907,12 +907,12 @@ The addition of agent sidecar makes the JobSet spec long and complex. It could b
 
 ### Recreate only failed Jobs
 
-When the JobSet failure policy is updated to support the recreation of only failed Jobs, in place restart should be updated to support it.
+When the JobSet failure policy is updated to support the recreation of only failed Jobs, in-place restart should be updated to support it.
 
 ### Speed up failure detection
 
-In the proposed design, the JobSet controller can only detect that a failure occurred when the agent sidecar of the failed worker is started again and updates the in place restart attempt annotation. A best effort optimization can be done by triggering a group restart when any worker container of the current in place restart attempt terminates. This optimization saves the time between the worker container failing and its agent sidecar starting again.
+In the proposed design, the JobSet controller can only detect that a failure occurred when the agent sidecar of the failed worker is started again and updates the in-place restart attempt annotation. A best effort optimization can be done by triggering a group restart when any worker container of the current in-place restart attempt terminates. This optimization saves the time between the worker container failing and its agent sidecar starting again.
 
 ### Restart only specified containers to skip the overhead of recreating all watches
 
-The proposed [RestartPod action](https://docs.google.com/document/d/1UmJHJzdmMA1hWwkoP1f3rG9nS0oZ2cRcOx8rO8MsExA/edit?usp=sharing&resourcekey=0-OuKspBji_1KJlj2JbnZkgQ) can only support restarting all containers, but a future expansion to the `restartPolicyRules` API can be made to allow only a few specified containers to be restarted. This allows for the agent sidecar to avoid being terminated in an on demand in place restart, which skips the overhead of recreating all watches.
+The proposed [RestartPod action](https://docs.google.com/document/d/1UmJHJzdmMA1hWwkoP1f3rG9nS0oZ2cRcOx8rO8MsExA/edit?usp=sharing&resourcekey=0-OuKspBji_1KJlj2JbnZkgQ) can only support restarting all containers, but a future expansion to the `restartPolicyRules` API can be made to allow only a few specified containers to be restarted. This allows for the agent sidecar to avoid being terminated in an on demand in-place restart, which skips the overhead of recreating all watches.
