@@ -586,14 +586,14 @@ The agent sidecar requires permissions to watch its parent JobSet. It also requi
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: in-place-restart-sa
+  name: jobset-in-place-restart
   namespace: default
 ---
 # Role
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: in-place-restart-role
+  name: jobset-in-place-restart
   namespace: default
 rules:
 # Pod patcher
@@ -608,15 +608,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: bind-in-place-restart-sa-to-in-place-restart-role
+  name: jobset-in-place-restart
   namespace: default
 subjects:
 - kind: ServiceAccount
-  name: in-place-restart-sa
+  name: jobset-in-place-restart
   namespace: default
 roleRef:
   kind: Role
-  name: in-place-restart-role
+  name: jobset-in-place-restart
   apiGroup: rbac.authorization.k8s.io
 ---
 # Validation admission policy
@@ -624,7 +624,7 @@ roleRef:
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
-  name: update-only-in-place-restart-attempt-pod-annotation
+  name: jobset-in-place-restart
 spec:
   failurePolicy: Fail
   matchConstraints:
@@ -633,23 +633,24 @@ spec:
       apiVersions: ["v1"]
       operations:  ["UPDATE"]
       resources:   ["pods"]
-  - name: "is-target-service-account"
-    expression: "request.userInfo.username == 'system:serviceaccount:default:in-place-restart-sa'"
-    # Alternatively, you can use "request.userInfo.username.matches('^system:serviceaccount:[^:]+:in-place-restart-sa$')" if you want the VAP to work for all service accounts named "in-place-restart-sa" in all namespaces
+  matchConditions:
+  - name: is-target-service-account
+    expression: "request.userInfo.username == 'system:serviceaccount:default:jobset-in-place-restart'"
+    # Alternatively, you can use "request.userInfo.username.matches('^system:serviceaccount:[^:]+:jobset-in-place-restart$')" if you want the VAP to work for all service accounts named "jobset-in-place-restart" in all namespaces
   validations:
   - expression: >
       oldObject.spec == object.spec &&
       oldObject.metadata.labels == object.metadata.labels &&
       oldObject.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/in-place-restart-attempt' || (key in object.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key])) &&
       object.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/in-place-restart-attempt' || (key in oldObject.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key]))
-    message: "ServiceAccount 'in-place-restart-sa' can only update the Pod annotation 'jobset.sigs.k8s.io/in-place-restart-attempt'."
+    message: "ServiceAccount 'jobset-in-place-restart' can only update the Pod annotation 'jobset.sigs.k8s.io/in-place-restart-attempt'."
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
 metadata:
-  name: update-only-in-place-restart-attempt-pod-annotation-binding
+  name: jobset-in-place-restart
 spec:
-  policyName: update-only-in-place-restart-attempt-pod-annotation
+  policyName: jobset-in-place-restart
   validationActions: [Deny]
 ```
 
