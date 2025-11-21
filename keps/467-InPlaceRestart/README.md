@@ -589,13 +589,18 @@ metadata:
   name: in-place-restart-sa
   namespace: default
 ---
-# JobSet watcher role
+# Role
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: jobset-watcher
+  name: in-place-restart-role
   namespace: default
 rules:
+# Pod patcher
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["patch"]
+# JobSet watcher
 - apiGroups: ["jobset.x-k8s.io"]
   resources: ["jobsets"]
   verbs: ["get", "list", "watch"]
@@ -603,7 +608,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: bind-in-place-restart-sa-to-jobset-watcher
+  name: bind-in-place-restart-sa-to-in-place-restart-role
   namespace: default
 subjects:
 - kind: ServiceAccount
@@ -611,34 +616,10 @@ subjects:
   namespace: default
 roleRef:
   kind: Role
-  name: jobset-watcher
+  name: in-place-restart-role
   apiGroup: rbac.authorization.k8s.io
 ---
-# Pod patcher role
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: pod-patcher-role
-  namespace: default
-rules:
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["patch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: bind-in-place-restart-sa-to-pod-patcher-role
-  namespace: default
-subjects:
-- kind: ServiceAccount
-  name: in-place-restart-sa
-  namespace: default
-roleRef:
-  kind: Role
-  name: pod-patcher-role
-  apiGroup: rbac.authorization.k8s.io
----
+# Validation admission policy
 # Allow only the pod annotation "jobset.sigs.k8s.io/in-place-restart-attempt" to be updated
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
