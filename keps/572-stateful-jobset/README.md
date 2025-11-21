@@ -1,17 +1,14 @@
 # KEP-572: VolumeClaimPolicies API for Stateful JobSet
 
 <!-- toc -->
-
 - [Summary](#summary)
 - [Motivation](#motivation)
   - [Goals](#goals)
   - [Non-Goals](#non-goals)
 - [Proposal](#proposal)
   - [User Stories](#user-stories)
-    - [Story 1: Distributed ML Training with Per-Worker Checkpoints](#story-1-distributed-ml-training-with-per-worker-checkpoints)
-    - [Story 2: Shared model and dataset across nodes.](#story-2-shared-model-and-dataset-across-nodes)
-    - [Story 3: Hybrid Storage Pattern for Complex Pipelines](#story-3-hybrid-storage-pattern-for-complex-pipelines)
-    - [Story 4: HPC Workloads with Node-Local Storage](#story-4-hpc-workloads-with-node-local-storage)
+    - [Story 1: Shared model and dataset across nodes.](#story-1-shared-model-and-dataset-across-nodes)
+    - [Story 2: HPC Workloads with Node-Local Storage](#story-2-hpc-workloads-with-node-local-storage)
   - [Risks and Mitigations](#risks-and-mitigations)
     - [Storage Resource Exhaustion](#storage-resource-exhaustion)
     - [PVC Naming Conflicts](#pvc-naming-conflicts)
@@ -21,8 +18,7 @@
   - [Implementation](#implementation)
     - [1. Controller Enhancement](#1-controller-enhancement)
     - [2. PVC Creation Logic](#2-pvc-creation-logic)
-    - [3. Job Template Enhancement](#3-job-template-enhancement)
-    - [4. Naming Conventions](#4-naming-conventions)
+    - [3. Naming Conventions](#3-naming-conventions)
     - [5. Retention Policy Enforcement](#5-retention-policy-enforcement)
   - [Defaulting/Validation](#defaultingvalidation)
   - [Test Plan](#test-plan)
@@ -38,7 +34,7 @@
   - [Alternative 1: Job-level VolumeClaimTemplates](#alternative-1-job-level-volumeclaimtemplates)
   - [Alternative 2: External Volume Management](#alternative-2-external-volume-management)
   - [Alternative 3: Pre-created PVC References](#alternative-3-pre-created-pvc-references)
-  <!-- /toc -->
+<!-- /toc -->
 
 ## Summary
 
