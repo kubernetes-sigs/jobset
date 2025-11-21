@@ -633,15 +633,15 @@ spec:
       apiVersions: ["v1"]
       operations:  ["UPDATE"]
       resources:   ["pods"]
+  - name: "is-target-service-account"
+    expression: "request.userInfo.username == 'system:serviceaccount:default:in-place-restart-sa'"
+    # Alternatively, you can use "request.userInfo.username.matches('^system:serviceaccount:[^:]+:in-place-restart-sa$')" if you want the VAP to work for all service accounts named "in-place-restart-sa" in all namespaces
   validations:
   - expression: >
-      request.userInfo.username != 'system:serviceaccount:default:in-place-restart-sa' ||
-      (
-        oldObject.spec == object.spec &&
-        oldObject.metadata.labels == object.metadata.labels &&
-        oldObject.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/in-place-restart-attempt' || (key in object.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key])) &&
-        object.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/in-place-restart-attempt' || (key in oldObject.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key]))
-      )
+      oldObject.spec == object.spec &&
+      oldObject.metadata.labels == object.metadata.labels &&
+      oldObject.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/in-place-restart-attempt' || (key in object.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key])) &&
+      object.metadata.annotations.all(key, key == 'jobset.sigs.k8s.io/in-place-restart-attempt' || (key in oldObject.metadata.annotations && oldObject.metadata.annotations[key] == object.metadata.annotations[key]))
     message: "ServiceAccount 'in-place-restart-sa' can only update the Pod annotation 'jobset.sigs.k8s.io/in-place-restart-attempt'."
 ---
 apiVersion: admissionregistration.k8s.io/v1
