@@ -587,6 +587,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: in-place-restart-sa
+  namespace: default
 ---
 # JobSet watcher role
 apiVersion: rbac.authorization.k8s.io/v1
