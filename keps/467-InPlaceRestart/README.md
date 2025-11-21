@@ -579,7 +579,7 @@ The image of the agent sidecar will be buildable from code in the JobSet repo (e
 
 ### Implementation - Permissions for the agent sidecar
 
-The agent sidecar requires permissions to watch its parent JobSet. It also requires permissions to update its Pod in-place restart attempt, which can be integrated with a validating admission policy to make sure only the in-place restart attempt annotation can be modified. The following manifest shows an example of how a service account can be set up for the worker Pod. It will be part of the documentation of in-place restart since it's up to the user to integrate these extra permissions to any existing service account.
+The agent sidecar requires permissions to watch its parent JobSet. It also requires permissions to update its Pod in-place restart attempt, which can be integrated with a validating admission policy to make sure only the in-place restart attempt annotation can be modified. The following manifest shows an example of how a service account can be set up for the worker Pod. It will be part of the documentation of in-place restart since it's up to the user to integrate these extra permissions to any existing service account. A helm chart will also be created to make it easier to add the extra permissions.
 
 ```yaml
 # Service account
@@ -827,6 +827,7 @@ milestones with these graduation criteria:
 - Address reviews and bug reports from alpha users
 - Add a way to automatically build and release the agent sidecar image
 - Add a way to add the agent sidecar automatically
+- Add a helm chart for installing the extra permissions required by the agent sidecar
 
 #### GA
 
