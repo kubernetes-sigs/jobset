@@ -18,12 +18,15 @@ package webhooks
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -37,6 +40,7 @@ func TestDefault(t *testing.T) {
 		pod          *corev1.Pod
 		existingObjs []runtime.Object
 		wantPod      *corev1.Pod
+		wantErr      error
 	}{
 		{
 			name: "not a jobset pod",
@@ -350,6 +354,56 @@ func TestDefault(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "follower pod, leader scheduled on missing node",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-1-follower",
+					Namespace: "default",
+					Labels: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+					},
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":              "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+						"batch.kubernetes.io/job-completion-index":    "1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+				Spec: corev1.PodSpec{
+					Priority: ptr.To(int32(100)),
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.Pod{ // Leader pod, scheduled on missing node
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "js-rjob-0-0-leader",
+						Namespace: "default",
+						Labels: map[string]string{
+							"jobset.sigs.k8s.io/jobset-name":        "js",
+							"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+							"jobset.sigs.k8s.io/job-index":          "0",
+						},
+						Annotations: map[string]string{
+							"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+							"batch.kubernetes.io/job-completion-index":    "0",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+						},
+					},
+					Spec: corev1.PodSpec{
+						NodeName: "node-a",
+					},
+				},
+			},
+			wantPod: nil,
+			wantErr: apierrors.NewNotFound(schema.GroupResource{Group: "", Resource: "nodes"}, "node-a"),
+		},
 	}
 
 	scheme := runtime.NewScheme()
@@ -367,9 +421,18 @@ func TestDefault(t *testing.T) {
 
 			p := &podWebhook{client: fakeClient}
 			podCopy := tc.pod.DeepCopy()
-			_ = p.Default(context.Background(), podCopy)
+			err := p.Default(context.Background(), podCopy)
 
-			if diff := cmp.Diff(tc.wantPod, podCopy); diff != "" {
+			if diff := cmp.Diff(tc.wantErr, err); diff != "" {
+				fmt.Printf("%+v", err)
+				t.Errorf("error mismatch (-want +got):\n%s", diff)
+			}
+
+			if tc.wantPod == nil {
+				return
+			}
+
+			if diff := cmp.Diff(tc.wantPod, podCopy); tc.wantPod != nil && diff != "" {
 				t.Errorf("pod mismatch (-want +got):\n%s", diff)
 			}
 		})
