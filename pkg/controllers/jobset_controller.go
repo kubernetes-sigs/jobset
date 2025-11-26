@@ -403,7 +403,6 @@ func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, a
 			// Update the fresh copy
 			latestJob.Spec.Suspend = ptr.To(true)
 			if err := r.Update(ctx, &latestJob); err != nil {
-				// Conflict errors will trigger reconcile requeue via line 128-129
 				return err
 			}
 		}
