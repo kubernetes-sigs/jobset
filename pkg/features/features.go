@@ -29,9 +29,9 @@ import (
 const (
 	// owner: @giuseppett
 	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/467-InPlaceRestart/README.md
-	// 
-	// Enables in place restart allowing JobSet workloads to restart much faster by restarting 
-	// healthy  Pods in place and skipping the pod deletion+schedule+creation process.
+	//
+	// Enables in-place restart, allowing JobSet workloads to restart much faster by restarting
+	// healthy Pods in-place to skip the Pod deletion+schedule+creation process.
 	InPlaceRestart featuregate.Feature = "InPlaceRestart"
 )
 
