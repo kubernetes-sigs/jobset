@@ -98,11 +98,6 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	if err := utilfeature.DefaultMutableFeatureGate.Set(featureGates); err != nil {
-		setupLog.Error(err, "Unable to set flag gates for known features")
-		os.Exit(1)
-	}
-
 	metrics.Register()
 
 	var options manager.Options
@@ -118,6 +113,19 @@ func main() {
 		setupLog.Error(err, "Unable to load the configuration")
 		os.Exit(1)
 	}
+
+	if featureGates != "" {
+		if err := utilfeature.DefaultMutableFeatureGate.Set(featureGates); err != nil {
+			setupLog.Error(err, "Unable to set flag gates for known features")
+			os.Exit(1)
+		}
+	} else {
+		if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(cfg.FeatureGates); err != nil {
+			setupLog.Error(err, "Unable to set flag gates for known features")
+			os.Exit(1)
+		}
+	}
+
 	kubeConfig.QPS = *cfg.ClientConnection.QPS
 	kubeConfig.Burst = int(*cfg.ClientConnection.Burst)
 
