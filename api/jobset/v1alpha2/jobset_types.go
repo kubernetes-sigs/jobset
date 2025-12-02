@@ -74,6 +74,18 @@ const (
 	// If a ReplicatedJob is part of a group, then its child jobs and pods have this
 	// label/annotation ranging from 0 to annotations[GroupReplicasKey] - 1
 	JobGroupIndexKey string = "jobset.sigs.k8s.io/job-group-index"
+
+	// InPlaceRestartAttemptKey is an annotation set to the in-place restart
+	// attempt of the Pod. It is written by the agent sidecar and should be
+	// treated as *int32 (null if missing) and the minimum value is 0. If the
+	// in-place restart attempt of any Pod exceeds jobSet.spec.failurePolicy.maxRestarts,
+	// the JobSet controller should fail the JobSet. If the in-place restart
+	// attempt of the Pod is smaller than or equal to jobSet.status.previousInPlaceRestartAttempt,
+	// the agent sidecar should restart its Pod in-place. If the in-place restart
+	// attempt of the Pod is equal to jobSet.status.currentInPlaceRestartAttempt,
+	// the agent sidecar should lift its Pod barrier to allow the worker
+	// container to start running.
+	InPlaceRestartAttemptKey string = "jobset.sigs.k8s.io/in-place-restart-attempt"
 )
 
 type JobSetConditionType string
@@ -177,16 +189,33 @@ type JobSetStatus struct {
 	// +optional
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 
-	// terminalState the state of the JobSet when it finishes execution.
+	// terminalState tracks the state of the JobSet when it finishes execution.
 	// It can be either Completed or Failed. Otherwise, it is empty by default.
 	// +optional
 	TerminalState string `json:"terminalState,omitempty"`
 
-	// replicatedJobsStatus track the number of JobsReady for each replicatedJob.
+	// replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.
 	// +optional
 	// +listType=map
 	// +listMapKey=name
 	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
+
+  // previousInPlaceRestartAttempt tracks the previous in-place restart attempt
+	// of the JobSet. It is read by the agent sidecar. If the in-place restart
+	// attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt,
+	// the agent sidecar should restart its Pod in-place.
+  // +optional
+	// +kubebuilder:validation:Minimum=0
+  PreviousInPlaceRestartAttempt *int32 `json:"previousInPlaceRestartAttempt,omitempty"`
+
+  // currentInPlaceRestartAttempt tracks the current in-place restart attempt
+	// of the JobSet. It is read by the agent sidecar. If the in-place restart
+	// attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent
+	// sidecar should lift its Pod barrier to allow the worker container to
+	// start running.
+  // +optional
+	// +kubebuilder:validation:Minimum=0
+  CurrentInPlaceRestartAttempt *int32 `json:"currentInPlaceRestartAttempt,omitempty"`
 }
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
@@ -399,16 +428,23 @@ type FailurePolicy struct {
 	Rules []FailurePolicyRule `json:"rules,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=Recreate;BlockingRecreate
+// +kubebuilder:validation:Enum=Recreate;BlockingRecreate;InPlaceRestart
 type JobSetRestartStrategy string
 
 const (
-	// Recreate Jobs on a Job-by-Job basis.
-	Recreate JobSetRestartStrategy = "Recreate"
+  // Restart the JobSet by recreating all Jobs. Each Job is recreated as soon
+	// as its previous iteration (and its Pods) is deleted.
+  Recreate JobSetRestartStrategy = "Recreate"
 
-	// BlockingRecreate ensures that all Jobs (and Pods) from a previous iteration are deleted before
-	// creating new Jobs.
-	BlockingRecreate JobSetRestartStrategy = "BlockingRecreate"
+  // Restart the JobSet by recreating all Jobs. Ensures that all Jobs (and 
+	// their Pods) from the previous iteration are deleted before creating new 
+	// Jobs.
+  BlockingRecreate JobSetRestartStrategy = "BlockingRecreate"
+
+  // When no Job has failed, restart the JobSet by restarting healthy Pods 
+	// in-place and recreating failed Pods. When a Job has failed, fall back to 
+	// action "Recreate" and execute the matching failure policy rule.
+  InPlaceRestart JobSetRestartStrategy = "InPlaceRestart"
 )
 
 type SuccessPolicy struct {
