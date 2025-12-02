@@ -35,6 +35,10 @@ type Configuration struct {
 	InternalCertManagement *InternalCertManagement `json:"internalCertManagement,omitempty"`
 
 	ClientConnection *ClientConnection `json:"clientConnection,omitempty"`
+
+	// FeatureGates is a map of feature names to bools that allows to override the
+	// default enablement status of a feature.
+	FeatureGates map[string]bool `json:"featureGates,omitempty"`
 }
 
 type ControllerManager struct {
