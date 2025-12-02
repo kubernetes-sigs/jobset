@@ -71,7 +71,6 @@ func main() {
 	var probeAddr string
 	var qps float64
 	var burst int
-	var featureGates string
 	var configFile string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8443", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -80,7 +79,6 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Float64Var(&qps, "kube-api-qps", 500, "Maximum QPS to use while talking with Kubernetes API")
 	flag.IntVar(&burst, "kube-api-burst", 500, "Maximum burst for throttle while talking with Kubernetes API")
-	flag.StringVar(&featureGates, "feature-gates", "", "A set of key=value pairs that describe feature gates for alpha/experimental features.")
 	flag.StringVar(&configFile, "config", "",
 		"The controller will load its initial configuration from this file. "+
 			"Command-line flags will override any configurations set in this file. "+
@@ -114,16 +112,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	if featureGates != "" {
-		if err := utilfeature.DefaultMutableFeatureGate.Set(featureGates); err != nil {
-			setupLog.Error(err, "Unable to set flag gates for known features")
-			os.Exit(1)
-		}
-	} else {
-		if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(cfg.FeatureGates); err != nil {
-			setupLog.Error(err, "Unable to set flag gates for known features")
-			os.Exit(1)
-		}
+	if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(cfg.FeatureGates); err != nil {
+		setupLog.Error(err, "Unable to set flag gates for known features")
+		os.Exit(1)
 	}
 
 	kubeConfig.QPS = *cfg.ClientConnection.QPS

@@ -37,9 +37,7 @@ type Configuration struct {
 	ClientConnection *ClientConnection `json:"clientConnection,omitempty"`
 
 	// FeatureGates is a map of feature names to bools that allows to override the
-	// default enablement status of a feature. The map cannot be used in conjunction
-	// with passing the list of features via the command line argument "--feature-gates"
-	// for the Jobset Deployment.
+	// default enablement status of a feature.
 	FeatureGates map[string]bool `json:"featureGates,omitempty"`
 }
 
