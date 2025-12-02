@@ -37,6 +37,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
@@ -162,6 +163,20 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	}
 
 	var allErrs []error
+
+	// Validate InPlaceRestart feature gate.
+	if !features.Enabled(features.InPlaceRestart) {
+		if js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
+			allErrs = append(allErrs, fmt.Errorf("InPlaceRestart restart strategy is not supported when InPlaceRestart feature gate is disabled"))
+		}
+		if js.Status.PreviousInPlaceRestartAttempt != nil {
+			allErrs = append(allErrs, fmt.Errorf("PreviousInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled"))
+		}
+		if js.Status.CurrentInPlaceRestartAttempt != nil {
+			allErrs = append(allErrs, fmt.Errorf("CurrentInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled"))
+		}
+	}
+
 	// Validate that depends On can't be set for the first replicated job.
 	if len(js.Spec.ReplicatedJobs) > 0 && js.Spec.ReplicatedJobs[0].DependsOn != nil {
 		allErrs = append(allErrs, fmt.Errorf("DependsOn can't be set for the first ReplicatedJob"))

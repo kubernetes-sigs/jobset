@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/features"
 )
 
 // TestPodTemplate is the default pod template spec used for testing.
@@ -747,9 +748,10 @@ func TestJobSetDefaulting(t *testing.T) {
 }
 
 type validationTestCase struct {
-	name string
-	js   *jobset.JobSet
-	want error
+	name                 string
+	enableInPlaceRestart bool
+	js                   *jobset.JobSet
+	want                 error
 }
 
 // TestValidateCreate tests the ValidateCreate method of the jobset webhook.
@@ -2032,11 +2034,123 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
+	inPlaceRestartTests := []validationTestCase{
+		{
+			name:                 "InPlaceRestart restart strategy is not supported when InPlaceRestart feature gate is disabled",
+			enableInPlaceRestart: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: jobset.InPlaceRestart,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("InPlaceRestart restart strategy is not supported when InPlaceRestart feature gate is disabled")),
+		},
+		{
+			name:                 "PreviousInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled",
+			enableInPlaceRestart: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+				Status: jobset.JobSetStatus{
+					PreviousInPlaceRestartAttempt: ptr.To[int32](1),
+				},
+			},
+			want: errors.Join(fmt.Errorf("PreviousInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled")),
+		},
+		{
+			name:                 "CurrentInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled",
+			enableInPlaceRestart: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+				Status: jobset.JobSetStatus{
+					CurrentInPlaceRestartAttempt: ptr.To[int32](1),
+				},
+			},
+			want: errors.Join(fmt.Errorf("CurrentInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled")),
+		},
+		{
+			name:                 "InPlaceRestart restart strategy, PreviousInPlaceRestartAttempt and CurrentInPlaceRestartAttempt can be set when InPlaceRestart feature gate is enabled",
+			enableInPlaceRestart: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: jobset.InPlaceRestart,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+				Status: jobset.JobSetStatus{
+					PreviousInPlaceRestartAttempt: ptr.To[int32](1),
+					CurrentInPlaceRestartAttempt:  ptr.To[int32](2),
+				},
+			},
+			want: nil,
+		},
+	}
+
 	testGroups := [][]validationTestCase{
 		uncategorizedTests,
 		jobsetControllerNameTests,
 		failurePolicyTests,
 		dependsOnTests,
+		inPlaceRestartTests,
 	}
 	var testCases []validationTestCase
 	for _, testGroup := range testGroups {
@@ -2050,6 +2164,7 @@ func TestValidateCreate(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			features.SetFeatureGateDuringTest(t, features.InPlaceRestart, tc.enableInPlaceRestart)
 			_, err := webhook.ValidateCreate(context.TODO(), tc.js.DeepCopyObject())
 			if err != nil && tc.want != nil {
 				assert.Contains(t, err.Error(), tc.want.Error())
