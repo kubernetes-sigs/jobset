@@ -200,22 +200,22 @@ type JobSetStatus struct {
 	// +listMapKey=name
 	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
 
-  // previousInPlaceRestartAttempt tracks the previous in-place restart attempt
+	// previousInPlaceRestartAttempt tracks the previous in-place restart attempt
 	// of the JobSet. It is read by the agent sidecar. If the in-place restart
 	// attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt,
 	// the agent sidecar should restart its Pod in-place.
-  // +optional
+	// +optional
 	// +kubebuilder:validation:Minimum=0
-  PreviousInPlaceRestartAttempt *int32 `json:"previousInPlaceRestartAttempt,omitempty"`
+	PreviousInPlaceRestartAttempt *int32 `json:"previousInPlaceRestartAttempt,omitempty"`
 
-  // currentInPlaceRestartAttempt tracks the current in-place restart attempt
+	// currentInPlaceRestartAttempt tracks the current in-place restart attempt
 	// of the JobSet. It is read by the agent sidecar. If the in-place restart
 	// attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent
 	// sidecar should lift its Pod barrier to allow the worker container to
 	// start running.
-  // +optional
+	// +optional
 	// +kubebuilder:validation:Minimum=0
-  CurrentInPlaceRestartAttempt *int32 `json:"currentInPlaceRestartAttempt,omitempty"`
+	CurrentInPlaceRestartAttempt *int32 `json:"currentInPlaceRestartAttempt,omitempty"`
 }
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
@@ -432,19 +432,19 @@ type FailurePolicy struct {
 type JobSetRestartStrategy string
 
 const (
-  // Restart the JobSet by recreating all Jobs. Each Job is recreated as soon
+	// Restart the JobSet by recreating all Jobs. Each Job is recreated as soon
 	// as its previous iteration (and its Pods) is deleted.
-  Recreate JobSetRestartStrategy = "Recreate"
+	Recreate JobSetRestartStrategy = "Recreate"
 
-  // Restart the JobSet by recreating all Jobs. Ensures that all Jobs (and 
-	// their Pods) from the previous iteration are deleted before creating new 
+	// Restart the JobSet by recreating all Jobs. Ensures that all Jobs (and
+	// their Pods) from the previous iteration are deleted before creating new
 	// Jobs.
-  BlockingRecreate JobSetRestartStrategy = "BlockingRecreate"
+	BlockingRecreate JobSetRestartStrategy = "BlockingRecreate"
 
-  // When no Job has failed, restart the JobSet by restarting healthy Pods 
-	// in-place and recreating failed Pods. When a Job has failed, fall back to 
+	// When no Job has failed, restart the JobSet by restarting healthy Pods
+	// in-place and recreating failed Pods. When a Job has failed, fall back to
 	// action "Recreate" and execute the matching failure policy rule.
-  InPlaceRestart JobSetRestartStrategy = "InPlaceRestart"
+	InPlaceRestart JobSetRestartStrategy = "InPlaceRestart"
 )
 
 type SuccessPolicy struct {
