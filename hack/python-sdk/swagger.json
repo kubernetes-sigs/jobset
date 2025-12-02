@@ -242,8 +242,18 @@
           ],
           "x-kubernetes-list-type": "map"
         },
+        "currentInPlaceRestartAttempt": {
+          "description": "currentInPlaceRestartAttempt tracks the current in-place restart attempt of the JobSet. It is read by the agent sidecar. If the in-place restart attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent sidecar should lift its Pod barrier to allow the worker container to start running.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "previousInPlaceRestartAttempt": {
+          "description": "previousInPlaceRestartAttempt tracks the previous in-place restart attempt of the JobSet. It is read by the agent sidecar. If the in-place restart attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt, the agent sidecar should restart its Pod in-place.",
+          "type": "integer",
+          "format": "int32"
+        },
         "replicatedJobsStatus": {
-          "description": "replicatedJobsStatus track the number of JobsReady for each replicatedJob.",
+          "description": "replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.",
           "type": "array",
           "items": {
             "default": {},
@@ -266,7 +276,7 @@
           "format": "int32"
         },
         "terminalState": {
-          "description": "terminalState the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",
+          "description": "terminalState tracks the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",
           "type": "string"
         }
       }

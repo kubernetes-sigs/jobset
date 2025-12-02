@@ -105,6 +105,7 @@ spec:
                     enum:
                     - Recreate
                     - BlockingRecreate
+                    - InPlaceRestart
                     type: string
                   rules:
                     description: |-
@@ -9550,8 +9551,27 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              currentInPlaceRestartAttempt:
+                description: |-
+                  currentInPlaceRestartAttempt tracks the current in-place restart attempt
+                  of the JobSet. It is read by the agent sidecar. If the in-place restart
+                  attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent
+                  sidecar should lift its Pod barrier to allow the worker container to
+                  start running.
+                format: int32
+                minimum: 0
+                type: integer
+              previousInPlaceRestartAttempt:
+                description: |-
+                  previousInPlaceRestartAttempt tracks the previous in-place restart attempt
+                  of the JobSet. It is read by the agent sidecar. If the in-place restart
+                  attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt,
+                  the agent sidecar should restart its Pod in-place.
+                format: int32
+                minimum: 0
+                type: integer
               replicatedJobsStatus:
-                description: replicatedJobsStatus track the number of JobsReady for
+                description: replicatedJobsStatus tracks the number of JobsReady for
                   each replicatedJob.
                 items:
                   description: ReplicatedJobStatus defines the observed ReplicatedJobs
@@ -9612,7 +9632,7 @@ spec:
                 type: integer
               terminalState:
                 description: |-
-                  terminalState the state of the JobSet when it finishes execution.
+                  terminalState tracks the state of the JobSet when it finishes execution.
                   It can be either Completed or Failed. Otherwise, it is empty by default.
                 type: string
             type: object
