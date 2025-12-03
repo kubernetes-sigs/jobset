@@ -206,6 +206,7 @@ type JobSetStatus struct {
 	// the agent sidecar should restart its Pod in-place.
 	// +optional
 	// +kubebuilder:validation:Minimum=0
+	// +featureGate=InPlaceRestart
 	PreviousInPlaceRestartAttempt *int32 `json:"previousInPlaceRestartAttempt,omitempty"`
 
 	// currentInPlaceRestartAttempt tracks the current in-place restart attempt
@@ -215,6 +216,7 @@ type JobSetStatus struct {
 	// start running.
 	// +optional
 	// +kubebuilder:validation:Minimum=0
+	// +featureGate=InPlaceRestart
 	CurrentInPlaceRestartAttempt *int32 `json:"currentInPlaceRestartAttempt,omitempty"`
 }
 
