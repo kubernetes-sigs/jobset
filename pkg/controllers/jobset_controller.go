@@ -298,6 +298,29 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 			continue
 		}
 
+		// Check per-job restart counter (used by RestartJob action).
+		// If this specific job has a higher restart counter than the job's label indicates,
+		// mark it for deletion so it can be recreated.
+		if js.Status.JobRestartCounters != nil {
+			expectedJobRestarts, hasCounter := js.Status.JobRestartCounters[job.Name]
+			if hasCounter {
+				jobPerJobRestarts := int32(0)
+				if labelVal, ok := job.Labels[constants.JobRestartsKey]; ok {
+					if parsed, err := strconv.Atoi(labelVal); err == nil {
+						jobPerJobRestarts = int32(parsed)
+					}
+				}
+				if jobPerJobRestarts < expectedJobRestarts {
+					log.V(2).Info("Mark the job for deletion due to restart counter mismatch",
+						"job", job.Name,
+						"currentRestartAttempt", jobPerJobRestarts,
+						"expectedRestartAttempt", expectedJobRestarts)
+					ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+					continue
+				}
+			}
+		}
+
 		// Jobs with jobset.sigs.k8s.io/restart-attempt == jobset.status.restarts are part of
 		// the current JobSet run, and marked either active, successful, or failed.
 		_, finishedType := JobFinished(&job)
@@ -772,6 +795,14 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.JobSetUIDKey] = string(js.GetUID())
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	labels[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	// Set per-job restart counter label (used by RestartJob action).
+	perJobRestarts := int32(0)
+	if js.Status.JobRestartCounters != nil {
+		if counter, exists := js.Status.JobRestartCounters[jobName]; exists {
+			perJobRestarts = counter
+		}
+	}
+	labels[constants.JobRestartsKey] = strconv.Itoa(int(perJobRestarts))
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.GlobalReplicasKey] = globalReplicas(js)
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)

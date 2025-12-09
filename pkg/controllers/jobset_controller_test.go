@@ -820,6 +820,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				addGlobalReplicas(t, tc.js, expectedJob)
 				addJobGroupIndex(t, tc.js, expectedJob)
 				addGroupReplicas(t, tc.js, expectedJob)
+				addJobRestartAttempt(t, expectedJob)
 			}
 
 			// Now get the actual output of constructJobsFromTemplate, and diff the results.
@@ -900,6 +901,16 @@ func addGroupReplicas(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 	// Job template
 	job.Spec.Template.Labels[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
 	job.Spec.Template.Annotations[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
+}
+
+func addJobRestartAttempt(t *testing.T, job *batchv1.Job) {
+	t.Helper()
+
+	// Job label
+	job.Labels[constants.JobRestartsKey] = "0"
+
+	// Job template spec label
+	job.Spec.Template.Labels[constants.JobRestartsKey] = "0"
 }
 
 func TestUpdateConditions(t *testing.T) {
@@ -1901,6 +1912,256 @@ func TestGroupReplicas(t *testing.T) {
 			actualGroupReplicas := groupReplicas(tc.jobSet, tc.groupName)
 			if diff := cmp.Diff(tc.expectedGroupReplicas, actualGroupReplicas); diff != "" {
 				t.Errorf("unexpected group replicas (-want/+got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestGetChildJobsWithJobRestartCounters(t *testing.T) {
+	var (
+		jobSetName        = "test-jobset"
+		replicatedJobName = "replicated-job"
+		ns                = "default"
+	)
+
+	tests := []struct {
+		name             string
+		jobSet           *jobset.JobSet
+		jobs             []*batchv1.Job
+		expectedActive   []string
+		expectedPrevious []string
+	}{
+		{
+			name: "no JobRestartCounters in status - jobs not marked for deletion",
+			jobSet: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).
+				Obj(),
+			jobs: []*batchv1.Job{
+				testutils.MakeJob("test-jobset-replicated-job-0", ns).
+					JobLabels(map[string]string{
+						constants.RestartsKey:    "0",
+						constants.JobRestartsKey: "0",
+					}).
+					Obj(),
+			},
+			expectedActive:   []string{"test-jobset-replicated-job-0"},
+			expectedPrevious: []string{},
+		},
+		{
+			name: "job restart counter < status counter - job marked for deletion",
+			jobSet: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobSetName,
+					Namespace: ns,
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						testutils.MakeReplicatedJob(replicatedJobName).
+							Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+							Replicas(1).
+							Obj(),
+					},
+				},
+				Status: jobset.JobSetStatus{
+					Restarts: 0,
+					JobRestartCounters: map[string]int32{
+						"test-jobset-replicated-job-0": 3,
+					},
+				},
+			},
+			jobs: []*batchv1.Job{
+				testutils.MakeJob("test-jobset-replicated-job-0", ns).
+					JobLabels(map[string]string{
+						constants.RestartsKey:    "0",
+						constants.JobRestartsKey: "1",
+					}).
+					Obj(),
+			},
+			expectedActive:   []string{},
+			expectedPrevious: []string{"test-jobset-replicated-job-0"},
+		},
+		{
+			name: "job has no restart counter label but status has counter - job marked for deletion",
+			jobSet: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobSetName,
+					Namespace: ns,
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						testutils.MakeReplicatedJob(replicatedJobName).
+							Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+							Replicas(1).
+							Obj(),
+					},
+				},
+				Status: jobset.JobSetStatus{
+					Restarts: 0,
+					JobRestartCounters: map[string]int32{
+						"test-jobset-replicated-job-0": 1,
+					},
+				},
+			},
+			jobs: []*batchv1.Job{
+				testutils.MakeJob("test-jobset-replicated-job-0", ns).
+					JobLabels(map[string]string{
+						constants.RestartsKey: "0",
+					}).
+					Obj(),
+			},
+			expectedActive:   []string{},
+			expectedPrevious: []string{"test-jobset-replicated-job-0"},
+		},
+		{
+			name: "job restart counter > status counter - job not marked for deletion",
+			jobSet: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobSetName,
+					Namespace: ns,
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						testutils.MakeReplicatedJob(replicatedJobName).
+							Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+							Replicas(1).
+							Obj(),
+					},
+				},
+				Status: jobset.JobSetStatus{
+					Restarts: 0,
+					JobRestartCounters: map[string]int32{
+						"test-jobset-replicated-job-0": 1,
+					},
+				},
+			},
+			jobs: []*batchv1.Job{
+				testutils.MakeJob("test-jobset-replicated-job-0", ns).
+					JobLabels(map[string]string{
+						constants.RestartsKey:    "0",
+						constants.JobRestartsKey: "3",
+					}).
+					Obj(),
+			},
+			expectedActive:   []string{"test-jobset-replicated-job-0"},
+			expectedPrevious: []string{},
+		},
+		{
+			name: "multiple jobs with different restart counters - only old ones marked for deletion",
+			jobSet: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobSetName,
+					Namespace: ns,
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						testutils.MakeReplicatedJob(replicatedJobName).
+							Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+							Replicas(3).
+							Obj(),
+					},
+				},
+				Status: jobset.JobSetStatus{
+					Restarts: 0,
+					JobRestartCounters: map[string]int32{
+						"test-jobset-replicated-job-0": 2,
+						"test-jobset-replicated-job-1": 1,
+					},
+				},
+			},
+			jobs: []*batchv1.Job{
+				testutils.MakeJob("test-jobset-replicated-job-0", ns).
+					JobLabels(map[string]string{
+						constants.RestartsKey:    "0",
+						constants.JobRestartsKey: "1",
+					}).
+					Obj(),
+				testutils.MakeJob("test-jobset-replicated-job-1", ns).
+					JobLabels(map[string]string{
+						constants.RestartsKey:    "0",
+						constants.JobRestartsKey: "1",
+					}).
+					Obj(),
+				testutils.MakeJob("test-jobset-replicated-job-2", ns).
+					JobLabels(map[string]string{
+						constants.RestartsKey:    "0",
+						constants.JobRestartsKey: "0",
+					}).
+					Obj(),
+			},
+			expectedActive:   []string{"test-jobset-replicated-job-1", "test-jobset-replicated-job-2"},
+			expectedPrevious: []string{"test-jobset-replicated-job-0"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
+
+			scheme := runtime.NewScheme()
+			utilruntime.Must(jobset.AddToScheme(scheme))
+			utilruntime.Must(batchv1.AddToScheme(scheme))
+
+			objs := []client.Object{}
+			for _, job := range tc.jobs {
+				objs = append(objs, job)
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(objs...).
+				WithIndex(&batchv1.Job{}, constants.JobOwnerKey, func(o client.Object) []string {
+					job := o.(*batchv1.Job)
+					owner := metav1.GetControllerOf(job)
+					if owner == nil {
+						return nil
+					}
+					return []string{owner.Name}
+				}).
+				Build()
+
+			for _, job := range tc.jobs {
+				job.SetOwnerReferences([]metav1.OwnerReference{
+					{
+						APIVersion: "jobset.x-k8s.io/v1alpha2",
+						Kind:       "JobSet",
+						Name:       tc.jobSet.Name,
+						Controller: ptr.To(true),
+					},
+				})
+				if err := fakeClient.Update(ctx, job); err != nil {
+					t.Fatalf("failed to update job: %v", err)
+				}
+			}
+
+			r := &JobSetReconciler{
+				Client: fakeClient,
+				Scheme: scheme,
+			}
+
+			childJobs, err := r.getChildJobs(ctx, tc.jobSet)
+			if err != nil {
+				t.Fatalf("getChildJobs() error = %v", err)
+			}
+
+			activeNames := []string{}
+			for _, job := range childJobs.active {
+				activeNames = append(activeNames, job.Name)
+			}
+			previousNames := []string{}
+			for _, job := range childJobs.previous {
+				previousNames = append(previousNames, job.Name)
+			}
+
+			sorter := cmpopts.SortSlices(func(a, b string) bool { return a < b })
+
+			if diff := cmp.Diff(tc.expectedActive, activeNames, sorter); diff != "" {
+				t.Errorf("active jobs mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.expectedPrevious, previousNames, sorter); diff != "" {
+				t.Errorf("previous jobs mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

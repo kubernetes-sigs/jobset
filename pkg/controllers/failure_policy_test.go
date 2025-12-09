@@ -530,3 +530,104 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 		})
 	}
 }
+
+func TestRestartJobActionApplier(t *testing.T) {
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+		jobName    = "test-job"
+	)
+
+	tests := []struct {
+		name                       string
+		js                         *jobset.JobSet
+		matchingFailedJob          *batchv1.Job
+		expectedJobRestartCounters map[string]int32
+		expectedShouldUpdate       bool
+		expectedEventCount         int
+	}{
+		{
+			name: "JobRestartCounters is nil, should initialize and set count to 1",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobSetName,
+					Namespace: ns,
+				},
+				Status: jobset.JobSetStatus{
+					JobRestartCounters: nil,
+				},
+			},
+			matchingFailedJob: &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobName,
+					Namespace: ns,
+				},
+			},
+			expectedJobRestartCounters: map[string]int32{jobName: 1},
+			expectedShouldUpdate:       true,
+			expectedEventCount:         1,
+		},
+		{
+			name: "JobRestartCounters exists but job not in map, should add job with count 1",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobSetName,
+					Namespace: ns,
+				},
+				Status: jobset.JobSetStatus{
+					JobRestartCounters: map[string]int32{"other-job": 2},
+				},
+			},
+			matchingFailedJob: &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobName,
+					Namespace: ns,
+				},
+			},
+			expectedJobRestartCounters: map[string]int32{"other-job": 2, jobName: 1},
+			expectedShouldUpdate:       true,
+			expectedEventCount:         1,
+		},
+		{
+			name: "JobRestartCounters exists with job already in map, should increment count",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobSetName,
+					Namespace: ns,
+				},
+				Status: jobset.JobSetStatus{
+					JobRestartCounters: map[string]int32{jobName: 3},
+				},
+			},
+			matchingFailedJob: &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobName,
+					Namespace: ns,
+				},
+			},
+			expectedJobRestartCounters: map[string]int32{jobName: 4},
+			expectedShouldUpdate:       true,
+			expectedEventCount:         1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			updateStatusOpts := &statusUpdateOpts{}
+
+			err := restartJobActionApplier(context.TODO(), tc.js, tc.matchingFailedJob, updateStatusOpts)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedShouldUpdate, updateStatusOpts.shouldUpdate)
+			if diff := cmp.Diff(tc.expectedJobRestartCounters, tc.js.Status.JobRestartCounters); diff != "" {
+				t.Errorf("unexpected JobRestartCounters (+got/-want): %s", diff)
+			}
+			assert.Equal(t, tc.expectedEventCount, len(updateStatusOpts.events))
+
+			if tc.expectedEventCount > 0 {
+				event := updateStatusOpts.events[0]
+				assert.Contains(t, event.eventMessage, tc.matchingFailedJob.Name)
+			}
+		})
+	}
+}

@@ -94,4 +94,12 @@ const (
 	// Event reason and message related to applying the RestartJobSetAndIgnoreMaxRestarts failure policy action.
 	RestartJobSetAndIgnoreMaxRestartsActionReason  = "RestartJobSetAndIgnoreMaxRestartsFailurePolicyAction"
 	RestartJobSetAndIgnoreMaxRestartsActionMessage = "applying RestartJobSetAndIgnoreMaxRestarts failure policy action"
+
+	// Event reason and message related to applying the RestartJob failure policy action.
+	RestartJobActionReason  = "RestartJobFailurePolicyAction"
+	RestartJobActionMessage = "Applying RestartJob failure policy action to restart single job"
+
+	// JobRestartsKey is a label key which defines the per-job restart attempt number.
+	// This is used when RestartJob action restarts individual jobs.
+	JobRestartsKey = "jobset.sigs.k8s.io/job-restart-attempt"
 )

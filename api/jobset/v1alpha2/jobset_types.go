@@ -184,6 +184,10 @@ type JobSetStatus struct {
 	// +listType=map
 	// +listMapKey=name
 	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
+
+	// JobRestartCounters tracks the number of restarts for individual Jobs.
+	// +optional
+	JobRestartCounters map[string]int32 `json:"jobRestartCounters,omitempty"`
 }
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
@@ -336,6 +340,9 @@ const (
 
 	// Do not count the failure against maxRestarts.
 	RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobSetAndIgnoreMaxRestarts"
+
+	// Restart only the failed Job, not the entire JobSet.
+	RestartJob FailurePolicyAction = "RestartJob"
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
@@ -349,7 +356,7 @@ type FailurePolicyRule struct {
 	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
 	Name string `json:"name"`
 	// The action to take if the rule is matched.
-	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts
+	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts;RestartJob
 	Action FailurePolicyAction `json:"action"`
 	// The requirement on the job failure reasons. The requirement is satisfied
 	// if at least one reason matches the list. An empty list matches any job

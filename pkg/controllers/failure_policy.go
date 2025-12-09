@@ -35,6 +35,7 @@ var actionFunctionMap = map[jobset.FailurePolicyAction]failurePolicyActionApplie
 	jobset.FailJobSet:                        failJobSetActionApplier,
 	jobset.RestartJobSet:                     restartJobSetActionApplier,
 	jobset.RestartJobSetAndIgnoreMaxRestarts: restartJobSetAndIgnoreMaxRestartsActionApplier,
+	jobset.RestartJob:                        restartJobActionApplier,
 }
 
 // The source of truth for the definition of defaultFailurePolicyRuleAction is the Configurable Failure Policy KEP.
@@ -253,6 +254,31 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 
 	shouldCountTowardsMax := false
 	failurePolicyRecreateAll(ctx, js, shouldCountTowardsMax, updateStatusOpts, event)
+	return nil
+}
+
+// restartJobActionApplier applies the RestartJob FailurePolicyAction.
+var restartJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	log := ctrl.LoggerFrom(ctx)
+	if js.Status.JobRestartCounters == nil {
+		js.Status.JobRestartCounters = make(map[string]int32)
+	}
+
+	jobName := matchingFailedJob.Name
+	js.Status.JobRestartCounters[jobName]++
+
+	updateStatusOpts.shouldUpdate = true
+
+	// Emit event for each Job restarts for observability and debugability.
+	eventMessage := fmt.Sprintf("%s (job: %s, restart count: %d)", constants.RestartJobActionMessage, jobName, js.Status.JobRestartCounters[jobName])
+	enqueueEvent(updateStatusOpts, &eventParams{
+		object:       js,
+		eventType:    corev1.EventTypeWarning,
+		eventReason:  constants.RestartJobActionReason,
+		eventMessage: eventMessage,
+	})
+
+	log.V(2).Info("Restarting job", "job", jobName, "restartCount", js.Status.JobRestartCounters[jobName])
 	return nil
 }
 

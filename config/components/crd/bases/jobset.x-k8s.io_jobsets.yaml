@@ -126,6 +126,7 @@ spec:
                           - FailJobSet
                           - RestartJobSet
                           - RestartJobSetAndIgnoreMaxRestarts
+                          - RestartJob
                           type: string
                         name:
                           description: |-
@@ -9547,6 +9548,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              jobRestartCounters:
+                additionalProperties:
+                  format: int32
+                  type: integer
+                description: JobRestartCounters tracks the number of restarts for
+                  individual Jobs.
+                type: object
               replicatedJobsStatus:
                 description: ReplicatedJobsStatus track the number of JobsReady for
                   each replicatedJob.
