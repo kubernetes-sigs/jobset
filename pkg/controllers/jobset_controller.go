@@ -40,9 +40,11 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
@@ -231,20 +233,50 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 			return ctrl.Result{}, err
 		}
 	}
+
+	if features.Enabled(features.InPlaceRestart) && isInPlaceRestartStrategy(js) {
+		if err := r.reconcileInPlaceRestart(ctx, js, updateStatusOpts); err != nil {
+			log.Error(err, "reconciling in-place restart")
+			return ctrl.Result{}, err
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
 		For(&jobset.JobSet{}).
 		Owns(&batchv1.Job{}).
-		Owns(&corev1.Service{}).
-		Complete(r)
+		Owns(&corev1.Service{})
+
+	// Watch Pods if in-place restart feature is enabled.
+	// This triggers the JobSet controller to reconcile when an associated Pod is created / modified / deleted.
+	if features.Enabled(features.InPlaceRestart) {
+		controllerBuilder = controllerBuilder.Watches(
+			&corev1.Pod{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []ctrl.Request {
+				pod := o.(*corev1.Pod)
+				jobSetName, ok := pod.Labels[jobset.JobSetNameKey]
+				if !ok {
+					return nil
+				}
+				return []ctrl.Request{
+					{NamespacedName: types.NamespacedName{
+						Name:      jobSetName,
+						Namespace: pod.Namespace,
+					}},
+				}
+			}),
+		)
+	}
+
+	return controllerBuilder.Complete(r)
 }
 
 func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error {
-	return indexer.IndexField(ctx, &batchv1.Job{}, constants.JobOwnerKey, func(obj client.Object) []string {
+	err := indexer.IndexField(ctx, &batchv1.Job{}, constants.JobOwnerKey, func(obj client.Object) []string {
 		o := obj.(*batchv1.Job)
 		owner := metav1.GetControllerOf(o)
 		if owner == nil {
@@ -256,6 +288,24 @@ func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error 
 		}
 		return []string{owner.Name}
 	})
+	if err != nil {
+		return err
+	}
+
+	// Index Pods by namespaced JobSet name if in-place restart feature is enabled.
+	// This is used to efficiently find all Pods associated with a JobSet.
+	if features.Enabled(features.InPlaceRestart) {
+		err = indexer.IndexField(ctx, &corev1.Pod{}, constants.AssociatedJobSetKey, func(obj client.Object) []string {
+			pod := obj.(*corev1.Pod)
+			jobSetName, ok := pod.Labels[jobset.JobSetNameKey]
+			if !ok {
+				return nil
+			}
+			namespacedJobSetName := fmt.Sprintf("%s/%s", pod.Namespace, jobSetName)
+			return []string{namespacedJobSetName}
+		})
+	}
+	return err
 }
 
 // updateJobSetStatus will update the JobSet status if updateStatusOpts requires it,
