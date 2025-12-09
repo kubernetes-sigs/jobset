@@ -23,6 +23,7 @@ import (
 //
 // JobSetStatus defines the observed state of JobSet
 type JobSetStatusApplyConfiguration struct {
+<<<<<<< HEAD
 	// conditions track status
 	Conditions []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
 	// restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
@@ -34,6 +35,15 @@ type JobSetStatusApplyConfiguration struct {
 	TerminalState *string `json:"terminalState,omitempty"`
 	// replicatedJobsStatus track the number of JobsReady for each replicatedJob.
 	ReplicatedJobsStatus []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
+=======
+	Conditions                    []v1.ConditionApplyConfiguration        `json:"conditions,omitempty"`
+	Restarts                      *int32                                  `json:"restarts,omitempty"`
+	RestartsCountTowardsMax       *int32                                  `json:"restartsCountTowardsMax,omitempty"`
+	TerminalState                 *string                                 `json:"terminalState,omitempty"`
+	ReplicatedJobsStatus          []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
+	PreviousInPlaceRestartAttempt *int32                                  `json:"previousInPlaceRestartAttempt,omitempty"`
+	CurrentInPlaceRestartAttempt  *int32                                  `json:"currentInPlaceRestartAttempt,omitempty"`
+>>>>>>> ec41c6a (Run `make generate`)
 }
 
 // JobSetStatusApplyConfiguration constructs a declarative configuration of the JobSetStatus type for use with
@@ -89,5 +99,21 @@ func (b *JobSetStatusApplyConfiguration) WithReplicatedJobsStatus(values ...*Rep
 		}
 		b.ReplicatedJobsStatus = append(b.ReplicatedJobsStatus, *values[i])
 	}
+	return b
+}
+
+// WithPreviousInPlaceRestartAttempt sets the PreviousInPlaceRestartAttempt field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PreviousInPlaceRestartAttempt field is set to the value of the last call.
+func (b *JobSetStatusApplyConfiguration) WithPreviousInPlaceRestartAttempt(value int32) *JobSetStatusApplyConfiguration {
+	b.PreviousInPlaceRestartAttempt = &value
+	return b
+}
+
+// WithCurrentInPlaceRestartAttempt sets the CurrentInPlaceRestartAttempt field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the CurrentInPlaceRestartAttempt field is set to the value of the last call.
+func (b *JobSetStatusApplyConfiguration) WithCurrentInPlaceRestartAttempt(value int32) *JobSetStatusApplyConfiguration {
+	b.CurrentInPlaceRestartAttempt = &value
 	return b
 }
