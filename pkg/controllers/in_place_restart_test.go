@@ -543,8 +543,12 @@ func TestUpdatePreviousInPlaceRestartAttempt(t *testing.T) {
 func TestGetAssociatedPods(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
-	corev1.AddToScheme(scheme)
-	jobset.AddToScheme(scheme)
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add corev1 to scheme: %v", err)
+	}
+	if err := jobset.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add jobset to scheme: %v", err)
+	}
 
 	js := testutils.MakeJobSet("test-jobset", "default").Obj()
 
@@ -619,8 +623,12 @@ func TestGetAssociatedPods(t *testing.T) {
 func TestReconcileInPlaceRestart(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
-	corev1.AddToScheme(scheme)
-	jobset.AddToScheme(scheme)
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add corev1 to scheme: %v", err)
+	}
+	if err := jobset.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add jobset to scheme: %v", err)
+	}
 
 	tests := []struct {
 		name             string

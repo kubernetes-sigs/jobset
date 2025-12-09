@@ -519,7 +519,7 @@ func (p *PodWrapper) SetConditions(conditions []corev1.PodCondition) *PodWrapper
 
 // SetStatus sets the value of the pod.status.
 func (p *PodWrapper) SetStatus(status corev1.PodStatus) *PodWrapper {
-	p.Pod.Status = status
+	p.Status = status
 	return p
 }
 
