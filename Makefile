@@ -273,11 +273,11 @@ GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
 GOLANGCI_LINT_KAL = $(PROJECT_DIR)/bin/golangci-lint-kube-api-linter
 .PHONY: golangci-lint
 golangci-lint: ## Download golangci-lint locally if necessary.
-	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.5
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v2.7.2
 
 .PHONY: golangci-lint-kal
 golangci-lint-kal: golangci-lint ## Build golangci-lint-kal from custom configuration.
-	cd $(PROJECT_DIR)/hack/golangci-kal; $(GOLANGCI_LINT) custom; mv bin/golangci-lint-kube-api-linter $(PROJECT_DIR)/bin/
+	cd $(PROJECT_DIR)/hack/golangci-kal; GOTOOLCHAIN=go1.25.0 $(GOLANGCI_LINT) custom; mv bin/golangci-lint-kube-api-linter $(PROJECT_DIR)/bin/
 
 GOTESTSUM = $(shell pwd)/bin/gotestsum
 .PHONY: gotestsum
