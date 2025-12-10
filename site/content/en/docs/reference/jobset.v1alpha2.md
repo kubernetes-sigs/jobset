@@ -35,13 +35,15 @@ description: Generated API reference documentation for jobset.x-k8s.io/v1alpha2.
 <a href="#jobset-x-k8s-io-v1alpha2-JobSetSpec"><code>JobSetSpec</code></a>
 </td>
 <td>
-   <span class="text-muted">No description provided.</span></td>
+   <p>spec is the specification for jobset</p>
+</td>
 </tr>
 <tr><td><code>status</code> <B>[Required]</B><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-JobSetStatus"><code>JobSetStatus</code></a>
 </td>
 <td>
-   <span class="text-muted">No description provided.</span></td>
+   <p>status is the status of the jobset</p>
+</td>
 </tr>
 </tbody>
 </table>
@@ -66,7 +68,7 @@ description: Generated API reference documentation for jobset.x-k8s.io/v1alpha2.
 <code>string</code>
 </td>
 <td>
-   <p>ReplicatedJob is the name of the ReplicatedJob which contains
+   <p>replicatedJob is the name of the ReplicatedJob which contains
 the coordinator pod.</p>
 </td>
 </tr>
@@ -74,7 +76,7 @@ the coordinator pod.</p>
 <code>int</code>
 </td>
 <td>
-   <p>JobIndex is the index of Job which contains the coordinator pod
+   <p>jobIndex is the index of Job which contains the coordinator pod
 (i.e., for a ReplicatedJob with N replicas, there are Job indexes 0 to N-1).</p>
 </td>
 </tr>
@@ -82,7 +84,7 @@ the coordinator pod.</p>
 <code>int</code>
 </td>
 <td>
-   <p>PodIndex is the Job completion index of the coordinator pod.</p>
+   <p>podIndex is the Job completion index of the coordinator pod.</p>
 </td>
 </tr>
 </tbody>
@@ -108,14 +110,14 @@ the coordinator pod.</p>
 <code>string</code>
 </td>
 <td>
-   <p>Name of the previous ReplicatedJob.</p>
+   <p>name of the previous ReplicatedJob.</p>
 </td>
 </tr>
 <tr><td><code>status</code> <B>[Required]</B><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-DependsOnStatus"><code>DependsOnStatus</code></a>
 </td>
 <td>
-   <p>Status defines the condition for the ReplicatedJob. Only Ready or Complete status can be set.</p>
+   <p>status defines the condition for the ReplicatedJob. Only Ready or Complete status can be set.</p>
 </td>
 </tr>
 </tbody>
@@ -151,7 +153,7 @@ the coordinator pod.</p>
 <code>int32</code>
 </td>
 <td>
-   <p>MaxRestarts defines the limit on the number of JobSet restarts.
+   <p>maxRestarts defines the limit on the number of JobSet restarts.
 A restart is achieved by recreating all active child jobs.</p>
 </td>
 </tr>
@@ -159,7 +161,7 @@ A restart is achieved by recreating all active child jobs.</p>
 <a href="#jobset-x-k8s-io-v1alpha2-JobSetRestartStrategy"><code>JobSetRestartStrategy</code></a>
 </td>
 <td>
-   <p>RestartStrategy defines the strategy to use when restarting the JobSet.
+   <p>restartStrategy defines the strategy to use when restarting the JobSet.
 Defaults to Recreate.</p>
 </td>
 </tr>
@@ -167,7 +169,7 @@ Defaults to Recreate.</p>
 <a href="#jobset-x-k8s-io-v1alpha2-FailurePolicyRule"><code>[]FailurePolicyRule</code></a>
 </td>
 <td>
-   <p>List of failure policy rules for this JobSet.
+   <p>rules is a list of failure policy rules for this JobSet.
 For a given Job failure, the rules will be evaluated in order,
 and only the first matching rule will be executed.
 If no matching rule is found, the RestartJobSet action is applied.</p>
@@ -215,7 +217,7 @@ order and the first matching rule is executed.</p>
 <code>string</code>
 </td>
 <td>
-   <p>The name of the failure policy rule.
+   <p>name of the failure policy rule.
 The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
 The name must match the regular expression &quot;^<a href="%5BA-Za-z0-9_,:%5D*%5BA-Za-z0-9_%5D">A-Za-z</a>?$&quot;.</p>
 </td>
@@ -224,14 +226,15 @@ The name must match the regular expression &quot;^<a href="%5BA-Za-z0-9_,:%5D*%5
 <a href="#jobset-x-k8s-io-v1alpha2-FailurePolicyAction"><code>FailurePolicyAction</code></a>
 </td>
 <td>
-   <p>The action to take if the rule is matched.</p>
+   <p>action to take if the rule is matched.</p>
 </td>
 </tr>
 <tr><td><code>onJobFailureReasons</code> <B>[Required]</B><br/>
 <code>[]string</code>
 </td>
 <td>
-   <p>The requirement on the job failure reasons. The requirement is satisfied
+   <p>onJobFailureReasons is a list of job failures reasons.
+The requirement is satisfied
 if at least one reason matches the list. An empty list matches any job
 failure reason.</p>
 </td>
@@ -240,7 +243,8 @@ failure reason.</p>
 <code>[]string</code>
 </td>
 <td>
-   <p>The requirement on the job failure message. The requirement is satisfied
+   <p>onJobFailureMessagePatterns is a requirement on the job failure messages.
+The requirement is satisfied
 if at least one pattern (regex) matches the job failure message. An
 empty list matches any job failure message.
 The syntax of the regular expressions accepted is the same general
@@ -254,7 +258,7 @@ https://pkg.go.dev/regexp/syntax.</p>
 <code>[]string</code>
 </td>
 <td>
-   <p>TargetReplicatedJobs are the names of the replicated jobs the operator applies to.
+   <p>targetReplicatedJobs are the names of the replicated jobs the operator applies to.
 An empty list will apply to all replicatedJobs.</p>
 </td>
 </tr>
@@ -293,21 +297,21 @@ An empty list will apply to all replicatedJobs.</p>
 <a href="#jobset-x-k8s-io-v1alpha2-ReplicatedJob"><code>[]ReplicatedJob</code></a>
 </td>
 <td>
-   <p>ReplicatedJobs is the group of jobs that will form the set.</p>
+   <p>replicatedJobs is the group of jobs that will form the set.</p>
 </td>
 </tr>
 <tr><td><code>network</code><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-Network"><code>Network</code></a>
 </td>
 <td>
-   <p>Network defines the networking options for the jobset.</p>
+   <p>network defines the networking options for the jobset.</p>
 </td>
 </tr>
 <tr><td><code>successPolicy</code> <B>[Required]</B><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-SuccessPolicy"><code>SuccessPolicy</code></a>
 </td>
 <td>
-   <p>SuccessPolicy configures when to declare the JobSet as
+   <p>successPolicy configures when to declare the JobSet as
 succeeded.
 The JobSet is always declared succeeded if all jobs in the set
 finished with status complete.</p>
@@ -317,7 +321,7 @@ finished with status complete.</p>
 <a href="#jobset-x-k8s-io-v1alpha2-FailurePolicy"><code>FailurePolicy</code></a>
 </td>
 <td>
-   <p>FailurePolicy, if set, configures when to declare the JobSet as
+   <p>failurePolicy configures when to declare the JobSet as
 failed.
 The JobSet is always declared failed if any job in the set
 finished with status failed.</p>
@@ -327,7 +331,7 @@ finished with status failed.</p>
 <a href="#jobset-x-k8s-io-v1alpha2-StartupPolicy"><code>StartupPolicy</code></a>
 </td>
 <td>
-   <p>StartupPolicy, if set, configures in what order jobs must be started
+   <p>startupPolicy configures in what order jobs must be started
 Deprecated: StartupPolicy is deprecated, please use the DependsOn API.</p>
 </td>
 </tr>
@@ -335,14 +339,14 @@ Deprecated: StartupPolicy is deprecated, please use the DependsOn API.</p>
 <code>bool</code>
 </td>
 <td>
-   <p>Suspend suspends all running child Jobs when set to true.</p>
+   <p>suspend suspends all running child Jobs when set to true.</p>
 </td>
 </tr>
 <tr><td><code>coordinator</code><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-Coordinator"><code>Coordinator</code></a>
 </td>
 <td>
-   <p>Coordinator can be used to assign a specific pod as the coordinator for
+   <p>coordinator can be used to assign a specific pod as the coordinator for
 the JobSet. If defined, an annotation will be added to all Jobs and pods with
 coordinator pod, which contains the stable network endpoint where the
 coordinator pod can be reached.
@@ -353,7 +357,7 @@ jobset.sigs.k8s.io/coordinator=<!-- raw HTML omitted -->.<!-- raw HTML omitted -
 <code>string</code>
 </td>
 <td>
-   <p>ManagedBy is used to indicate the controller or entity that manages a JobSet.
+   <p>managedBy is used to indicate the controller or entity that manages a JobSet.
 The built-in JobSet controller reconciles JobSets which don't have this
 field at all or the field value is the reserved string
 <code>jobset.sigs.k8s.io/jobset-controller</code>, but skips reconciling JobSets
@@ -369,7 +373,7 @@ The field is immutable.</p>
 <code>int32</code>
 </td>
 <td>
-   <p>TTLSecondsAfterFinished limits the lifetime of a JobSet that has finished
+   <p>ttlSecondsAfterFinished limits the lifetime of a JobSet that has finished
 execution (either Complete or Failed). If this field is set,
 TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be
 automatically deleted. When the JobSet is being deleted, its lifecycle
@@ -401,27 +405,28 @@ the JobSet becomes eligible to be deleted immediately after it finishes.</p>
 <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#condition-v1-meta"><code>[]k8s.io/apimachinery/pkg/apis/meta/v1.Condition</code></a>
 </td>
 <td>
-   <span class="text-muted">No description provided.</span></td>
+   <p>conditions track status</p>
+</td>
 </tr>
 <tr><td><code>restarts</code><br/>
 <code>int32</code>
 </td>
 <td>
-   <p>Restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).</p>
+   <p>restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).</p>
 </td>
 </tr>
-<tr><td><code>restartsCountTowardsMax</code> <B>[Required]</B><br/>
+<tr><td><code>restartsCountTowardsMax</code><br/>
 <code>int32</code>
 </td>
 <td>
-   <p>RestartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.</p>
+   <p>restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.</p>
 </td>
 </tr>
-<tr><td><code>terminalState</code> <B>[Required]</B><br/>
+<tr><td><code>terminalState</code><br/>
 <code>string</code>
 </td>
 <td>
-   <p>TerminalState the state of the JobSet when it finishes execution.
+   <p>terminalState the state of the JobSet when it finishes execution.
 It can be either Completed or Failed. Otherwise, it is empty by default.</p>
 </td>
 </tr>
@@ -429,7 +434,7 @@ It can be either Completed or Failed. Otherwise, it is empty by default.</p>
 <a href="#jobset-x-k8s-io-v1alpha2-ReplicatedJobStatus"><code>[]ReplicatedJobStatus</code></a>
 </td>
 <td>
-   <p>ReplicatedJobsStatus track the number of JobsReady for each replicatedJob.</p>
+   <p>replicatedJobsStatus track the number of JobsReady for each replicatedJob.</p>
 </td>
 </tr>
 </tbody>
@@ -453,7 +458,7 @@ It can be either Completed or Failed. Otherwise, it is empty by default.</p>
 <code>bool</code>
 </td>
 <td>
-   <p>EnableDNSHostnames allows pods to be reached via their hostnames.
+   <p>enableDNSHostnames allows pods to be reached via their hostnames.
 Pods will be reachable using the fully qualified pod hostname:
 &lt;jobSet.name&gt;-&lt;spec.replicatedJob.name&gt;-<!-- raw HTML omitted -->-<!-- raw HTML omitted -->.<!-- raw HTML omitted --></p>
 </td>
@@ -462,7 +467,7 @@ Pods will be reachable using the fully qualified pod hostname:
 <code>string</code>
 </td>
 <td>
-   <p>Subdomain is an explicit choice for a network subdomain name
+   <p>subdomain is an explicit choice for a network subdomain name
 When set, any replicated job in the set is added to this network.
 Defaults to &lt;jobSet.name&gt; if not set.</p>
 </td>
@@ -471,7 +476,7 @@ Defaults to &lt;jobSet.name&gt; if not set.</p>
 <code>bool</code>
 </td>
 <td>
-   <p>Indicates if DNS records of pods should be published before the pods are ready.
+   <p>publishNotReadyAddresses indicates if DNS records of pods should be published before the pods are ready.
 Defaults to True.</p>
 </td>
 </tr>
@@ -510,7 +515,7 @@ Defaults to True.</p>
 <code>string</code>
 </td>
 <td>
-   <p>Name is the name of the entry and will be used as a suffix
+   <p>name is the name of the entry and will be used as a suffix
 for the Job name.</p>
 </td>
 </tr>
@@ -518,21 +523,21 @@ for the Job name.</p>
 <code>string</code>
 </td>
 <td>
-   <p>GroupName defines the name of the group this ReplicatedJob belongs to. Defaults to &quot;default&quot;</p>
+   <p>groupName defines the name of the group this ReplicatedJob belongs to. Defaults to &quot;default&quot;</p>
 </td>
 </tr>
 <tr><td><code>template</code> <B>[Required]</B><br/>
 <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#jobtemplatespec-v1-batch"><code>k8s.io/api/batch/v1.JobTemplateSpec</code></a>
 </td>
 <td>
-   <p>Template defines the template of the Job that will be created.</p>
+   <p>template defines the template of the Job that will be created.</p>
 </td>
 </tr>
 <tr><td><code>replicas</code> <B>[Required]</B><br/>
 <code>int32</code>
 </td>
 <td>
-   <p>Replicas is the number of jobs that will be created from this ReplicatedJob's template.
+   <p>replicas is the number of jobs that will be created from this ReplicatedJob's template.
 Jobs names will be in the format: &lt;jobSet.name&gt;-&lt;spec.replicatedJob.name&gt;-<!-- raw HTML omitted --></p>
 </td>
 </tr>
@@ -540,7 +545,7 @@ Jobs names will be in the format: &lt;jobSet.name&gt;-&lt;spec.replicatedJob.nam
 <a href="#jobset-x-k8s-io-v1alpha2-DependsOn"><code>[]DependsOn</code></a>
 </td>
 <td>
-   <p>DependsOn is an optional list that specifies the preceding ReplicatedJobs upon which
+   <p>dependsOn is an optional list that specifies the preceding ReplicatedJobs upon which
 the current ReplicatedJob depends. If specified, the ReplicatedJob will be created
 only after the referenced ReplicatedJobs reach their desired state.
 The Order of ReplicatedJobs is defined by their enumeration in the slice.
@@ -574,14 +579,14 @@ This API is mutually exclusive with the StartupPolicy API.</p>
 <code>string</code>
 </td>
 <td>
-   <p>Name of the ReplicatedJob.</p>
+   <p>name of the ReplicatedJob.</p>
 </td>
 </tr>
 <tr><td><code>ready</code> <B>[Required]</B><br/>
 <code>int32</code>
 </td>
 <td>
-   <p>Ready is the number of child Jobs where the number of ready pods and completed pods
+   <p>ready is the number of child Jobs where the number of ready pods and completed pods
 is greater than or equal to the total expected pod count for the Job (i.e., the minimum
 of job.spec.parallelism and job.spec.completions).</p>
 </td>
@@ -590,21 +595,21 @@ of job.spec.parallelism and job.spec.completions).</p>
 <code>int32</code>
 </td>
 <td>
-   <p>Succeeded is the number of successfully completed child Jobs.</p>
+   <p>succeeded is the number of successfully completed child Jobs.</p>
 </td>
 </tr>
 <tr><td><code>failed</code> <B>[Required]</B><br/>
 <code>int32</code>
 </td>
 <td>
-   <p>Failed is the number of failed child Jobs.</p>
+   <p>failed is the number of failed child Jobs.</p>
 </td>
 </tr>
 <tr><td><code>active</code> <B>[Required]</B><br/>
 <code>int32</code>
 </td>
 <td>
-   <p>Active is the number of child Jobs with at least 1 pod in a running or pending state
+   <p>active is the number of child Jobs with at least 1 pod in a running or pending state
 which are not marked for deletion.</p>
 </td>
 </tr>
@@ -612,7 +617,7 @@ which are not marked for deletion.</p>
 <code>int32</code>
 </td>
 <td>
-   <p>Suspended is the number of child Jobs which are in a suspended state.</p>
+   <p>suspended is the number of child Jobs which are in a suspended state.</p>
 </td>
 </tr>
 </tbody>
@@ -636,7 +641,7 @@ which are not marked for deletion.</p>
 <a href="#jobset-x-k8s-io-v1alpha2-StartupPolicyOptions"><code>StartupPolicyOptions</code></a>
 </td>
 <td>
-   <p>StartupPolicyOrder determines the startup order of the ReplicatedJobs.
+   <p>startupPolicyOrder determines the startup order of the ReplicatedJobs.
 AnyOrder means to start replicated jobs in any order.
 InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
 when all the jobs of the previous one are ready.</p>
@@ -675,14 +680,14 @@ when all the jobs of the previous one are ready.</p>
 <a href="#jobset-x-k8s-io-v1alpha2-Operator"><code>Operator</code></a>
 </td>
 <td>
-   <p>Operator determines either All or Any of the selected jobs should succeed to consider the JobSet successful</p>
+   <p>operator determines either All or Any of the selected jobs should succeed to consider the JobSet successful</p>
 </td>
 </tr>
 <tr><td><code>targetReplicatedJobs</code><br/>
 <code>[]string</code>
 </td>
 <td>
-   <p>TargetReplicatedJobs are the names of the replicated jobs the operator will apply to.
+   <p>targetReplicatedJobs are the names of the replicated jobs the operator will apply to.
 A null or empty list will apply to all replicatedJobs.</p>
 </td>
 </tr>
