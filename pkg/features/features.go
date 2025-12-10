@@ -27,14 +27,12 @@ import (
 )
 
 const (
-// Example
-// owner: <feature owner>
-// kep: <KEP link>
-// alpha: v0.5
-// beta: v0.6
-//
-// Enables example.
-// Example featuregate.Feature = "Example"
+	// owner: @giuseppett
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/467-InPlaceRestart/README.md
+	//
+	// Enables in-place restart, allowing JobSet workloads to restart much faster by restarting
+	// healthy Pods in-place to skip the Pod deletion+schedule+creation process.
+	InPlaceRestart featuregate.Feature = "InPlaceRestart"
 )
 
 func init() {
@@ -48,7 +46,7 @@ func init() {
 // Entries are separated from each other with blank lines to avoid sweeping gofmt changes
 // when adding or removing one entry.
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	// Example: {Default: true, PreRelease: featuregate.Beta},
+	InPlaceRestart: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {
