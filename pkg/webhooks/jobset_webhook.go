@@ -183,12 +183,6 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		if js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
 			allErrs = append(allErrs, fmt.Errorf("InPlaceRestart restart strategy cannot be set when InPlaceRestart feature gate is disabled"))
 		}
-		if js.Status.PreviousInPlaceRestartAttempt != nil {
-			allErrs = append(allErrs, fmt.Errorf("PreviousInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled"))
-		}
-		if js.Status.CurrentInPlaceRestartAttempt != nil {
-			allErrs = append(allErrs, fmt.Errorf("CurrentInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled"))
-		}
 	}
 
 	// Validate InPlaceRestart.

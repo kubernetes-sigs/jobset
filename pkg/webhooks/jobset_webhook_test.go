@@ -2746,59 +2746,7 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(fmt.Errorf("InPlaceRestart restart strategy cannot be set when InPlaceRestart feature gate is disabled")),
 		},
 		{
-			name:                 "PreviousInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled",
-			enableInPlaceRestart: false,
-			js: &jobset.JobSet{
-				ObjectMeta: validObjectMeta,
-				Spec: jobset.JobSetSpec{
-					SuccessPolicy: &jobset.SuccessPolicy{},
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Name:      "job-1",
-							GroupName: "default",
-							Replicas:  1,
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template: validPodTemplateSpec,
-								},
-							},
-						},
-					},
-				},
-				Status: jobset.JobSetStatus{
-					PreviousInPlaceRestartAttempt: ptr.To[int32](1),
-				},
-			},
-			want: errors.Join(fmt.Errorf("PreviousInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled")),
-		},
-		{
-			name:                 "CurrentInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled",
-			enableInPlaceRestart: false,
-			js: &jobset.JobSet{
-				ObjectMeta: validObjectMeta,
-				Spec: jobset.JobSetSpec{
-					SuccessPolicy: &jobset.SuccessPolicy{},
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Name:      "job-1",
-							GroupName: "default",
-							Replicas:  1,
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template: validPodTemplateSpec,
-								},
-							},
-						},
-					},
-				},
-				Status: jobset.JobSetStatus{
-					CurrentInPlaceRestartAttempt: ptr.To[int32](1),
-				},
-			},
-			want: errors.Join(fmt.Errorf("CurrentInPlaceRestartAttempt cannot be set when InPlaceRestart feature gate is disabled")),
-		},
-		{
-			name:                 "InPlaceRestart restart strategy, PreviousInPlaceRestartAttempt and CurrentInPlaceRestartAttempt can be set when InPlaceRestart feature gate is enabled",
+			name:                 "InPlaceRestart restart strategy can be set when InPlaceRestart feature gate is enabled",
 			enableInPlaceRestart: true,
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -2823,10 +2771,6 @@ func TestValidateCreate(t *testing.T) {
 							},
 						},
 					},
-				},
-				Status: jobset.JobSetStatus{
-					PreviousInPlaceRestartAttempt: ptr.To[int32](1),
-					CurrentInPlaceRestartAttempt:  ptr.To[int32](2),
 				},
 			},
 			want: nil,
