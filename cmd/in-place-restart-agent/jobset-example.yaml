@@ -3,12 +3,15 @@ kind: JobSet
 metadata:
   name: js
   annotations:
-    alpha.jobset.sigs.k8s.io/exclusive-topology: cloud.google.com/gke-nodepool
+    # Not necessary, but likely useful
+    # Example of value: cloud.google.com/gke-nodepool
+    alpha.jobset.sigs.k8s.io/exclusive-topology: <CHANGE ME>
 spec:
   failurePolicy:
     maxRestarts: 3
     restartStrategy: InPlaceRestart
   replicatedJobs:
+  # This example uses 5k Pods in total
   - name: rj
     replicas: 10
     template:
@@ -21,6 +24,7 @@ spec:
           spec:
             serviceAccountName: jobset-in-place-restart
             restartPolicy: OnFailure
+            # Not necessary, but useful for testing
             terminationGracePeriodSeconds: 0
             containers:
             - name: in-place-restart-agent
