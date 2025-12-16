@@ -319,8 +319,6 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	return nil, errors.Join(allErrs...)
 }
 
-
-
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.Object) (admission.Warnings, error) {
 	js, ok := newObj.(*jobset.JobSet)
