@@ -2803,7 +2803,7 @@ func TestValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			want: errors.Join(fmt.Errorf("replicatedJob job-1: backoffLimit must be set to 2147483647 (MaxInt32) when in-place restart is enabled")),
+			want: errors.Join(fmt.Errorf("replicatedJob job-1: must be set to 2147483647 (MaxInt32) when in-place restart is enabled")),
 		},
 		{
 			name:                 "InPlaceRestart enabled: podReplacementPolicy is not Failed",
@@ -2833,7 +2833,7 @@ func TestValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			want: errors.Join(fmt.Errorf("replicatedJob job-1: podReplacementPolicy must be set to Failed when in-place restart is enabled")),
+			want: errors.Join(fmt.Errorf("replicatedJob job-1: must be set to Failed when in-place restart is enabled")),
 		},
 		{
 			name:                 "InPlaceRestart enabled: completions != parallelism",

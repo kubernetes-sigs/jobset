@@ -277,17 +277,17 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		if features.Enabled(features.InPlaceRestart) && js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
 			// Validate that the backoff limit is set to max int32.
 			if rJob.Template.Spec.BackoffLimit == nil || *rJob.Template.Spec.BackoffLimit != math.MaxInt32 {
-				allErrs = append(allErrs, fmt.Errorf("replicatedJob %s: backoffLimit must be set to %d (MaxInt32) when in-place restart is enabled", rJob.Name, math.MaxInt32))
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "backoffLimit"), rJob.Template.Spec.BackoffLimit, fmt.Sprintf("replicatedJob %s: must be set to %d (MaxInt32) when in-place restart is enabled", rJob.Name, math.MaxInt32)))
 			}
 
 			// Validate that the pod replacement policy is set to Failed.
 			if rJob.Template.Spec.PodReplacementPolicy == nil || *rJob.Template.Spec.PodReplacementPolicy != batchv1.Failed {
-				allErrs = append(allErrs, fmt.Errorf("replicatedJob %s: podReplacementPolicy must be set to Failed when in-place restart is enabled", rJob.Name))
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "podReplacementPolicy"), rJob.Template.Spec.PodReplacementPolicy, fmt.Sprintf("replicatedJob %s: must be set to %s when in-place restart is enabled", rJob.Name, batchv1.Failed)))
 			}
 
 			// Validate that completions is equal to parallelism.
 			if rJob.Template.Spec.Completions == nil || rJob.Template.Spec.Parallelism == nil || *rJob.Template.Spec.Completions != *rJob.Template.Spec.Parallelism {
-				allErrs = append(allErrs, fmt.Errorf("replicatedJob %s: completions and parallelism must be set and equal to each other when in-place restart is enabled", rJob.Name))
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "completions"), rJob.Template.Spec.Completions, fmt.Sprintf("replicatedJob %s: completions and parallelism must be set and equal to each other when in-place restart is enabled", rJob.Name)))
 			}
 		}
 	}
