@@ -23,7 +23,7 @@ spec:
             restartPolicy: OnFailure
             terminationGracePeriodSeconds: 0
             containers:
-            - name: agent
+            - name: in-place-restart-agent
               image: <CHANGE ME>
               env:
               - name: NAMESPACE
