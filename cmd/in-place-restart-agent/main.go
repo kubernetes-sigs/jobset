@@ -290,7 +290,7 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 	// This will trigger container restart since Pod.spec.restartPolicy = OnFailure
 	// Once RestartAllContainers is released upstream (k8s 1.35), this will trigger in-place container restart since Pod.spec.initContainers[].restartPolicyRules[].action = RestartAllContainers
 	if r.PodInPlaceRestartAttempt != nil && previousInPlaceRestartAttempt != nil && *r.PodInPlaceRestartAttempt <= *previousInPlaceRestartAttempt {
-		log.Info("exiting to restart this Pod in-place")
+		log.Info("exiting agent with in-place restart exit code to restart this Pod in-place", "exitCode", r.InPlaceRestartExitCode)
 		r.Exit(r.InPlaceRestartExitCode)
 		return ctrl.Result{}, nil // unreachable
 	}
@@ -338,14 +338,15 @@ func (r *InPlaceRestartAgent) executeWorkerCommand(ctx context.Context) {
 	if err := r.StartWorker(ctx, r.WorkerCommand); err != nil {
 		log.Error(err, "worker command failed")
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			log.Info("worker command failed with exit code", "exitCode", exitErr.ExitCode())
+			log.Info("exiting agent with same exit code of the worker command", "exitCode", exitErr.ExitCode())
 			r.Exit(exitErr.ExitCode())
 			return
 		}
+		log.Info("worker command failed with unknown error. Exiting agent with exit code 1", "exitCode", 1)
 		r.Exit(1)
 		return
 	}
 
-	log.Info("worker command finished successfully")
+	log.Info("worker command finished successfully. Exiting agent with exit code 0", "exitCode", 0)
 	r.Exit(0)
 }
