@@ -20,12 +20,20 @@ import (
 
 // JobSetStatusApplyConfiguration represents a declarative configuration of the JobSetStatus type for use
 // with apply.
+//
+// JobSetStatus defines the observed state of JobSet
 type JobSetStatusApplyConfiguration struct {
-	Conditions              []v1.ConditionApplyConfiguration        `json:"conditions,omitempty"`
-	Restarts                *int32                                  `json:"restarts,omitempty"`
-	RestartsCountTowardsMax *int32                                  `json:"restartsCountTowardsMax,omitempty"`
-	TerminalState           *string                                 `json:"terminalState,omitempty"`
-	ReplicatedJobsStatus    []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
+	// conditions track status
+	Conditions []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
+	// restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
+	Restarts *int32 `json:"restarts,omitempty"`
+	// restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.
+	RestartsCountTowardsMax *int32 `json:"restartsCountTowardsMax,omitempty"`
+	// terminalState the state of the JobSet when it finishes execution.
+	// It can be either Completed or Failed. Otherwise, it is empty by default.
+	TerminalState *string `json:"terminalState,omitempty"`
+	// replicatedJobsStatus track the number of JobsReady for each replicatedJob.
+	ReplicatedJobsStatus []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
 }
 
 // JobSetStatusApplyConfiguration constructs a declarative configuration of the JobSetStatus type for use with
