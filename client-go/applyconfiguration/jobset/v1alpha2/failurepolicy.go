@@ -21,9 +21,17 @@ import (
 // FailurePolicyApplyConfiguration represents a declarative configuration of the FailurePolicy type for use
 // with apply.
 type FailurePolicyApplyConfiguration struct {
-	MaxRestarts     *int32                                `json:"maxRestarts,omitempty"`
+	// maxRestarts defines the limit on the number of JobSet restarts.
+	// A restart is achieved by recreating all active child jobs.
+	MaxRestarts *int32 `json:"maxRestarts,omitempty"`
+	// restartStrategy defines the strategy to use when restarting the JobSet.
+	// Defaults to Recreate.
 	RestartStrategy *jobsetv1alpha2.JobSetRestartStrategy `json:"restartStrategy,omitempty"`
-	Rules           []FailurePolicyRuleApplyConfiguration `json:"rules,omitempty"`
+	// rules is a list of failure policy rules for this JobSet.
+	// For a given Job failure, the rules will be evaluated in order,
+	// and only the first matching rule will be executed.
+	// If no matching rule is found, the RestartJobSet action is applied.
+	Rules []FailurePolicyRuleApplyConfiguration `json:"rules,omitempty"`
 }
 
 // FailurePolicyApplyConfiguration constructs a declarative configuration of the FailurePolicy type for use with
