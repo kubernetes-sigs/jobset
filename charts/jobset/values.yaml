@@ -1,4 +1,3 @@
-
 #
 # Copyright 2025 The Kubernetes authors.
 #
@@ -77,6 +76,12 @@ controller:
       type: RuntimeDefault
   # -- Run the controller/webhook Pods on the node’s network namespace instead of the overlay CNI.
   hostNetwork: false
+  # -- PodDisruptionBudget configuration for the jobset controller
+  podDisruptionBudget:
+    # -- Maximum number of pods that can be terminated within the specified period
+    maxUnavailable: 1
+    # -- Minimum number of pods that must be available
+    minAvailable: 0
 certManager:
   # -- Whether to use cert-manager to generate certificates for the jobset webhook.
   enable: false
@@ -90,9 +95,4 @@ prometheus:
   enable: false
   # SHOULD BE CONFIGURED
   prometheusNamespace: monitoring
-  # SHOULD BE CONFIGURED
-  # The same certificate for the server ("jobset-metrics-server-cert") can potentially be also used for the client.
-  # It is preferable to use prometheus client certificate if available:
-  # Either by creating a secret in the jobset controller namespace
-  # or by using prometheus mounted secret which can be configured via certFile and keyFile in the service_monitor.yaml
-  prometheusClientCertSecretName: "jobset-metrics-server-cert"
+  # SHOU
