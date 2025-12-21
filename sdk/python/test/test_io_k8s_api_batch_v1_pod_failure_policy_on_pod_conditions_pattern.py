@@ -40,7 +40,6 @@ class TestIoK8sApiBatchV1PodFailurePolicyOnPodConditionsPattern(unittest.TestCas
             )
         else:
             return IoK8sApiBatchV1PodFailurePolicyOnPodConditionsPattern(
-                status = '',
                 type = '',
         )
         """

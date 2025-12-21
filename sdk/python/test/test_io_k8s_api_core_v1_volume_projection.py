@@ -80,7 +80,10 @@ class TestIoK8sApiCoreV1VolumeProjection(unittest.TestCase):
                     key_path = '', 
                     key_type = '', 
                     max_expiration_seconds = 56, 
-                    signer_name = '', ),
+                    signer_name = '', 
+                    user_annotations = {
+                        'key' : ''
+                        }, ),
                 secret = jobset.models.io/k8s/api/core/v1/secret_projection.io.k8s.api.core.v1.SecretProjection(
                     items = [
                         jobset.models.io/k8s/api/core/v1/key_to_path.io.k8s.api.core.v1.KeyToPath(

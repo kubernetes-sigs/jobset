@@ -15,22 +15,22 @@ linters:
             enable:
               - "commentstart" # Ensure comments start with the serialized version of the field name.
               - "conditions" # Ensure conditions have the correct json tags and markers.
-              - "conflictingmarkers"
+              - "conflictingmarkers" # Detects mutually exclusive markers on the same field
               - "duplicatemarkers" # Ensure there are no exact duplicate markers. for types and fields.
-              # - "integers" # Ensure only int32 and int64 are used for integers.
+              - "integers" # Ensure only int32 and int64 are used for integers.
               - "jsontags" # Ensure every field has a json tag.
-              # - "maxlength" # Ensure all strings and arrays have maximum lengths/maximum items.
+              - "maxlength" # Ensure all strings and arrays have maximum lengths/maximum items.
               - "nobools" # Bools do not evolve over time, should use enums instead.
               - "nodurations" # Prevents usage of `Duration` types.
               - "nofloats" # Ensure floats are not used.
-              # - "nomaps" # Ensure maps are not used.
+              - "nomaps" # Ensure maps are not used.
               - "nonullable" # Ensure that types and fields do not have the nullable marker.
               - "notimestamp" # Prevents usage of 'Timestamp' fields
-              # - "optionalfields" # Ensure that all fields marked as optional adhere to being pointers and
+              - "optionalfields" # Ensure that all fields marked as optional adhere to being pointers and
                                  # having the `omitempty` value in their `json` tag where appropriate.
-              # - "optionalorrequired" # Every field should be marked as `+optional` or `+required`.
-              # - "requiredfields" # Required fields should not be pointers, and should not have `omitempty`.
-              # - "ssatags" # Ensure array fields have the appropriate listType markers
+              - "optionalorrequired" # Every field should be marked as `+optional` or `+required`.
+              - "requiredfields" # Required fields should not be pointers, and should not have `omitempty`.
+              - "ssatags" # Ensure array fields have the appropriate listType markers
               - "statusoptional" # Ensure all first children within status should be optional.
               - "statussubresource" # All root objects that have a `status` field should have a status subresource.
               - "uniquemarkers" # Ensure that types and fields do not contain more than a single definition of a marker that should only be present once.
@@ -63,6 +63,150 @@ linters:
     rules:
     ## KAL should only run on API folders.
     - path-except: "api/jobset/*"
+      linters:
+        - kubeapilinter
+
+    ## Exclusions for existing API fields that intentionally violate conventions
+    ## These are grandfathered in to maintain API compatibility
+
+    # JobSetSpec.ReplicatedJobs - all violations for this field
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field JobSetSpec\\.ReplicatedJobs"
+      linters:
+        - kubeapilinter
+
+    # JobSetSpec policy fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field JobSetSpec\\.(SuccessPolicy|FailurePolicy|StartupPolicy)"
+      linters:
+        - kubeapilinter
+
+    # JobSetSpec.ManagedBy - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field JobSetSpec\\.ManagedBy"
+      linters:
+        - kubeapilinter
+
+    # JobSetStatus.Conditions - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field JobSetStatus\\.Conditions"
+      linters:
+        - kubeapilinter
+
+    # JobSetStatus fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field JobSetStatus\\.(Restarts|RestartsCountTowardsMax|TerminalState|ReplicatedJobsStatus)"
+      linters:
+        - kubeapilinter
+
+    # ReplicatedJobStatus fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "type ReplicatedJobStatus"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field ReplicatedJobStatus\\.(Name|Ready|Succeeded|Failed|Active|Suspended)"
+      linters:
+        - kubeapilinter
+
+    # JobSet embedded metav1 types - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field (ObjectMeta|Spec|Status)"
+      linters:
+        - kubeapilinter
+    # JobSet.Spec and JobSet.Status - specific field violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field JobSet\\.(Spec|Status)"
+      linters:
+        - kubeapilinter
+
+    # ReplicatedJob fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "type ReplicatedJob"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field ReplicatedJob\\.(Name|GroupName|Template|Replicas)"
+      linters:
+        - kubeapilinter
+
+    # DependsOn fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "type DependsOn"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field DependsOn\\.(Name|Status)"
+      linters:
+        - kubeapilinter
+
+    # Network.Subdomain - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field Network\\.Subdomain"
+      linters:
+        - kubeapilinter
+
+    # FailurePolicyRule fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "type FailurePolicyRule"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field FailurePolicyRule\\.(Name|Action|OnJobFailureReasons|OnJobFailureMessagePatterns|TargetReplicatedJobs)"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "(OnJobFailureReasons|OnJobFailureMessagePatterns) should have a listType marker"
+      linters:
+        - kubeapilinter
+
+    # FailurePolicy fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "type FailurePolicy"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field FailurePolicy\\.(MaxRestarts|RestartStrategy|Rules)"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "Rules should have a listType marker"
+      linters:
+        - kubeapilinter
+
+    # SuccessPolicy fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "type SuccessPolicy"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field SuccessPolicy\\.(Operator|TargetReplicatedJobs)"
+      linters:
+        - kubeapilinter
+
+    # StartupPolicy fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "type StartupPolicy"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field StartupPolicy\\.StartupPolicyOrder"
+      linters:
+        - kubeapilinter
+
+    # Coordinator fields - all violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "type Coordinator"
+      linters:
+        - kubeapilinter
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "field Coordinator\\.(ReplicatedJob|JobIndex|PodIndex)"
+      linters:
+        - kubeapilinter
+
+    # Embedded metav1.ObjectMeta - handle both embedded field and regular field violations
+    - path: "api/jobset/v1alpha2/jobset_types.go"
+      text: "embedded field"
       linters:
         - kubeapilinter
 
