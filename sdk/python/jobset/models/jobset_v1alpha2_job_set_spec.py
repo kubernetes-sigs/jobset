@@ -25,6 +25,7 @@ from jobset.models.jobset_v1alpha2_network import JobsetV1alpha2Network
 from jobset.models.jobset_v1alpha2_replicated_job import JobsetV1alpha2ReplicatedJob
 from jobset.models.jobset_v1alpha2_startup_policy import JobsetV1alpha2StartupPolicy
 from jobset.models.jobset_v1alpha2_success_policy import JobsetV1alpha2SuccessPolicy
+from jobset.models.jobset_v1alpha2_volume_claim_policy import JobsetV1alpha2VolumeClaimPolicy
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -41,7 +42,8 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
     success_policy: Optional[JobsetV1alpha2SuccessPolicy] = Field(default=None, alias="successPolicy")
     suspend: Optional[StrictBool] = Field(default=None, description="suspend suspends all running child Jobs when set to true.")
     ttl_seconds_after_finished: Optional[StrictInt] = Field(default=None, description="ttlSecondsAfterFinished limits the lifetime of a JobSet that has finished execution (either Complete or Failed). If this field is set, TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be automatically deleted. When the JobSet is being deleted, its lifecycle guarantees (e.g. finalizers) will be honored. If this field is unset, the JobSet won't be automatically deleted. If this field is set to zero, the JobSet becomes eligible to be deleted immediately after it finishes.", alias="ttlSecondsAfterFinished")
-    __properties: ClassVar[List[str]] = ["coordinator", "failurePolicy", "managedBy", "network", "replicatedJobs", "startupPolicy", "successPolicy", "suspend", "ttlSecondsAfterFinished"]
+    volume_claim_policies: Optional[List[JobsetV1alpha2VolumeClaimPolicy]] = Field(default=None, description="volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed to reference. JobSet controller automatically adds the required volume claims to the pod template. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template.", alias="volumeClaimPolicies")
+    __properties: ClassVar[List[str]] = ["coordinator", "failurePolicy", "managedBy", "network", "replicatedJobs", "startupPolicy", "successPolicy", "suspend", "ttlSecondsAfterFinished", "volumeClaimPolicies"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -104,6 +106,13 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
         # override the default output from pydantic by calling `to_dict()` of success_policy
         if self.success_policy:
             _dict['successPolicy'] = self.success_policy.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of each item in volume_claim_policies (list)
+        _items = []
+        if self.volume_claim_policies:
+            for _item_volume_claim_policies in self.volume_claim_policies:
+                if _item_volume_claim_policies:
+                    _items.append(_item_volume_claim_policies.to_dict())
+            _dict['volumeClaimPolicies'] = _items
         return _dict
 
     @classmethod
@@ -124,7 +133,8 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
             "startupPolicy": JobsetV1alpha2StartupPolicy.from_dict(obj["startupPolicy"]) if obj.get("startupPolicy") is not None else None,
             "successPolicy": JobsetV1alpha2SuccessPolicy.from_dict(obj["successPolicy"]) if obj.get("successPolicy") is not None else None,
             "suspend": obj.get("suspend"),
-            "ttlSecondsAfterFinished": obj.get("ttlSecondsAfterFinished")
+            "ttlSecondsAfterFinished": obj.get("ttlSecondsAfterFinished"),
+            "volumeClaimPolicies": [JobsetV1alpha2VolumeClaimPolicy.from_dict(_item) for _item in obj["volumeClaimPolicies"]] if obj.get("volumeClaimPolicies") is not None else None
         })
         return _obj
 

@@ -26,6 +26,7 @@ import (
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -581,6 +582,53 @@ var _ = ginkgo.Describe("JobSet", func() {
 			gomega.Expect(k8sClient.Delete(ctx, jobSet)).To(gomega.Succeed())
 		})
 	})
+	// This test runs JobSet with the VolumeClaimPolicies API.
+	ginkgo.When("VolumeClaimPolicies is enabled on JobSet", func() {
+		ginkgo.It("should create PVCs with multiple retention policies", func() {
+			ctx := context.Background()
+
+			// Create JobSet with VolumeClaimPolicies.
+			ginkgo.By("creating jobset with VolumeClaimPolicies")
+			js := volumeClaimTestJobSet(ns).Obj()
+
+			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			// Verify all jobs were created.
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
+
+			// Verify PVCs are created.
+			ginkgo.By("checking that two PVCs are created")
+			gomega.Eventually(func() (int, error) {
+				var pvcList corev1.PersistentVolumeClaimList
+				if err := k8sClient.List(ctx, &pvcList, client.InNamespace(ns.Name)); err != nil {
+					return -1, err
+				}
+				return len(pvcList.Items), nil
+			}, timeout, interval).Should(gomega.Equal(2))
+
+			// Check jobset completes successfully.
+			ginkgo.By("checking jobset completes successfully")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
+
+			// Delete the JobSet.
+			ginkgo.By("deleting the jobset")
+			gomega.Expect(k8sClient.Delete(ctx, js)).To(gomega.Succeed())
+
+			// Verify that only single PVC is deleted.
+			ginkgo.By("checking that only single PVC is deleted")
+			gomega.Eventually(func() (int, error) {
+				var pvcList corev1.PersistentVolumeClaimList
+				if err := k8sClient.List(ctx, &pvcList, client.InNamespace(ns.Name)); err != nil {
+					return -1, err
+				}
+				return len(pvcList.Items), nil
+			}, timeout, interval).Should(gomega.Equal(1))
+
+		})
+	})
 }) // end of Describe
 
 // getPingCommand returns ping command for 4 hostnames
@@ -748,4 +796,102 @@ func serverSideApplyTestJobSet(ns *corev1.Namespace, name string) *jobsetv1alpha
 				),
 			),
 		)
+}
+
+// volumeClaimTestJobSet creates a JobSet with VolumeClaimPolicies for testing shared storage
+func volumeClaimTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
+	jsName := "volume-test"
+	rjobName := "rjob"
+
+	return testing.MakeJobSet(jsName, ns.Name).
+		EnableDNSHostnames(true).
+		VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+			{
+				Templates: []corev1.PersistentVolumeClaim{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "shared-pvc-delete",
+						},
+						Spec: corev1.PersistentVolumeClaimSpec{
+							AccessModes: []corev1.PersistentVolumeAccessMode{
+								corev1.ReadWriteOnce,
+							},
+							Resources: corev1.VolumeResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceStorage: resource.MustParse("1Gi"),
+								},
+							},
+						},
+					},
+				},
+				RetentionPolicy: &jobset.VolumeRetentionPolicy{
+					WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+				},
+			},
+			{
+				Templates: []corev1.PersistentVolumeClaim{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "shared-pvc-retain",
+						},
+						Spec: corev1.PersistentVolumeClaimSpec{
+							AccessModes: []corev1.PersistentVolumeAccessMode{
+								corev1.ReadWriteOnce,
+							},
+							Resources: corev1.VolumeResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceStorage: resource.MustParse("1Gi"),
+								},
+							},
+						},
+					},
+				},
+				RetentionPolicy: &jobset.VolumeRetentionPolicy{
+					WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
+				},
+			},
+		}).
+		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
+			Job(testing.MakeJobTemplate("job", ns.Name).
+				PodSpec(corev1.PodSpec{
+					RestartPolicy: "Never",
+					InitContainers: []corev1.Container{
+						{
+							Name:    "test-init",
+							Image:   "docker.io/library/bash:latest",
+							Command: []string{"bash", "-c"},
+							Args: []string{
+								"echo 'Writing to shared volume that will be deleted' > /data-delete/test.txt && " +
+									"cat /data-delete/test.txt && " +
+									"echo 'Successfully accessed shared volume'",
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "shared-pvc-delete",
+									MountPath: "/data-delete",
+								},
+							},
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Name:    "test-container",
+							Image:   "docker.io/library/bash:latest",
+							Command: []string{"bash", "-c"},
+							Args: []string{
+								"echo 'Writing to shared volume that will be saved' > /data-retain/test.txt && " +
+									"cat /data-retain/test.txt && " +
+									"echo 'Successfully accessed shared volume'",
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "shared-pvc-retain",
+									MountPath: "/data-retain",
+								},
+							},
+						},
+					},
+				}).Obj()).
+			Replicas(2).
+			Obj())
 }

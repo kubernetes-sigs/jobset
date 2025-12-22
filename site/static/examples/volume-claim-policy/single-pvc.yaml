@@ -1,0 +1,74 @@
+# This example creates two shared PVC for two ReplicatedJobs.
+# The first PVC: initializer will be deleted after JobSet is deleted.
+# The second PVC: checkpoints will be retained after JobSet is deleted.
+# The second replicatedJob runs after the first is complete. After JobSet is complete or deleted,
+# you can create a simple busybox Pod to mount this PVC: checkpoints-volume-claim-trainjob.
+# You should see the following: $ /workspace/checkpoints # ls
+# model_0.txt  model_1.txt  model_2.txt
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: volume-claim-trainjob
+spec:
+  volumeClaimPolicies:
+    - templates:
+        - metadata:
+            name: initializer
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 1Gi
+    - templates:
+        - metadata:
+            name: checkpoints
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 1Gi
+      retentionPolicy:
+        whenDeleted: Retain
+  replicatedJobs:
+    - name: initializer
+      template:
+        spec:
+          template:
+            spec:
+              containers:
+                - name: initializer
+                  image: busybox
+                  command:
+                    - /bin/sh
+                    - -c
+                    - |
+                      echo "Download pre-trained model into /workspace/model/qwen3.txt"
+                      echo 'Qwen3-30b' > /workspace/model/qwen3.txt
+                  volumeMounts:
+                    - mountPath: /workspace/model
+                      name: initializer
+    - name: node
+      dependsOn:
+        - name: initializer
+          status: Complete
+      template:
+        spec:
+          parallelism: 3
+          completions: 3
+          template:
+            spec:
+              containers:
+                - name: node
+                  image: busybox
+                  command:
+                    - /bin/sh
+                    - -c
+                    - |
+                      echo "Read pre-trained model" && cat /workspace/model/qwen3.txt
+                      echo "Write model checkpoint to /workspace/checkpoints/model_node_${JOB_COMPLETION_INDEX}"
+                      echo "Checkpoint: model_${JOB_COMPLETION_INDEX}" > /workspace/checkpoints/model_${JOB_COMPLETION_INDEX}.txt
+                  volumeMounts:
+                    - mountPath: /workspace/model
+                      name: initializer
+                    - mountPath: /workspace/checkpoints
+                      name: checkpoints

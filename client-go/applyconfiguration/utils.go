@@ -52,6 +52,10 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &jobsetv1alpha2.StartupPolicyApplyConfiguration{}
 	case v1alpha2.SchemeGroupVersion.WithKind("SuccessPolicy"):
 		return &jobsetv1alpha2.SuccessPolicyApplyConfiguration{}
+	case v1alpha2.SchemeGroupVersion.WithKind("VolumeClaimPolicy"):
+		return &jobsetv1alpha2.VolumeClaimPolicyApplyConfiguration{}
+	case v1alpha2.SchemeGroupVersion.WithKind("VolumeRetentionPolicy"):
+		return &jobsetv1alpha2.VolumeRetentionPolicyApplyConfiguration{}
 
 	}
 	return nil

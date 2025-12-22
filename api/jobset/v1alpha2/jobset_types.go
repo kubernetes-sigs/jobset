@@ -16,6 +16,7 @@ package v1alpha2
 
 import (
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -159,6 +160,16 @@ type JobSetSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	// +optional
 	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
+
+	// volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed
+	// to reference. JobSet controller automatically adds the required volume claims to the
+	// pod template. Every claim in this list must have at least one matching (by name)
+	// volumeMount in one container in the template.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=50
+	VolumeClaimPolicies []VolumeClaimPolicy `json:"volumeClaimPolicies,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet
@@ -457,6 +468,50 @@ type Coordinator struct {
 	// podIndex is the Job completion index of the coordinator pod.
 	PodIndex int `json:"podIndex,omitempty"`
 }
+
+// volumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.
+// +kubebuilder:validation:XValidation:rule="self.templates.all(t, !has(t.metadata.namespace) || size(t.metadata.namespace) == 0)",message="namespace cannot be set for VolumeClaimPolicies templates"
+type VolumeClaimPolicy struct {
+	// templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference.
+	// The JobSet controller is responsible for creating shared PVCs that can be mounted by
+	// multiple ReplicatedJobs. Every claim in this list must have a matching (by name)
+	// volumeMount in one container or initContainer in at least one ReplicatedJob template.
+	// ReplicatedJob template must not have volumes with the same name as defined in this template.
+	// PVC template must not have the namespace parameter.
+	// Generated PVC naming convention: <claim-name>-<jobset-name>
+	// Example: "model-cache-trainjob" (shared volume across all ReplicatedJobs).
+	// +kubebuilder:validation:MaxItems=50
+	// +optional
+	// +listType=atomic
+	Templates []corev1.PersistentVolumeClaim `json:"templates,omitempty"`
+
+	// retentionPolicy describes the lifecycle of persistent volume claims created from the template.
+	// By default, all persistent volume claims are deleted once JobSet is deleted.
+	// +optional
+	RetentionPolicy *VolumeRetentionPolicy `json:"retentionPolicy,omitempty"`
+}
+
+// volumeRetentionPolicy defines the retention policy used for PVCs created from the JobSet VolumeClaimPolicies.
+type VolumeRetentionPolicy struct {
+	// whenDeleted specifies what happens to PVCs when JobSet is deleted.
+	// +optional
+	// +kubebuilder:default=Delete
+	WhenDeleted *RetentionPolicyType `json:"whenDeleted,omitempty"`
+}
+
+// retentionPolicyType defines the retention policy for PVCs.
+// +kubebuilder:validation:Enum=Delete;Retain
+type RetentionPolicyType string
+
+const (
+	// retentionPolicyDelete is the default retention policy and specifies that
+	// PVC associated with JobSet VolumeClaimTemplates will be deleted.
+	RetentionPolicyDelete RetentionPolicyType = "Delete"
+
+	// retentionPolicyRetain is the retention policy and specifies that
+	// PVC associated with JobSet VolumeClaimTemplates will not be deleted.
+	RetentionPolicyRetain RetentionPolicyType = "Retain"
+)
 
 func init() {
 	SchemeBuilder.Register(&JobSet{}, &JobSetList{})
