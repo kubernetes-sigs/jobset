@@ -1286,6 +1286,28 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 								WhenDeleted: jobset.RetentionPolicyDelete,
 							},
 						},
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume-retain",
+									},
+									Spec: corev1.PersistentVolumeClaimSpec{
+										AccessModes: []corev1.PersistentVolumeAccessMode{
+											corev1.ReadWriteMany,
+										},
+										Resources: corev1.VolumeResourceRequirements{
+											Requests: corev1.ResourceList{
+												corev1.ResourceStorage: resource.MustParse("1Gi"),
+											},
+										},
+									},
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: jobset.RetentionPolicyRetain,
+							},
+						},
 					}).
 					ReplicatedJob(testing.MakeReplicatedJob("worker").
 						Job(testing.MakeJobTemplate("job", ns.Name).
@@ -1299,6 +1321,10 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 											{
 												Name:      "test-volume",
 												MountPath: "/data",
+											},
+											{
+												Name:      "test-volume-retain",
+												MountPath: "/data-retain",
 											},
 										},
 									},
@@ -1315,6 +1341,40 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				{
 					jobUpdateFn:          completeAllJobs,
 					checkJobSetCondition: testutil.JobSetCompleted,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						ginkgo.By("deleting the JobSet")
+						namespace := js.Namespace
+						gomega.Expect(k8sClient.Delete(ctx, js)).To(gomega.Succeed())
+
+						ginkgo.By("manually deleting PVCs with JobSet OwnerReference")
+						var pvcList corev1.PersistentVolumeClaimList
+						gomega.Expect(k8sClient.List(ctx, &pvcList, client.InNamespace(namespace))).To(gomega.Succeed())
+						for i := range pvcList.Items {
+							pvc := &pvcList.Items[i]
+							// Envtest doesn't support garage collection.
+							if len(pvc.OwnerReferences) > 0 {
+								// Remove finalizers to allow deletion in envtest.
+								pvc.Finalizers = []string{}
+								gomega.Expect(k8sClient.Update(ctx, pvc)).To(gomega.Succeed())
+								gomega.Expect(k8sClient.Delete(ctx, pvc)).To(gomega.Succeed())
+							}
+						}
+
+						ginkgo.By("checking that only the PVC with Retain policy still exists")
+						gomega.Eventually(func() ([]string, error) {
+							var pvcList corev1.PersistentVolumeClaimList
+							if err := k8sClient.List(ctx, &pvcList, client.InNamespace(namespace)); err != nil {
+								return nil, err
+							}
+							var pvcNames []string
+							for _, pvc := range pvcList.Items {
+								pvcNames = append(pvcNames, pvc.Name)
+							}
+							return pvcNames, nil
+						}, timeout, interval).Should(gomega.ConsistOf(gomega.ContainSubstring("test-volume-retain")))
+					},
 				},
 			},
 		}),
