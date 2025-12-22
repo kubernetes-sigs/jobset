@@ -555,5 +555,45 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			jobSetCreationShouldFail: true,
 		}),
+		ginkgo.Entry("VolumeClaimPolicies defaults are applied when empty", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+					EnableDNSHostnames(true).
+					VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+								},
+							},
+						},
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: "Never",
+								Containers: []corev1.Container{
+									{
+										Name:  "test-container",
+										Image: "busybox:latest",
+										VolumeMounts: []corev1.VolumeMount{
+											{
+												Name:      "test-volume",
+												MountPath: "/test",
+											},
+										},
+									},
+								},
+							}).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				retainPolicy := js.Spec.VolumeClaimPolicies[0].RetentionPolicy.WhenDeleted
+				return retainPolicy == jobset.RetentionPolicyDelete
+			},
+		}),
 	) // end of DescribeTable
 }) // end of Describe

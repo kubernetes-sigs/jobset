@@ -40,8 +40,9 @@ import (
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
-// maximum lnegth of the value of the managedBy field
+// maximum length of the value of the managedBy field
 const maxManagedByLength = 63
+const maxVolumeClaimLength = 63
 
 const (
 	// This is the error message returned by IsDNS1035Label when the given input
@@ -145,6 +146,15 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 			rule := &js.Spec.FailurePolicy.Rules[i]
 			if len(rule.Name) == 0 {
 				rule.Name = fmt.Sprintf(defaultRuleNameFmt, i)
+			}
+		}
+	}
+
+	// Apply the default retention policy for the VolumeClaimPolicies.
+	for i, policy := range js.Spec.VolumeClaimPolicies {
+		if policy.RetentionPolicy == nil {
+			js.Spec.VolumeClaimPolicies[i].RetentionPolicy = &jobset.VolumeRetentionPolicy{
+				WhenDeleted: jobset.RetentionPolicyDelete,
 			}
 		}
 	}
@@ -269,6 +279,12 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		allErrs = append(allErrs, validateCoordinator(js))
 		allErrs = append(allErrs, validateCoordinatorLabelValue(js))
 	}
+
+	// Validate VolumeClaimPolicies, if set.
+	if len(js.Spec.VolumeClaimPolicies) > 0 {
+		allErrs = append(allErrs, validateVolumeClaimPolicies(js, js.Spec.VolumeClaimPolicies)...)
+	}
+
 	return nil, errors.Join(allErrs...)
 }
 
@@ -407,6 +423,115 @@ func validateCoordinatorLabelValue(js *jobset.JobSet) error {
 		return fmt.Errorf("spec will lead to invalid label value %q for coordinator label %q (long JobSet / ReplicatedJob / SubDomain name?): %s", labelValue, jobset.CoordinatorKey, strings.Join(errs, ", "))
 	}
 	return nil
+}
+
+// validateVolumeClaimPolicies validates the volume claim policies for the JobSet.
+func validateVolumeClaimPolicies(js *jobset.JobSet, volumeClaimPolicies []jobset.VolumeClaimPolicy) []error {
+	var allErrs []error
+	claimNames := sets.New[string]()
+
+	// Collect all claim names from templates.
+	for policyIdx, policy := range volumeClaimPolicies {
+		fieldPath := field.NewPath("spec", "volumeClaimPolicies").Index(policyIdx)
+		for templateIdx, template := range policy.Templates {
+			templateFieldPath := fieldPath.Child("template").Index(templateIdx)
+
+			// Validate template namespace.
+			if template.Namespace != "" {
+				allErrs = append(allErrs, field.Invalid(
+					templateFieldPath.Child("namespace"),
+					template.Namespace,
+					"namespace cannot be set for the VolumeClaimPolicies template",
+				))
+			}
+
+			// Validate claim name uniqueness.
+			if claimNames.Has(template.Name) {
+				allErrs = append(allErrs, field.Invalid(
+					templateFieldPath.Child("name"),
+					template.Name,
+					"names must be unique for VolumeClaimPolicies template",
+				))
+			}
+
+			// Validate DNS-1123 subdomain name
+			for _, err := range validation.IsDNS1123Subdomain(template.Name) {
+				allErrs = append(allErrs, field.Invalid(templateFieldPath.Child("name"), template.Name, err))
+			}
+
+			// Validate PVC name length limits
+			estimatedNameLength := len(template.Name) + len(js.Name) + 10 // Buffer for indices and separators
+			if estimatedNameLength > maxVolumeClaimLength {
+				allErrs = append(allErrs, field.Invalid(
+					templateFieldPath.Child("name"),
+					template.Name,
+					"VolumeClaimPolicies template name is too long"))
+			}
+
+			// Validate that template has corresponding volumeMount in at least one container
+			if err := validateReplicatedJobsVolumeClaims(js.Spec.ReplicatedJobs, template.Name); err != nil {
+				allErrs = append(allErrs, err...)
+			}
+			claimNames.Insert(template.Name)
+		}
+	}
+	return allErrs
+}
+
+func validateReplicatedJobsVolumeClaims(rJobs []jobset.ReplicatedJob, volumeClaimName string) []error {
+	var allErrs []error
+	hasMatchingMount := false
+
+	for rJobIdx, rJob := range rJobs {
+		rJobFieldPath := field.NewPath("spec", "replicatedJobs").Index(rJobIdx)
+
+		// Check that ReplicatedJob doesn't have volume with the same name.
+		for volIdx, volume := range rJob.Template.Spec.Template.Spec.Volumes {
+			if volume.Name == volumeClaimName {
+				allErrs = append(allErrs, field.Invalid(
+					rJobFieldPath.Child("template", "spec", "template", "spec", "volumes").Index(volIdx).Child("name"),
+					volume.Name,
+					fmt.Sprintf("volume name conflicts with VolumeClaimPolicy template name: %s", volumeClaimName),
+				))
+			}
+		}
+
+		// Check whether ReplicatedJob initContainers or containers have the desired volume mount.
+		if !hasMatchingMount {
+			for _, container := range rJob.Template.Spec.Template.Spec.InitContainers {
+				if hasVolumeMount(container.VolumeMounts, volumeClaimName) {
+					hasMatchingMount = true
+					break
+				}
+			}
+
+			for _, container := range rJob.Template.Spec.Template.Spec.Containers {
+				if hasVolumeMount(container.VolumeMounts, volumeClaimName) {
+					hasMatchingMount = true
+					break
+				}
+			}
+		}
+	}
+
+	if !hasMatchingMount {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("spec", "replicatedJobs"),
+			rJobs,
+			fmt.Sprintf("replicatedJob containers don't have a matching volumeMount: %s from VolumeClaimPolicies", volumeClaimName),
+		))
+	}
+	return allErrs
+}
+
+// hasVolumeMount checks if volumeMounts have mount with the provided name.
+func hasVolumeMount(volumeMounts []corev1.VolumeMount, volumeMountName string) bool {
+	for _, volumeMount := range volumeMounts {
+		if volumeMount.Name == volumeMountName {
+			return true
+		}
+	}
+	return false
 }
 
 // replicatedJobByName fetches the replicatedJob spec from the JobSet by name.

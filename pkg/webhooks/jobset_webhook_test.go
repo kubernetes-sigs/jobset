@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -712,6 +713,73 @@ func TestJobSetDefaulting(t *testing.T) {
 		},
 	}
 
+	volumeRetentionPolicyTests := []jobSetDefaultingTestCase{
+		{
+			name: "volumeClaimPolicy retentionPolicy is defaulted to Delete when nil",
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+								},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
+				},
+			},
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: jobset.RetentionPolicyDelete,
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
+				},
+			},
+		},
+	}
+
 	testGroups := [][]jobSetDefaultingTestCase{
 		jobCompletionTests,
 		enablingDNSHostnameTests,
@@ -722,6 +790,7 @@ func TestJobSetDefaulting(t *testing.T) {
 		startupPolicyTests,
 		managedByTests,
 		failurePolicyRuleNameTests,
+		volumeRetentionPolicyTests,
 	}
 	var testCases []jobSetDefaultingTestCase
 	for _, testGroup := range testGroups {
@@ -2032,11 +2101,453 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
+	testPVCSpec := corev1.PersistentVolumeClaimSpec{
+		AccessModes: []corev1.PersistentVolumeAccessMode{
+			corev1.ReadWriteMany,
+		},
+		Resources: corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceStorage: resource.MustParse("1Gi"),
+			},
+		},
+	}
+
+	volumeClaimPolicyTests := []validationTestCase{
+		{
+			name: "volumeClaimPolicy is valid since volume exists in the container",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "test-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "volumeClaimPolicy is valid since volume exists in the initContainer",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Name:      "job-2",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											InitContainers: []corev1.Container{
+												{
+													Name:  "test-init",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "test-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since it has namespace",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name:      "test-volume",
+										Namespace: "invalid-namespace",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "test-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("namespace cannot be set for the VolumeClaimPolicies template")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since template names are not unique",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "duplicate-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+						},
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "duplicate-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: jobset.RetentionPolicyRetain,
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "duplicate-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("names must be unique for VolumeClaimPolicies template")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since template name has uppercase letters",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "InvalidVolumeName",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "InvalidVolumeName",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since template name is too long",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: strings.Repeat("a", 64),
+									},
+									Spec: testPVCSpec,
+								},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      strings.Repeat("a", 64),
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("VolumeClaimPolicies template name is too long")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since no matching volumeMount in containers",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("replicatedJob containers don't have a matching volumeMount")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since volume name conflicts with existing volume",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "conflicting-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "conflicting-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+											Volumes: []corev1.Volume{
+												{
+													Name: "conflicting-volume",
+													VolumeSource: corev1.VolumeSource{
+														EmptyDir: &corev1.EmptyDirVolumeSource{},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("volume name conflicts with VolumeClaimPolicy template name")),
+		},
+	}
+
 	testGroups := [][]validationTestCase{
 		uncategorizedTests,
 		jobsetControllerNameTests,
 		failurePolicyTests,
 		dependsOnTests,
+		volumeClaimPolicyTests,
 	}
 	var testCases []validationTestCase
 	for _, testGroup := range testGroups {

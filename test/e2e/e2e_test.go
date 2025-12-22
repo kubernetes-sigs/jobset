@@ -26,6 +26,7 @@ import (
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -581,6 +582,38 @@ var _ = ginkgo.Describe("JobSet", func() {
 			gomega.Expect(k8sClient.Delete(ctx, jobSet)).To(gomega.Succeed())
 		})
 	})
+	// This test runs JobSet with the VolumeClaimPolicies API.
+	ginkgo.When("VolumeClaimPolicies is enabled on JobSet", func() {
+		ginkgo.It("should create PVCs and allow pods to access shared storage", func() {
+			ctx := context.Background()
+
+			// Create JobSet with VolumeClaimPolicies.
+			ginkgo.By("creating jobset with VolumeClaimPolicies")
+			js := volumeClaimTestJobSet(ns).Obj()
+
+			// Verify jobset created successfully.
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			// Verify PVCs are created.
+			ginkgo.By("checking that PVCs are created")
+			gomega.Eventually(func() (int, error) {
+				var pvcList corev1.PersistentVolumeClaimList
+				if err := k8sClient.List(ctx, &pvcList, client.InNamespace(ns.Name)); err != nil {
+					return -1, err
+				}
+				return len(pvcList.Items), nil
+			}, timeout, interval).Should(gomega.Equal(1))
+
+			// Verify all jobs were created.
+			ginkgo.By("checking all jobs were created successfully")
+			gomega.Eventually(util.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(util.NumExpectedJobs(js)))
+
+			// Check jobset completes successfully.
+			ginkgo.By("checking jobset completes successfully")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
+		})
+	})
 }) // end of Describe
 
 // getPingCommand returns ping command for 4 hostnames
@@ -748,4 +781,63 @@ func serverSideApplyTestJobSet(ns *corev1.Namespace, name string) *jobsetv1alpha
 				),
 			),
 		)
+}
+
+// volumeClaimTestJobSet creates a JobSet with VolumeClaimPolicies for testing shared storage
+func volumeClaimTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
+	jsName := "volume-test"
+	rjobName := "rjob"
+	volumeName := "shared-data"
+
+	return testing.MakeJobSet(jsName, ns.Name).
+		EnableDNSHostnames(true).
+		VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+			{
+				Templates: []corev1.PersistentVolumeClaim{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: volumeName,
+						},
+						Spec: corev1.PersistentVolumeClaimSpec{
+							AccessModes: []corev1.PersistentVolumeAccessMode{
+								corev1.ReadWriteOnce,
+							},
+							Resources: corev1.VolumeResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceStorage: resource.MustParse("1Gi"),
+								},
+							},
+						},
+					},
+				},
+				RetentionPolicy: &jobset.VolumeRetentionPolicy{
+					WhenDeleted: jobset.RetentionPolicyDelete,
+				},
+			},
+		}).
+		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
+			Job(testing.MakeJobTemplate("job", ns.Name).
+				PodSpec(corev1.PodSpec{
+					RestartPolicy: "Never",
+					Containers: []corev1.Container{
+						{
+							Name:    "test-container",
+							Image:   "docker.io/library/bash:latest",
+							Command: []string{"bash", "-c"},
+							Args: []string{
+								"echo 'Writing to shared volume' > /data/test.txt && " +
+									"cat /data/test.txt && " +
+									"echo 'Successfully accessed shared volume'",
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      volumeName,
+									MountPath: "/data",
+								},
+							},
+						},
+					},
+				}).Obj()).
+			Replicas(1).
+			Obj())
 }

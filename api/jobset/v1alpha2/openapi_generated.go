@@ -24,19 +24,21 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.Coordinator":         schema_jobset_api_jobset_v1alpha2_Coordinator(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.DependsOn":           schema_jobset_api_jobset_v1alpha2_DependsOn(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy":       schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicyRule":   schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSet":              schema_jobset_api_jobset_v1alpha2_JobSet(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetList":          schema_jobset_api_jobset_v1alpha2_JobSetList(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetSpec":          schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetStatus":        schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.Network":             schema_jobset_api_jobset_v1alpha2_Network(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob":       schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJobStatus": schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.StartupPolicy":       schema_jobset_api_jobset_v1alpha2_StartupPolicy(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy":       schema_jobset_api_jobset_v1alpha2_SuccessPolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.Coordinator":           schema_jobset_api_jobset_v1alpha2_Coordinator(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.DependsOn":             schema_jobset_api_jobset_v1alpha2_DependsOn(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy":         schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicyRule":     schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSet":                schema_jobset_api_jobset_v1alpha2_JobSet(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetList":            schema_jobset_api_jobset_v1alpha2_JobSetList(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetSpec":            schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetStatus":          schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.Network":               schema_jobset_api_jobset_v1alpha2_Network(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob":         schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJobStatus":   schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.StartupPolicy":         schema_jobset_api_jobset_v1alpha2_StartupPolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy":         schema_jobset_api_jobset_v1alpha2_SuccessPolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeClaimPolicy":     schema_jobset_api_jobset_v1alpha2_VolumeClaimPolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeRetentionPolicy": schema_jobset_api_jobset_v1alpha2_VolumeRetentionPolicy(ref),
 	}
 }
 
@@ -407,11 +409,30 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 							Format:      "int32",
 						},
 					},
+					"volumeClaimPolicies": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed to reference. JobSet controller automatically adds the required volume claims to the pod template. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeClaimPolicy"),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/jobset/api/jobset/v1alpha2.Coordinator", "sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.Network", "sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob", "sigs.k8s.io/jobset/api/jobset/v1alpha2.StartupPolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy"},
+			"sigs.k8s.io/jobset/api/jobset/v1alpha2.Coordinator", "sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.Network", "sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob", "sigs.k8s.io/jobset/api/jobset/v1alpha2.StartupPolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeClaimPolicy"},
 	}
 }
 
@@ -714,6 +735,66 @@ func schema_jobset_api_jobset_v1alpha2_SuccessPolicy(ref common.ReferenceCallbac
 					},
 				},
 				Required: []string{"operator"},
+			},
+		},
+	}
+}
+
+func schema_jobset_api_jobset_v1alpha2_VolumeClaimPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "volumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"templates": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference. The JobSet controller is responsible for creating shared PVCs that can be mounted by multiple ReplicatedJobs. Every claim in this list must have a matching (by name) volumeMount in one container or initContainer in at least one ReplicatedJob template. ReplicatedJob template must not have volumes with the same name as defined in this template. Generated PVC naming convention: <claim-name>-<jobset-name> Example: \"model-cache-trainjob\" (shared volume across all ReplicatedJobs).",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/core/v1.PersistentVolumeClaim"),
+									},
+								},
+							},
+						},
+					},
+					"retentionPolicy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "retentionPolicy describes the lifecycle of persistent volume claims created from the template. By default, all persistent volume claims are deleted once JobSet is deleted.",
+							Ref:         ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeRetentionPolicy"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.PersistentVolumeClaim", "sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeRetentionPolicy"},
+	}
+}
+
+func schema_jobset_api_jobset_v1alpha2_VolumeRetentionPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "volumeRetentionPolicy defines the retention policy used for PVCs created from the JobSet VolumeClaimPolicies.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"whenDeleted": {
+						SchemaProps: spec.SchemaProps{
+							Description: "whenDeleted specifies what happens to PVCs when JobSet is deleted.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
 			},
 		},
 	}

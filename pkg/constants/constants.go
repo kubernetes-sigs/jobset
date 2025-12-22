@@ -94,4 +94,8 @@ const (
 	// Event reason and message related to applying the RestartJobSetAndIgnoreMaxRestarts failure policy action.
 	RestartJobSetAndIgnoreMaxRestartsActionReason  = "RestartJobSetAndIgnoreMaxRestartsFailurePolicyAction"
 	RestartJobSetAndIgnoreMaxRestartsActionMessage = "applying RestartJobSetAndIgnoreMaxRestarts failure policy action"
+
+	// Event reason used when a PVC creation fails.
+	// The event uses the error(s) as the message.
+	PVCCreationFailedReason = "PVCCreationFailed"
 )

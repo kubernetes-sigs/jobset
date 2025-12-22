@@ -223,6 +223,15 @@
           "description": "ttlSecondsAfterFinished limits the lifetime of a JobSet that has finished execution (either Complete or Failed). If this field is set, TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be automatically deleted. When the JobSet is being deleted, its lifecycle guarantees (e.g. finalizers) will be honored. If this field is unset, the JobSet won't be automatically deleted. If this field is set to zero, the JobSet becomes eligible to be deleted immediately after it finishes.",
           "type": "integer",
           "format": "int32"
+        },
+        "volumeClaimPolicies": {
+          "description": "volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed to reference. JobSet controller automatically adds the required volume claims to the pod template. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/jobset.v1alpha2.VolumeClaimPolicy"
+          },
+          "x-kubernetes-list-type": "atomic"
         }
       }
     },
@@ -409,6 +418,35 @@
             "default": ""
           },
           "x-kubernetes-list-type": "atomic"
+        }
+      }
+    },
+    "jobset.v1alpha2.VolumeClaimPolicy": {
+      "description": "volumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.",
+      "type": "object",
+      "properties": {
+        "retentionPolicy": {
+          "description": "retentionPolicy describes the lifecycle of persistent volume claims created from the template. By default, all persistent volume claims are deleted once JobSet is deleted.",
+          "$ref": "#/definitions/jobset.v1alpha2.VolumeRetentionPolicy"
+        },
+        "templates": {
+          "description": "templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference. The JobSet controller is responsible for creating shared PVCs that can be mounted by multiple ReplicatedJobs. Every claim in this list must have a matching (by name) volumeMount in one container or initContainer in at least one ReplicatedJob template. ReplicatedJob template must not have volumes with the same name as defined in this template. Generated PVC naming convention: \u003cclaim-name\u003e-\u003cjobset-name\u003e Example: \"model-cache-trainjob\" (shared volume across all ReplicatedJobs).",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
+          },
+          "x-kubernetes-list-type": "atomic"
+        }
+      }
+    },
+    "jobset.v1alpha2.VolumeRetentionPolicy": {
+      "description": "volumeRetentionPolicy defines the retention policy used for PVCs created from the JobSet VolumeClaimPolicies.",
+      "type": "object",
+      "properties": {
+        "whenDeleted": {
+          "description": "whenDeleted specifies what happens to PVCs when JobSet is deleted.",
+          "type": "string"
         }
       }
     }

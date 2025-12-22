@@ -204,7 +204,44 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                     success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
                         operator = '', ), 
                     suspend = True, 
-                    ttl_seconds_after_finished = 56, ),
+                    ttl_seconds_after_finished = 56, 
+                    volume_claim_policies = [
+                        jobset.models.jobset_v1alpha2_volume_claim_policy.JobsetV1alpha2VolumeClaimPolicy(
+                            retention_policy = jobset.models.jobset_v1alpha2_volume_retention_policy.JobsetV1alpha2VolumeRetentionPolicy(
+                                when_deleted = '', ), 
+                            templates = [
+                                jobset.models.io/k8s/api/core/v1/persistent_volume_claim.io.k8s.api.core.v1.PersistentVolumeClaim(
+                                    api_version = '', 
+                                    kind = '', 
+                                    status = jobset.models.io/k8s/api/core/v1/persistent_volume_claim_status.io.k8s.api.core.v1.PersistentVolumeClaimStatus(
+                                        access_modes = [
+                                            ''
+                                            ], 
+                                        allocated_resource_statuses = {
+                                            'key' : ''
+                                            }, 
+                                        allocated_resources = {
+                                            'key' : ''
+                                            }, 
+                                        capacity = {
+                                            'key' : ''
+                                            }, 
+                                        conditions = [
+                                            jobset.models.io/k8s/api/core/v1/persistent_volume_claim_condition.io.k8s.api.core.v1.PersistentVolumeClaimCondition(
+                                                last_probe_time = datetime.datetime.strptime('2013-10-20 19:20:30.00', '%Y-%m-%d %H:%M:%S.%f'), 
+                                                last_transition_time = datetime.datetime.strptime('2013-10-20 19:20:30.00', '%Y-%m-%d %H:%M:%S.%f'), 
+                                                message = '', 
+                                                reason = '', 
+                                                status = '', 
+                                                type = '', )
+                                            ], 
+                                        current_volume_attributes_class_name = '', 
+                                        modify_volume_status = jobset.models.io/k8s/api/core/v1/modify_volume_status.io.k8s.api.core.v1.ModifyVolumeStatus(
+                                            status = '', 
+                                            target_volume_attributes_class_name = '', ), 
+                                        phase = '', ), )
+                                ], )
+                        ], ),
                 status = jobset.models.jobset_v1alpha2_job_set_status.JobsetV1alpha2JobSetStatus(
                     conditions = [
                         jobset.models.io/k8s/apimachinery/pkg/apis/meta/v1/condition.io.k8s.apimachinery.pkg.apis.meta.v1.Condition(

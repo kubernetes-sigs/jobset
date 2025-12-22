@@ -29,6 +29,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
@@ -1254,6 +1255,66 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					// Service should be recreated during reconciliation.
 					checkJobSetState: checkExpectedServices,
+				},
+			},
+		}),
+		ginkgo.Entry("jobset with VolumeClaimPolicies should create PVCs", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("volume-test", ns.Name).
+					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll}).
+					EnableDNSHostnames(true).
+					VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: corev1.PersistentVolumeClaimSpec{
+										AccessModes: []corev1.PersistentVolumeAccessMode{
+											corev1.ReadWriteMany,
+										},
+										Resources: corev1.VolumeResourceRequirements{
+											Requests: corev1.ResourceList{
+												corev1.ResourceStorage: resource.MustParse("1Gi"),
+											},
+										},
+									},
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: jobset.RetentionPolicyDelete,
+							},
+						},
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("worker").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: "Never",
+								Containers: []corev1.Container{
+									{
+										Name:  "test-container",
+										Image: "busybox:latest",
+										VolumeMounts: []corev1.VolumeMount{
+											{
+												Name:      "test-volume",
+												MountPath: "/data",
+											},
+										},
+									},
+								},
+							}).
+							Obj()).
+						Replicas(1).
+						Obj())
+			},
+			steps: []*step{
+				{
+					checkJobSetState: checkExpectedPVCs,
+				},
+				{
+					jobUpdateFn:          completeAllJobs,
+					checkJobSetCondition: testutil.JobSetCompleted,
 				},
 			},
 		}),
@@ -2937,6 +2998,25 @@ func checkExpectedServices(js *jobset.JobSet) {
 		}
 		return len(svcList.Items), nil
 	}).Should(gomega.Equal(numExpectedServices(js)))
+}
+
+func numExpectedPVCs(js *jobset.JobSet) int {
+	expected := 0
+	for _, policy := range js.Spec.VolumeClaimPolicies {
+		expected += len(policy.Templates)
+	}
+	return expected
+}
+
+// Check that expected PVCs were created successfully.
+func checkExpectedPVCs(js *jobset.JobSet) {
+	gomega.Eventually(func() (int, error) {
+		var pvcList corev1.PersistentVolumeClaimList
+		if err := k8sClient.List(ctx, &pvcList, client.InNamespace(js.Namespace)); err != nil {
+			return -1, err
+		}
+		return len(pvcList.Items), nil
+	}).Should(gomega.Equal(numExpectedPVCs(js)))
 }
 
 // Check that there are no active jobs owned by jobset, and the
