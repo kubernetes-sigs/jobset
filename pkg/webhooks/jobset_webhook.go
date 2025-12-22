@@ -157,7 +157,7 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	for i, policy := range js.Spec.VolumeClaimPolicies {
 		if policy.RetentionPolicy == nil {
 			js.Spec.VolumeClaimPolicies[i].RetentionPolicy = &jobset.VolumeRetentionPolicy{
-				WhenDeleted: jobset.RetentionPolicyDelete,
+				WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 			}
 		}
 	}
@@ -483,7 +483,7 @@ func (j *jobSetWebhook) validateVolumeClaimPolicies(ctx context.Context, js *job
 					))
 				}
 				// Retention policy must be retain for the existing PVC.
-				if policy.RetentionPolicy != nil && policy.RetentionPolicy.WhenDeleted != jobset.RetentionPolicyRetain {
+				if policy.RetentionPolicy != nil && *policy.RetentionPolicy.WhenDeleted != jobset.RetentionPolicyRetain {
 					allErrs = append(allErrs, field.Invalid(
 						fieldPath.Child("retentionPolicy").Child("whenDeleted"),
 						policy.RetentionPolicy.WhenDeleted,

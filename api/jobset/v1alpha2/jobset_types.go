@@ -494,13 +494,13 @@ type VolumeClaimPolicy struct {
 // volumeRetentionPolicy defines the retention policy used for PVCs created from the JobSet VolumeClaimPolicies.
 type VolumeRetentionPolicy struct {
 	// whenDeleted specifies what happens to PVCs when JobSet is deleted.
-	// +kubebuilder:validation:Enum=Delete;Retain
-	// +kubebuilder:default=Delete
 	// +optional
-	WhenDeleted RetentionPolicyType `json:"whenDeleted,omitempty"`
+	// +kubebuilder:default=Delete
+	WhenDeleted *RetentionPolicyType `json:"whenDeleted,omitempty"`
 }
 
 // retentionPolicyType defines the retention policy for PVCs.
+// +kubebuilder:validation:Enum=Delete;Retain
 type RetentionPolicyType string
 
 const (

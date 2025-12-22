@@ -761,7 +761,7 @@ func TestJobSetDefaulting(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 					},
@@ -2132,7 +2132,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 					},
@@ -2184,7 +2184,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 					},
@@ -2255,7 +2255,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 						{
@@ -2268,7 +2268,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyRetain,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
 							},
 						},
 					},
@@ -2320,7 +2320,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 					},
@@ -2372,7 +2372,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 					},
@@ -2424,7 +2424,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 					},
@@ -2470,7 +2470,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 					},
@@ -2533,7 +2533,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyRetain,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
 							},
 						},
 					},
@@ -2597,7 +2597,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 					},
@@ -2661,7 +2661,7 @@ func TestValidateCreate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyRetain,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
 							},
 						},
 					},

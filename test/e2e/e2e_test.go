@@ -825,7 +825,7 @@ func volumeClaimTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 					},
 				},
 				RetentionPolicy: &jobset.VolumeRetentionPolicy{
-					WhenDeleted: jobset.RetentionPolicyDelete,
+					WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 				},
 			},
 			{
@@ -847,7 +847,7 @@ func volumeClaimTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 					},
 				},
 				RetentionPolicy: &jobset.VolumeRetentionPolicy{
-					WhenDeleted: jobset.RetentionPolicyRetain,
+					WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
 				},
 			},
 		}).

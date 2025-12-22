@@ -754,7 +754,7 @@ func schema_jobset_api_jobset_v1alpha2_VolumeClaimPolicy(ref common.ReferenceCal
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference. The JobSet controller is responsible for creating shared PVCs that can be mounted by multiple ReplicatedJobs. Every claim in this list must have a matching (by name) volumeMount in one container or initContainer in at least one ReplicatedJob template. ReplicatedJob template must not have volumes with the same name as defined in this template. Generated PVC naming convention: <claim-name>-<jobset-name> Example: \"model-cache-trainjob\" (shared volume across all ReplicatedJobs).",
+							Description: "templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference. The JobSet controller is responsible for creating shared PVCs that can be mounted by multiple ReplicatedJobs. Every claim in this list must have a matching (by name) volumeMount in one container or initContainer in at least one ReplicatedJob template. ReplicatedJob template must not have volumes with the same name as defined in this template. PVC template must not have the namespace parameter. Generated PVC naming convention: <claim-name>-<jobset-name> Example: \"model-cache-trainjob\" (shared volume across all ReplicatedJobs).",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{

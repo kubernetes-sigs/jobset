@@ -833,7 +833,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
 							},
 						},
 					},

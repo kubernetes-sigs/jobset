@@ -74,7 +74,7 @@ func TestReconcileVolumeClaimPolicies(t *testing.T) {
 							},
 						},
 						RetentionPolicy: &jobset.VolumeRetentionPolicy{
-							WhenDeleted: jobset.RetentionPolicyDelete,
+							WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 						},
 					},
 					{
@@ -87,7 +87,7 @@ func TestReconcileVolumeClaimPolicies(t *testing.T) {
 							},
 						},
 						RetentionPolicy: &jobset.VolumeRetentionPolicy{
-							WhenDeleted: jobset.RetentionPolicyRetain,
+							WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
 						},
 					},
 				}).Obj(),
@@ -160,7 +160,7 @@ func TestReconcileVolumeClaimPolicies(t *testing.T) {
 							},
 						},
 						RetentionPolicy: &jobset.VolumeRetentionPolicy{
-							WhenDeleted: jobset.RetentionPolicyDelete,
+							WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 						},
 					},
 				}).Obj(),
@@ -187,7 +187,7 @@ func TestReconcileVolumeClaimPolicies(t *testing.T) {
 							},
 						},
 						RetentionPolicy: &jobset.VolumeRetentionPolicy{
-							WhenDeleted: jobset.RetentionPolicyDelete,
+							WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 						},
 					},
 				}).Obj(),
@@ -462,7 +462,7 @@ func TestAddVolumes(t *testing.T) {
 							},
 						},
 						RetentionPolicy: &jobset.VolumeRetentionPolicy{
-							WhenDeleted: jobset.RetentionPolicyDelete,
+							WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 						},
 					},
 					{
@@ -475,7 +475,7 @@ func TestAddVolumes(t *testing.T) {
 							},
 						},
 						RetentionPolicy: &jobset.VolumeRetentionPolicy{
-							WhenDeleted: jobset.RetentionPolicyRetain,
+							WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
 						},
 					},
 				}).Obj(),

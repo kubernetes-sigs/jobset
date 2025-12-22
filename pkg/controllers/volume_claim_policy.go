@@ -51,7 +51,7 @@ func (r *JobSetReconciler) createPVCsIfNecessary(ctx context.Context, js *jobset
 		}
 
 		// Set PVC owner reference if retention policy is Delete.
-		if volumeClaimPolicy.RetentionPolicy != nil && volumeClaimPolicy.RetentionPolicy.WhenDeleted == jobset.RetentionPolicyDelete {
+		if volumeClaimPolicy.RetentionPolicy != nil && *volumeClaimPolicy.RetentionPolicy.WhenDeleted == jobset.RetentionPolicyDelete {
 			if err := ctrl.SetControllerReference(js, &pvc, r.Scheme); err != nil {
 				return err
 			}

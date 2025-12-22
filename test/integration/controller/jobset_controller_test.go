@@ -1283,7 +1283,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 						{
@@ -1305,7 +1305,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyRetain,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
 							},
 						},
 					}).
@@ -1399,7 +1399,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 										},
 									},
 									RetentionPolicy: &jobset.VolumeRetentionPolicy{
-										WhenDeleted: jobset.RetentionPolicyRetain,
+										WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
 									},
 								},
 							}).
@@ -1484,7 +1484,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 								},
 							},
 							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: jobset.RetentionPolicyDelete,
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
 							},
 						},
 					}).

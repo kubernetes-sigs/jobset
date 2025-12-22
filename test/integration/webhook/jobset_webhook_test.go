@@ -591,7 +591,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			defaultsApplied: func(js *jobset.JobSet) bool {
 				retainPolicy := js.Spec.VolumeClaimPolicies[0].RetentionPolicy.WhenDeleted
-				return retainPolicy == jobset.RetentionPolicyDelete
+				return *retainPolicy == jobset.RetentionPolicyDelete
 			},
 		}),
 		ginkgo.Entry("VolumeClaimPolicies must be immutable", &testCase{
@@ -630,7 +630,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			updateJobSet: func(js *jobset.JobSet) {
-				js.Spec.VolumeClaimPolicies[0].RetentionPolicy.WhenDeleted = jobset.RetentionPolicyRetain
+				js.Spec.VolumeClaimPolicies[0].RetentionPolicy.WhenDeleted = ptr.To(jobset.RetentionPolicyRetain)
 			},
 			updateShouldFail: true,
 		}),
