@@ -479,6 +479,7 @@ type VolumeClaimPolicy struct {
 	// Generated PVC naming convention: <claim-name>-<jobset-name>
 	// Example: "model-cache-trainjob" (shared volume across all ReplicatedJobs).
 	// +kubebuilder:validation:MaxItems=50
+	// +optional
 	// +listType=atomic
 	Templates []corev1.PersistentVolumeClaim `json:"templates,omitempty"`
 
@@ -493,6 +494,7 @@ type VolumeRetentionPolicy struct {
 	// whenDeleted specifies what happens to PVCs when JobSet is deleted.
 	// +kubebuilder:validation:Enum=Delete;Retain
 	// +kubebuilder:default=Delete
+	// +optional
 	WhenDeleted RetentionPolicyType `json:"whenDeleted,omitempty"`
 }
 
