@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	EnvNamespace              = "NAMESPACE"
+	NamespaceFile             = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 	EnvJobSetName             = "JOBSET_NAME"
 	EnvPodName                = "POD_NAME"
 	EnvInPlaceRestartExitCode = "IN_PLACE_RESTART_EXIT_CODE"
@@ -165,9 +165,15 @@ type env struct {
 }
 
 // parseEnvOrDie parses the environment variables and returns an env struct
-// It exits with an error if any of the environment variables are not set
+// It reads the namespace from the mounted service account file to reduce the number of env vars
+// It exits with an error if any of the variables are not set
 func parseEnvOrDie() env {
-	namespace := getEnvOrDie(EnvNamespace)
+	rawNamespace, err := os.ReadFile(NamespaceFile)
+	if err != nil {
+		setupLog.Error(err, "unable to read namespace file. Please check if pod.spec.automountServiceAccountToken or serviceAccount.automountServiceAccountToken are set to false", "file", NamespaceFile)
+		os.Exit(1)
+	}
+	namespace := string(rawNamespace)
 	jobSetName := getEnvOrDie(EnvJobSetName)
 	podName := getEnvOrDie(EnvPodName)
 	rawInPlaceRestartExitCode := getEnvOrDie(EnvInPlaceRestartExitCode)
