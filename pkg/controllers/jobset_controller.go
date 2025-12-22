@@ -234,10 +234,14 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		}
 	}
 
-	if features.Enabled(features.InPlaceRestart) && isInPlaceRestartStrategy(js) {
-		if err := r.reconcileInPlaceRestart(ctx, js, updateStatusOpts); err != nil {
-			log.Error(err, "reconciling in-place restart")
-			return ctrl.Result{}, err
+	if isInPlaceRestartStrategy(js) {
+		if features.Enabled(features.InPlaceRestart) {
+			if err := r.reconcileInPlaceRestart(ctx, js, updateStatusOpts); err != nil {
+				log.Error(err, "reconciling in-place restart")
+				return ctrl.Result{}, err
+			}
+		} else {
+			log.Info("in-place restart strategy cannot be used when the feature gate is disabled", "featureGate", features.InPlaceRestart)
 		}
 	}
 
