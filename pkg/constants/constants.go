@@ -24,6 +24,10 @@ const (
 	// by the owner JobSet quickly.
 	JobOwnerKey = ".metadata.controller"
 
+	// AssociatedJobSetKey is the field used to build the Pod index, which enables looking up Pods
+	// by the associated JobSet quickly.
+	AssociatedJobSetKey = "associatedJobSet"
+
 	// RestartsKey is an annotation and label key which defines the restart attempt number
 	// the JobSet is currently on.
 	RestartsKey = "jobset.sigs.k8s.io/restart-attempt"
