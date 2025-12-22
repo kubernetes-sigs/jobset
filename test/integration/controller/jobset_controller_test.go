@@ -1374,6 +1374,86 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 							}
 							return pvcNames, nil
 						}, timeout, interval).Should(gomega.ConsistOf(gomega.ContainSubstring("test-volume-retain")))
+
+						ginkgo.By("creating a new JobSet that mounts the retained PVC")
+						newJobSetName := "volume-test-2"
+						newJS := testing.MakeJobSet(newJobSetName, namespace).
+							SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll}).
+							VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+								{
+									Templates: []corev1.PersistentVolumeClaim{
+										{
+											ObjectMeta: metav1.ObjectMeta{
+												Name: "test-volume-retain",
+											},
+											Spec: corev1.PersistentVolumeClaimSpec{
+												AccessModes: []corev1.PersistentVolumeAccessMode{
+													corev1.ReadWriteMany,
+												},
+												Resources: corev1.VolumeResourceRequirements{
+													Requests: corev1.ResourceList{
+														corev1.ResourceStorage: resource.MustParse("1Gi"),
+													},
+												},
+											},
+										},
+									},
+									RetentionPolicy: &jobset.VolumeRetentionPolicy{
+										WhenDeleted: jobset.RetentionPolicyRetain,
+									},
+								},
+							}).
+							ReplicatedJob(testing.MakeReplicatedJob("worker").
+								Job(testing.MakeJobTemplate("job", namespace).
+									PodSpec(corev1.PodSpec{
+										RestartPolicy: "Never",
+										Containers: []corev1.Container{
+											{
+												Name:  "test-container",
+												Image: "busybox:latest",
+												VolumeMounts: []corev1.VolumeMount{
+													{
+														Name:      "test-volume-retain",
+														MountPath: "/data-retain",
+													},
+												},
+											},
+										},
+									}).
+									Obj()).
+								Replicas(1).
+								Obj()).
+							Obj()
+
+						gomega.Expect(k8sClient.Create(ctx, newJS)).To(gomega.Succeed())
+
+						ginkgo.By("verifying the new JobSet jobs are created successfully")
+						gomega.Eventually(testutil.NumJobs, timeout, interval).
+							WithArguments(ctx, k8sClient, newJS).
+							Should(gomega.Equal(testutil.NumExpectedJobs(newJS)))
+
+						ginkgo.By("completing jobs in the second JobSet")
+						gomega.Eventually(func() error {
+							var jobList batchv1.JobList
+							if err := k8sClient.List(ctx, &jobList, client.InNamespace(namespace)); err != nil {
+								return err
+							}
+							for i := range jobList.Items {
+								completeJob(&jobList.Items[i])
+							}
+							return nil
+						}, timeout, interval).Should(gomega.Succeed())
+
+						ginkgo.By("verifying the second JobSet completes successfully")
+						var js2 jobset.JobSet
+						gomega.Eventually(func() error {
+							return k8sClient.Get(ctx, types.NamespacedName{
+								Name:      newJobSetName,
+								Namespace: namespace,
+							}, &js2)
+						}, timeout, interval).Should(gomega.Succeed())
+
+						testutil.JobSetCompleted(ctx, k8sClient, &js2, timeout)
 					},
 				},
 			},
