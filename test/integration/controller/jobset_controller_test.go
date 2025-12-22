@@ -1378,6 +1378,63 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("suspended jobset with VolumeClaimPolicies should create PVCs", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("volume-test", ns.Name).
+					Suspend(true).
+					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll}).
+					EnableDNSHostnames(true).
+					VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: corev1.PersistentVolumeClaimSpec{
+										AccessModes: []corev1.PersistentVolumeAccessMode{
+											corev1.ReadWriteMany,
+										},
+										Resources: corev1.VolumeResourceRequirements{
+											Requests: corev1.ResourceList{
+												corev1.ResourceStorage: resource.MustParse("1Gi"),
+											},
+										},
+									},
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: jobset.RetentionPolicyDelete,
+							},
+						},
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("worker").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: "Never",
+								Containers: []corev1.Container{
+									{
+										Name:  "test-container",
+										Image: "busybox:latest",
+										VolumeMounts: []corev1.VolumeMount{
+											{
+												Name:      "test-volume",
+												MountPath: "/data",
+											},
+										},
+									},
+								},
+							}).
+							Obj()).
+						Replicas(1).
+						Obj())
+			},
+			steps: []*step{
+				{
+					checkJobSetState: checkExpectedPVCs,
+				},
+			},
+		}),
 		ginkgo.Entry("update replicatedJobsStatuses after all jobs succeed", &testCase{
 			makeJobSet: testJobSet,
 			steps: []*step{
