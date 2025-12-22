@@ -507,7 +507,6 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			jobSetCreationShouldFail: true,
 		}),
-
 		ginkgo.Entry("DependsOn must be immutable", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("depends-on", ns.Name).
@@ -557,7 +556,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		}),
 		ginkgo.Entry("VolumeClaimPolicies defaults are applied when empty", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
+				return testing.MakeJobSet("volume-claim-policies", ns.Name).
 					EnableDNSHostnames(true).
 					VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
 						{
@@ -594,6 +593,46 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				retainPolicy := js.Spec.VolumeClaimPolicies[0].RetentionPolicy.WhenDeleted
 				return retainPolicy == jobset.RetentionPolicyDelete
 			},
+		}),
+		ginkgo.Entry("VolumeClaimPolicies must be immutable", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("volume-claim-policies", ns.Name).
+					EnableDNSHostnames(true).
+					VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+								},
+							},
+						},
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: "Never",
+								Containers: []corev1.Container{
+									{
+										Name:  "test-container",
+										Image: "busybox:latest",
+										VolumeMounts: []corev1.VolumeMount{
+											{
+												Name:      "test-volume",
+												MountPath: "/test",
+											},
+										},
+									},
+								},
+							}).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.VolumeClaimPolicies[0].RetentionPolicy.WhenDeleted = jobset.RetentionPolicyRetain
+			},
+			updateShouldFail: true,
 		}),
 	) // end of DescribeTable
 }) // end of Describe
