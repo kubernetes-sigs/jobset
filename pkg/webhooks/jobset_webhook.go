@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -25,8 +26,10 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -282,7 +285,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 
 	// Validate VolumeClaimPolicies, if set.
 	if len(js.Spec.VolumeClaimPolicies) > 0 {
-		allErrs = append(allErrs, validateVolumeClaimPolicies(js, js.Spec.VolumeClaimPolicies)...)
+		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, js.Spec.VolumeClaimPolicies)...)
 	}
 
 	return nil, errors.Join(allErrs...)
@@ -426,7 +429,7 @@ func validateCoordinatorLabelValue(js *jobset.JobSet) error {
 }
 
 // validateVolumeClaimPolicies validates the volume claim policies for the JobSet.
-func validateVolumeClaimPolicies(js *jobset.JobSet, volumeClaimPolicies []jobset.VolumeClaimPolicy) []error {
+func (j *jobSetWebhook) validateVolumeClaimPolicies(ctx context.Context, js *jobset.JobSet, volumeClaimPolicies []jobset.VolumeClaimPolicy) []error {
 	var allErrs []error
 	claimNames := sets.New[string]()
 
@@ -451,7 +454,8 @@ func validateVolumeClaimPolicies(js *jobset.JobSet, volumeClaimPolicies []jobset
 			}
 
 			// Validate PVC name length limits
-			if len(controllers.GeneratePVCName(js.Name, template.Name)) > maxVolumeClaimLength {
+			pvcName := controllers.GeneratePVCName(js.Name, template.Name)
+			if len(pvcName) > maxVolumeClaimLength {
 				allErrs = append(allErrs, field.Invalid(
 					templateFieldPath.Child("name"),
 					template.Name,
@@ -462,6 +466,38 @@ func validateVolumeClaimPolicies(js *jobset.JobSet, volumeClaimPolicies []jobset
 			if err := validateReplicatedJobsVolumeClaims(js.Spec.ReplicatedJobs, template.Name); err != nil {
 				allErrs = append(allErrs, err...)
 			}
+
+			// Validate template if PVC with the same name exists.
+			existingPVC := &corev1.PersistentVolumeClaim{}
+			err := j.client.Get(ctx, types.NamespacedName{
+				Name:      pvcName,
+				Namespace: js.Namespace,
+			}, existingPVC)
+			if err == nil {
+				// PVC specs must be the same.
+				if !reflect.DeepEqual(existingPVC.Spec, template.Spec) {
+					allErrs = append(allErrs, field.Invalid(
+						templateFieldPath.Child("spec"),
+						template.Spec,
+						fmt.Sprintf("spec does not match existing PVC %s in namespace %s", pvcName, js.Namespace),
+					))
+				}
+				// Retention policy must be retain for the existing PVC.
+				if policy.RetentionPolicy != nil && policy.RetentionPolicy.WhenDeleted != jobset.RetentionPolicyRetain {
+					allErrs = append(allErrs, field.Invalid(
+						fieldPath.Child("retentionPolicy").Child("whenDeleted"),
+						policy.RetentionPolicy.WhenDeleted,
+						"retentionPolicy must be retain when PVC exists",
+					))
+				}
+			} else if !apierrors.IsNotFound(err) {
+				// Error other than NotFound occurred
+				allErrs = append(allErrs, field.InternalError(
+					templateFieldPath,
+					fmt.Errorf("failed to check for existing PVC %s: %w", pvcName, err),
+				))
+			}
+
 			claimNames.Insert(template.Name)
 		}
 	}
