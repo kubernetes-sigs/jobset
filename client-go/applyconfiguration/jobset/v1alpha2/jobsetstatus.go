@@ -23,27 +23,28 @@ import (
 //
 // JobSetStatus defines the observed state of JobSet
 type JobSetStatusApplyConfiguration struct {
-<<<<<<< HEAD
 	// conditions track status
 	Conditions []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
 	// restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
 	Restarts *int32 `json:"restarts,omitempty"`
 	// restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.
 	RestartsCountTowardsMax *int32 `json:"restartsCountTowardsMax,omitempty"`
-	// terminalState the state of the JobSet when it finishes execution.
+	// terminalState tracks the state of the JobSet when it finishes execution.
 	// It can be either Completed or Failed. Otherwise, it is empty by default.
 	TerminalState *string `json:"terminalState,omitempty"`
-	// replicatedJobsStatus track the number of JobsReady for each replicatedJob.
+	// replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.
 	ReplicatedJobsStatus []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
-=======
-	Conditions                    []v1.ConditionApplyConfiguration        `json:"conditions,omitempty"`
-	Restarts                      *int32                                  `json:"restarts,omitempty"`
-	RestartsCountTowardsMax       *int32                                  `json:"restartsCountTowardsMax,omitempty"`
-	TerminalState                 *string                                 `json:"terminalState,omitempty"`
-	ReplicatedJobsStatus          []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`
-	PreviousInPlaceRestartAttempt *int32                                  `json:"previousInPlaceRestartAttempt,omitempty"`
-	CurrentInPlaceRestartAttempt  *int32                                  `json:"currentInPlaceRestartAttempt,omitempty"`
->>>>>>> ec41c6a (Run `make generate`)
+	// previousInPlaceRestartAttempt tracks the previous in-place restart attempt
+	// of the JobSet. It is read by the agent. If the in-place restart
+	// attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt,
+	// the agent should restart its Pod in-place.
+	PreviousInPlaceRestartAttempt *int32 `json:"previousInPlaceRestartAttempt,omitempty"`
+	// currentInPlaceRestartAttempt tracks the current in-place restart attempt
+	// of the JobSet. It is read by the agent. If the in-place restart
+	// attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent
+	// should lift its barrier to allow the worker container to
+	// start running.
+	CurrentInPlaceRestartAttempt *int32 `json:"currentInPlaceRestartAttempt,omitempty"`
 }
 
 // JobSetStatusApplyConfiguration constructs a declarative configuration of the JobSetStatus type for use with
