@@ -58,7 +58,6 @@ func (r *JobSetReconciler) createPVCsIfNecessary(ctx context.Context, js *jobset
 		}
 
 		// Create PVC if it doesn't exist.
-		// TODO (andreyvelich): Shall we consider to use workqueue.ParallelizeUntil, similar to rJobs creation?
 		if err := r.Create(ctx, &pvc); err != nil {
 			if !apierrors.IsAlreadyExists(err) {
 				r.Record.Eventf(js, corev1.EventTypeWarning, constants.PVCCreationFailedReason, err.Error())
