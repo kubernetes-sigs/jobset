@@ -72,7 +72,7 @@ func (r *JobSetReconciler) createPVCsIfNecessary(ctx context.Context, js *jobset
 	return nil
 }
 
-// generateSharedPVCName creates a name for the PVC in this format: <pvc-template-name>-<jobset-name>
+// generatePVCName creates a name for the PVC in this format: <pvc-template-name>-<jobset-name>
 func generatePVCName(jobSetName, pvcTemplateName string) string {
 	return fmt.Sprintf("%s-%s", pvcTemplateName, jobSetName)
 }
