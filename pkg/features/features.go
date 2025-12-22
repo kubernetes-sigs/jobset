@@ -33,6 +33,13 @@ const (
 	// Enables in-place restart, allowing JobSet workloads to restart much faster by restarting
 	// healthy Pods in-place to skip the Pod deletion+schedule+creation process.
 	InPlaceRestart featuregate.Feature = "InPlaceRestart"
+
+	// owner: @kehannon
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/969-GangScheduling/README.md
+	//
+	// Enables gang scheduling support, allowing JobSet to create Workload resources
+	// for gang scheduling with compatible schedulers.
+	JobSetGang featuregate.Feature = "JobSetGang"
 )
 
 func init() {
@@ -47,6 +54,8 @@ func init() {
 // when adding or removing one entry.
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	InPlaceRestart: {Default: false, PreRelease: featuregate.Alpha},
+
+	JobSetGang: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {

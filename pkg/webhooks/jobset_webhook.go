@@ -37,6 +37,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
@@ -269,6 +270,17 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		allErrs = append(allErrs, validateCoordinator(js))
 		allErrs = append(allErrs, validateCoordinatorLabelValue(js))
 	}
+
+	// Validate gang policy, if set.
+	if js.Spec.GangPolicy != nil {
+		if !features.Enabled(features.JobSetGang) {
+			allErrs = append(allErrs, fmt.Errorf("gangPolicy is specified but the %s feature gate is not enabled", features.JobSetGang))
+		} else {
+			gangPolicyErrors := validateGangPolicy(js.Spec.GangPolicy)
+			allErrs = append(allErrs, gangPolicyErrors...)
+		}
+	}
+
 	return nil, errors.Join(allErrs...)
 }
 
@@ -418,4 +430,49 @@ func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.Replic
 		}
 	}
 	return nil
+}
+
+// validateGangPolicy validates the gang policy configuration.
+func validateGangPolicy(gangPolicy *jobset.GangPolicy) []error {
+	var allErrs []error
+
+	if gangPolicy == nil {
+		return allErrs
+	}
+
+	// Validate that policy is set
+	if gangPolicy.Policy == nil {
+		allErrs = append(allErrs, fmt.Errorf("gangPolicy.policy must be set"))
+		return allErrs
+	}
+
+	// Validate JobSetWorkloadTemplate requires workload spec
+	if *gangPolicy.Policy == jobset.JobSetWorkloadTemplate {
+		if gangPolicy.Workload == nil {
+			allErrs = append(allErrs, fmt.Errorf("gangPolicy.workload must be set when policy is JobSetWorkloadTemplate"))
+		} else {
+			// Validate workload spec if provided
+			if len(gangPolicy.Workload.Spec.PodGroups) == 0 {
+				allErrs = append(allErrs, fmt.Errorf("gangPolicy.workload.spec.podGroups must not be empty"))
+			}
+			// Validate each PodGroup has a valid policy
+			for i, pg := range gangPolicy.Workload.Spec.PodGroups {
+				if pg.Policy.Basic == nil && pg.Policy.Gang == nil {
+					allErrs = append(allErrs, fmt.Errorf("gangPolicy.workload.spec.podGroups[%d].policy must have either basic or gang scheduling policy set", i))
+				}
+				if pg.Policy.Gang != nil && pg.Policy.Gang.MinCount <= 0 {
+					allErrs = append(allErrs, fmt.Errorf("gangPolicy.workload.spec.podGroups[%d].policy.gang.minCount must be greater than 0", i))
+				}
+			}
+		}
+	}
+
+	// Validate JobSetAsGang should not have workload spec
+	if *gangPolicy.Policy == jobset.JobSetAsGang {
+		if gangPolicy.Workload != nil {
+			allErrs = append(allErrs, fmt.Errorf("gangPolicy.workload should not be set when policy is JobSetAsGang (it will be auto-generated)"))
+		}
+	}
+
+	return allErrs
 }

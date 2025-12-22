@@ -265,6 +265,50 @@ An empty list will apply to all replicatedJobs.</p>
 </tbody>
 </table>
 
+## `GangPolicy`     {#jobset-x-k8s-io-v1alpha2-GangPolicy}
+    
+
+**Appears in:**
+
+- [JobSetSpec](#jobset-x-k8s-io-v1alpha2-JobSetSpec)
+
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+    
+  
+<tr><td><code>gangPolicyOption</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-GangPolicyOptions"><code>GangPolicyOptions</code></a>
+</td>
+<td>
+   <p>gangPolicyOption determines the gang scheduling Policy for JobSet</p>
+</td>
+</tr>
+<tr><td><code>workload</code><br/>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#workload-v1alpha1-scheduling"><code>k8s.io/api/scheduling/v1alpha1.Workload</code></a>
+</td>
+<td>
+   <p>workload will create a workload object on JobSet creation
+This will only be valid if gangPolicyOption is JobSetWorkloadTemplate</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+## `GangPolicyOptions`     {#jobset-x-k8s-io-v1alpha2-GangPolicyOptions}
+    
+(Alias of `string`)
+
+**Appears in:**
+
+- [GangPolicy](#jobset-x-k8s-io-v1alpha2-GangPolicy)
+
+
+
+
+
 ## `JobSetRestartStrategy`     {#jobset-x-k8s-io-v1alpha2-JobSetRestartStrategy}
     
 (Alias of `string`)
@@ -333,6 +377,13 @@ finished with status failed.</p>
 <td>
    <p>startupPolicy configures in what order jobs must be started
 Deprecated: StartupPolicy is deprecated, please use the DependsOn API.</p>
+</td>
+</tr>
+<tr><td><code>gangPolicy</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-GangPolicy"><code>GangPolicy</code></a>
+</td>
+<td>
+   <p>gangPolicy configures gang scheduling policy</p>
 </td>
 </tr>
 <tr><td><code>suspend</code> <B>[Required]</B><br/>

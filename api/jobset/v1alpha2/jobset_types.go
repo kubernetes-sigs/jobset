@@ -16,6 +16,7 @@ package v1alpha2
 
 import (
 	batchv1 "k8s.io/api/batch/v1"
+	schedulingv1alpha "k8s.io/api/scheduling/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -123,6 +124,11 @@ type JobSetSpec struct {
 	// Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
+
+	// gangPolicy configures gang scheduling policy
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +optional
+	GangPolicy *GangPolicy `json:"gangPolicy,omitempty"`
 
 	// suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"` //nolint
@@ -442,6 +448,33 @@ type StartupPolicy struct {
 	// when all the jobs of the previous one are ready.
 	// +kubebuilder:validation:Enum=AnyOrder;InOrder
 	StartupPolicyOrder StartupPolicyOptions `json:"startupPolicyOrder"`
+}
+
+type GangPolicyOptions string
+
+const (
+	// JobSetAsGang means that the entire JobSet is considered to be a gang
+	// Scheduler will schedule JobSet as a gang
+	JobSetAsGang GangPolicyOptions = "JobSetAsGang"
+	// JobSetGangPerReplicatedJob means that each replicated job will be a separate gang
+	// Workloads are limited to only 8 pod groups
+	JobSetGangPerReplicatedJob GangPolicyOptions = "JobSetGangPerReplicatedJob"
+	// JobSetWorkloadTemplate means that the JobSet will create the WorkloadTemplate upon creation
+	// This is an advanced option that can provide more fine grain control over the pod groups
+	// and controls the scheduling logic for a JobSet
+	JobSetWorkloadTemplate GangPolicyOptions = "JobSetWorkloadTemplate"
+)
+
+type GangPolicy struct {
+	// policy determines the gang scheduling Policy for JobSet
+	// +kubebuilder:validation:Enum=JobSetAsGang;JobSetGangPerReplicatedJob;JobSetWorkloadTemplate
+	// +optional
+	Policy *GangPolicyOptions `json:"policy,omitempty"`
+
+	// workload will create a workload object on JobSet creation
+	// This will only be valid if policy is JobSetWorkloadTemplate
+	// +optional
+	Workload *schedulingv1alpha.Workload `json:"workload,omitempty"`
 }
 
 // Coordinator defines which pod can be marked as the coordinator for the JobSet workload.

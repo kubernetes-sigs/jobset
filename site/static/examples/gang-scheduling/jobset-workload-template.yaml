@@ -1,0 +1,72 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: mpi-gang-training
+spec:
+  # Gang policy with custom workload template
+  # This gives you full control over the Workload specification
+  gangPolicy:
+    policy: JobSetWorkloadTemplate
+    workload:
+      metadata:
+        labels:
+          app: mpi-training
+      spec:
+        podGroups:
+          - name: master
+            policy:
+              gang:
+                minCount: 1
+          - name: workers
+            policy:
+              gang:
+                minCount: 8
+
+  # Failure policy
+  failurePolicy:
+    maxRestarts: 3
+
+  # Network configuration
+  network:
+    enableDNSHostnames: true
+
+  # Replicated jobs
+  replicatedJobs:
+    # Master job
+    - name: master
+      replicas: 1
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: mpi-master
+                  image: mpioperator/mpi-pi:latest
+                  command:
+                    - mpirun
+                    - --allow-run-as-root
+                    - --host
+                    - "mpi-gang-training-workers-0-0,mpi-gang-training-workers-1-0,mpi-gang-training-workers-2-0,mpi-gang-training-workers-3-0,mpi-gang-training-workers-4-0,mpi-gang-training-workers-5-0,mpi-gang-training-workers-6-0,mpi-gang-training-workers-7-0"
+                    - -np
+                    - "8"
+                    - /home/mpiuser/pi
+
+    # Worker jobs
+    - name: workers
+      replicas: 8
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: mpi-worker
+                  image: mpioperator/mpi-pi:latest
+                  command:
+                    - /usr/sbin/sshd
+                    - -De
