@@ -476,6 +476,7 @@ type VolumeClaimPolicy struct {
 	// multiple ReplicatedJobs. Every claim in this list must have a matching (by name)
 	// volumeMount in one container or initContainer in at least one ReplicatedJob template.
 	// ReplicatedJob template must not have volumes with the same name as defined in this template.
+	// PVC template must not have the namespace parameter.
 	// Generated PVC naming convention: <claim-name>-<jobset-name>
 	// Example: "model-cache-trainjob" (shared volume across all ReplicatedJobs).
 	// +kubebuilder:validation:MaxItems=50

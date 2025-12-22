@@ -460,8 +460,7 @@ func validateVolumeClaimPolicies(js *jobset.JobSet, volumeClaimPolicies []jobset
 			}
 
 			// Validate PVC name length limits
-			estimatedNameLength := len(template.Name) + len(js.Name) + 10 // Buffer for indices and separators
-			if estimatedNameLength > maxVolumeClaimLength {
+			if len(controllers.GeneratePVCName(js.Name, template.Name)) > maxVolumeClaimLength {
 				allErrs = append(allErrs, field.Invalid(
 					templateFieldPath.Child("name"),
 					template.Name,

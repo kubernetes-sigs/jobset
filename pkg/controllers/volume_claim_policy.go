@@ -42,7 +42,7 @@ func (r *JobSetReconciler) createPVCsIfNecessary(ctx context.Context, js *jobset
 		// Create new PVC based on template.
 		pvc := corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        generatePVCName(js.Name, template.Name),
+				Name:        GeneratePVCName(js.Name, template.Name),
 				Namespace:   js.Namespace,
 				Labels:      labels,
 				Annotations: template.Annotations,
@@ -71,8 +71,8 @@ func (r *JobSetReconciler) createPVCsIfNecessary(ctx context.Context, js *jobset
 	return nil
 }
 
-// generatePVCName creates a name for the PVC in this format: <pvc-template-name>-<jobset-name>
-func generatePVCName(jobSetName, pvcTemplateName string) string {
+// GeneratePVCName creates a name for the PVC in this format: <pvc-template-name>-<jobset-name>
+func GeneratePVCName(jobSetName, pvcTemplateName string) string {
 	return fmt.Sprintf("%s-%s", pvcTemplateName, jobSetName)
 }
 
@@ -91,7 +91,7 @@ func addVolumes(job *batchv1.Job, js *jobset.JobSet) {
 					Name: template.Name,
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: generatePVCName(js.Name, template.Name),
+							ClaimName: GeneratePVCName(js.Name, template.Name),
 						},
 					},
 				},
