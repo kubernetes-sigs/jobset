@@ -436,15 +436,6 @@ func validateVolumeClaimPolicies(js *jobset.JobSet, volumeClaimPolicies []jobset
 		for templateIdx, template := range policy.Templates {
 			templateFieldPath := fieldPath.Child("template").Index(templateIdx)
 
-			// Validate template namespace.
-			if template.Namespace != "" {
-				allErrs = append(allErrs, field.Invalid(
-					templateFieldPath.Child("namespace"),
-					template.Namespace,
-					"namespace cannot be set for the VolumeClaimPolicies template",
-				))
-			}
-
 			// Validate claim name uniqueness.
 			if claimNames.Has(template.Name) {
 				allErrs = append(allErrs, field.Invalid(

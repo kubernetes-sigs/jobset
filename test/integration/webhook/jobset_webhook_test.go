@@ -634,5 +634,43 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: true,
 		}),
+		ginkgo.Entry("VolumeClaimPolicies template with namespace should be rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("volume-claim-namespace", ns.Name).
+					EnableDNSHostnames(true).
+					VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name:      "test-volume",
+										Namespace: "invalid-namespace",
+									},
+								},
+							},
+						},
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: "Never",
+								Containers: []corev1.Container{
+									{
+										Name:  "test-container",
+										Image: "busybox:latest",
+										VolumeMounts: []corev1.VolumeMount{
+											{
+												Name:      "test-volume",
+												MountPath: "/test",
+											},
+										},
+									},
+								},
+							}).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
 	) // end of DescribeTable
 }) // end of Describe

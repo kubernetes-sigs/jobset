@@ -2231,56 +2231,6 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(),
 		},
 		{
-			name: "volumeClaimPolicy is invalid since it has namespace",
-			js: &jobset.JobSet{
-				ObjectMeta: validObjectMeta,
-				Spec: jobset.JobSetSpec{
-					SuccessPolicy: &jobset.SuccessPolicy{},
-					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
-						{
-							Templates: []corev1.PersistentVolumeClaim{
-								{
-									ObjectMeta: metav1.ObjectMeta{
-										Name:      "test-volume",
-										Namespace: "invalid-namespace",
-									},
-									Spec: testPVCSpec,
-								},
-							},
-						},
-					},
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Name:      "job-1",
-							GroupName: "default",
-							Replicas:  1,
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									Template: corev1.PodTemplateSpec{
-										Spec: corev1.PodSpec{
-											Containers: []corev1.Container{
-												{
-													Name:  "test",
-													Image: "bash:latest",
-													VolumeMounts: []corev1.VolumeMount{
-														{
-															Name:      "test-volume",
-															MountPath: "/test/path",
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			want: errors.Join(fmt.Errorf("namespace cannot be set for the VolumeClaimPolicies template")),
-		},
-		{
 			name: "volumeClaimPolicy is invalid since template names are not unique",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,

@@ -470,6 +470,7 @@ type Coordinator struct {
 }
 
 // volumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.
+// +kubebuilder:validation:XValidation:rule="self.templates.all(t, !has(t.metadata.namespace) || size(t.metadata.namespace) == 0)",message="namespace cannot be set for VolumeClaimPolicies templates"
 type VolumeClaimPolicy struct {
 	// templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference.
 	// The JobSet controller is responsible for creating shared PVCs that can be mounted by
