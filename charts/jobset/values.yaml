@@ -75,8 +75,13 @@ controller:
     runAsNonRoot: true
     seccompProfile:
       type: RuntimeDefault
-  # -- Run the controller/webhook Pods on the node’s network namespace instead of the overlay CNI.
+  # -- Run the controller/webhook Pods on the node's network namespace instead of the overlay CNI.
   hostNetwork: false
+  podDisruptionBudget:
+    # -- Enable PodDisruptionBudget for the controller.
+    enabled: false
+    # -- Minimum number of controller pods that must be available during voluntary disruptions.
+    minAvailable: 1
 certManager:
   # -- Whether to use cert-manager to generate certificates for the jobset webhook.
   enable: false
