@@ -80,10 +80,10 @@ controller:
   podDisruptionBudget:
     # -- Enable PodDisruptionBudget for the controller.
     enabled: false
-    # -- Minimum number of controller pods that must be available during voluntary disruptions.
+    # -- (int) Minimum number of controller pods that must be available during voluntary disruptions.
     # Mutually exclusive with maxUnavailable.
     minAvailable: 1
-    # -- Maximum number of controller pods that can be unavailable during voluntary disruptions.
+    # -- (int) Maximum number of controller pods that can be unavailable during voluntary disruptions.
     # Mutually exclusive with minAvailable.
     maxUnavailable: null
 certManager:

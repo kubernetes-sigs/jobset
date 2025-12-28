@@ -84,3 +84,38 @@ tests:
       - failedTemplate:
           errorMessage: "Cannot set both minAvailable and maxUnavailable in podDisruptionBudget"
 
+  - it: Should support maxUnavailable value of 0
+    set:
+      controller:
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: null
+          maxUnavailable: 0
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 0
+
+  - it: Should support minAvailable value of 0
+    set:
+      controller:
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 0
+          maxUnavailable: null
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 0
+
+  - it: Should fail when both are set and one is 0
+    set:
+      controller:
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 0
+          maxUnavailable: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cannot set both minAvailable and maxUnavailable in podDisruptionBudget"
+
