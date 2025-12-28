@@ -23,9 +23,6 @@ metadata:
   labels:
     {{- include "jobset.controller.labels" . | nindent 4 }}
 spec:
-{{- if and (ne .Values.controller.podDisruptionBudget.minAvailable nil) (ne .Values.controller.podDisruptionBudget.maxUnavailable nil) }}
-{{- fail "Cannot set both minAvailable and maxUnavailable in podDisruptionBudget" }}
-{{- end }}
 {{- if ne .Values.controller.podDisruptionBudget.maxUnavailable nil }}
   maxUnavailable: {{ .Values.controller.podDisruptionBudget.maxUnavailable }}
 {{- else }}

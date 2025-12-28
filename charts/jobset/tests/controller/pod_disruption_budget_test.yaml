@@ -66,35 +66,50 @@ tests:
       controller:
         podDisruptionBudget:
           enabled: true
-          minAvailable: null
           maxUnavailable: 1
     asserts:
       - equal:
           path: spec.maxUnavailable
           value: 1
 
-  - it: Should fail when both minAvailable and maxUnavailable are set
+  - it: Should prioritize maxUnavailable over minAvailable
     set:
       controller:
         podDisruptionBudget:
           enabled: true
-          minAvailable: 1
+          minAvailable: 2
           maxUnavailable: 1
     asserts:
-      - failedTemplate:
-          errorMessage: "Cannot set both minAvailable and maxUnavailable in podDisruptionBudget"
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - isNull:
+          path: spec.minAvailable
 
   - it: Should support maxUnavailable value of 0
     set:
       controller:
         podDisruptionBudget:
           enabled: true
-          minAvailable: null
           maxUnavailable: 0
     asserts:
       - equal:
           path: spec.maxUnavailable
           value: 0
+
+  - it: "Should prioritize maxUnavailable: 0 over minAvailable"
+    set:
+      controller:
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 1
+          maxUnavailable: 0
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 0
+      - isNull:
+          path: spec.minAvailable
 
   - it: Should support minAvailable value of 0
     set:
@@ -102,20 +117,8 @@ tests:
         podDisruptionBudget:
           enabled: true
           minAvailable: 0
-          maxUnavailable: null
     asserts:
       - equal:
           path: spec.minAvailable
           value: 0
-
-  - it: Should fail when both are set and one is 0
-    set:
-      controller:
-        podDisruptionBudget:
-          enabled: true
-          minAvailable: 0
-          maxUnavailable: 1
-    asserts:
-      - failedTemplate:
-          errorMessage: "Cannot set both minAvailable and maxUnavailable in podDisruptionBudget"
 
