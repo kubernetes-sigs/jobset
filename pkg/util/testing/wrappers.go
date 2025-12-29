@@ -189,6 +189,12 @@ func (j *JobSetWrapper) Finalizers(finalizers []string) *JobSetWrapper {
 	return j
 }
 
+// GangPolicy sets the value of jobSet.spec.gangPolicy
+func (j *JobSetWrapper) GangPolicy(gangPolicy *jobset.GangPolicy) *JobSetWrapper {
+	j.Spec.GangPolicy = gangPolicy
+	return j
+}
+
 // ReplicatedJobWrapper wraps a ReplicatedJob.
 type ReplicatedJobWrapper struct {
 	jobset.ReplicatedJob
@@ -270,6 +276,18 @@ func (j *JobTemplateWrapper) PodFailurePolicy(policy *batchv1.PodFailurePolicy) 
 // CompletionMode sets the value of job.spec.completionMode
 func (j *JobTemplateWrapper) CompletionMode(mode batchv1.CompletionMode) *JobTemplateWrapper {
 	j.Spec.CompletionMode = &mode
+	return j
+}
+
+// Parallelism sets the value of job.spec.parallelism
+func (j *JobTemplateWrapper) Parallelism(parallelism int32) *JobTemplateWrapper {
+	j.Spec.Parallelism = &parallelism
+	return j
+}
+
+// Completions sets the value of job.spec.completions
+func (j *JobTemplateWrapper) Completions(completions int32) *JobTemplateWrapper {
+	j.Spec.Completions = &completions
 	return j
 }
 

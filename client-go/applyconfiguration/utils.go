@@ -36,6 +36,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &jobsetv1alpha2.FailurePolicyApplyConfiguration{}
 	case v1alpha2.SchemeGroupVersion.WithKind("FailurePolicyRule"):
 		return &jobsetv1alpha2.FailurePolicyRuleApplyConfiguration{}
+	case v1alpha2.SchemeGroupVersion.WithKind("GangPolicy"):
+		return &jobsetv1alpha2.GangPolicyApplyConfiguration{}
 	case v1alpha2.SchemeGroupVersion.WithKind("JobSet"):
 		return &jobsetv1alpha2.JobSetApplyConfiguration{}
 	case v1alpha2.SchemeGroupVersion.WithKind("JobSetSpec"):

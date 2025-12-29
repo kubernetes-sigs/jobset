@@ -94,4 +94,11 @@ const (
 	// Event reason and message related to applying the RestartJobSetAndIgnoreMaxRestarts failure policy action.
 	RestartJobSetAndIgnoreMaxRestartsActionReason  = "RestartJobSetAndIgnoreMaxRestartsFailurePolicyAction"
 	RestartJobSetAndIgnoreMaxRestartsActionMessage = "applying RestartJobSetAndIgnoreMaxRestarts failure policy action"
+
+	// Event reason and message related to gang scheduling workload creation.
+	WorkloadCreatedReason        = "WorkloadCreated"
+	WorkloadCreationFailedReason = "WorkloadCreationFailed"
+
+	// JobSetSuspendGate is the name of the scheduling gate added to workloads when JobSet is suspended.
+	JobSetSuspendGate = "jobset.sigs.k8s.io/suspend"
 )

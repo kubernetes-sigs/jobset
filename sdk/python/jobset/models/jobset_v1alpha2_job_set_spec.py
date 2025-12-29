@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, Strict
 from typing import Any, ClassVar, Dict, List, Optional
 from jobset.models.jobset_v1alpha2_coordinator import JobsetV1alpha2Coordinator
 from jobset.models.jobset_v1alpha2_failure_policy import JobsetV1alpha2FailurePolicy
+from jobset.models.jobset_v1alpha2_gang_policy import JobsetV1alpha2GangPolicy
 from jobset.models.jobset_v1alpha2_network import JobsetV1alpha2Network
 from jobset.models.jobset_v1alpha2_replicated_job import JobsetV1alpha2ReplicatedJob
 from jobset.models.jobset_v1alpha2_startup_policy import JobsetV1alpha2StartupPolicy
@@ -34,6 +35,7 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
     """ # noqa: E501
     coordinator: Optional[JobsetV1alpha2Coordinator] = None
     failure_policy: Optional[JobsetV1alpha2FailurePolicy] = Field(default=None, alias="failurePolicy")
+    gang_policy: Optional[JobsetV1alpha2GangPolicy] = Field(default=None, alias="gangPolicy")
     managed_by: Optional[StrictStr] = Field(default=None, description="managedBy is used to indicate the controller or entity that manages a JobSet. The built-in JobSet controller reconciles JobSets which don't have this field at all or the field value is the reserved string `jobset.sigs.k8s.io/jobset-controller`, but skips reconciling JobSets with a custom value for this field.  The value must be a valid domain-prefixed path (e.g. acme.io/foo) - all characters before the first \"/\" must be a valid subdomain as defined by RFC 1123. All characters trailing the first \"/\" must be valid HTTP Path characters as defined by RFC 3986. The value cannot exceed 63 characters. The field is immutable.", alias="managedBy")
     network: Optional[JobsetV1alpha2Network] = None
     replicated_jobs: Optional[List[JobsetV1alpha2ReplicatedJob]] = Field(default=None, description="replicatedJobs is the group of jobs that will form the set.", alias="replicatedJobs")
@@ -41,7 +43,7 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
     success_policy: Optional[JobsetV1alpha2SuccessPolicy] = Field(default=None, alias="successPolicy")
     suspend: Optional[StrictBool] = Field(default=None, description="suspend suspends all running child Jobs when set to true.")
     ttl_seconds_after_finished: Optional[StrictInt] = Field(default=None, description="ttlSecondsAfterFinished limits the lifetime of a JobSet that has finished execution (either Complete or Failed). If this field is set, TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be automatically deleted. When the JobSet is being deleted, its lifecycle guarantees (e.g. finalizers) will be honored. If this field is unset, the JobSet won't be automatically deleted. If this field is set to zero, the JobSet becomes eligible to be deleted immediately after it finishes.", alias="ttlSecondsAfterFinished")
-    __properties: ClassVar[List[str]] = ["coordinator", "failurePolicy", "managedBy", "network", "replicatedJobs", "startupPolicy", "successPolicy", "suspend", "ttlSecondsAfterFinished"]
+    __properties: ClassVar[List[str]] = ["coordinator", "failurePolicy", "gangPolicy", "managedBy", "network", "replicatedJobs", "startupPolicy", "successPolicy", "suspend", "ttlSecondsAfterFinished"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -88,6 +90,9 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
         # override the default output from pydantic by calling `to_dict()` of failure_policy
         if self.failure_policy:
             _dict['failurePolicy'] = self.failure_policy.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of gang_policy
+        if self.gang_policy:
+            _dict['gangPolicy'] = self.gang_policy.to_dict()
         # override the default output from pydantic by calling `to_dict()` of network
         if self.network:
             _dict['network'] = self.network.to_dict()
@@ -118,6 +123,7 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
         _obj = cls.model_validate({
             "coordinator": JobsetV1alpha2Coordinator.from_dict(obj["coordinator"]) if obj.get("coordinator") is not None else None,
             "failurePolicy": JobsetV1alpha2FailurePolicy.from_dict(obj["failurePolicy"]) if obj.get("failurePolicy") is not None else None,
+            "gangPolicy": JobsetV1alpha2GangPolicy.from_dict(obj["gangPolicy"]) if obj.get("gangPolicy") is not None else None,
             "managedBy": obj.get("managedBy"),
             "network": JobsetV1alpha2Network.from_dict(obj["network"]) if obj.get("network") is not None else None,
             "replicatedJobs": [JobsetV1alpha2ReplicatedJob.from_dict(_item) for _item in obj["replicatedJobs"]] if obj.get("replicatedJobs") is not None else None,

@@ -1,0 +1,88 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: pytorch-gang-training
+spec:
+  # Gang policy configuration - automatically creates a Workload resource
+  # for gang scheduling across all pods in the JobSet
+  gangPolicy:
+    policy: JobSetAsGang
+
+  # Failure policy
+  failurePolicy:
+    maxRestarts: 3
+
+  # Network configuration for distributed training
+  network:
+    enableDNSHostnames: true
+
+  # Replicated jobs
+  replicatedJobs:
+    # Leader job
+    - name: leader
+      replicas: 1
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: pytorch
+                  image: pytorch/pytorch:latest
+                  command:
+                    - python
+                    - -c
+                    - |
+                      import torch.distributed as dist
+                      import os
+                      dist.init_process_group(backend='gloo')
+                      print(f"Leader rank: {dist.get_rank()}")
+                      dist.barrier()
+                      print("Training complete")
+                      dist.destroy_process_group()
+                  env:
+                    - name: MASTER_ADDR
+                      value: "pytorch-gang-training-leader-0-0.pytorch-gang-training"
+                    - name: MASTER_PORT
+                      value: "29500"
+                    - name: WORLD_SIZE
+                      value: "4"
+                    - name: RANK
+                      value: "0"
+
+    # Worker jobs
+    - name: worker
+      replicas: 3
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: pytorch
+                  image: pytorch/pytorch:latest
+                  command:
+                    - python
+                    - -c
+                    - |
+                      import torch.distributed as dist
+                      import os
+                      import time
+                      # Wait for leader to be ready
+                      time.sleep(5)
+                      dist.init_process_group(backend='gloo')
+                      print(f"Worker rank: {dist.get_rank()}")
+                      dist.barrier()
+                      print("Training complete")
+                      dist.destroy_process_group()
+                  env:
+                    - name: MASTER_ADDR
+                      value: "pytorch-gang-training-leader-0-0.pytorch-gang-training"
+                    - name: MASTER_PORT
+                      value: "29500"
+                    - name: WORLD_SIZE
+                      value: "4"
