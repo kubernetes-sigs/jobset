@@ -1,0 +1,29 @@
+title: VolumeClaimPolicies API for Stateful JobSet
+kep-number: 572
+authors:
+  - "@andreyvelich"
+status: provisional
+creation-date: 2025-09-30
+reviewers:
+  - "@ahg-g"
+  - "@GiuseppeTT"
+  - "@kannon92"
+approvers:
+  - "@kannon92"
+see-also:
+  - "https://github.com/kubernetes/kubernetes/issues/115066"
+  - "https://github.com/kubernetes-sigs/jobset/issues/572"
+replaces:
+  - "NA"
+
+# The target maturity stage in the current dev cycle for this KEP.
+stage: alpha
+
+# The most recent milestone for which work toward delivery of this KEP has been
+# done. This can be the current (upcoming) milestone, if it is being actively
+# worked on.
+latest-milestone: "v0.11.0"
+
+# The milestone at which this feature was, or is targeted to be, at each stage.
+milestone:
+  alpha: "v0.11.0"
