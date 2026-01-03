@@ -1258,7 +1258,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("jobset with VolumeClaimPolicies should create PVCs", &testCase{
+		ginkgo.Entry("jobset with VolumeClaimPolicies should create two PVC with Delete and Retain policies", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("volume-test", ns.Name).
 					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll}).

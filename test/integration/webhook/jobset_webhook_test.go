@@ -17,6 +17,7 @@ package webhooktest
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -664,6 +665,86 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 												MountPath: "/test",
 											},
 										},
+									},
+								},
+							}).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("VolumeClaimPolicies exceeding MaxItems=50 should be rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				// Create 51 volume claim policies to exceed the limit
+				policies := make([]jobset.VolumeClaimPolicy, 51)
+				volumeMounts := make([]corev1.VolumeMount, 51)
+				for i := 0; i < 51; i++ {
+					policies[i] = jobset.VolumeClaimPolicy{
+						Templates: []corev1.PersistentVolumeClaim{
+							{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: fmt.Sprintf("test-volume-%d", i),
+								},
+							},
+						},
+					}
+					volumeMounts[i] = corev1.VolumeMount{
+						Name:      fmt.Sprintf("test-volume-%d", i),
+						MountPath: fmt.Sprintf("/test%d", i),
+					}
+				}
+				return testing.MakeJobSet("volume-claim-max-items", ns.Name).
+					EnableDNSHostnames(true).
+					VolumeClaimPolicies(policies).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: "Never",
+								Containers: []corev1.Container{
+									{
+										Name:         "test-container",
+										Image:        "busybox:latest",
+										VolumeMounts: volumeMounts,
+									},
+								},
+							}).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("VolumeClaimPolicies templates exceeding MaxItems=50 should be rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				// Create 51 templates in a single policy to exceed the limit
+				templates := make([]corev1.PersistentVolumeClaim, 51)
+				volumeMounts := make([]corev1.VolumeMount, 51)
+				for i := 0; i < 51; i++ {
+					templates[i] = corev1.PersistentVolumeClaim{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: fmt.Sprintf("test-volume-%d", i),
+						},
+					}
+					volumeMounts[i] = corev1.VolumeMount{
+						Name:      fmt.Sprintf("test-volume-%d", i),
+						MountPath: fmt.Sprintf("/test%d", i),
+					}
+				}
+				return testing.MakeJobSet("volume-claim-templates-max-items", ns.Name).
+					EnableDNSHostnames(true).
+					VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+						{
+							Templates: templates,
+						},
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: "Never",
+								Containers: []corev1.Container{
+									{
+										Name:         "test-container",
+										Image:        "busybox:latest",
+										VolumeMounts: volumeMounts,
 									},
 								},
 							}).
