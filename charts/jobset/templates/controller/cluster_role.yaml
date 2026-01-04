@@ -44,6 +44,9 @@ rules:
   - persistentvolumeclaims
   verbs:
   - create
+  - get
+  - list
+  - watch
 - apiGroups:
   - ""
   resources:
