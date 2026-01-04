@@ -64,6 +64,11 @@ type JobSetSpecApplyConfiguration struct {
 	// the JobSet won't be automatically deleted. If this field is set to zero,
 	// the JobSet becomes eligible to be deleted immediately after it finishes.
 	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
+	// volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed
+	// to reference. JobSet controller automatically adds the required volume claims to the
+	// pod template. Every claim in this list must have at least one matching (by name)
+	// volumeMount in one container in the template.
+	VolumeClaimPolicies []VolumeClaimPolicyApplyConfiguration `json:"volumeClaimPolicies,omitempty"`
 }
 
 // JobSetSpecApplyConfiguration constructs a declarative configuration of the JobSetSpec type for use with
@@ -146,5 +151,18 @@ func (b *JobSetSpecApplyConfiguration) WithManagedBy(value string) *JobSetSpecAp
 // If called multiple times, the TTLSecondsAfterFinished field is set to the value of the last call.
 func (b *JobSetSpecApplyConfiguration) WithTTLSecondsAfterFinished(value int32) *JobSetSpecApplyConfiguration {
 	b.TTLSecondsAfterFinished = &value
+	return b
+}
+
+// WithVolumeClaimPolicies adds the given value to the VolumeClaimPolicies field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the VolumeClaimPolicies field.
+func (b *JobSetSpecApplyConfiguration) WithVolumeClaimPolicies(values ...*VolumeClaimPolicyApplyConfiguration) *JobSetSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithVolumeClaimPolicies")
+		}
+		b.VolumeClaimPolicies = append(b.VolumeClaimPolicies, *values[i])
+	}
 	return b
 }

@@ -382,6 +382,16 @@ the JobSet won't be automatically deleted. If this field is set to zero,
 the JobSet becomes eligible to be deleted immediately after it finishes.</p>
 </td>
 </tr>
+<tr><td><code>volumeClaimPolicies</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-VolumeClaimPolicy"><code>[]VolumeClaimPolicy</code></a>
+</td>
+<td>
+   <p>volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed
+to reference. JobSet controller automatically adds the required volume claims to the
+pod template. Every claim in this list must have at least one matching (by name)
+volumeMount in one container in the template.</p>
+</td>
+</tr>
 </tbody>
 </table>
 
@@ -623,6 +633,20 @@ which are not marked for deletion.</p>
 </tbody>
 </table>
 
+## `RetentionPolicyType`     {#jobset-x-k8s-io-v1alpha2-RetentionPolicyType}
+    
+(Alias of `string`)
+
+**Appears in:**
+
+- [VolumeRetentionPolicy](#jobset-x-k8s-io-v1alpha2-VolumeRetentionPolicy)
+
+
+<p>retentionPolicyType defines the retention policy for PVCs.</p>
+
+
+
+
 ## `StartupPolicy`     {#jobset-x-k8s-io-v1alpha2-StartupPolicy}
     
 
@@ -689,6 +713,73 @@ when all the jobs of the previous one are ready.</p>
 <td>
    <p>targetReplicatedJobs are the names of the replicated jobs the operator will apply to.
 A null or empty list will apply to all replicatedJobs.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+## `VolumeClaimPolicy`     {#jobset-x-k8s-io-v1alpha2-VolumeClaimPolicy}
+    
+
+**Appears in:**
+
+- [JobSetSpec](#jobset-x-k8s-io-v1alpha2-JobSetSpec)
+
+
+<p>volumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.</p>
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+    
+  
+<tr><td><code>templates</code><br/>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#persistentvolumeclaim-v1-core"><code>[]k8s.io/api/core/v1.PersistentVolumeClaim</code></a>
+</td>
+<td>
+   <p>templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference.
+The JobSet controller is responsible for creating shared PVCs that can be mounted by
+multiple ReplicatedJobs. Every claim in this list must have a matching (by name)
+volumeMount in one container or initContainer in at least one ReplicatedJob template.
+ReplicatedJob template must not have volumes with the same name as defined in this template.
+PVC template must not have the namespace parameter.
+Generated PVC naming convention: <!-- raw HTML omitted -->-<!-- raw HTML omitted -->
+Example: &quot;model-cache-trainjob&quot; (shared volume across all ReplicatedJobs).</p>
+</td>
+</tr>
+<tr><td><code>retentionPolicy</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-VolumeRetentionPolicy"><code>VolumeRetentionPolicy</code></a>
+</td>
+<td>
+   <p>retentionPolicy describes the lifecycle of persistent volume claims created from the template.
+By default, all persistent volume claims are deleted once JobSet is deleted.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+## `VolumeRetentionPolicy`     {#jobset-x-k8s-io-v1alpha2-VolumeRetentionPolicy}
+    
+
+**Appears in:**
+
+- [VolumeClaimPolicy](#jobset-x-k8s-io-v1alpha2-VolumeClaimPolicy)
+
+
+<p>volumeRetentionPolicy defines the retention policy used for PVCs created from the JobSet VolumeClaimPolicies.</p>
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+    
+  
+<tr><td><code>whenDeleted</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-RetentionPolicyType"><code>RetentionPolicyType</code></a>
+</td>
+<td>
+   <p>whenDeleted specifies what happens to PVCs when JobSet is deleted.</p>
 </td>
 </tr>
 </tbody>
