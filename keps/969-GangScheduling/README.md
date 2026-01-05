@@ -9,7 +9,7 @@
   - [User Stories](#user-stories)
     - [Story 1: All-or-Nothing Scheduling for Distributed Training](#story-1-all-or-nothing-scheduling-for-distributed-training)
     - [Story 2: Per-ReplicatedJob Gang Scheduling](#story-2-per-replicatedjob-gang-scheduling)
-    - [Story 3: Advanced Workload Template Control](#story-3-advanced-workload-template-control)
+    - [Story 3: Custom Pod Groupings](#story-3-custom-pod-groupings)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Design Details](#design-details)
   - [API Proposal](#api-proposal)
@@ -25,6 +25,7 @@
 - [Implementation History](#implementation-history)
 - [Drawbacks](#drawbacks)
 - [Alternatives](#alternatives)
+  - [Using an Enum with Preset Gang Policies](#using-an-enum-with-preset-gang-policies)
   - [Using Annotations Instead of API Field](#using-annotations-instead-of-api-field)
   - [Hard-coding Gang Policy Behavior](#hard-coding-gang-policy-behavior)
 <!-- /toc -->
@@ -36,10 +37,8 @@ Gang scheduling ensures that groups of pods are scheduled atomically - either al
 together, or none are scheduled. This is critical for distributed AI/ML training workloads and HPC applications
 where partial scheduling leads to resource deadlock and wasted cluster capacity.
 
-The proposal introduces three gang scheduling modes:
-- **JobSetAsGang**: The entire JobSet is treated as a single gang (all-or-nothing scheduling)
-- **JobSetGangPerReplicatedJob**: Each ReplicatedJob within the JobSet is treated as a separate gang
-- **JobSetWorkloadTemplate**: Advanced mode allowing users to provide custom Workload specifications for fine-grained control
+The proposal uses a `WorkloadTemplate` approach that allows users to provide a custom Workload specification
+for fine-grained control over pod groupings and gang scheduling behavior.
 
 ## Motivation
 
@@ -85,7 +84,7 @@ but currently lacks first-class integration with JobSet. This KEP bridges that g
 As a ML engineer running distributed PyTorch training with 64 GPUs across 8 nodes, I want all 64 pods to be
 scheduled together or not at all. Partial scheduling wastes expensive GPU resources and blocks other jobs.
 
-With this KEP, I can specify:
+With this KEP, I can specify a WorkloadTemplate that defines a single PodSet containing all pods:
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -94,7 +93,11 @@ metadata:
   name: pytorch-training
 spec:
   gangPolicy:
-    gangPolicyOption: JobSetAsGang
+    workloadTemplate:
+      spec:
+        podSets:
+        - name: all-pods
+          count: 8  # Total: 1 master + 7 workers
   replicatedJobs:
   - name: master
     replicas: 1
@@ -134,6 +137,8 @@ As a HPC user running a multi-tier application with separate parameter servers a
 to be gang-scheduled independently. Parameter servers can start as soon as their gang is ready, while workers
 wait for their separate gang to be satisfied.
 
+With the WorkloadTemplate approach, I define multiple PodSets - one for each ReplicatedJob:
+
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
@@ -141,7 +146,13 @@ metadata:
   name: multi-tier-training
 spec:
   gangPolicy:
-    gangPolicyOption: JobSetGangPerReplicatedJob
+    workloadTemplate:
+      spec:
+        podSets:
+        - name: ps
+          count: 4
+        - name: worker
+          count: 16
   replicatedJobs:
   - name: ps
     replicas: 4
@@ -169,14 +180,13 @@ spec:
 
 Parameter server pods (4) will be gang-scheduled together, and worker pods (16) will be gang-scheduled as a separate group.
 
-#### Story 3: Advanced Workload Template Control
+#### Story 3: Custom Pod Groupings
 
 As a ML engineer running distributed training, I have an initialization phase that must complete before training starts,
-but I want the leader and worker pods to be gang-scheduled together as a single unit (not separately). The simple gang
-policies don't support this pattern where I need custom grouping across ReplicatedJobs.
+but I want the leader and worker pods to be gang-scheduled together as a single unit (not separately).
 
-With the WorkloadTemplate option, I can define custom pod sets that group the leader and worker together while keeping
-the initializer separate:
+With the WorkloadTemplate approach, I can define custom pod groupings that combine pods from different ReplicatedJobs
+into a single gang:
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -185,8 +195,7 @@ metadata:
   name: multi-phase-training
 spec:
   gangPolicy:
-    gangPolicyOption: JobSetWorkloadTemplate
-    workload:
+    workloadTemplate:
       metadata:
         labels:
           workload-type: multi-phase-training
@@ -195,19 +204,9 @@ spec:
         # First gang: initializer runs independently
         - name: initializer
           count: 1
-          template:
-            spec:
-              containers:
-              - name: init
-                image: my-app:latest
         # Second gang: leader and workers gang-scheduled together
         - name: training
           count: 9  # 1 leader + 8 workers
-          template:
-            spec:
-              containers:
-              - name: training
-                image: my-app:latest
         priorityClassName: high-priority
   replicatedJobs:
   - name: initializer
@@ -282,36 +281,13 @@ Gang scheduling may interact unexpectedly with suspend, startup policies, and fa
 ### API Proposal
 
 ```go
-type GangPolicyOptions string
-
-const (
-	// JobSetAsGang means that the entire JobSet is considered to be a gang.
-	// The scheduler will admit all pods in the JobSet for scheduling together as a gang.
-	JobSetAsGang GangPolicyOptions = "JobSetAsGang"
-
-	// JobSetGangPerReplicatedJob means that each ReplicatedJob will be a separate gang.
-	// Each ReplicatedJob's pods will be gang-scheduled independently.
-	JobSetGangPerReplicatedJob GangPolicyOptions = "JobSetGangPerReplicatedJob"
-
-	// JobSetWorkloadTemplate means that the JobSet will create the Workload from the provided template.
-	// This is an advanced option that provides fine-grained control over pod groups
-	// and scheduling logic for a JobSet.
-	JobSetWorkloadTemplate GangPolicyOptions = "JobSetWorkloadTemplate"
-)
-
 type GangPolicy struct {
-	// gangPolicyOption determines the gang scheduling policy for JobSet.
-	// Defaults to nil (no gang scheduling).
-	// +kubebuilder:validation:Enum=JobSetAsGang;JobSetGangPerReplicatedJob;JobSetWorkloadTemplate
-	// +optional
-	GangPolicyOption *GangPolicyOptions `json:"gangPolicyOption,omitempty"`
-
-	// workload provides a Workload template to create on JobSet creation.
-	// This field is only valid when gangPolicyOption is JobSetWorkloadTemplate.
+	// workloadTemplate provides a Workload template to create on JobSet creation.
 	// When specified, the JobSet controller will create this Workload object
 	// and link it to the JobSet for gang scheduling.
+	// The Workload's podSets define how pods should be grouped for gang scheduling.
 	// +optional
-	Workload *schedulingv1alpha1.Workload `json:"workload,omitempty"`
+	WorkloadTemplate *schedulingv1alpha1.WorkloadSpec `json:"workloadTemplate,omitempty"`
 }
 
 // In JobSetSpec:
@@ -329,15 +305,17 @@ type JobSetSpec struct {
 }
 ```
 
+This design provides maximum flexibility by allowing users to define exactly how pods should be grouped
+for gang scheduling through the Workload API's `podSets` field. Common patterns like "all pods as one gang"
+or "one gang per ReplicatedJob" can be expressed directly in the WorkloadTemplate.
+
 ### Implementation
 
 The JobSet controller will implement gang scheduling as follows:
 
 1. **Workload Creation**:
-   - When a JobSet with `gangPolicy` is created, the controller creates a corresponding Workload object
-   - For `JobSetAsGang`: Create a single Workload with one PodSet containing all pods
-   - For `JobSetGangPerReplicatedJob`: Create a single Workload with multiple PodSets (one per ReplicatedJob)
-   - For `JobSetWorkloadTemplate`: Create the user-provided Workload template
+   - When a JobSet with `gangPolicy.workloadTemplate` is specified, the controller creates a corresponding Workload object
+   - The Workload is created from the user-provided template, with the controller setting appropriate ownership references
 
 2. **Ownership and Lifecycle**:
    - The Workload is owned by the JobSet (via OwnerReference) and shares its lifecycle
@@ -387,19 +365,19 @@ The JobSet controller will:
 
 **Defaulting**:
 - `gangPolicy` defaults to nil (no gang scheduling)
-- `gangPolicyOption` has no default when `gangPolicy` is set (user must be explicit)
+- When `gangPolicy` is set, `workloadTemplate` must be provided
 
 **Validation**:
 - `gangPolicy` is immutable after creation (enforced via CEL validation rule)
-- When `gangPolicyOption` is `JobSetWorkloadTemplate`, `workload` field must be provided
-- When `gangPolicyOption` is `JobSetAsGang` or `JobSetGangPerReplicatedJob`, `workload` field must be nil
+- When `gangPolicy` is set, `workloadTemplate` must be provided with valid Workload spec
 - Workload template validation follows the Kubernetes Workload API schema
+- PodSet counts in the Workload template should be consistent with the JobSet's ReplicatedJob specifications
 
 **Webhook Validation**:
 ```go
 // Validating webhook checks:
-// 1. Workload field is only set when using JobSetWorkloadTemplate mode
-// 2. PodSet counts in Workload template match ReplicatedJob specs
+// 1. WorkloadTemplate is provided when gangPolicy is set
+// 2. PodSet counts in Workload template are consistent with ReplicatedJob specs
 // 3. Workload API is available in the cluster
 ```
 
@@ -446,19 +424,19 @@ Target coverage: >80% for new code
 
 Integration tests will cover:
 
-1. **JobSetAsGang Mode**:
-   - Create JobSet with multiple ReplicatedJobs
-   - Verify single Workload created with correct PodSet
+1. **Single PodSet (All-or-Nothing)**:
+   - Create JobSet with WorkloadTemplate containing single PodSet
+   - Verify Workload created with correct PodSet
    - Verify all Jobs created only after Workload admission
    - Verify JobSet deletion cascades to Workload
 
-2. **JobSetGangPerReplicatedJob Mode**:
-   - Create JobSet with multiple ReplicatedJobs
-   - Verify Workload created with multiple PodSets
+2. **Multiple PodSets (Per-ReplicatedJob)**:
+   - Create JobSet with WorkloadTemplate containing multiple PodSets
+   - Verify Workload created matches template
    - Verify Jobs for each ReplicatedJob gang-scheduled independently
 
-3. **JobSetWorkloadTemplate Mode**:
-   - Create JobSet with custom Workload template
+3. **Custom Pod Groupings**:
+   - Create JobSet with WorkloadTemplate grouping pods across ReplicatedJobs
    - Verify Workload created matches template
    - Verify Jobs respect custom PodSet definitions
 
@@ -476,7 +454,7 @@ Integration tests will cover:
 
 **Alpha** (v0.11.0):
 - API field added with validation
-- Basic implementation for JobSetAsGang and JobSetGangPerReplicatedJob modes
+- WorkloadTemplate-based implementation
 - Integration with Kueue scheduler
 - Unit and integration test coverage
 - Documentation for basic usage
@@ -507,6 +485,67 @@ in some scenarios by forcing jobs to wait for full resource availability rather 
 increasing API server load and etcd storage requirements.
 
 ## Alternatives
+
+### Using an Enum with Preset Gang Policies
+
+An alternative approach would use an enum field to offer preset gang scheduling behaviors, reducing configuration
+complexity for common use cases:
+
+```go
+type GangPolicyOptions string
+
+const (
+	// JobSetAsGang means that the entire JobSet is considered to be a gang.
+	// The scheduler will admit all pods in the JobSet for scheduling together as a gang.
+	JobSetAsGang GangPolicyOptions = "JobSetAsGang"
+
+	// JobSetGangPerReplicatedJob means that each ReplicatedJob will be a separate gang.
+	// Each ReplicatedJob's pods will be gang-scheduled independently.
+	JobSetGangPerReplicatedJob GangPolicyOptions = "JobSetGangPerReplicatedJob"
+
+	// JobSetWorkloadTemplate means that the JobSet will create the Workload from the provided template.
+	// This is an advanced option that provides fine-grained control over pod groups
+	// and scheduling logic for a JobSet.
+	JobSetWorkloadTemplate GangPolicyOptions = "JobSetWorkloadTemplate"
+)
+
+type GangPolicy struct {
+	// gangPolicyOption determines the gang scheduling policy for JobSet.
+	// Defaults to nil (no gang scheduling).
+	// +kubebuilder:validation:Enum=JobSetAsGang;JobSetGangPerReplicatedJob;JobSetWorkloadTemplate
+	// +optional
+	GangPolicyOption *GangPolicyOptions `json:"gangPolicyOption,omitempty"`
+
+	// workload provides a Workload template to create on JobSet creation.
+	// This field is only valid when gangPolicyOption is JobSetWorkloadTemplate.
+	// When specified, the JobSet controller will create this Workload object
+	// and link it to the JobSet for gang scheduling.
+	// +optional
+	Workload *schedulingv1alpha1.Workload `json:"workload,omitempty"`
+}
+```
+
+Example usage with JobSetAsGang:
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: pytorch-training
+spec:
+  gangPolicy:
+    gangPolicyOption: JobSetAsGang
+  replicatedJobs:
+  - name: worker
+    replicas: 8
+    # ...
+```
+
+**Not chosen because**:
+- Adds complexity with multiple code paths (one per enum value)
+- The controller must auto-generate Workload specs for preset modes, which may not match user expectations
+- Users still need WorkloadTemplate for custom pod groupings, making the enum redundant
+- A single WorkloadTemplate approach is more flexible and easier to understand
+- Reduces API surface area and maintenance burden
 
 ### Using Annotations Instead of API Field
 
