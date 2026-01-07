@@ -118,6 +118,9 @@ func setupInPlaceRestartAgentOrDie(mgr ctrl.Manager, env env) {
 
 // start starts the controller manager and waits for it to stop
 // It also handles signals to exit with an appropriate exit code like 128 + signal number instead of 0
+// This is done to make the exit code of the agent more predictable
+// Otherwise, a SIGTERM could be captured by the controller manager and exit with 0
+// The exit code should be predictable because different exit codes lead to different actions (restart container, fail Pod, succeed the Pod, etc)
 func start(mgr ctrl.Manager) {
 	// Create a context that is cancelled when a signal is received
 	// This is done to make the program exit with an appropriate exit code like 128 + signal number instead of 0
