@@ -36,6 +36,8 @@ import (
 )
 
 const (
+	// NamespaceFile is the path to the file containing the namespace of the Pod as specified in the k8s standard
+	// See https://kubernetes.io/docs/tasks/run-application/access-api-from-pod/#directly-accessing-the-rest-api
 	NamespaceFile             = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 	EnvJobSetName             = "JOBSET_NAME"
 	EnvPodName                = "POD_NAME"
