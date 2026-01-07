@@ -91,6 +91,12 @@ func (j *JobSetWrapper) StartupPolicy(policy *jobset.StartupPolicy) *JobSetWrapp
 	return j
 }
 
+// VolumeClaimPolicies sets the value of jobSet.spec.volumeClaimPolicies
+func (j *JobSetWrapper) VolumeClaimPolicies(policies []jobset.VolumeClaimPolicy) *JobSetWrapper {
+	j.Spec.VolumeClaimPolicies = policies
+	return j
+}
+
 // SetAnnotations sets the value of the jobSet.metadata.annotations.
 func (j *JobSetWrapper) SetAnnotations(annotations map[string]string) *JobSetWrapper {
 	j.Annotations = annotations

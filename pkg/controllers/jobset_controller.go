@@ -100,6 +100,7 @@ func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record re
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get;patch;update
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch;create
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -201,6 +202,14 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 	if err := r.createHeadlessSvcIfNecessary(ctx, js); err != nil {
 		log.Error(err, "creating headless service")
 		return ctrl.Result{}, err
+	}
+
+	// Reconcile VolumeClaimPolicies if it is set.
+	if len(js.Spec.VolumeClaimPolicies) > 0 {
+		if err := r.reconcileVolumeClaimPolicies(ctx, js); err != nil {
+			log.Error(err, "reconciling persistent volume claim policies")
+			return ctrl.Result{}, err
+		}
 	}
 
 	// If job has not failed or succeeded, reconcile the state of the replicatedJobs.
@@ -725,6 +734,11 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) *ba
 	// if Suspend is set, then we assume all jobs will be suspended also.
 	jobsetSuspended := jobSetSuspended(js)
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
+
+	// If VolumeClaimPolicies are set, update Job spec to set volumes and volumeMounts.
+	if len(js.Spec.VolumeClaimPolicies) > 0 {
+		addVolumes(job, js)
+	}
 
 	return job
 }

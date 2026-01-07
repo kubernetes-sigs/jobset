@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/klog/v2/ktesting"
@@ -804,6 +805,97 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					jobIdx:            0}).
 					Suspend(false).
 					Subdomain(jobSetName).Obj(),
+			},
+		},
+		{
+			name: "volume-claim-policies",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				EnableDNSHostnames(true).
+				NetworkSubdomain(jobSetName).
+				VolumeClaimPolicies(
+					[]jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: corev1.PersistentVolumeClaimSpec{
+										AccessModes: []corev1.PersistentVolumeAccessMode{
+											corev1.ReadWriteMany,
+										},
+										Resources: corev1.VolumeResourceRequirements{
+											Requests: corev1.ResourceList{
+												corev1.ResourceStorage: resource.MustParse("1Gi"),
+											},
+										},
+									},
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
+							},
+						},
+					},
+				).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).
+						PodSpec(corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Name:  "test-container",
+									Image: "busybox:latest",
+									VolumeMounts: []corev1.VolumeMount{
+										{
+											Name:      "test-volume",
+											MountPath: "/data",
+										},
+									},
+								},
+							},
+						}).
+						Obj()).
+					Subdomain(jobSetName).
+					Replicas(1).
+					GroupName("default").
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					groupName:         "default",
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).
+					Suspend(false).
+					PodSpec(corev1.PodSpec{
+						Subdomain: jobSetName,
+						Containers: []corev1.Container{
+							{
+								Name:  "test-container",
+								Image: "busybox:latest",
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "test-volume",
+										MountPath: "/data",
+									},
+								},
+							},
+						},
+						Volumes: []corev1.Volume{
+							{
+								Name: "test-volume",
+								VolumeSource: corev1.VolumeSource{
+									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+										ClaimName: "test-volume-test-jobset",
+									},
+								},
+							},
+						},
+					}).Obj(),
 			},
 		},
 	}
