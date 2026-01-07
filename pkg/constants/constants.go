@@ -20,13 +20,13 @@ const (
 	// JobSetSubsystemName is the name of the subsystem used for metrics
 	JobSetSubsystemName = "jobset"
 
-	// JobOwnerKey is the field used to build the JobSet index, which enables looking up Jobs
+	// JobsIndexByJobSetKey is the field used to build the JobSet index, which enables looking up Jobs
 	// by the owner JobSet quickly.
-	JobOwnerKey = ".metadata.controller"
+	JobsIndexByJobSetKey = ".metadata.controller"
 
-	// AssociatedJobSetKey is the field used to build the Pod index, which enables looking up Pods
+	// PodsIndexByJobSetKey is the field used to build the Pod index, which enables looking up Pods
 	// by the associated JobSet quickly.
-	AssociatedJobSetKey = "associatedJobSet"
+	PodsIndexByJobSetKey = "podsIndexByJobSet"
 
 	// RestartsKey is an annotation and label key which defines the restart attempt number
 	// the JobSet is currently on.

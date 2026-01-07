@@ -280,7 +280,7 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error {
-	err := indexer.IndexField(ctx, &batchv1.Job{}, constants.JobOwnerKey, func(obj client.Object) []string {
+	err := indexer.IndexField(ctx, &batchv1.Job{}, constants.JobsIndexByJobSetKey, func(obj client.Object) []string {
 		o := obj.(*batchv1.Job)
 		owner := metav1.GetControllerOf(o)
 		if owner == nil {
@@ -299,7 +299,7 @@ func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error 
 	// Index Pods by namespaced JobSet name if in-place restart feature is enabled.
 	// This is used to efficiently find all Pods associated with a JobSet.
 	if features.Enabled(features.InPlaceRestart) {
-		err = indexer.IndexField(ctx, &corev1.Pod{}, constants.AssociatedJobSetKey, func(obj client.Object) []string {
+		err = indexer.IndexField(ctx, &corev1.Pod{}, constants.PodsIndexByJobSetKey, func(obj client.Object) []string {
 			pod := obj.(*corev1.Pod)
 			jobSetName, ok := pod.Labels[jobset.JobSetNameKey]
 			if !ok {
@@ -340,7 +340,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 
 	// Get all active jobs owned by JobSet.
 	var childJobList batchv1.JobList
-	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{constants.JobOwnerKey: js.Name}); err != nil {
+	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{constants.JobsIndexByJobSetKey: js.Name}); err != nil {
 		return nil, err
 	}
 

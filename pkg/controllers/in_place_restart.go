@@ -103,7 +103,7 @@ func (r *JobSetReconciler) getAssociatedPods(ctx context.Context, js *jobset.Job
 	namespacedJobSet := js.Namespace + "/" + js.Name
 	var associatedPods corev1.PodList
 	if err := r.List(ctx, &associatedPods, client.InNamespace(js.Namespace), client.MatchingFields{
-		constants.AssociatedJobSetKey: namespacedJobSet,
+		constants.PodsIndexByJobSetKey: namespacedJobSet,
 	}); err != nil {
 		return nil, err
 	}

@@ -589,7 +589,7 @@ func TestGetAssociatedPods(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().
 				WithScheme(scheme).
-				WithIndex(&corev1.Pod{}, constants.AssociatedJobSetKey, func(obj client.Object) []string {
+				WithIndex(&corev1.Pod{}, constants.PodsIndexByJobSetKey, func(obj client.Object) []string {
 					pod := obj.(*corev1.Pod)
 					jobSetName, ok := pod.Labels[jobset.JobSetNameKey]
 					if !ok {
@@ -892,7 +892,7 @@ func TestReconcileInPlaceRestart(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().
 				WithScheme(scheme).
-				WithIndex(&corev1.Pod{}, constants.AssociatedJobSetKey, func(obj client.Object) []string {
+				WithIndex(&corev1.Pod{}, constants.PodsIndexByJobSetKey, func(obj client.Object) []string {
 					pod := obj.(*corev1.Pod)
 					jobSetName, ok := pod.Labels[jobset.JobSetNameKey]
 					if !ok {
