@@ -269,7 +269,7 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 	// The Pod in-place restart attempt is set only once per agent execution, instead of possibly setting it multiple times in different reconciliations
 	// This could technically be done in the main function by getting the associated JobSet and patching the Pod, but it is done in the reconcile function to reuse the manager client and its watch
 	// This is done to decrease the impact on the API server as much as possible
-	// The startup is indicated by the Pod in-place restart attempt being not being set yet
+	// The startup is indicated by the Pod in-place restart attempt not being set yet
 	if r.PodInPlaceRestartAttempt == nil {
 		var newPodInPlaceRestartAttempt int32
 		// If the JobSet current in-place restart attempt has not been set yet, it means that the JobSet is starting for the first time
