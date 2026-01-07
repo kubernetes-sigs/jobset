@@ -55,19 +55,13 @@ func init() {
 }
 
 func main() {
-	// Setup
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{
 		Development: true,
 	})))
 	env := parseEnvOrDie()
-
-	// Create controller manager
 	mgr := createManagerOrDie(env)
-
-	// Setup the in-place restart agent controller
 	setupInPlaceRestartAgentOrDie(mgr, env)
-
-	// Start
+	
 	start(mgr)
 }
 
