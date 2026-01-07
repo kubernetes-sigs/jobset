@@ -61,7 +61,7 @@ func main() {
 	env := parseEnvOrDie()
 	mgr := createManagerOrDie(env)
 	setupInPlaceRestartAgentOrDie(mgr, env)
-	
+
 	start(mgr)
 }
 
@@ -79,6 +79,7 @@ func createManagerOrDie(env env) ctrl.Manager {
 		LeaderElection: false,
 		// Only watch the associated JobSet
 		// This is done to reduce the network traffic as much as possible
+		// Importantly, this is done in the api server, not in the client side
 		Cache: cache.Options{
 			DefaultNamespaces: map[string]cache.Config{
 				env.Namespace: {},
