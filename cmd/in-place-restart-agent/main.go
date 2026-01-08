@@ -157,11 +157,24 @@ func start(mgr ctrl.Manager) {
 
 // env represents the environment variables
 type env struct {
-	Namespace              string
-	JobSetName             string
-	PodName                string
+	// Namespace is the namespace of the Pod and its JobSet
+	// This is read from the mounted service account file instead of an environment variable to reduce the number of env vars
+	Namespace string
+	// JobSetName is the name of the Pod's JobSet
+	// Represents the JOBSET_NAME environment variable
+	JobSetName string
+	// PodName is the name of the Pod
+	// Represents the POD_NAME environment variable
+	PodName string
+	// InPlaceRestartExitCode is the exit code used to trigger an in-place restart
+	// The agent will exit with this exit code when it detects that the Pod needs to be restarted in-place
+	// The Pod spec should be configured accordingly to restart the Pod in-place when the agent exits with this exit code
+	// See https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#restart-all-containers
+	// Represents the IN_PLACE_RESTART_EXIT_CODE environment variable
 	InPlaceRestartExitCode int
-	WorkerCommand          string
+	// WorkerCommand is the command used to start the worker process when the barrier is lifted
+	// Represents the WORKER_COMMAND environment variable
+	WorkerCommand string
 }
 
 // parseEnvOrDie parses the environment variables and returns an env struct
