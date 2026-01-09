@@ -116,7 +116,7 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref common.ReferenceCallbac
 				Properties: map[string]spec.Schema{
 					"maxRestarts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "maxRestarts defines the limit on the number of JobSet restarts. A restart is achieved by recreating all active child jobs.",
+							Description: "maxRestarts defines the limit on the number of JobSet restarts. If the restart strategy \"InPlaceRestart\" is used, this field also defines the limit on the number of container restarts of any child container. This is required to handle the edge case in which a container keeps failing too fast to complete a JobSet restart.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},

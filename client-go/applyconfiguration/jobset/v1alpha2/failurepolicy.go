@@ -22,7 +22,11 @@ import (
 // with apply.
 type FailurePolicyApplyConfiguration struct {
 	// maxRestarts defines the limit on the number of JobSet restarts.
-	// A restart is achieved by recreating all active child jobs.
+	// If the restart strategy "InPlaceRestart" is used, this field
+	// also defines the limit on the number of container restarts of
+	// any child container. This is required to handle the edge case
+	// in which a container keeps failing too fast to complete a JobSet
+	// restart.
 	MaxRestarts *int32 `json:"maxRestarts,omitempty"`
 	// restartStrategy defines the strategy to use when restarting the JobSet.
 	// Defaults to Recreate.
