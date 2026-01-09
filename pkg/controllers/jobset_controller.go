@@ -234,6 +234,11 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		}
 	}
 
+	// The in-place restart strategy assumes that Jobs never fail because the backoffLimit is set to the max.
+	// If a job does fail, it is not optimal but it is also not a problem because in-place restart can handle
+	// Pods being recreated. The JobSet controller will recreate the failed Jobs as if the restart strategy 
+	// is set to "Recreate". The barrier is lifted only when all agents are ready and in the new "in-place 
+	// restart attempt".
 	if isInPlaceRestartStrategy(js) {
 		if features.Enabled(features.InPlaceRestart) {
 			if err := r.reconcileInPlaceRestart(ctx, js, updateStatusOpts); err != nil {
