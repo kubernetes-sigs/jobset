@@ -426,9 +426,9 @@ type FailurePolicyRule struct {
 type FailurePolicy struct {
 	// maxRestarts defines the limit on the number of JobSet restarts.
 	// If the restart strategy "InPlaceRestart" is used, this field
-	// also defines the limit on the number of container restarts of 
-	// any child container. This is required to handle the edge case 
-	// in which a container keeps failing too fast to complete a JobSet 
+	// also defines the limit on the number of container restarts of
+	// any child container. This is required to handle the edge case
+	// in which a container keeps failing too fast to complete a JobSet
 	// restart.
 	MaxRestarts int32 `json:"maxRestarts,omitempty"`
 
