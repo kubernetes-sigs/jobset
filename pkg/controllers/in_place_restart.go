@@ -69,17 +69,17 @@ func (r *JobSetReconciler) reconcileInPlaceRestart(ctx context.Context, js *jobs
 		return nil
 	}
 
-	// Get expected length of Pod in-place restart attempts
-	expectedPodInPlaceRestartAttemptsLength, err := getExpectedPodInPlaceRestartAttemptsLength(js)
+	// Get total number of pods
+	totalNumberOfPods, err := getTotalNumberOfPods(js)
 	if err != nil {
-		log.Error(err, "getting expected length of Pod in-place restart attempts")
+		log.Error(err, "getting total number of pods")
 		return err
 	}
 
 	// If all associated Pods are at the same in-place restart attempt, set the current in-place restart attempt to the common value
 	// This will make the agents lift their barriers to allow the worker container to start running
 	// This is idempotent
-	if len(podInPlaceRestartAttempts) == expectedPodInPlaceRestartAttemptsLength && allEqual(podInPlaceRestartAttempts) {
+	if len(podInPlaceRestartAttempts) == totalNumberOfPods && allEqual(podInPlaceRestartAttempts) {
 		updateCurrentInPlaceRestartAttempt(log, js, podInPlaceRestartAttempts, updateStatusOpts)
 		return nil
 	}
@@ -165,19 +165,18 @@ func exceededMaxRestarts(js *jobset.JobSet, podInPlaceRestartAttempts []int32) b
 	return podInPlaceRestartsCountTowardsMax > js.Spec.FailurePolicy.MaxRestarts
 }
 
-// getExpectedPodInPlaceRestartAttemptsLength returns the expected length of Pod in-place restart attempts for the JobSet.
-// This is equal to the expected total number of associated pods in the JobSet.
-func getExpectedPodInPlaceRestartAttemptsLength(js *jobset.JobSet) (int, error) {
-	expectedLength := 0
+// getTotalNumberOfPods returns the total number of pods for the JobSet.
+func getTotalNumberOfPods(js *jobset.JobSet) (int, error) {
+	totalNumberOfPods := 0
 	for _, rjob := range js.Spec.ReplicatedJobs {
 		jobTemplate := rjob.Template
 		if jobTemplate.Spec.Completions == nil || jobTemplate.Spec.Parallelism == nil || *jobTemplate.Spec.Completions != *jobTemplate.Spec.Parallelism {
 			return 0, fmt.Errorf("%s: in-place restart requires jobTemplate.spec.completions == jobTemplate.spec.parallelism != nil", rjob.Name)
 		}
-		expectedLength += int(rjob.Replicas * *jobTemplate.Spec.Parallelism)
+		totalNumberOfPods += int(rjob.Replicas * *jobTemplate.Spec.Parallelism)
 	}
 
-	return expectedLength, nil
+	return totalNumberOfPods, nil
 }
 
 // allEqual returns true if all values in the slice are equal.

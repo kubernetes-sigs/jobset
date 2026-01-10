@@ -318,7 +318,7 @@ func TestExceededMaxRestarts(t *testing.T) {
 	}
 }
 
-func TestGetExpectedInPlaceRestartAttemptsLength(t *testing.T) {
+func TestGetTotalNumberOfPods(t *testing.T) {
 	tests := []struct {
 		name    string
 		js      *jobset.JobSet
@@ -366,13 +366,13 @@ func TestGetExpectedInPlaceRestartAttemptsLength(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := getExpectedPodInPlaceRestartAttemptsLength(tc.js)
+			got, err := getTotalNumberOfPods(tc.js)
 			if (err != nil) != tc.wantErr {
-				t.Errorf("getExpectedInPlaceRestartAttemptsLength() error = %v, wantErr %v", err, tc.wantErr)
+				t.Errorf("getTotalNumberOfPods() error = %v, wantErr %v", err, tc.wantErr)
 				return
 			}
 			if got != tc.want {
-				t.Errorf("getExpectedInPlaceRestartAttemptsLength() = %v, want %v", got, tc.want)
+				t.Errorf("getTotalNumberOfPods() = %v, want %v", got, tc.want)
 			}
 		})
 	}
