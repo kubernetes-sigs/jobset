@@ -26,6 +26,17 @@ IMAGE_REPO ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME)
 IMAGE_TAG ?= $(IMAGE_REPO):$(GIT_TAG)
 HELM_CHART_REPO := $(STAGING_IMAGE_REGISTRY)/jobset/charts
 
+# In-place restart agent image
+# TODO (k8s 1.35): Replace IN_PLACE_RESTART_AGENT_BASE_IMAGE with BASE_IMAGE (distroless/static:nonroot)
+# TODO (beta of in-place restart): Default IN_PLACE_RESTART_AGENT_IMAGE_REGISTRY to a valid registry URL to build and push the agent automatically
+IN_PLACE_RESTART_AGENT_IMAGE_REGISTRY ?=
+IN_PLACE_RESTART_AGENT_IMAGE_NAME := in-place-restart-agent
+IN_PLACE_RESTART_AGENT_IMAGE_REPO ?= $(IN_PLACE_RESTART_AGENT_IMAGE_REGISTRY)/$(IN_PLACE_RESTART_AGENT_IMAGE_NAME)
+IN_PLACE_RESTART_AGENT_IMAGE_TAG ?= $(IN_PLACE_RESTART_AGENT_IMAGE_REPO):$(GIT_TAG)
+IN_PLACE_RESTART_AGENT_DOCKERFILE ?= cmd/in-place-restart-agent/Dockerfile-example
+IN_PLACE_RESTART_AGENT_BASE_IMAGE ?= debian:bookworm-slim
+IN_PLACE_RESTART_AGENT_BUILDER_IMAGE ?= golang:$(GO_VERSION)
+
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 BASE_IMAGE ?= gcr.io/distroless/static:nonroot
@@ -199,6 +210,23 @@ image-build:
 .PHONY: image-push
 image-push: PUSH=--push
 image-push: image-build
+
+# Build the in-place restart agent image
+.PHONY: in-place-restart-agent-image-build
+in-place-restart-agent-image-build:
+	$(IMAGE_BUILD_CMD) \
+		-t $(IN_PLACE_RESTART_AGENT_IMAGE_TAG) \
+		-t $(IN_PLACE_RESTART_AGENT_IMAGE_REPO):$(BRANCH_NAME) \
+		--platform=$(PLATFORMS) \
+		--build-arg BASE_IMAGE=$(IN_PLACE_RESTART_AGENT_BASE_IMAGE) \
+		--build-arg BUILDER_IMAGE=$(IN_PLACE_RESTART_AGENT_BUILDER_IMAGE) \
+		--build-arg CGO_ENABLED=$(CGO_ENABLED) \
+		$(PUSH) \
+		$(IMAGE_BUILD_EXTRA_OPTS) ./
+
+.PHONY: in-place-restart-agent-image-push
+in-place-restart-agent-image-push: PUSH=--push
+in-place-restart-agent-image-push: in-place-restart-agent-image-build
 
 ##@ Deployment
 

@@ -154,7 +154,11 @@ the coordinator pod.</p>
 </td>
 <td>
    <p>maxRestarts defines the limit on the number of JobSet restarts.
-A restart is achieved by recreating all active child jobs.</p>
+If the restart strategy &quot;InPlaceRestart&quot; is used, this field
+also defines the limit on the number of container restarts of
+any child container. This is required to handle the edge case
+in which a container keeps failing too fast to complete a JobSet
+restart.</p>
 </td>
 </tr>
 <tr><td><code>restartStrategy</code><br/>
@@ -436,7 +440,7 @@ volumeMount in one container in the template.</p>
 <code>string</code>
 </td>
 <td>
-   <p>terminalState the state of the JobSet when it finishes execution.
+   <p>terminalState tracks the state of the JobSet when it finishes execution.
 It can be either Completed or Failed. Otherwise, it is empty by default.</p>
 </td>
 </tr>
@@ -444,7 +448,28 @@ It can be either Completed or Failed. Otherwise, it is empty by default.</p>
 <a href="#jobset-x-k8s-io-v1alpha2-ReplicatedJobStatus"><code>[]ReplicatedJobStatus</code></a>
 </td>
 <td>
-   <p>replicatedJobsStatus track the number of JobsReady for each replicatedJob.</p>
+   <p>replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.</p>
+</td>
+</tr>
+<tr><td><code>previousInPlaceRestartAttempt</code><br/>
+<code>int32</code>
+</td>
+<td>
+   <p>previousInPlaceRestartAttempt tracks the previous in-place restart attempt
+of the JobSet. It is read by the agent. If the in-place restart
+attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt,
+the agent should restart its Pod in-place.</p>
+</td>
+</tr>
+<tr><td><code>currentInPlaceRestartAttempt</code><br/>
+<code>int32</code>
+</td>
+<td>
+   <p>currentInPlaceRestartAttempt tracks the current in-place restart attempt
+of the JobSet. It is read by the agent. If the in-place restart
+attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent
+should lift its barrier to allow the worker container to
+start running.</p>
 </td>
 </tr>
 </tbody>
