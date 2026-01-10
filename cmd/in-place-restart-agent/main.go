@@ -281,6 +281,21 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 	log = log.WithValues("currentInPlaceRestartAttempt", currentInPlaceRestartAttempt, "previousInPlaceRestartAttempt", previousInPlaceRestartAttempt)
 	ctx = ctrl.LoggerInto(ctx, log)
 
+	// Handle bypass
+	// This is done only if the disable annotation is present in the JobSet or if the JobSet restart strategy is not set to InPlaceRestart.
+	// If the check returns true, the agent will basically be a no-op. That is, it will lift its barrier and let the worker run immediately,
+	// regardless of the in-place restart attempt and other values.
+	// This is useful for cases that the agent is used but the in-place restart strategy is not used (or the feature gate is not enabled).
+	// One example is downgrading the JobSet CRD to a version that does not support in-place restart
+	if r.shouldBypassBarrier(&js) {
+		if r.IsBarrierActive {
+			log.Info("Bypassing sync barrier: JobSet has in-place restart disabled or uses a different restart strategy. Executing worker command")
+			go r.executeWorkerCommand(ctx)
+			r.IsBarrierActive = false
+		}
+		return ctrl.Result{}, nil
+	}
+
 	// Handle start up
 	// The Pod in-place restart attempt is set only once per agent execution, instead of possibly setting it multiple times in different reconciliations
 	// This could technically be done in the main function by getting the associated JobSet and patching the Pod, but it is done in the reconcile function to reuse the manager client and its watch
@@ -369,3 +384,17 @@ func (r *InPlaceRestartAgent) executeWorkerCommand(ctx context.Context) {
 	log.Info("worker command finished successfully. Exiting agent with exit code 0", "exitCode", 0)
 	r.Exit(0)
 }
+
+// shouldBypassBarrier checks if the in-place restart logic should be bypassed
+// This happens if the disable annotation is present in the JobSet
+// Or if the JobSet restart strategy is not set to InPlaceRestart
+func (r *InPlaceRestartAgent) shouldBypassBarrier(js *jobset.JobSet) bool {
+	if _, ok := js.Annotations[jobset.DisableInPlaceRestartKey]; ok {
+		return true
+	}
+	if js.Spec.FailurePolicy == nil || js.Spec.FailurePolicy.RestartStrategy != jobset.InPlaceRestart {
+		return true
+	}
+	return false
+}
+

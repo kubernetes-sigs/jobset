@@ -44,6 +44,8 @@ func TestReconcile(t *testing.T) {
 		previousInPlaceRestartAttempt *int32
 		podInPlaceRestartAttempt      *int32
 		isBarrierActive               bool
+		jobSetAnnotations             map[string]string
+		restartStrategy               jobset.JobSetRestartStrategy
 		wantPodAnnotation             *string
 		wantExitCode                  *int
 		wantWorkerExecuted            bool
@@ -54,6 +56,7 @@ func TestReconcile(t *testing.T) {
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      nil,
 			isBarrierActive:               true,
+			restartStrategy:               "InPlaceRestart",
 			wantPodAnnotation:             ptr.To("0"),
 			wantExitCode:                  nil,
 			wantWorkerExecuted:            false,
@@ -64,6 +67,7 @@ func TestReconcile(t *testing.T) {
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      nil,
 			isBarrierActive:               true,
+			restartStrategy:               "InPlaceRestart",
 			wantPodAnnotation:             ptr.To("1"),
 			wantExitCode:                  nil,
 			wantWorkerExecuted:            false,
@@ -74,6 +78,7 @@ func TestReconcile(t *testing.T) {
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      nil,
 			isBarrierActive:               true,
+			restartStrategy:               "InPlaceRestart",
 			wantPodAnnotation:             ptr.To("2"),
 			wantExitCode:                  nil,
 			wantWorkerExecuted:            false,
@@ -84,6 +89,7 @@ func TestReconcile(t *testing.T) {
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      nil,
 			isBarrierActive:               true,
+			restartStrategy:               "InPlaceRestart",
 			wantPodAnnotation:             ptr.To("1"),
 			wantExitCode:                  nil,
 			wantWorkerExecuted:            false,
@@ -94,6 +100,7 @@ func TestReconcile(t *testing.T) {
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      ptr.To[int32](0),
 			isBarrierActive:               true,
+			restartStrategy:               "InPlaceRestart",
 			wantPodAnnotation:             nil,
 			wantExitCode:                  ptr.To(inPlaceRestartExitCode),
 			wantWorkerExecuted:            false,
@@ -104,6 +111,7 @@ func TestReconcile(t *testing.T) {
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      ptr.To[int32](0),
 			isBarrierActive:               true,
+			restartStrategy:               "InPlaceRestart",
 			wantPodAnnotation:             nil,
 			wantExitCode:                  nil,
 			wantWorkerExecuted:            true,
@@ -114,6 +122,7 @@ func TestReconcile(t *testing.T) {
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      ptr.To[int32](1),
 			isBarrierActive:               true,
+			restartStrategy:               "InPlaceRestart",
 			wantPodAnnotation:             nil,
 			wantExitCode:                  nil,
 			wantWorkerExecuted:            true,
@@ -124,6 +133,7 @@ func TestReconcile(t *testing.T) {
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      ptr.To[int32](0),
 			isBarrierActive:               false,
+			restartStrategy:               "InPlaceRestart",
 			wantPodAnnotation:             nil,
 			wantExitCode:                  nil,
 			wantWorkerExecuted:            false,
@@ -134,9 +144,46 @@ func TestReconcile(t *testing.T) {
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      ptr.To[int32](1),
 			isBarrierActive:               false,
+			restartStrategy:               "InPlaceRestart",
 			wantPodAnnotation:             nil,
 			wantExitCode:                  nil,
 			wantWorkerExecuted:            false,
+		},
+		{
+			name:                          "Agent bypasses barrier because DisableInPlaceRestartKey annotation is present",
+			currentInPlaceRestartAttempt:  nil,
+			previousInPlaceRestartAttempt: nil,
+			podInPlaceRestartAttempt:      nil,
+			isBarrierActive:               true,
+			jobSetAnnotations: map[string]string{
+				"jobset.sigs.k8s.io/disable-in-place-restart": "",
+			},
+			restartStrategy:    "InPlaceRestart",
+			wantPodAnnotation:  nil,
+			wantExitCode:       nil,
+			wantWorkerExecuted: true,
+		},
+		{
+			name:                          "Agent bypasses barrier because RestartStrategy is not InPlaceRestart",
+			currentInPlaceRestartAttempt:  nil,
+			previousInPlaceRestartAttempt: nil,
+			podInPlaceRestartAttempt:      nil,
+			isBarrierActive:               true,
+			restartStrategy:               "Recreate",
+			wantPodAnnotation:             nil,
+			wantExitCode:                  nil,
+			wantWorkerExecuted:            true,
+		},
+		{
+			name:                          "Agent bypasses barrier because RestartStrategy is explicitly empty",
+			currentInPlaceRestartAttempt:  nil,
+			previousInPlaceRestartAttempt: nil,
+			podInPlaceRestartAttempt:      nil,
+			isBarrierActive:               true,
+			restartStrategy:               "",
+			wantPodAnnotation:             nil,
+			wantExitCode:                  nil,
+			wantWorkerExecuted:            true,
 		},
 	}
 
@@ -145,8 +192,14 @@ func TestReconcile(t *testing.T) {
 			// Setup objects
 			js := &jobset.JobSet{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-jobset",
-					Namespace: "default",
+					Name:        "test-jobset",
+					Namespace:   "default",
+					Annotations: tc.jobSetAnnotations,
+				},
+				Spec: jobset.JobSetSpec{
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: tc.restartStrategy,
+					},
 				},
 				Status: jobset.JobSetStatus{
 					CurrentInPlaceRestartAttempt:  tc.currentInPlaceRestartAttempt,

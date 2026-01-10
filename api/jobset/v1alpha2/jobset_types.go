@@ -87,6 +87,15 @@ const (
 	// the agent should lift its barrier to allow the worker
 	// container to start running.
 	InPlaceRestartAttemptKey string = "jobset.sigs.k8s.io/in-place-restart-attempt"
+
+	// DisableInPlaceRestartKey is an annotation that can be set in the JobSet to
+	// disable the in-place restart logic in the agent. If this annotation
+	// is set, the in-place restart agent will bypass the synchronization barrier
+	// and run the worker immediately when the agent is started.
+	// This is useful for cases that the agent is used but the in-place restart
+	// strategy is not used (or the feature gate is not enabled). One example is
+	// downgrading the JobSet CRD to a version that does not support in-place restart
+	DisableInPlaceRestartKey string = "jobset.sigs.k8s.io/disable-in-place-restart"
 )
 
 type JobSetConditionType string
