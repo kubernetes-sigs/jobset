@@ -396,4 +396,3 @@ func (r *InPlaceRestartAgent) shouldBypassBarrier(js *jobset.JobSet) bool {
 	}
 	return false
 }
-
