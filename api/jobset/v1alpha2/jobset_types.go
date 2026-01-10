@@ -470,6 +470,13 @@ const (
 	// When no Job has failed, restart the JobSet by restarting healthy Pods
 	// in-place and recreating failed Pods. When a Job has failed, fall back to
 	// action "Recreate" and execute the matching failure policy rule.
+	// Importantly, the in-place restart strategy assumes that Jobs never fail
+	// because the backoffLimit is set to the max (this is enforced by the webhook).
+	// If a job does fail, it is not optimal but it is also not a problem because
+	// in-place restart can handle Pods being recreated. The JobSet controller will
+	// recreate the failed Jobs as if the restart strategy is set to "Recreate".
+	// The barrier is lifted only when all agents are ready and in the new "in-place
+	// restart attempt".
 	InPlaceRestart JobSetRestartStrategy = "InPlaceRestart"
 )
 
@@ -492,6 +499,7 @@ const (
 	// AnyOrder means that we will start the replicated jobs
 	// without any specific order.
 	AnyOrder StartupPolicyOptions = "AnyOrder"
+
 	// InOrder starts the replicated jobs in order
 	// that they are listed.
 	InOrder StartupPolicyOptions = "InOrder"
