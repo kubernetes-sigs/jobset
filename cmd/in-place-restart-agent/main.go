@@ -313,8 +313,9 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 		} else {
 			newPodInPlaceRestartAttempt = *currentInPlaceRestartAttempt + 1
 		}
-		err := r.patchPodInPlaceRestartAttempt(ctx, newPodInPlaceRestartAttempt)
-		return ctrl.Result{}, err
+		if err := r.patchPodInPlaceRestartAttempt(ctx, newPodInPlaceRestartAttempt); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Handle in-place restart
@@ -326,7 +327,6 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 	if r.PodInPlaceRestartAttempt != nil && previousInPlaceRestartAttempt != nil && *r.PodInPlaceRestartAttempt <= *previousInPlaceRestartAttempt {
 		log.Info("exiting agent with in-place restart exit code to restart this Pod in-place", "exitCode", r.InPlaceRestartExitCode)
 		r.Exit(r.InPlaceRestartExitCode)
-		return ctrl.Result{}, nil // unreachable
 	}
 
 	// Handle barrier lift
@@ -336,7 +336,6 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 	if r.IsBarrierActive && r.PodInPlaceRestartAttempt != nil && currentInPlaceRestartAttempt != nil && *r.PodInPlaceRestartAttempt == *currentInPlaceRestartAttempt {
 		go r.executeWorkerCommand(ctx)
 		r.IsBarrierActive = false
-		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil
