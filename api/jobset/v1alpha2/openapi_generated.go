@@ -116,7 +116,7 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref common.ReferenceCallbac
 				Properties: map[string]spec.Schema{
 					"maxRestarts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "maxRestarts defines the limit on the number of JobSet restarts. A restart is achieved by recreating all active child jobs.",
+							Description: "maxRestarts defines the limit on the number of JobSet restarts. If the restart strategy \"InPlaceRestart\" is used, this field also defines the limit on the number of container restarts of any child container. This is required to handle the edge case in which a container keeps failing too fast to complete a JobSet restart.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -482,7 +482,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					},
 					"terminalState": {
 						SchemaProps: spec.SchemaProps{
-							Description: "terminalState the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",
+							Description: "terminalState tracks the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -497,7 +497,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "replicatedJobsStatus track the number of JobsReady for each replicatedJob.",
+							Description: "replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -507,6 +507,20 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 									},
 								},
 							},
+						},
+					},
+					"previousInPlaceRestartAttempt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "previousInPlaceRestartAttempt tracks the previous in-place restart attempt of the JobSet. It is read by the agent. If the in-place restart attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt, the agent should restart its Pod in-place.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"currentInPlaceRestartAttempt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "currentInPlaceRestartAttempt tracks the current in-place restart attempt of the JobSet. It is read by the agent. If the in-place restart attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent should lift its barrier to allow the worker container to start running.",
+							Type:        []string{"integer"},
+							Format:      "int32",
 						},
 					},
 				},

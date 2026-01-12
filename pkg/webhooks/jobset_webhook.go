@@ -40,6 +40,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
@@ -175,6 +176,15 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	}
 
 	var allErrs []error
+
+	// Validate InPlaceRestart feature gate.
+	// The in-place restart API should be used only when the feature gate is enabled.
+	if !features.Enabled(features.InPlaceRestart) {
+		if js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
+			allErrs = append(allErrs, fmt.Errorf("InPlaceRestart restart strategy cannot be set when InPlaceRestart feature gate is disabled"))
+		}
+	}
+
 	// Validate that depends On can't be set for the first replicated job.
 	if len(js.Spec.ReplicatedJobs) > 0 && js.Spec.ReplicatedJobs[0].DependsOn != nil {
 		allErrs = append(allErrs, fmt.Errorf("DependsOn can't be set for the first ReplicatedJob"))
@@ -260,6 +270,24 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		for _, dependOnItem := range rJob.DependsOn {
 			if !rJobNames.Has(dependOnItem.Name) {
 				allErrs = append(allErrs, fmt.Errorf("replicatedJob: %s cannot depend on replicatedJob: %s", rJob.Name, dependOnItem.Name))
+			}
+		}
+
+		// Validate in-place restart.
+		if features.Enabled(features.InPlaceRestart) && js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
+			// Validate that the backoff limit is set to max int32.
+			if rJob.Template.Spec.BackoffLimit == nil || *rJob.Template.Spec.BackoffLimit != math.MaxInt32 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "backoffLimit"), rJob.Template.Spec.BackoffLimit, fmt.Sprintf("replicatedJob %s: must be set to %d (MaxInt32) when in-place restart is enabled", rJob.Name, math.MaxInt32)))
+			}
+
+			// Validate that the pod replacement policy is set to Failed.
+			if rJob.Template.Spec.PodReplacementPolicy == nil || *rJob.Template.Spec.PodReplacementPolicy != batchv1.Failed {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "podReplacementPolicy"), rJob.Template.Spec.PodReplacementPolicy, fmt.Sprintf("replicatedJob %s: must be set to %s when in-place restart is enabled", rJob.Name, batchv1.Failed)))
+			}
+
+			// Validate that completions is equal to parallelism.
+			if rJob.Template.Spec.Completions == nil || rJob.Template.Spec.Parallelism == nil || *rJob.Template.Spec.Completions != *rJob.Template.Spec.Parallelism {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "completions"), rJob.Template.Spec.Completions, fmt.Sprintf("replicatedJob %s: completions and parallelism must be set and equal to each other when in-place restart is enabled", rJob.Name)))
 			}
 		}
 	}
