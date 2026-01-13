@@ -10,7 +10,7 @@ no_list: true
 
 JobSet provides the VolumeClaimPolicies API to automatically create and manage shared
 PersistentVolumeClaims (PVCs) across multiple ReplicatedJobs within a JobSet.
-This enables stateful JobSet that require persistent storage for datasets, models, checkpoints, or
+This enables stateful JobSets that require persistent storage for datasets, models, checkpoints, or
 intermediate results.
 
 ## Basic Usage
@@ -21,8 +21,6 @@ Each policy can contain one or more PVC templates.
 [This example](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/volume-claim-policy/single-pvc.yaml)
 demonstrates creating shared PVCs with different retention policies:
 
-{{< include file="/examples/volume-claim-policy/single-pvc.yaml" lang="yaml" >}}
-
 In this example:
 
 1. An `initializer` ReplicatedJob downloads a model to the `initializer` volume
@@ -30,6 +28,8 @@ In this example:
 1. The PVCs are automatically created with the naming convention: `<claim-name>-<jobset-name>`
    - `initializer-volume-claim-trainjob` (deleted when JobSet is deleted)
    - `checkpoints-volume-claim-trainjob` (retained after JobSet is deleted)
+
+{{< include file="/examples/volume-claim-policy/single-pvc.yaml" lang="yaml" >}}
 
 ## How Volumes Are Mounted
 
@@ -69,7 +69,7 @@ subsequent JobSets.
 
 {{% alert title="Note" color="primary" %}}
 If you are trying to use the existing volume in the VolumeClaimPolicies,
-the PVC's specs must be equal to each other.
+the spec must be equal to the existing PVC spec.
 {{% /alert %}}
 
 ```yaml
@@ -94,7 +94,9 @@ When using `Retain`, you can access the persisted data by:
 
 ## Custom Labels and Annotations
 
-You can add custom labels and annotations to PVC templates for organization, monitoring, or integration with other tools:
+You can add custom labels and annotations to PVC templates for organization, monitoring,
+or integration with other tools. These labels and annotations are preserved on the created PVCs
+along with the automatically added `jobset.sigs.k8s.io/jobset-name` label.
 
 ```yaml
 volumeClaimPolicies:
@@ -114,9 +116,6 @@ volumeClaimPolicies:
             requests:
               storage: 100Gi
 ```
-
-These labels and annotations are preserved on the created PVCs along with the automatically
-added `jobset.sigs.k8s.io/jobset-name` label.
 
 ## Limitations
 
