@@ -1,0 +1,25 @@
+# Patch to replace Service selectors with standard Kubernetes labels
+# Uses strategic merge with $patch: replace to completely replace selector field
+# This removes the control-plane label and uses only app.kubernetes.io labels
+# Services don't have immutability constraints like Deployment matchLabels
+apiVersion: v1
+kind: Service
+metadata:
+  name: controller-manager-metrics-service
+  namespace: system
+spec:
+  selector:
+    $patch: replace
+    app.kubernetes.io/name: jobset
+    app.kubernetes.io/instance: jobset
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook-service
+  namespace: system
+spec:
+  selector:
+    $patch: replace
+    app.kubernetes.io/name: jobset
+    app.kubernetes.io/instance: jobset

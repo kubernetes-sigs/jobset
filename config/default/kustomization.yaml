@@ -8,9 +8,12 @@ namespace: jobset-system
 # field above.
 namePrefix: jobset-
 
-# Labels to add to all resources and selectors.
-#commonLabels:
-#  someName: someValue
+# Labels to add to all resources (metadata only, does not affect selectors/matchLabels).
+labels:
+  - pairs:
+      app.kubernetes.io/name: jobset
+      app.kubernetes.io/instance: jobset
+    includeTemplates: true
 
 resources:
 - ../components/crd
@@ -37,6 +40,9 @@ patches:
 - path: manager_config_patch.yaml
 
 - path: manager_metrics_patch.yaml
+
+# Add standard labels to Service selectors (mutable, safe to change)
+- path: service_selector_patch.yaml
 
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER'.
 # Uncomment 'CERTMANAGER' sections in crd/kustomization.yaml to enable the CA injection in the admission webhooks.
