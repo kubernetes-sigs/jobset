@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	testutil "sigs.k8s.io/jobset/test/util"
+	"sigs.k8s.io/jobset/test/util/testrun"
 )
 
 const (
@@ -63,23 +64,12 @@ var _ = ginkgo.Describe("JobSet validation", func() {
 	ginkgo.DescribeTable("JobSet validation during creation and updates",
 		func(tc *testCase) {
 			ctx := context.Background()
-
-			// Create test namespace for each entry.
-			ns := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					GenerateName: "jobset-ns-",
-				},
-			}
-
-			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
-
-			defer func() {
-				gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
-			}()
+			testRun := testrun.New(ctx, k8sClient)
+			defer testRun.AfterEach()
 
 			// Create JobSet.
 			ginkgo.By("creating jobset")
-			js := tc.makeJobSet(ns).Obj()
+			js := tc.makeJobSet(testRun.Namespace).Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
@@ -149,20 +139,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 	ginkgo.DescribeTable("jobset is created and its jobs go through a series of updates",
 		func(tc *testCase) {
 			ctx := context.Background()
-			// Create test namespace for each entry.
-			ns := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					GenerateName: "jobset-ns-",
-				},
-			}
-			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
-
-			defer func() {
-				gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
-			}()
+			testRun := testrun.New(ctx, k8sClient)
+			defer testRun.AfterEach()
 
 			// Create JobSet.
-			js := tc.makeJobSet(ns).Obj()
+			js := tc.makeJobSet(testRun.Namespace).Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js.Name, js.Namespace))
@@ -2599,21 +2580,14 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 	ginkgo.When("A JobSet is managed by another controller", ginkgo.Ordered, func() {
 		var (
-			ctx context.Context
-			ns  *corev1.Namespace
-			js  *jobset.JobSet
+			ctx     context.Context
+			testRun *testrun.TestRun
+			js      *jobset.JobSet
 		)
 		ginkgo.BeforeAll(func() {
 			ctx = context.Background()
-			// Create test namespace for each entry.
-			ns = &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					GenerateName: "jobset-ns-",
-				},
-			}
-			gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
-
-			js = testJobSet(ns).SetGenerateName("name-prefix").ManagedBy("other-controller").Obj()
+			testRun = testrun.New(ctx, k8sClient)
+			js = testJobSet(testRun.Namespace).SetGenerateName("name-prefix").ManagedBy("other-controller").Obj()
 
 			ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js.Name, js.Namespace))
 			gomega.Eventually(func() error {
@@ -2622,7 +2596,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		})
 
 		ginkgo.AfterAll(func() {
-			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+			testRun.AfterEach()
 		})
 
 		ginkgo.It("Should not create any jobs for it, while suspended", func() {
