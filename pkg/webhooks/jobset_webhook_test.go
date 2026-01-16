@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
@@ -21,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/features"
 )
 
 // TestPodTemplate is the default pod template spec used for testing.
@@ -712,6 +715,73 @@ func TestJobSetDefaulting(t *testing.T) {
 		},
 	}
 
+	volumeRetentionPolicyTests := []jobSetDefaultingTestCase{
+		{
+			name: "volumeClaimPolicy retentionPolicy is defaulted to Delete when nil",
+			js: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+								},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
+				},
+			},
+			want: &jobset.JobSet{
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
+				},
+			},
+		},
+	}
+
 	testGroups := [][]jobSetDefaultingTestCase{
 		jobCompletionTests,
 		enablingDNSHostnameTests,
@@ -722,6 +792,7 @@ func TestJobSetDefaulting(t *testing.T) {
 		startupPolicyTests,
 		managedByTests,
 		failurePolicyRuleNameTests,
+		volumeRetentionPolicyTests,
 	}
 	var testCases []jobSetDefaultingTestCase
 	for _, testGroup := range testGroups {
@@ -747,9 +818,11 @@ func TestJobSetDefaulting(t *testing.T) {
 }
 
 type validationTestCase struct {
-	name string
-	js   *jobset.JobSet
-	want error
+	name                 string
+	enableInPlaceRestart bool
+	js                   *jobset.JobSet
+	want                 error
+	existingObjs         []runtime.Object // objects to pre-populate in the fake client
 }
 
 // TestValidateCreate tests the ValidateCreate method of the jobset webhook.
@@ -2032,25 +2105,849 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
+	testPVCSpec := corev1.PersistentVolumeClaimSpec{
+		AccessModes: []corev1.PersistentVolumeAccessMode{
+			corev1.ReadWriteMany,
+		},
+		Resources: corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceStorage: resource.MustParse("1Gi"),
+			},
+		},
+	}
+
+	volumeClaimPolicyTests := []validationTestCase{
+		{
+			name: "volumeClaimPolicy is valid since volume exists in the container",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "test-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "volumeClaimPolicy is valid since volume exists in the initContainer",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Name:      "job-2",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											InitContainers: []corev1.Container{
+												{
+													Name:  "test-init",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "test-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since template names are not unique",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "duplicate-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+							},
+						},
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "duplicate-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "duplicate-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("names must be unique for VolumeClaimPolicies template")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since template name has uppercase letters",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "InvalidVolumeName",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "InvalidVolumeName",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since template name is too long",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: strings.Repeat("a", 64),
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      strings.Repeat("a", 64),
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("VolumeClaimPolicies template name is too long")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since no matching volumeMount in containers",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("replicatedJob containers don't have a matching volumeMount")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid since volume name conflicts with existing volume",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "conflicting-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "conflicting-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+											Volumes: []corev1.Volume{
+												{
+													Name: "conflicting-volume",
+													VolumeSource: corev1.VolumeSource{
+														EmptyDir: &corev1.EmptyDirVolumeSource{},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("volume name conflicts with VolumeClaimPolicy template name")),
+		},
+		{
+			name: "volumeClaimPolicy is valid when existing PVC matches template spec",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js",
+					Namespace: "default",
+				},
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "test-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-volume-js",
+						Namespace: "default",
+					},
+					Spec: testPVCSpec,
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "volumeClaimPolicy retention policy must be retain for existing PVC",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js",
+					Namespace: "default",
+				},
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "test-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-volume-js",
+						Namespace: "default",
+					},
+					Spec: testPVCSpec,
+				},
+			},
+			want: errors.Join(fmt.Errorf("retentionPolicy must be retain when PVC exist")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid when existing PVC does not match template spec",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js",
+					Namespace: "default",
+				},
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{
+								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "test-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-volume-js",
+						Namespace: "default",
+					},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{
+							corev1.ReadWriteOnce,
+						},
+						Resources: corev1.VolumeResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("2Gi"),
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec does not match existing PVC")),
+		},
+	}
+
+	inPlaceRestartTests := []validationTestCase{
+		{
+			name:                 "InPlaceRestart restart strategy cannot be set when InPlaceRestart feature gate is disabled",
+			enableInPlaceRestart: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: jobset.InPlaceRestart,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("InPlaceRestart restart strategy cannot be set when InPlaceRestart feature gate is disabled")),
+		},
+		{
+			name:                 "InPlaceRestart restart strategy can be set when InPlaceRestart feature gate is enabled",
+			enableInPlaceRestart: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: jobset.InPlaceRestart,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism:          ptr.To[int32](1),
+									Completions:          ptr.To[int32](1),
+									BackoffLimit:         ptr.To[int32](math.MaxInt32),
+									PodReplacementPolicy: ptr.To(batchv1.Failed),
+									Template:             validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
+			name:                 "InPlaceRestart enabled: backoffLimit is not MaxInt32",
+			enableInPlaceRestart: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: jobset.InPlaceRestart,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism:          ptr.To[int32](1),
+									Completions:          ptr.To[int32](1),
+									BackoffLimit:         ptr.To[int32](0),
+									PodReplacementPolicy: ptr.To(batchv1.Failed),
+									Template:             validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("replicatedJob job-1: must be set to 2147483647 (MaxInt32) when in-place restart is enabled")),
+		},
+		{
+			name:                 "InPlaceRestart enabled: podReplacementPolicy is not Failed",
+			enableInPlaceRestart: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: jobset.InPlaceRestart,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism:          ptr.To[int32](1),
+									Completions:          ptr.To[int32](1),
+									BackoffLimit:         ptr.To[int32](math.MaxInt32),
+									PodReplacementPolicy: ptr.To(batchv1.TerminatingOrFailed),
+									Template:             validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("replicatedJob job-1: must be set to Failed when in-place restart is enabled")),
+		},
+		{
+			name:                 "InPlaceRestart enabled: completions != parallelism",
+			enableInPlaceRestart: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: jobset.InPlaceRestart,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism:          ptr.To[int32](1),
+									Completions:          ptr.To[int32](2),
+									BackoffLimit:         ptr.To[int32](math.MaxInt32),
+									PodReplacementPolicy: ptr.To(batchv1.Failed),
+									Template:             validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("replicatedJob job-1: completions and parallelism must be set and equal to each other when in-place restart is enabled")),
+		},
+		{
+			name:                 "InPlaceRestart enabled: completions is nil",
+			enableInPlaceRestart: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: jobset.InPlaceRestart,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism:          ptr.To[int32](1),
+									BackoffLimit:         ptr.To[int32](math.MaxInt32),
+									PodReplacementPolicy: ptr.To(batchv1.Failed),
+									Template:             validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("replicatedJob job-1: completions and parallelism must be set and equal to each other when in-place restart is enabled")),
+		},
+		{
+			name:                 "InPlaceRestart enabled: parallelism is nil",
+			enableInPlaceRestart: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					FailurePolicy: &jobset.FailurePolicy{
+						RestartStrategy: jobset.InPlaceRestart,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Completions:          ptr.To[int32](1),
+									BackoffLimit:         ptr.To[int32](math.MaxInt32),
+									PodReplacementPolicy: ptr.To(batchv1.Failed),
+									Template:             validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("replicatedJob job-1: completions and parallelism must be set and equal to each other when in-place restart is enabled")),
+		},
+	}
+
 	testGroups := [][]validationTestCase{
 		uncategorizedTests,
 		jobsetControllerNameTests,
 		failurePolicyTests,
 		dependsOnTests,
+		volumeClaimPolicyTests,
+		inPlaceRestartTests,
 	}
 	var testCases []validationTestCase
 	for _, testGroup := range testGroups {
 		testCases = append(testCases, testGroup...)
 	}
 
-	fakeClient := fake.NewFakeClient()
-	webhook, err := NewJobSetWebhook(fakeClient)
-	if err != nil {
-		t.Fatalf("error creating jobset webhook: %v", err)
-	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := webhook.ValidateCreate(context.TODO(), tc.js.DeepCopyObject())
+			// Create a new client with existing objects if provided
+			testClient := fake.NewFakeClient(tc.existingObjs...)
+			testWebhook, err := NewJobSetWebhook(testClient)
+			if err != nil {
+				t.Fatalf("error creating jobset webhook: %v", err)
+			}
+			features.SetFeatureGateDuringTest(t, features.InPlaceRestart, tc.enableInPlaceRestart)
+			_, err = testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopyObject())
 			if err != nil && tc.want != nil {
 				assert.Contains(t, err.Error(), tc.want.Error())
 			} else if err != nil && tc.want == nil {

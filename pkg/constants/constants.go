@@ -20,9 +20,13 @@ const (
 	// JobSetSubsystemName is the name of the subsystem used for metrics
 	JobSetSubsystemName = "jobset"
 
-	// JobOwnerKey is the field used to build the JobSet index, which enables looking up Jobs
+	// JobsIndexByJobSetKey is the field used to build the JobSet index, which enables looking up Jobs
 	// by the owner JobSet quickly.
-	JobOwnerKey = ".metadata.controller"
+	JobsIndexByJobSetKey = ".metadata.controller"
+
+	// PodsIndexByJobSetKey is the field used to build the Pod index, which enables looking up Pods
+	// by the associated JobSet quickly.
+	PodsIndexByJobSetKey = "podsIndexByJobSet"
 
 	// RestartsKey is an annotation and label key which defines the restart attempt number
 	// the JobSet is currently on.
@@ -94,4 +98,8 @@ const (
 	// Event reason and message related to applying the RestartJobSetAndIgnoreMaxRestarts failure policy action.
 	RestartJobSetAndIgnoreMaxRestartsActionReason  = "RestartJobSetAndIgnoreMaxRestartsFailurePolicyAction"
 	RestartJobSetAndIgnoreMaxRestartsActionMessage = "applying RestartJobSetAndIgnoreMaxRestarts failure policy action"
+
+	// Event reason used when a PVC creation fails.
+	// The event uses the error(s) as the message.
+	PVCCreationFailedReason = "PVCCreationFailed"
 )

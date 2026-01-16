@@ -88,7 +88,10 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | controller.affinity | object | `{}` | Affinity of the jobset controller pods. |
 | controller.tolerations | list | `[]` | Tolerations of the jobset controller pods. |
 | controller.podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Security context of all jobset controller containers. |
-| controller.hostNetwork | bool | `false` | Run the controller/webhook Pods on the node’s network namespace instead of the overlay CNI. |
+| controller.hostNetwork | bool | `false` | Run the controller/webhook Pods on the node's network namespace instead of the overlay CNI. |
+| controller.podDisruptionBudget.enabled | bool | `false` | Enable PodDisruptionBudget for the controller. |
+| controller.podDisruptionBudget.minAvailable | int | `1` | Minimum number of controller pods that must be available during voluntary disruptions. If maxUnavailable is set, this value is ignored. |
+| controller.podDisruptionBudget.maxUnavailable | int | `nil` | Maximum number of controller pods that can be unavailable during voluntary disruptions. Takes precedence over minAvailable if set. |
 | certManager.enable | bool | `false` | Whether to use cert-manager to generate certificates for the jobset webhook. |
 | certManager.issuerRef | object | `{}` | The reference to the issuer. If empty, self-signed issuer will be created and used. |
 | prometheus.enable | bool | `false` | Whether to enable Prometheus metrics exporting. |

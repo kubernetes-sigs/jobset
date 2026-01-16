@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -25,8 +26,10 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -37,11 +40,13 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
-// maximum lnegth of the value of the managedBy field
+// maximum length of the value of the managedBy field
 const maxManagedByLength = 63
+const maxVolumeClaimLength = 63
 
 const (
 	// This is the error message returned by IsDNS1035Label when the given input
@@ -149,6 +154,15 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 		}
 	}
 
+	// Apply the default retention policy for the VolumeClaimPolicies.
+	for i, policy := range js.Spec.VolumeClaimPolicies {
+		if policy.RetentionPolicy == nil {
+			js.Spec.VolumeClaimPolicies[i].RetentionPolicy = &jobset.VolumeRetentionPolicy{
+				WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -162,6 +176,15 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 	}
 
 	var allErrs []error
+
+	// Validate InPlaceRestart feature gate.
+	// The in-place restart API should be used only when the feature gate is enabled.
+	if !features.Enabled(features.InPlaceRestart) {
+		if js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
+			allErrs = append(allErrs, fmt.Errorf("InPlaceRestart restart strategy cannot be set when InPlaceRestart feature gate is disabled"))
+		}
+	}
+
 	// Validate that depends On can't be set for the first replicated job.
 	if len(js.Spec.ReplicatedJobs) > 0 && js.Spec.ReplicatedJobs[0].DependsOn != nil {
 		allErrs = append(allErrs, fmt.Errorf("DependsOn can't be set for the first ReplicatedJob"))
@@ -249,6 +272,24 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 				allErrs = append(allErrs, fmt.Errorf("replicatedJob: %s cannot depend on replicatedJob: %s", rJob.Name, dependOnItem.Name))
 			}
 		}
+
+		// Validate in-place restart.
+		if features.Enabled(features.InPlaceRestart) && js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
+			// Validate that the backoff limit is set to max int32.
+			if rJob.Template.Spec.BackoffLimit == nil || *rJob.Template.Spec.BackoffLimit != math.MaxInt32 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "backoffLimit"), rJob.Template.Spec.BackoffLimit, fmt.Sprintf("replicatedJob %s: must be set to %d (MaxInt32) when in-place restart is enabled", rJob.Name, math.MaxInt32)))
+			}
+
+			// Validate that the pod replacement policy is set to Failed.
+			if rJob.Template.Spec.PodReplacementPolicy == nil || *rJob.Template.Spec.PodReplacementPolicy != batchv1.Failed {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "podReplacementPolicy"), rJob.Template.Spec.PodReplacementPolicy, fmt.Sprintf("replicatedJob %s: must be set to %s when in-place restart is enabled", rJob.Name, batchv1.Failed)))
+			}
+
+			// Validate that completions is equal to parallelism.
+			if rJob.Template.Spec.Completions == nil || rJob.Template.Spec.Parallelism == nil || *rJob.Template.Spec.Completions != *rJob.Template.Spec.Parallelism {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "completions"), rJob.Template.Spec.Completions, fmt.Sprintf("replicatedJob %s: completions and parallelism must be set and equal to each other when in-place restart is enabled", rJob.Name)))
+			}
+		}
 	}
 
 	// Validate the success policy's target replicated jobs are valid.
@@ -269,6 +310,12 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		allErrs = append(allErrs, validateCoordinator(js))
 		allErrs = append(allErrs, validateCoordinatorLabelValue(js))
 	}
+
+	// Validate VolumeClaimPolicies, if set.
+	if len(js.Spec.VolumeClaimPolicies) > 0 {
+		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, js.Spec.VolumeClaimPolicies)...)
+	}
+
 	return nil, errors.Join(allErrs...)
 }
 
@@ -407,6 +454,138 @@ func validateCoordinatorLabelValue(js *jobset.JobSet) error {
 		return fmt.Errorf("spec will lead to invalid label value %q for coordinator label %q (long JobSet / ReplicatedJob / SubDomain name?): %s", labelValue, jobset.CoordinatorKey, strings.Join(errs, ", "))
 	}
 	return nil
+}
+
+// validateVolumeClaimPolicies validates the volume claim policies for the JobSet.
+func (j *jobSetWebhook) validateVolumeClaimPolicies(ctx context.Context, js *jobset.JobSet, volumeClaimPolicies []jobset.VolumeClaimPolicy) []error {
+	var allErrs []error
+	claimNames := sets.New[string]()
+
+	// Collect all claim names from templates.
+	for policyIdx, policy := range volumeClaimPolicies {
+		fieldPath := field.NewPath("spec", "volumeClaimPolicies").Index(policyIdx)
+		for templateIdx, template := range policy.Templates {
+			templateFieldPath := fieldPath.Child("template").Index(templateIdx)
+
+			// Validate claim name uniqueness.
+			if claimNames.Has(template.Name) {
+				allErrs = append(allErrs, field.Invalid(
+					templateFieldPath.Child("name"),
+					template.Name,
+					"names must be unique for VolumeClaimPolicies template",
+				))
+			}
+
+			// Validate DNS-1123 subdomain name
+			for _, err := range validation.IsDNS1123Subdomain(template.Name) {
+				allErrs = append(allErrs, field.Invalid(templateFieldPath.Child("name"), template.Name, err))
+			}
+
+			// Validate PVC name length limits
+			pvcName := controllers.GeneratePVCName(js.Name, template.Name)
+			if len(pvcName) > maxVolumeClaimLength {
+				allErrs = append(allErrs, field.Invalid(
+					templateFieldPath.Child("name"),
+					template.Name,
+					"VolumeClaimPolicies template name is too long"))
+			}
+
+			// Validate that template has corresponding volumeMount in at least one container
+			if err := validateReplicatedJobsVolumeClaims(js.Spec.ReplicatedJobs, template.Name); err != nil {
+				allErrs = append(allErrs, err...)
+			}
+
+			// Validate template if PVC with the same name exists.
+			existingPVC := &corev1.PersistentVolumeClaim{}
+			err := j.client.Get(ctx, types.NamespacedName{
+				Name:      pvcName,
+				Namespace: js.Namespace,
+			}, existingPVC)
+			if err == nil {
+				// PVC specs must be the same.
+				if !reflect.DeepEqual(existingPVC.Spec, template.Spec) {
+					allErrs = append(allErrs, field.Invalid(
+						templateFieldPath.Child("spec"),
+						template.Spec,
+						fmt.Sprintf("spec does not match existing PVC %s in namespace %s", pvcName, js.Namespace),
+					))
+				}
+				// Retention policy must be retain for the existing PVC.
+				if policy.RetentionPolicy != nil && *policy.RetentionPolicy.WhenDeleted != jobset.RetentionPolicyRetain {
+					allErrs = append(allErrs, field.Invalid(
+						fieldPath.Child("retentionPolicy").Child("whenDeleted"),
+						policy.RetentionPolicy.WhenDeleted,
+						"retentionPolicy must be retain when PVC exists",
+					))
+				}
+			} else if !apierrors.IsNotFound(err) {
+				// Error other than NotFound occurred
+				allErrs = append(allErrs, field.InternalError(
+					templateFieldPath,
+					fmt.Errorf("failed to check for existing PVC %s: %w", pvcName, err),
+				))
+			}
+
+			claimNames.Insert(template.Name)
+		}
+	}
+	return allErrs
+}
+
+func validateReplicatedJobsVolumeClaims(rJobs []jobset.ReplicatedJob, volumeClaimName string) []error {
+	var allErrs []error
+	hasMatchingMount := false
+
+	for rJobIdx, rJob := range rJobs {
+		rJobFieldPath := field.NewPath("spec", "replicatedJobs").Index(rJobIdx)
+
+		// Check that ReplicatedJob doesn't have volume with the same name.
+		for volIdx, volume := range rJob.Template.Spec.Template.Spec.Volumes {
+			if volume.Name == volumeClaimName {
+				allErrs = append(allErrs, field.Invalid(
+					rJobFieldPath.Child("template", "spec", "template", "spec", "volumes").Index(volIdx).Child("name"),
+					volume.Name,
+					fmt.Sprintf("volume name conflicts with VolumeClaimPolicy template name: %s", volumeClaimName),
+				))
+			}
+		}
+
+		// Check whether ReplicatedJob initContainers or containers have the desired volume mount.
+		if !hasMatchingMount {
+			for _, container := range rJob.Template.Spec.Template.Spec.InitContainers {
+				if hasVolumeMount(container.VolumeMounts, volumeClaimName) {
+					hasMatchingMount = true
+					break
+				}
+			}
+
+			for _, container := range rJob.Template.Spec.Template.Spec.Containers {
+				if hasVolumeMount(container.VolumeMounts, volumeClaimName) {
+					hasMatchingMount = true
+					break
+				}
+			}
+		}
+	}
+
+	if !hasMatchingMount {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("spec", "replicatedJobs"),
+			rJobs,
+			fmt.Sprintf("replicatedJob containers don't have a matching volumeMount: %s from VolumeClaimPolicies", volumeClaimName),
+		))
+	}
+	return allErrs
+}
+
+// hasVolumeMount checks if volumeMounts have mount with the provided name.
+func hasVolumeMount(volumeMounts []corev1.VolumeMount, volumeMountName string) bool {
+	for _, volumeMount := range volumeMounts {
+		if volumeMount.Name == volumeMountName {
+			return true
+		}
+	}
+	return false
 }
 
 // replicatedJobByName fetches the replicatedJob spec from the JobSet by name.

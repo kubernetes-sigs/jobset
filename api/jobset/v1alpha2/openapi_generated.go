@@ -24,19 +24,21 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.Coordinator":         schema_jobset_api_jobset_v1alpha2_Coordinator(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.DependsOn":           schema_jobset_api_jobset_v1alpha2_DependsOn(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy":       schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicyRule":   schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSet":              schema_jobset_api_jobset_v1alpha2_JobSet(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetList":          schema_jobset_api_jobset_v1alpha2_JobSetList(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetSpec":          schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetStatus":        schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.Network":             schema_jobset_api_jobset_v1alpha2_Network(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob":       schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJobStatus": schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.StartupPolicy":       schema_jobset_api_jobset_v1alpha2_StartupPolicy(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy":       schema_jobset_api_jobset_v1alpha2_SuccessPolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.Coordinator":           schema_jobset_api_jobset_v1alpha2_Coordinator(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.DependsOn":             schema_jobset_api_jobset_v1alpha2_DependsOn(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy":         schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicyRule":     schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSet":                schema_jobset_api_jobset_v1alpha2_JobSet(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetList":            schema_jobset_api_jobset_v1alpha2_JobSetList(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetSpec":            schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSetStatus":          schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.Network":               schema_jobset_api_jobset_v1alpha2_Network(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob":         schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJobStatus":   schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.StartupPolicy":         schema_jobset_api_jobset_v1alpha2_StartupPolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy":         schema_jobset_api_jobset_v1alpha2_SuccessPolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeClaimPolicy":     schema_jobset_api_jobset_v1alpha2_VolumeClaimPolicy(ref),
+		"sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeRetentionPolicy": schema_jobset_api_jobset_v1alpha2_VolumeRetentionPolicy(ref),
 	}
 }
 
@@ -114,7 +116,7 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref common.ReferenceCallbac
 				Properties: map[string]spec.Schema{
 					"maxRestarts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "maxRestarts defines the limit on the number of JobSet restarts. A restart is achieved by recreating all active child jobs.",
+							Description: "maxRestarts defines the limit on the number of JobSet restarts. If the restart strategy \"InPlaceRestart\" is used, this field also defines the limit on the number of container restarts of any child container. This is required to handle the edge case in which a container keeps failing too fast to complete a JobSet restart.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -407,11 +409,30 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 							Format:      "int32",
 						},
 					},
+					"volumeClaimPolicies": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed to reference. JobSet controller automatically adds the required volume claims to the pod template. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeClaimPolicy"),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/jobset/api/jobset/v1alpha2.Coordinator", "sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.Network", "sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob", "sigs.k8s.io/jobset/api/jobset/v1alpha2.StartupPolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy"},
+			"sigs.k8s.io/jobset/api/jobset/v1alpha2.Coordinator", "sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.Network", "sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob", "sigs.k8s.io/jobset/api/jobset/v1alpha2.StartupPolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.SuccessPolicy", "sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeClaimPolicy"},
 	}
 }
 
@@ -461,7 +482,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					},
 					"terminalState": {
 						SchemaProps: spec.SchemaProps{
-							Description: "terminalState the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",
+							Description: "terminalState tracks the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -476,7 +497,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "replicatedJobsStatus track the number of JobsReady for each replicatedJob.",
+							Description: "replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -486,6 +507,20 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 									},
 								},
 							},
+						},
+					},
+					"previousInPlaceRestartAttempt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "previousInPlaceRestartAttempt tracks the previous in-place restart attempt of the JobSet. It is read by the agent. If the in-place restart attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt, the agent should restart its Pod in-place.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"currentInPlaceRestartAttempt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "currentInPlaceRestartAttempt tracks the current in-place restart attempt of the JobSet. It is read by the agent. If the in-place restart attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent should lift its barrier to allow the worker container to start running.",
+							Type:        []string{"integer"},
+							Format:      "int32",
 						},
 					},
 				},
@@ -714,6 +749,66 @@ func schema_jobset_api_jobset_v1alpha2_SuccessPolicy(ref common.ReferenceCallbac
 					},
 				},
 				Required: []string{"operator"},
+			},
+		},
+	}
+}
+
+func schema_jobset_api_jobset_v1alpha2_VolumeClaimPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "volumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"templates": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference. The JobSet controller is responsible for creating shared PVCs that can be mounted by multiple ReplicatedJobs. Every claim in this list must have a matching (by name) volumeMount in one container or initContainer in at least one ReplicatedJob template. ReplicatedJob template must not have volumes with the same name as defined in this template. PVC template must not have the namespace parameter. Generated PVC naming convention: <claim-name>-<jobset-name> Example: \"model-cache-trainjob\" (shared volume across all ReplicatedJobs).",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/core/v1.PersistentVolumeClaim"),
+									},
+								},
+							},
+						},
+					},
+					"retentionPolicy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "retentionPolicy describes the lifecycle of persistent volume claims created from the template. By default, all persistent volume claims are deleted once JobSet is deleted.",
+							Ref:         ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeRetentionPolicy"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.PersistentVolumeClaim", "sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeRetentionPolicy"},
+	}
+}
+
+func schema_jobset_api_jobset_v1alpha2_VolumeRetentionPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "volumeRetentionPolicy defines the retention policy used for PVCs created from the JobSet VolumeClaimPolicies.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"whenDeleted": {
+						SchemaProps: spec.SchemaProps{
+							Description: "whenDeleted specifies what happens to PVCs when JobSet is deleted.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
 			},
 		},
 	}
