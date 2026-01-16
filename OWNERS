@@ -3,6 +3,7 @@
 approvers:
   - ahg-g
   - andreyvelich
-  - danielvegamyhre
   - GiuseppeTT
   - kannon92
+emeritus_approvers:
+  - danielvegamyhre  # 2026-01-16
