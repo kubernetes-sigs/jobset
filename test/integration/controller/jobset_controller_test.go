@@ -28,6 +28,7 @@ import (
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2788,12 +2789,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 			ginkgo.By("checking that a warning event is emitted")
 			gomega.Eventually(func() (bool, error) {
-				var events corev1.EventList
+				var events eventsv1.EventList
 				if err := k8sClient.List(ctx, &events, client.InNamespace(ns.Name), client.MatchingFieldsSelector{
 					Selector: fields.AndSelectors(
-						fields.OneTermEqualSelector("involvedObject.kind", "JobSet"),
-						fields.OneTermEqualSelector("involvedObject.name", js.Name),
-						fields.OneTermEqualSelector("reason", "JobCreationFailed"),
+						fields.OneTermEqualSelector("regarding.kind", "JobSet"),
+						fields.OneTermEqualSelector("regarding.name", js.Name),
+						fields.OneTermEqualSelector("reason", constants.JobCreationFailedReason),
 					),
 				}); err != nil {
 					return false, err
@@ -2805,23 +2806,28 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 				event := events.Items[0]
 				gomega.Expect(event.Type).To(gomega.Equal(corev1.EventTypeWarning))
+				gomega.Expect(event.Reason).To(gomega.Equal(constants.JobCreationFailedReason))
+				gomega.Expect(event.Action).To(gomega.Equal(event.Reason))
 				return true, nil
 			}, timeout, interval).Should(gomega.BeTrue())
 
 			ginkgo.By("checking that the events are accumulated")
 			gomega.Eventually(func() (bool, error) {
-				var events corev1.EventList
+				var events eventsv1.EventList
 				if err := k8sClient.List(ctx, &events, client.InNamespace(ns.Name), client.MatchingFieldsSelector{
 					Selector: fields.AndSelectors(
-						fields.OneTermEqualSelector("involvedObject.kind", "JobSet"),
-						fields.OneTermEqualSelector("involvedObject.name", js.Name),
-						fields.OneTermEqualSelector("reason", "JobCreationFailed"),
+						fields.OneTermEqualSelector("regarding.kind", "JobSet"),
+						fields.OneTermEqualSelector("regarding.name", js.Name),
+						fields.OneTermEqualSelector("reason", constants.JobCreationFailedReason),
 					),
 				}); err != nil {
 					return false, err
 				}
 
-				return len(events.Items) == 1 && events.Items[0].Count > 1, nil
+				if len(events.Items) != 1 || events.Items[0].Series == nil {
+					return false, nil
+				}
+				return events.Items[0].Series.Count > 1, nil
 			}, timeout, interval).Should(gomega.BeTrue())
 		})
 	})

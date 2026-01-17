@@ -7,15 +7,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - nodes
   verbs:
   - get
@@ -83,6 +74,15 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+  - watch
 - apiGroups:
   - jobset.x-k8s.io
   resources:
