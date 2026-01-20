@@ -58,6 +58,11 @@ type ControllerManager struct {
 	// Health contains the controller health configuration
 	// +optional
 	Health ControllerHealth `json:"health,omitempty"`
+
+	// TLS contains TLS security settings for all JobSet API servers
+	// (webhooks and metrics).
+	// +optional
+	TLS *TLSOptions `json:"tls,omitempty"`
 }
 
 // ControllerWebhook defines the webhook server for the controller.
@@ -134,4 +139,23 @@ type ClientConnection struct {
 
 	// Burst allows extra queries to accumulate when a client is exceeding its rate.
 	Burst *int32 `json:"burst,omitempty"`
+}
+
+// TLSOptions defines TLS security settings for JobSet servers
+type TLSOptions struct {
+	// minVersion is the minimum TLS version supported.
+	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
+	// Valid values are: "VersionTLS12", "VersionTLS13"
+	// If unset, the server defaults to TLS 1.2.
+	// +optional
+	MinVersion string `json:"minVersion,omitempty"`
+
+	// cipherSuites is the list of allowed cipher suites for the server.
+	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
+	// This setting only applies to TLS versions up to 1.2; TLS 1.3 cipher suites are
+	// hardcoded by Go and are not configurable. Any attempt to configure TLS 1.3
+	// cipher suites will be rejected by validation.
+	// The default is to leave this unset and inherit golang's default cipher suites.
+	// +optional
+	CipherSuites []string `json:"cipherSuites,omitempty"`
 }

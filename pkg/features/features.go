@@ -33,6 +33,11 @@ const (
 	// Enables in-place restart, allowing JobSet workloads to restart much faster by restarting
 	// healthy Pods in-place to skip the Pod deletion+schedule+creation process.
 	InPlaceRestart featuregate.Feature = "InPlaceRestart"
+
+	// owner: @kannon92
+	//
+	// Enables TLSOptions for TLSMinVersion and CipherSuites for JobSet servers.
+	TLSOptions featuregate.Feature = "TLSOptions"
 )
 
 func init() {
@@ -47,6 +52,8 @@ func init() {
 // when adding or removing one entry.
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	InPlaceRestart: {Default: false, PreRelease: featuregate.Alpha},
+
+	TLSOptions: {Default: true, PreRelease: featuregate.Beta},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {
