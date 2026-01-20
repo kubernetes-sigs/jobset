@@ -37,8 +37,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
+
+	//+kubebuilder:scaffold:imports
 
 	configapi "sigs.k8s.io/jobset/api/config/v1alpha1"
+	jobsetv1 "sigs.k8s.io/jobset/api/jobset/v1"
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/config"
 	"sigs.k8s.io/jobset/pkg/controllers"
@@ -221,6 +226,20 @@ func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
 	jobSetController := controllers.NewJobSetReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("jobset"))
 	if err := jobSetController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "JobSet")
+		os.Exit(1)
+	}
+
+	// Register the API types with the manager's scheme.
+	jobset.AddToScheme(mgr.GetScheme())
+	jobsetv1.AddToScheme(mgr.GetScheme())
+
+	// Register the conversion webhook for the JobSet type.
+	// The manager will automatically serve the webhook path defined in the CRD.
+	if err := mgr.GetWebhookServer().Register(
+		"/convert",
+		&webhook.Admission{Handler: &conversion.Webhook{}},
+	); err != nil {
+		// ... handle error ...
 		os.Exit(1)
 	}
 
