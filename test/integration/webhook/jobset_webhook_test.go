@@ -31,7 +31,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/util/testing"
-	"sigs.k8s.io/jobset/test/util"
+	"sigs.k8s.io/jobset/test/util/testrun"
 )
 
 const (
@@ -40,31 +40,12 @@ const (
 )
 
 var _ = ginkgo.Describe("jobset webhook defaulting", func() {
-
-	// Each test runs in a separate namespace.
-	var ns *corev1.Namespace
-
+	var testRun *testrun.TestRun
 	ginkgo.BeforeEach(func() {
-		// Create test namespace before each test.
-		ns = &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "test-ns-",
-			},
-		}
-		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
-
-		// Wait for namespace to exist before proceeding with test.
-		gomega.Eventually(func() error {
-			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns.Namespace, Name: ns.Name}, ns)
-			if err != nil {
-				return err
-			}
-			return nil
-		}, timeout, interval).Should(gomega.Succeed())
+		testRun = testrun.New(ctx, k8sClient, testrun.SetNamespaceGenerateName("integration-"))
 	})
-
 	ginkgo.AfterEach(func() {
-		gomega.Expect(util.DeleteNamespace(ctx, k8sClient, ns)).Should(gomega.Succeed())
+		testRun.AfterEach()
 	})
 
 	type testCase struct {
@@ -81,7 +62,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 
 			// Create JobSet.
 			ginkgo.By("creating jobset")
-			js := tc.makeJobSet(ns).Obj()
+			js := tc.makeJobSet(testRun.Namespace).Obj()
 
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
