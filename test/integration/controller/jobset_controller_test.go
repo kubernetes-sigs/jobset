@@ -3213,7 +3213,7 @@ func checkExpectedPVCs(js *jobset.JobSet) {
 			return -1, err
 		}
 		return len(pvcList.Items), nil
-	}).Should(gomega.Equal(numExpectedPVCs(js)))
+	}, timeout, interval).Should(gomega.Equal(numExpectedPVCs(js)))
 }
 
 // Check that there are no active jobs owned by jobset, and the
