@@ -18,10 +18,11 @@ Please do not remove items from the checklist
         `git branch release-$MAJ.$MIN main`
   - [ ] An OWNER pushes the new release branch with
         `git push release-$MAJ.$MIN`
+- [ ] When a new release branch is created, onboard that branch to prow by adding new jobs to test infra. <!-- example: https://github.com/kubernetes/test-infra/pull/36295 -->
 - [ ] Update `BRANCH_NAME` in the `Makefile` and set `export VERSION=vX.Y.Z`.
    - [ ] Run `make prepare-release-branch` to update the assets.
    - [ ] Update the `CHANGELOG-X.Y`
-   - [ ] Submit a PR with the changes against the release branch <!-- TODO (andreyvelich): Add example here>
+   - [ ] Submit a PR with the changes against the release branch <!-- example: https://github.com/kubernetes-sigs/jobset/pull/1130 -->>
 - [ ] After the above PR is merged rebase your local branch and create a signed tag running:
      `git tag -s $VERSION`
       and inserts the changelog into the tag description.
