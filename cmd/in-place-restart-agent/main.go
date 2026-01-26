@@ -39,16 +39,17 @@ import (
 const (
 	// NamespaceFile is the path to the file containing the namespace of the Pod as specified in the k8s standard
 	// See https://kubernetes.io/docs/tasks/run-application/access-api-from-pod/#directly-accessing-the-rest-api
-	NamespaceFile             = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-	EnvJobSetName             = "JOBSET_NAME"
-	EnvPodName                = "POD_NAME"
-	EnvWorkerCommand          = "WORKER_COMMAND"
-	EnvStartupProbePath       = "STARTUP_PROBE_PATH"
-	EnvStartupProbePort       = "STARTUP_PROBE_PORT"
-	EnvInPlaceRestartExitCode = "IN_PLACE_RESTART_EXIT_CODE"
-	DefaultStartupProbePath   = "/barrier-is-down"
-	DefaultStartupProbePort   = "8081"
-	ControllerName            = "in-place-restart-agent"
+	NamespaceFile                 = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	EnvJobSetName                 = "JOBSET_NAME"
+	EnvPodName                    = "POD_NAME"
+	EnvWorkerCommand              = "WORKER_COMMAND"
+	EnvStartupProbePath           = "STARTUP_PROBE_PATH"
+	EnvStartupProbePort           = "STARTUP_PROBE_PORT"
+	EnvInPlaceRestartExitCode     = "IN_PLACE_RESTART_EXIT_CODE"
+	DefaultStartupProbePath       = "/barrier-is-down"
+	DefaultStartupProbePort       = "8081"
+	DefaultInPlaceRestartExitCode = "1"
+	ControllerName                = "in-place-restart-agent"
 )
 
 var (
@@ -192,8 +193,6 @@ type env struct {
 
 // parseEnvOrDie parses the environment variables and returns an env struct
 // It reads the namespace from the mounted service account file to reduce the number of env vars
-// It defaults the startup probe path and port to the default values if they are not set and the worker command is not set
-// It exits with an error if any of the variables are not set
 func parseEnvOrDie() env {
 	rawNamespace, err := os.ReadFile(NamespaceFile)
 	if err != nil {
@@ -203,7 +202,10 @@ func parseEnvOrDie() env {
 	namespace := string(rawNamespace)
 	jobSetName := getEnvOrDie(EnvJobSetName)
 	podName := getEnvOrDie(EnvPodName)
-	rawInPlaceRestartExitCode := getEnvOrDie(EnvInPlaceRestartExitCode)
+	rawInPlaceRestartExitCode := os.Getenv(EnvInPlaceRestartExitCode)
+	if rawInPlaceRestartExitCode == "" {
+		rawInPlaceRestartExitCode = DefaultInPlaceRestartExitCode
+	}
 	inPlaceRestartExitCode, err := strconv.Atoi(rawInPlaceRestartExitCode)
 	if err != nil {
 		setupLog.Error(err, "invalid env var value", "name", EnvInPlaceRestartExitCode, "value", rawInPlaceRestartExitCode)
