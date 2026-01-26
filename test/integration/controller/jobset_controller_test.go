@@ -1258,206 +1258,6 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("jobset with VolumeClaimPolicies should create two PVC with Delete and Retain policies", &testCase{
-			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testing.MakeJobSet("volume-test", ns.Name).
-					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll}).
-					EnableDNSHostnames(true).
-					VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
-						{
-							Templates: []corev1.PersistentVolumeClaim{
-								{
-									ObjectMeta: metav1.ObjectMeta{
-										Name: "test-volume",
-									},
-									Spec: corev1.PersistentVolumeClaimSpec{
-										AccessModes: []corev1.PersistentVolumeAccessMode{
-											corev1.ReadWriteMany,
-										},
-										Resources: corev1.VolumeResourceRequirements{
-											Requests: corev1.ResourceList{
-												corev1.ResourceStorage: resource.MustParse("1Gi"),
-											},
-										},
-									},
-								},
-							},
-							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
-							},
-						},
-						{
-							Templates: []corev1.PersistentVolumeClaim{
-								{
-									ObjectMeta: metav1.ObjectMeta{
-										Name: "test-volume-retain",
-									},
-									Spec: corev1.PersistentVolumeClaimSpec{
-										AccessModes: []corev1.PersistentVolumeAccessMode{
-											corev1.ReadWriteMany,
-										},
-										Resources: corev1.VolumeResourceRequirements{
-											Requests: corev1.ResourceList{
-												corev1.ResourceStorage: resource.MustParse("1Gi"),
-											},
-										},
-									},
-								},
-							},
-							RetentionPolicy: &jobset.VolumeRetentionPolicy{
-								WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
-							},
-						},
-					}).
-					ReplicatedJob(testing.MakeReplicatedJob("worker").
-						Job(testing.MakeJobTemplate("job", ns.Name).
-							PodSpec(corev1.PodSpec{
-								RestartPolicy: "Never",
-								Containers: []corev1.Container{
-									{
-										Name:  "test-container",
-										Image: "busybox:latest",
-										VolumeMounts: []corev1.VolumeMount{
-											{
-												Name:      "test-volume",
-												MountPath: "/data",
-											},
-											{
-												Name:      "test-volume-retain",
-												MountPath: "/data-retain",
-											},
-										},
-									},
-								},
-							}).
-							Obj()).
-						Replicas(1).
-						Obj())
-			},
-			steps: []*step{
-				{
-					checkJobSetState: checkExpectedPVCs,
-				},
-				{
-					jobUpdateFn:          completeAllJobs,
-					checkJobSetCondition: testutil.JobSetCompleted,
-				},
-				{
-					jobSetUpdateFn: func(js *jobset.JobSet) {
-						ginkgo.By("deleting the JobSet")
-						namespace := js.Namespace
-						gomega.Expect(k8sClient.Delete(ctx, js)).To(gomega.Succeed())
-
-						ginkgo.By("manually deleting PVCs with JobSet OwnerReference")
-						var pvcList corev1.PersistentVolumeClaimList
-						gomega.Expect(k8sClient.List(ctx, &pvcList, client.InNamespace(namespace))).To(gomega.Succeed())
-						for i := range pvcList.Items {
-							pvc := &pvcList.Items[i]
-							// Envtest doesn't support garage collection.
-							if len(pvc.OwnerReferences) > 0 {
-								// Remove finalizers to allow deletion in envtest.
-								pvc.Finalizers = []string{}
-								gomega.Expect(k8sClient.Update(ctx, pvc)).To(gomega.Succeed())
-								gomega.Expect(k8sClient.Delete(ctx, pvc)).To(gomega.Succeed())
-							}
-						}
-
-						ginkgo.By("checking that only the PVC with Retain policy still exists")
-						gomega.Eventually(func() ([]string, error) {
-							var pvcList corev1.PersistentVolumeClaimList
-							if err := k8sClient.List(ctx, &pvcList, client.InNamespace(namespace)); err != nil {
-								return nil, err
-							}
-							var pvcNames []string
-							for _, pvc := range pvcList.Items {
-								pvcNames = append(pvcNames, pvc.Name)
-							}
-							return pvcNames, nil
-						}, timeout, interval).Should(gomega.ConsistOf(gomega.ContainSubstring("test-volume-retain")))
-
-						ginkgo.By("creating a new JobSet that mounts the retained PVC")
-						newJobSetName := "volume-test-2"
-						newJS := testing.MakeJobSet(newJobSetName, namespace).
-							SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll}).
-							VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
-								{
-									Templates: []corev1.PersistentVolumeClaim{
-										{
-											ObjectMeta: metav1.ObjectMeta{
-												Name: "test-volume-retain",
-											},
-											Spec: corev1.PersistentVolumeClaimSpec{
-												AccessModes: []corev1.PersistentVolumeAccessMode{
-													corev1.ReadWriteMany,
-												},
-												Resources: corev1.VolumeResourceRequirements{
-													Requests: corev1.ResourceList{
-														corev1.ResourceStorage: resource.MustParse("1Gi"),
-													},
-												},
-											},
-										},
-									},
-									RetentionPolicy: &jobset.VolumeRetentionPolicy{
-										WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
-									},
-								},
-							}).
-							ReplicatedJob(testing.MakeReplicatedJob("worker").
-								Job(testing.MakeJobTemplate("job", namespace).
-									PodSpec(corev1.PodSpec{
-										RestartPolicy: "Never",
-										Containers: []corev1.Container{
-											{
-												Name:  "test-container",
-												Image: "busybox:latest",
-												VolumeMounts: []corev1.VolumeMount{
-													{
-														Name:      "test-volume-retain",
-														MountPath: "/data-retain",
-													},
-												},
-											},
-										},
-									}).
-									Obj()).
-								Replicas(1).
-								Obj()).
-							Obj()
-
-						gomega.Expect(k8sClient.Create(ctx, newJS)).To(gomega.Succeed())
-
-						ginkgo.By("verifying the new JobSet jobs are created successfully")
-						gomega.Eventually(testutil.NumJobs, timeout, interval).
-							WithArguments(ctx, k8sClient, newJS).
-							Should(gomega.Equal(testutil.NumExpectedJobs(newJS)))
-
-						ginkgo.By("completing jobs in the second JobSet")
-						gomega.Eventually(func() error {
-							var jobList batchv1.JobList
-							if err := k8sClient.List(ctx, &jobList, client.InNamespace(namespace)); err != nil {
-								return err
-							}
-							for i := range jobList.Items {
-								completeJob(&jobList.Items[i])
-							}
-							return nil
-						}, timeout, interval).Should(gomega.Succeed())
-
-						ginkgo.By("verifying the second JobSet completes successfully")
-						var js2 jobset.JobSet
-						gomega.Eventually(func() error {
-							return k8sClient.Get(ctx, types.NamespacedName{
-								Name:      newJobSetName,
-								Namespace: namespace,
-							}, &js2)
-						}, timeout, interval).Should(gomega.Succeed())
-
-						testutil.JobSetCompleted(ctx, k8sClient, &js2, timeout)
-					},
-				},
-			},
-		}),
 		ginkgo.Entry("suspended jobset with VolumeClaimPolicies should create PVCs", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("volume-test", ns.Name).
@@ -2596,6 +2396,224 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			},
 		}),
 	) // end of DescribeTable
+
+	ginkgo.It("JobSet with VolumeClaimPolicies should create, retain, and reuse PVCs", func() {
+		ctx := context.Background()
+		// Create test namespace
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "jobset-ns-",
+			},
+		}
+		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+		namespace := ns.Name
+
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		}()
+
+		// Create first JobSet with two PVCs (Delete and Retain policies)
+		ginkgo.By("creating first JobSet with Delete and Retain PVC policies")
+		js1 := testing.MakeJobSet("volume-test", namespace).
+			SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll}).
+			EnableDNSHostnames(true).
+			VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+				{
+					Templates: []corev1.PersistentVolumeClaim{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-volume",
+							},
+							Spec: corev1.PersistentVolumeClaimSpec{
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteMany,
+								},
+								Resources: corev1.VolumeResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("1Gi"),
+									},
+								},
+							},
+						},
+					},
+					RetentionPolicy: &jobset.VolumeRetentionPolicy{
+						WhenDeleted: ptr.To(jobset.RetentionPolicyDelete),
+					},
+				},
+				{
+					Templates: []corev1.PersistentVolumeClaim{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-volume-retain",
+							},
+							Spec: corev1.PersistentVolumeClaimSpec{
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteMany,
+								},
+								Resources: corev1.VolumeResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("1Gi"),
+									},
+								},
+							},
+						},
+					},
+					RetentionPolicy: &jobset.VolumeRetentionPolicy{
+						WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
+					},
+				},
+			}).
+			ReplicatedJob(testing.MakeReplicatedJob("worker").
+				Job(testing.MakeJobTemplate("job", namespace).
+					PodSpec(corev1.PodSpec{
+						RestartPolicy: "Never",
+						Containers: []corev1.Container{
+							{
+								Name:  "test-container",
+								Image: "busybox:latest",
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "test-volume",
+										MountPath: "/data",
+									},
+									{
+										Name:      "test-volume-retain",
+										MountPath: "/data-retain",
+									},
+								},
+							},
+						},
+					}).
+					Obj()).
+				Replicas(1).
+				Obj()).
+			Obj()
+
+		gomega.Expect(k8sClient.Create(ctx, js1)).To(gomega.Succeed())
+
+		ginkgo.By("verifying PVCs are created")
+		gomega.Eventually(func() (int, error) {
+			var pvcList corev1.PersistentVolumeClaimList
+			if err := k8sClient.List(ctx, &pvcList, client.InNamespace(namespace)); err != nil {
+				return -1, err
+			}
+			return len(pvcList.Items), nil
+		}, timeout, interval).Should(gomega.Equal(2))
+
+		ginkgo.By("waiting for jobs to be created")
+		gomega.Eventually(testutil.NumJobs, timeout, interval).
+			WithArguments(ctx, k8sClient, js1).
+			Should(gomega.Equal(testutil.NumExpectedJobs(js1)))
+
+		ginkgo.By("completing all jobs")
+		var jobList batchv1.JobList
+		gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(namespace))).To(gomega.Succeed())
+		completeAllJobs(&jobList)
+
+		ginkgo.By("verifying JobSet completes")
+		testutil.JobSetCompleted(ctx, k8sClient, js1, timeout)
+
+		ginkgo.By("deleting the first JobSet")
+		gomega.Expect(k8sClient.Delete(ctx, js1)).To(gomega.Succeed())
+
+		ginkgo.By("manually deleting PVCs with JobSet OwnerReference")
+		var pvcList corev1.PersistentVolumeClaimList
+		gomega.Expect(k8sClient.List(ctx, &pvcList, client.InNamespace(namespace))).To(gomega.Succeed())
+		for i := range pvcList.Items {
+			pvc := &pvcList.Items[i]
+			// Envtest doesn't support garbage collection.
+			if len(pvc.OwnerReferences) > 0 {
+				// Remove finalizers to allow deletion in envtest.
+				pvc.Finalizers = []string{}
+				gomega.Expect(k8sClient.Update(ctx, pvc)).To(gomega.Succeed())
+				gomega.Expect(k8sClient.Delete(ctx, pvc)).To(gomega.Succeed())
+			}
+		}
+
+		ginkgo.By("checking that only the PVC with Retain policy still exists")
+		gomega.Eventually(func() ([]string, error) {
+			var pvcList corev1.PersistentVolumeClaimList
+			if err := k8sClient.List(ctx, &pvcList, client.InNamespace(namespace)); err != nil {
+				return nil, err
+			}
+			var pvcNames []string
+			for _, pvc := range pvcList.Items {
+				pvcNames = append(pvcNames, pvc.Name)
+			}
+			return pvcNames, nil
+		}, timeout, interval).Should(gomega.ConsistOf(gomega.ContainSubstring("test-volume-retain")))
+
+		ginkgo.By("creating a new JobSet that mounts the retained PVC")
+		js2 := testing.MakeJobSet("volume-test-2", namespace).
+			SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll}).
+			VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+				{
+					Templates: []corev1.PersistentVolumeClaim{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-volume-retain",
+							},
+							Spec: corev1.PersistentVolumeClaimSpec{
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteMany,
+								},
+								Resources: corev1.VolumeResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("1Gi"),
+									},
+								},
+							},
+						},
+					},
+					RetentionPolicy: &jobset.VolumeRetentionPolicy{
+						WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
+					},
+				},
+			}).
+			ReplicatedJob(testing.MakeReplicatedJob("worker").
+				Job(testing.MakeJobTemplate("job", namespace).
+					PodSpec(corev1.PodSpec{
+						RestartPolicy: "Never",
+						Containers: []corev1.Container{
+							{
+								Name:  "test-container",
+								Image: "busybox:latest",
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "test-volume-retain",
+										MountPath: "/data-retain",
+									},
+								},
+							},
+						},
+					}).
+					Obj()).
+				Replicas(1).
+				Obj()).
+			Obj()
+
+		gomega.Expect(k8sClient.Create(ctx, js2)).To(gomega.Succeed())
+
+		ginkgo.By("verifying the new JobSet jobs are created successfully")
+		gomega.Eventually(testutil.NumJobs, timeout, interval).
+			WithArguments(ctx, k8sClient, js2).
+			Should(gomega.Equal(testutil.NumExpectedJobs(js2)))
+
+		ginkgo.By("completing jobs in the second JobSet")
+		gomega.Eventually(func() error {
+			var jobList batchv1.JobList
+			if err := k8sClient.List(ctx, &jobList, client.InNamespace(namespace)); err != nil {
+				return err
+			}
+			for i := range jobList.Items {
+				completeJob(&jobList.Items[i])
+			}
+			return nil
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying the second JobSet completes successfully")
+		testutil.JobSetCompleted(ctx, k8sClient, js2, timeout)
+	})
 
 	ginkgo.When("A JobSet is managed by another controller", ginkgo.Ordered, func() {
 		var (
