@@ -58,6 +58,8 @@ JOBSET_CHART_DIR := charts/jobset
 E2E_TARGET ?= ./test/e2e/...
 E2E_KIND_VERSION ?= kindest/node:v1.34.0
 USE_EXISTING_CLUSTER ?= false
+# E2E config folder to use (e.g., "default", "certmanager", etc.)
+E2E_TARGET_FOLDER ?= default
 
 # For local testing, we should allow user to use different kind cluster name
 # Default will delete default kind cluster
@@ -408,7 +410,7 @@ test-integration: manifests fmt vet envtest ginkgo ## Run tests.
 
 .PHONY: test-e2e-kind
 test-e2e-kind: manifests kustomize fmt vet envtest ginkgo kind-image-build
-	E2E_KIND_VERSION=$(E2E_KIND_VERSION) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) ARTIFACTS=$(ARTIFACTS) IMAGE_TAG=$(IMAGE_TAG) ./hack/e2e-test.sh
+	E2E_KIND_VERSION=$(E2E_KIND_VERSION) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) ARTIFACTS=$(ARTIFACTS) IMAGE_TAG=$(IMAGE_TAG) E2E_TARGET_FOLDER=$(E2E_TARGET_FOLDER) ./hack/e2e-test.sh
 
 .PHONY: prometheus
 prometheus:

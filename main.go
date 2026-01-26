@@ -42,8 +42,10 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/config"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/cert"
+	"sigs.k8s.io/jobset/pkg/util/tlsconfig"
 	"sigs.k8s.io/jobset/pkg/util/useragent"
 	"sigs.k8s.io/jobset/pkg/version"
 	"sigs.k8s.io/jobset/pkg/webhooks"
@@ -156,6 +158,20 @@ func main() {
 		setupLog.Info("disabling http/2")
 		c.NextProtos = []string{"http/1.1"}
 	}
+
+	// Parse TLS options from configuration if feature gate is enabled
+	tlsOpts := []func(*tls.Config){disableHTTP2}
+	if features.Enabled(features.TLSOptions) && cfg.TLS != nil {
+		parsedTLS, err := tlsconfig.ParseTLSOptions(cfg.TLS)
+		if err != nil {
+			setupLog.Error(err, "Unable to parse TLS options from configuration")
+			os.Exit(1)
+		}
+		if parsedTLS != nil {
+			tlsOpts = append(tlsOpts, tlsconfig.BuildTLSOptions(parsedTLS)...)
+		}
+	}
+
 	// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
 	// More info:
 	// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/metrics/server
@@ -164,7 +180,7 @@ func main() {
 		BindAddress:    metricsAddr,
 		SecureServing:  true,
 		FilterProvider: filters.WithAuthenticationAndAuthorization,
-		TLSOpts:        []func(*tls.Config){disableHTTP2},
+		TLSOpts:        tlsOpts,
 		CertDir:        options.Metrics.CertDir,
 		CertName:       options.Metrics.CertName,
 		KeyName:        options.Metrics.KeyName,
