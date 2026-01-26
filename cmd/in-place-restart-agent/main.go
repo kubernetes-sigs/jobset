@@ -377,8 +377,8 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 	// If the Pod in-place restart attempt is less than or equal to the previous in-place restart attempt, it means that the JobSet controller has marked the Pod in-place restart attempt as outdated
 	// Which means that the Pod should be restarted to reach the new in-place restart attempt
 	// So exit with the in-place restart exit code
-	// This will trigger container restart since Pod.spec.restartPolicy = OnFailure
-	// Once RestartAllContainers is released upstream (k8s 1.35), this will trigger in-place container restart since Pod.spec.initContainers[].restartPolicyRules[].action = RestartAllContainers
+	// For the sidecar mode, this will trigger in-place container restart since Pod.spec.initContainers[].restartPolicyRules[].action is set to RestartAllContainers
+	// For the big container mode, this will trigger container restart since Pod.spec.containers[].restartPolicyRules[].action is set to Restart
 	if r.PodInPlaceRestartAttempt != nil && previousInPlaceRestartAttempt != nil && *r.PodInPlaceRestartAttempt <= *previousInPlaceRestartAttempt {
 		log.Info("exiting agent with in-place restart exit code to restart this Pod in-place", "exitCode", r.InPlaceRestartExitCode)
 		r.Exit(r.InPlaceRestartExitCode)
@@ -386,8 +386,7 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Handle barrier lift
 	// If the barrier is active and the Pod in-place restart attempt is equal to the JobSet current in-place restart attempt, it means that the JobSet controller has marked the Pod in-place restart attempt as synced with the other Pods
-	// So execute the worker command
-	// TODO(k8s 1.35): Once RestartAllContainers is released upstream, this should succeed a start up probe instead
+	// So lift the barrier by starting the startup probe server (sidecar mode) or executing the worker command (big container mode)
 	if r.IsBarrierActive && r.PodInPlaceRestartAttempt != nil && currentInPlaceRestartAttempt != nil && *r.PodInPlaceRestartAttempt == *currentInPlaceRestartAttempt {
 		if r.isSidecarMode() {
 			go r.runStartupProbeServer(ctx)
