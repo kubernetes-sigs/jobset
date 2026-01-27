@@ -27,12 +27,13 @@ spec:
               # See cmd/in-place-restart-agent/Dockerfile
               # TODO: Make this available in the JobSet registry
               image: <CHANGE ME>
-              restartPolicy: Never
+              # In-place restart the Pod if the agent exits non-zero, which can be done on demmand
+              restartPolicy: Always
               restartPolicyRules:
               - action: RestartAllContainers
                 exitCodes:
-                  operator: In
-                  values: [1]
+                  operator: NotIn
+                  values: [0]
               startupProbe:
                 httpGet:
                   path: /barrier-is-down
@@ -51,6 +52,13 @@ spec:
             containers:
             - name: worker
               image: debian:12
+              # In-place restart the Pod if the worker fails
+              restartPolicy: Never
+              restartPolicyRules:
+              - action: RestartAllContainers
+                exitCodes:
+                  operator: NotIn
+                  values: [0]
               command:
               - /bin/bash
               - -c

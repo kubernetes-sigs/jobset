@@ -2,10 +2,6 @@ apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
 metadata:
   name: js
-  annotations:
-    # Not necessary, but likely useful
-    # Example of value: cloud.google.com/gke-nodepool
-    alpha.jobset.sigs.k8s.io/exclusive-topology: <CHANGE ME>
 spec:
   failurePolicy:
     maxRestarts: 3
@@ -28,7 +24,15 @@ spec:
             terminationGracePeriodSeconds: 0
             containers:
             - name: in-place-restart-agent
+              # See examples/in-place-restart/service-account-example.yaml
               image: <CHANGE ME>
+              # In-place restart the Pod if the worker fails
+              restartPolicy: Never
+              restartPolicyRules:
+              - action: Restart
+                exitCodes:
+                  operator: NotIn
+                  values: [0]
               env:
               - name: JOBSET_NAME
                 valueFrom:
@@ -38,7 +42,6 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: metadata.name
-              # Worker command that exits with the exit code of the file /tmp/exit[0-9]* when it is created
               - name: WORKER_COMMAND
                 value: |
                   echo "Start"
