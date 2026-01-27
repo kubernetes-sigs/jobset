@@ -287,9 +287,14 @@ func NewInPlaceRestartAgent(client client.Client, namespace string, podName stri
 		IsBarrierActive:          true,
 		Exit:                     os.Exit,
 		StartWorker: func(ctx context.Context, command string) error {
-			shell := os.Getenv("SHELL")
-			if shell == "" {
-				shell = "/bin/sh"
+			var shell string
+			if envShell := os.Getenv("SHELL"); envShell != "" {
+				shell = envShell
+			} else if bash, err := exec.LookPath("bash"); err == nil {
+				shell = bash
+			} else {
+				setupLog.Error(nil, "shell not found")
+				os.Exit(1)
 			}
 			cmd := exec.CommandContext(ctx, shell, "-c", command)
 			cmd.Stdout = os.Stdout
