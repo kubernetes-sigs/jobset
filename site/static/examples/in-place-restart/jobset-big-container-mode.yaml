@@ -24,7 +24,7 @@ spec:
             terminationGracePeriodSeconds: 0
             containers:
             - name: in-place-restart-agent
-              # See examples/in-place-restart/service-account-example.yaml
+              # See examples/in-place-restart/Dockerfile-big-container
               image: <CHANGE ME>
               # In-place restart the Pod if the worker fails
               restartPolicy: Never
@@ -42,6 +42,8 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: metadata.name
+              # This worker is useful for testing
+              # This worker exits `X` if the file `tmp/exitX` is created
               - name: WORKER_COMMAND
                 value: |
                   echo "Start"

@@ -59,6 +59,8 @@ spec:
                 exitCodes:
                   operator: NotIn
                   values: [0]
+              # This worker is useful for testing
+              # This worker exits `X` if the file `tmp/exitX` is created
               command:
               - /bin/bash
               - -c
