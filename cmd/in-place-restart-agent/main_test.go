@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -40,6 +41,7 @@ func TestReconcile(t *testing.T) {
 
 	testCases := []struct {
 		name                          string
+		workerCommand                 string // Only used in the tests to determine if the agent is in sidecar mode or in big container mode
 		currentInPlaceRestartAttempt  *int32
 		previousInPlaceRestartAttempt *int32
 		podInPlaceRestartAttempt      *int32
@@ -49,9 +51,11 @@ func TestReconcile(t *testing.T) {
 		wantPodAnnotation             *string
 		wantExitCode                  *int
 		wantWorkerExecuted            bool
+		wantStartupProbeServerStarted bool
 	}{
 		{
 			name:                          "Agent starts for the first time ever (because the JobSet just got created)",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  nil,
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      nil,
@@ -63,6 +67,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent starts for the second time (because it is the source of failure in the first JobSet restart)",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  ptr.To[int32](0),
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      nil,
@@ -74,6 +79,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent starts for the third time (because it is the source of failure in the second JobSet restart)",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  ptr.To[int32](1),
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      nil,
@@ -85,6 +91,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent starts for the second time (because it was forced to restart as part of the first JobSet restart)",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  ptr.To[int32](0),
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      nil,
@@ -96,6 +103,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent exits to restart its Pod in-place (because it was forced to restart as part of the first JobSet restart)",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  ptr.To[int32](0),
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      ptr.To[int32](0),
@@ -107,6 +115,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent lifts its barrier and executes its worker for the first time (because all agents are in sync)",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  ptr.To[int32](0),
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      ptr.To[int32](0),
@@ -118,6 +127,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent lifts its barrier and executes its worker for the second time (because all agents are in sync)",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  ptr.To[int32](1),
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      ptr.To[int32](1),
@@ -129,6 +139,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent does nothing (0 restarts so far)",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  ptr.To[int32](0),
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      ptr.To[int32](0),
@@ -140,6 +151,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent does nothing (1 restart so far)",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  ptr.To[int32](1),
 			previousInPlaceRestartAttempt: ptr.To[int32](0),
 			podInPlaceRestartAttempt:      ptr.To[int32](1),
@@ -151,6 +163,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent bypasses barrier because DisableInPlaceRestartKey annotation is present",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  nil,
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      nil,
@@ -165,6 +178,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent bypasses barrier because RestartStrategy is not InPlaceRestart",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  nil,
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      nil,
@@ -176,6 +190,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                          "Agent bypasses barrier because RestartStrategy is explicitly empty",
+			workerCommand:                 "echo hello",
 			currentInPlaceRestartAttempt:  nil,
 			previousInPlaceRestartAttempt: nil,
 			podInPlaceRestartAttempt:      nil,
@@ -184,6 +199,32 @@ func TestReconcile(t *testing.T) {
 			wantPodAnnotation:             nil,
 			wantExitCode:                  nil,
 			wantWorkerExecuted:            true,
+		},
+		{
+			name:                          "Agent lifts its barrier and starts startup probe server in sidecar mode (because all agents are in sync)",
+			workerCommand:                 "",
+			currentInPlaceRestartAttempt:  ptr.To[int32](0),
+			previousInPlaceRestartAttempt: nil,
+			podInPlaceRestartAttempt:      ptr.To[int32](0),
+			isBarrierActive:               true,
+			restartStrategy:               "InPlaceRestart",
+			wantPodAnnotation:             nil,
+			wantExitCode:                  nil,
+			wantWorkerExecuted:            false,
+			wantStartupProbeServerStarted: true,
+		},
+		{
+			name:                          "Agent bypasses barrier in sidecarmode because RestartStrategy is not InPlaceRestart",
+			workerCommand:                 "",
+			currentInPlaceRestartAttempt:  nil,
+			previousInPlaceRestartAttempt: nil,
+			podInPlaceRestartAttempt:      nil,
+			isBarrierActive:               true,
+			restartStrategy:               "Recreate",
+			wantPodAnnotation:             nil,
+			wantExitCode:                  nil,
+			wantWorkerExecuted:            false,
+			wantStartupProbeServerStarted: true,
 		},
 	}
 
@@ -223,12 +264,15 @@ func TestReconcile(t *testing.T) {
 			// Setup agent
 			exitCodeChannel := make(chan int, 1)
 			workerExecutedChannel := make(chan bool, 1)
+			startupProbeServerStartedChannel := make(chan bool, 1)
 			agent := &InPlaceRestartAgent{
 				Client:                   fakeClient,
 				Namespace:                "default",
 				PodName:                  "test-pod",
+				WorkerCommand:            tc.workerCommand,
+				StartupProbePath:         "/barrier-is-down",
+				StartupProbePort:         "8081",
 				InPlaceRestartExitCode:   inPlaceRestartExitCode,
-				WorkerCommand:            "echo hello",
 				PodInPlaceRestartAttempt: tc.podInPlaceRestartAttempt,
 				IsBarrierActive:          tc.isBarrierActive,
 				Exit: func(code int) {
@@ -236,6 +280,10 @@ func TestReconcile(t *testing.T) {
 				},
 				StartWorker: func(ctx context.Context, command string) error {
 					workerExecutedChannel <- true
+					return nil
+				},
+				StartStartupProbe: func(addr string, handler http.Handler) error {
+					startupProbeServerStartedChannel <- true
 					return nil
 				},
 			}
@@ -294,6 +342,23 @@ func TestReconcile(t *testing.T) {
 				select {
 				case <-workerExecutedChannel:
 					t.Error("expected worker not to be executed, but it was")
+				default:
+					// Success
+				}
+			}
+
+			// Verify startup probe server started
+			if tc.wantStartupProbeServerStarted {
+				select {
+				case <-startupProbeServerStartedChannel:
+					// Success
+				case <-time.After(100 * time.Millisecond):
+					t.Error("expected startup probe server to be started, but it timed out")
+				}
+			} else {
+				select {
+				case <-startupProbeServerStartedChannel:
+					t.Error("expected startup probe server not to be started, but it was")
 				default:
 					// Success
 				}

@@ -270,6 +270,7 @@ type InPlaceRestartAgent struct {
 	IsBarrierActive          bool
 	Exit                     func(int)                           // Required for testing
 	StartWorker              func(context.Context, string) error // Required for testing
+	StartStartupProbe        func(string, http.Handler) error    // Required for testing
 }
 
 // NewInPlaceRestartAgent creates a new InPlaceRestartAgent
@@ -293,8 +294,11 @@ func NewInPlaceRestartAgent(client client.Client, namespace string, podName stri
 			cmd := exec.CommandContext(ctx, shell, "-c", command)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
-
 			return cmd.Run()
+		},
+		StartStartupProbe: func(addr string, handler http.Handler) error {
+			server := &http.Server{Addr: addr, Handler: handler}
+			return server.ListenAndServe()
 		},
 	}
 }
@@ -344,7 +348,7 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 		if r.IsBarrierActive {
 			log.Info("Bypassing sync barrier: JobSet has in-place restart disabled or uses a different restart strategy.")
 			if r.isSidecarMode() {
-				go r.runStartupProbeServer(ctx)
+				go r.startStartupProbeServer(ctx)
 			} else {
 				go r.executeWorkerCommand(ctx)
 			}
@@ -391,7 +395,7 @@ func (r *InPlaceRestartAgent) Reconcile(ctx context.Context, req ctrl.Request) (
 	// So lift the barrier by starting the startup probe server (sidecar mode) or executing the worker command (big container mode)
 	if r.IsBarrierActive && r.PodInPlaceRestartAttempt != nil && currentInPlaceRestartAttempt != nil && *r.PodInPlaceRestartAttempt == *currentInPlaceRestartAttempt {
 		if r.isSidecarMode() {
-			go r.runStartupProbeServer(ctx)
+			go r.startStartupProbeServer(ctx)
 		} else {
 			go r.executeWorkerCommand(ctx)
 		}
@@ -462,15 +466,15 @@ func (r *InPlaceRestartAgent) isSidecarMode() bool {
 	return r.WorkerCommand == ""
 }
 
-// runStartupProbeServer runs a simple HTTP server to satisfy the startup probe
-func (r *InPlaceRestartAgent) runStartupProbeServer(ctx context.Context) {
+// startStartupProbeServer starts the startup probe server
+func (r *InPlaceRestartAgent) startStartupProbeServer(ctx context.Context) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("starting startup probe server")
-	http.HandleFunc(r.StartupProbePath, func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc(r.StartupProbePath, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	server := &http.Server{Addr: ":" + r.StartupProbePort}
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := r.StartStartupProbe(":"+r.StartupProbePort, mux); err != nil && err != http.ErrServerClosed {
 		log.Error(err, "startup probe server failed")
 		r.Exit(1)
 	}
