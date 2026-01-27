@@ -17,9 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -27,10 +29,14 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	eventsv1 "k8s.io/api/events/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	k8sevents "k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -203,6 +209,18 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
+	eventBroadcaster, err := newEventBroadcaster(ctx, kubeConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to initialize events broadcaster")
+		os.Exit(1)
+	}
+	go func() {
+		<-ctx.Done()
+		eventBroadcaster.Shutdown()
+	}()
+	jobSetRecorder := eventBroadcaster.NewRecorder(mgr.GetScheme(), "jobset")
+	podRecorder := eventBroadcaster.NewRecorder(mgr.GetScheme(), "pod")
+
 	if err := controllers.SetupJobSetIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
 		setupLog.Error(err, "unable to setup jobset reconciler indexes")
 		os.Exit(1)
@@ -215,7 +233,7 @@ func main() {
 	// Cert won't be ready until manager starts, so start a goroutine here which
 	// will block until the cert is ready before setting up the controllers.
 	// Controllers who register after manager starts will start directly.
-	go setupControllers(mgr, certsReady)
+	go setupControllers(mgr, certsReady, jobSetRecorder, podRecorder)
 
 	setupHealthzAndReadyzCheck(mgr, certsReady)
 
@@ -226,7 +244,7 @@ func main() {
 	}
 }
 
-func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
+func setupControllers(mgr ctrl.Manager, certsReady chan struct{}, jobSetRecorder, podRecorder k8sevents.EventRecorder) {
 	// The controllers won't work until the webhooks are operating,
 	// and the webhook won't work until the certs are all in places.
 	setupLog.Info("waiting for the cert generation to complete")
@@ -234,14 +252,14 @@ func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
 	setupLog.Info("certs ready")
 
 	// Set up JobSet controller.
-	jobSetController := controllers.NewJobSetReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("jobset"))
+	jobSetController := controllers.NewJobSetReconciler(mgr.GetClient(), mgr.GetScheme(), jobSetRecorder)
 	if err := jobSetController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "JobSet")
 		os.Exit(1)
 	}
 
 	// Set up pod reconciler.
-	podController := controllers.NewPodReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("pod"))
+	podController := controllers.NewPodReconciler(mgr.GetClient(), mgr.GetScheme(), podRecorder)
 	if err := podController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Pod")
 		os.Exit(1)
@@ -293,6 +311,22 @@ func setupHealthzAndReadyzCheck(mgr ctrl.Manager, certsReady <-chan struct{}) {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
+}
+
+func newEventBroadcaster(ctx context.Context, cfg *rest.Config) (k8sevents.EventBroadcaster, error) {
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := clientset.Discovery().ServerResourcesForGroupVersion(eventsv1.SchemeGroupVersion.String()); err != nil {
+		return nil, fmt.Errorf("events.k8s.io/v1 API not available: %w", err)
+	}
+
+	broadcaster := k8sevents.NewBroadcaster(&k8sevents.EventSinkImpl{Interface: clientset.EventsV1()})
+	if err := broadcaster.StartRecordingToSinkWithContext(ctx); err != nil {
+		return nil, err
+	}
+	return broadcaster, nil
 }
 
 func apply(configFile string) (ctrl.Options, configapi.Configuration, error) {

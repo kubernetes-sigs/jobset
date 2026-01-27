@@ -21,8 +21,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	eventsv1 "k8s.io/api/events/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -38,9 +41,10 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg       *rest.Config
-	k8sClient client.Client
-	testEnv   *envtest.Environment
+	cfg              *rest.Config
+	k8sClient        client.Client
+	testEnv          *envtest.Environment
+	eventBroadcaster events.EventBroadcaster
 
 	// These global context vars used to pass ctx cancel func to AfterSuite as
 	// a workaround for https://github.com/kubernetes-sigs/controller-runtime/issues/1571
@@ -85,8 +89,18 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
+	clientset, err := kubernetes.NewForConfig(cfg)
+	Expect(err).NotTo(HaveOccurred())
+	_, err = clientset.Discovery().ServerResourcesForGroupVersion(eventsv1.SchemeGroupVersion.String())
+	Expect(err).NotTo(HaveOccurred())
+	eventBroadcaster = events.NewBroadcaster(&events.EventSinkImpl{Interface: clientset.EventsV1()})
+	Expect(eventBroadcaster.StartRecordingToSinkWithContext(ctx)).To(Succeed())
+
+	jobSetRecorder := eventBroadcaster.NewRecorder(k8sManager.GetScheme(), "jobset")
+	podRecorder := eventBroadcaster.NewRecorder(k8sManager.GetScheme(), "pod")
+
 	// Set up JobSet reconciler and indexes.
-	jobSetReconciler := controllers.NewJobSetReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetEventRecorderFor("jobset"))
+	jobSetReconciler := controllers.NewJobSetReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), jobSetRecorder)
 
 	err = controllers.SetupJobSetIndexes(ctx, k8sManager.GetFieldIndexer())
 	Expect(err).ToNot(HaveOccurred())
@@ -95,7 +109,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	// Set up pod reconciler and indexes.
-	podReconciler := controllers.NewPodReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetEventRecorderFor("pod"))
+	podReconciler := controllers.NewPodReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), podRecorder)
 
 	err = controllers.SetupPodIndexes(ctx, k8sManager.GetFieldIndexer())
 	Expect(err).ToNot(HaveOccurred())
@@ -114,6 +128,9 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	// https://github.com/kubernetes-sigs/controller-runtime/issues/1571
 	cancel()
+	if eventBroadcaster != nil {
+		eventBroadcaster.Shutdown()
+	}
 	By("tearing down the test environment, but I do nothing here.")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
