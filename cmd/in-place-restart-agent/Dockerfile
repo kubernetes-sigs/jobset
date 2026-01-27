@@ -1,3 +1,4 @@
+# This is only for the sidecar mode of the in-place restart agent
 ARG BUILDER_IMAGE=golang:1.25
 ARG BASE_IMAGE=gcr.io/distroless/static:nonroot
 
