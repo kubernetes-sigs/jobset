@@ -1,0 +1,78 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: js
+spec:
+  failurePolicy:
+    maxRestarts: 3
+    restartStrategy: InPlaceRestart
+  replicatedJobs:
+  # This example uses 4 Pods in total
+  - name: rj
+    replicas: 2
+    template:
+      spec:
+        completions: 2
+        parallelism: 2
+        backoffLimit: 2147483647
+        podReplacementPolicy: Failed
+        template:
+          spec:
+            # See examples/in-place-restart/service-account-example.yaml
+            serviceAccountName: jobset-in-place-restart
+            # Not necessary, but useful for testing
+            terminationGracePeriodSeconds: 0
+            initContainers:
+            - name: in-place-restart-agent
+              # See cmd/in-place-restart-agent/Dockerfile
+              # TODO: Make this available in the JobSet registry
+              image: <CHANGE ME>
+              # In-place restart the Pod if the agent exits non-zero, which can be done on demmand
+              restartPolicy: Always
+              restartPolicyRules:
+              - action: RestartAllContainers
+                exitCodes:
+                  operator: NotIn
+                  values: [0]
+              startupProbe:
+                httpGet:
+                  path: /barrier-is-down
+                  port: 8081
+                failureThreshold: 600 # Try for 10 minutes
+                periodSeconds: 1
+              env:
+              - name: JOBSET_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.annotations['jobset.sigs.k8s.io/jobset-name']
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+            containers:
+            - name: worker
+              image: debian:12
+              # In-place restart the Pod if the worker fails
+              restartPolicy: Never
+              restartPolicyRules:
+              - action: RestartAllContainers
+                exitCodes:
+                  operator: NotIn
+                  values: [0]
+              # This worker is useful for testing
+              # This worker exits `X` if the file `tmp/exitX` is created
+              command:
+              - /bin/bash
+              - -c
+              - |
+                while true; do
+                  for f in /tmp/exit*; do
+                    if [ -f "$f" ]; then
+                      code="${f##*exit}"
+                      if [[ "$code" =~ ^[0-9]+$ ]]; then
+                        exit "$code"
+                      fi
+                    fi
+                  done
+                  sleep 1
+                done

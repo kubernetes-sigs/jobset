@@ -198,6 +198,19 @@ func TestGetInPlaceRestartAttempts(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "failed pod is skipped",
+			childPods: &corev1.PodList{
+				Items: []corev1.Pod{
+					testutils.MakePod("pod-1", "default").
+						Annotations(map[string]string{jobset.InPlaceRestartAttemptKey: "1"}).Obj(),
+					testutils.MakePod("pod-2", "default").
+						SetStatus(corev1.PodStatus{Phase: corev1.PodFailed}).
+						Annotations(map[string]string{jobset.InPlaceRestartAttemptKey: "1"}).Obj(),
+				},
+			},
+			want: []int32{1},
+		},
+		{
 			name: "no pods",
 			childPods: &corev1.PodList{
 				Items: []corev1.Pod{},
