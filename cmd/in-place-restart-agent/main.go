@@ -199,11 +199,13 @@ func parseEnvOrDie() env {
 		setupLog.Error(err, "unable to read namespace file. Please check if pod.spec.automountServiceAccountToken or serviceAccount.automountServiceAccountToken are set to false", "file", NamespaceFile)
 		os.Exit(1)
 	}
+	setupLog.Info("defaulting namespace", "namespace", string(rawNamespace))
 	namespace := string(rawNamespace)
 	jobSetName := getEnvOrDie(EnvJobSetName)
 	podName := getEnvOrDie(EnvPodName)
 	rawInPlaceRestartExitCode := os.Getenv(EnvInPlaceRestartExitCode)
 	if rawInPlaceRestartExitCode == "" {
+		setupLog.Info("env var IN_PLACE_RESTART_EXIT_CODE not set, using default", "default", DefaultInPlaceRestartExitCode)
 		rawInPlaceRestartExitCode = DefaultInPlaceRestartExitCode
 	}
 	inPlaceRestartExitCode, err := strconv.Atoi(rawInPlaceRestartExitCode)
