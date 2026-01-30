@@ -77,6 +77,163 @@ func TestValidate(t *testing.T) {
 				},
 			},
 		},
+		"valid TLS with TLS 1.2 and cipher suites": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion: "VersionTLS12",
+						CipherSuites: []string{
+							"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+						},
+					},
+				},
+			},
+		},
+		"valid TLS with TLS 1.3 and no cipher suites": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion: "VersionTLS13",
+					},
+				},
+			},
+		},
+		"invalid TLS with TLS 1.3 and cipher suites": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion: "VersionTLS13",
+						CipherSuites: []string{
+							"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+						},
+					},
+				},
+			},
+			wantErr: field.ErrorList{
+				&field.Error{
+					Type:  field.ErrorTypeInvalid,
+					Field: "tls.cipherSuites",
+				},
+			},
+		},
+		"invalid TLS with unsupported minVersion VersionTLS10": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion: "VersionTLS10",
+					},
+				},
+			},
+			wantErr: field.ErrorList{
+				&field.Error{
+					Type:  field.ErrorTypeInvalid,
+					Field: "tls",
+				},
+			},
+		},
+		"invalid TLS with unsupported minVersion VersionTLS11": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion: "VersionTLS11",
+					},
+				},
+			},
+			wantErr: field.ErrorList{
+				&field.Error{
+					Type:  field.ErrorTypeInvalid,
+					Field: "tls",
+				},
+			},
+		},
+		"invalid TLS with invalid minVersion string": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion: "InvalidVersion",
+					},
+				},
+			},
+			wantErr: field.ErrorList{
+				&field.Error{
+					Type:  field.ErrorTypeInvalid,
+					Field: "tls",
+				},
+			},
+		},
+		"invalid TLS with invalid cipher suite name": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion: "VersionTLS12",
+						CipherSuites: []string{
+							"INVALID_CIPHER_SUITE",
+						},
+					},
+				},
+			},
+			wantErr: field.ErrorList{
+				&field.Error{
+					Type:  field.ErrorTypeInvalid,
+					Field: "tls",
+				},
+			},
+		},
+		"invalid TLS with invalid minVersion and invalid cipher suite": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion: "VersionTLS10",
+						CipherSuites: []string{
+							"INVALID_CIPHER_SUITE",
+						},
+					},
+				},
+			},
+			wantErr: field.ErrorList{
+				&field.Error{
+					Type:  field.ErrorTypeInvalid,
+					Field: "tls",
+				},
+			},
+		},
+		"valid TLS with empty cipher suites": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion:   "VersionTLS12",
+						CipherSuites: []string{},
+					},
+				},
+			},
+		},
+		"valid TLS with multiple valid cipher suites": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{
+						MinVersion: "VersionTLS12",
+						CipherSuites: []string{
+							"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+							"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+						},
+					},
+				},
+			},
+		},
+		"nil TLS config is valid": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: nil,
+				},
+			},
+		},
+		"empty TLS config is valid": {
+			cfg: &configapi.Configuration{
+				ControllerManager: configapi.ControllerManager{
+					TLS: &configapi.TLSOptions{},
+				},
+			},
+		},
 	}
 
 	for name, tc := range testCases {

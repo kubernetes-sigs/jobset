@@ -5,6 +5,8 @@ export KIND=$PWD/bin/kind
 # For testing against existing clusters, one needs to set this environment variable
 export NAMESPACE="jobset-system"
 export JOBSET_E2E_TESTS_DUMP_NAMESPACE=true
+# E2E config folder to use (defaults to "default")
+export E2E_TARGET_FOLDER="${E2E_TARGET_FOLDER:-default}"
 
 # Use a temporary KUBECONFIG so that the script does not mess with the current user's kubeconfig.
 KUBECONFIG=""
@@ -43,8 +45,8 @@ function kind_load {
 function jobset_deploy {
     echo "cd config/components/manager && $KUSTOMIZE edit set image controller=$IMAGE_TAG"
     (cd config/components/manager && $KUSTOMIZE edit set image controller=$IMAGE_TAG)
-    echo "kubectl apply --server-side -k test/e2e/config" 
-    kubectl apply --server-side -k test/e2e/config
+    echo "kubectl apply --server-side -k test/e2e/config/$E2E_TARGET_FOLDER"
+    kubectl apply --server-side -k test/e2e/config/$E2E_TARGET_FOLDER
 }
 trap cleanup EXIT
 startup

@@ -14,6 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	configapi "sigs.k8s.io/jobset/api/config/v1alpha1"
+	"sigs.k8s.io/jobset/pkg/features"
+	"sigs.k8s.io/jobset/pkg/util/tlsconfig"
 )
 
 func fromFile(path string, scheme *runtime.Scheme, cfg *configapi.Configuration) error {
@@ -71,6 +73,17 @@ func addTo(o *ctrl.Options, cfg *configapi.Configuration) {
 		if cfg.Webhook.CertDir != "" {
 			wo.CertDir = cfg.Webhook.CertDir
 		}
+
+		// Apply TLS configuration if feature gate is enabled
+		if features.Enabled(features.TLSOptions) && cfg.TLS != nil {
+			tlsOpts, err := tlsconfig.ParseTLSOptions(cfg.TLS)
+			if err != nil {
+				ctrl.Log.Error(err, "failed to parse TLS options, webhook server will start without custom TLS configuration")
+			} else if tlsOpts != nil {
+				wo.TLSOpts = append(wo.TLSOpts, tlsconfig.BuildTLSOptions(tlsOpts)...)
+			}
+		}
+
 		o.WebhookServer = webhook.NewServer(wo)
 	}
 }

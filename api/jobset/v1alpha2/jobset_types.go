@@ -16,6 +16,7 @@ package v1alpha2
 
 import (
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -74,6 +75,27 @@ const (
 	// If a ReplicatedJob is part of a group, then its child jobs and pods have this
 	// label/annotation ranging from 0 to annotations[GroupReplicasKey] - 1
 	JobGroupIndexKey string = "jobset.sigs.k8s.io/job-group-index"
+
+	// InPlaceRestartAttemptKey is an annotation set to the in-place restart
+	// attempt of the Pod. It is written by the agent. It should be
+	// treated as *int32 (nil if missing) and the minimum value is 0. If the
+	// in-place restart attempt of any Pod exceeds jobSet.spec.failurePolicy.maxRestarts,
+	// the JobSet controller should fail the JobSet. If the in-place restart
+	// attempt of the Pod is smaller than or equal to jobSet.status.previousInPlaceRestartAttempt,
+	// the agent should restart its Pod in-place. If the in-place restart
+	// attempt of the Pod is equal to jobSet.status.currentInPlaceRestartAttempt,
+	// the agent should lift its barrier to allow the worker
+	// container to start running.
+	InPlaceRestartAttemptKey string = "jobset.sigs.k8s.io/in-place-restart-attempt"
+
+	// DisableInPlaceRestartKey is an annotation that can be set in the JobSet to
+	// disable the in-place restart logic in the agent. If this annotation
+	// is set, the in-place restart agent will bypass the synchronization barrier
+	// and run the worker immediately when the agent is started.
+	// This is useful for cases that the agent is used but the in-place restart
+	// strategy is not used (or the feature gate is not enabled). One example is
+	// downgrading the JobSet CRD to a version that does not support in-place restart
+	DisableInPlaceRestartKey string = "jobset.sigs.k8s.io/disable-in-place-restart"
 )
 
 type JobSetConditionType string
@@ -125,7 +147,7 @@ type JobSetSpec struct {
 	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
 
 	// suspend suspends all running child Jobs when set to true.
-	Suspend *bool `json:"suspend,omitempty"`
+	Suspend *bool `json:"suspend,omitempty"` //nolint
 
 	// coordinator can be used to assign a specific pod as the coordinator for
 	// the JobSet. If defined, an annotation will be added to all Jobs and pods with
@@ -159,6 +181,16 @@ type JobSetSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	// +optional
 	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
+
+	// volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed
+	// to reference. JobSet controller automatically adds the required volume claims to the
+	// pod template. Every claim in this list must have at least one matching (by name)
+	// volumeMount in one container in the template.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=50
+	VolumeClaimPolicies []VolumeClaimPolicy `json:"volumeClaimPolicies,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet
@@ -177,16 +209,35 @@ type JobSetStatus struct {
 	// +optional
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 
-	// terminalState the state of the JobSet when it finishes execution.
+	// terminalState tracks the state of the JobSet when it finishes execution.
 	// It can be either Completed or Failed. Otherwise, it is empty by default.
 	// +optional
 	TerminalState string `json:"terminalState,omitempty"`
 
-	// replicatedJobsStatus track the number of JobsReady for each replicatedJob.
+	// replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.
 	// +optional
 	// +listType=map
 	// +listMapKey=name
 	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
+
+	// previousInPlaceRestartAttempt tracks the previous in-place restart attempt
+	// of the JobSet. It is read by the agent. If the in-place restart
+	// attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt,
+	// the agent should restart its Pod in-place.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	// +featureGate=InPlaceRestart
+	PreviousInPlaceRestartAttempt *int32 `json:"previousInPlaceRestartAttempt,omitempty"`
+
+	// currentInPlaceRestartAttempt tracks the current in-place restart attempt
+	// of the JobSet. It is read by the agent. If the in-place restart
+	// attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent
+	// should lift its barrier to allow the worker container to
+	// start running.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	// +featureGate=InPlaceRestart
+	CurrentInPlaceRestartAttempt *int32 `json:"currentInPlaceRestartAttempt,omitempty"`
 }
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
@@ -303,7 +354,7 @@ type Network struct {
 	// Pods will be reachable using the fully qualified pod hostname:
 	// <jobSet.name>-<spec.replicatedJob.name>-<job-index>-<pod-index>.<subdomain>
 	// +optional
-	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"`
+	EnableDNSHostnames *bool `json:"enableDNSHostnames,omitempty"` //nolint
 
 	// subdomain is an explicit choice for a network subdomain name
 	// When set, any replicated job in the set is added to this network.
@@ -314,7 +365,7 @@ type Network struct {
 	// publishNotReadyAddresses indicates if DNS records of pods should be published before the pods are ready.
 	// Defaults to True.
 	// +optional
-	PublishNotReadyAddresses *bool `json:"publishNotReadyAddresses,omitempty"`
+	PublishNotReadyAddresses *bool `json:"publishNotReadyAddresses,omitempty"` //nolint
 }
 
 // Operator defines the target of a SuccessPolicy or FailurePolicy.
@@ -383,7 +434,11 @@ type FailurePolicyRule struct {
 
 type FailurePolicy struct {
 	// maxRestarts defines the limit on the number of JobSet restarts.
-	// A restart is achieved by recreating all active child jobs.
+	// If the restart strategy "InPlaceRestart" is used, this field
+	// also defines the limit on the number of container restarts of
+	// any child container. This is required to handle the edge case
+	// in which a container keeps failing too fast to complete a JobSet
+	// restart.
 	MaxRestarts int32 `json:"maxRestarts,omitempty"`
 
 	// restartStrategy defines the strategy to use when restarting the JobSet.
@@ -399,16 +454,30 @@ type FailurePolicy struct {
 	Rules []FailurePolicyRule `json:"rules,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=Recreate;BlockingRecreate
+// +kubebuilder:validation:Enum=Recreate;BlockingRecreate;InPlaceRestart
 type JobSetRestartStrategy string
 
 const (
-	// Recreate Jobs on a Job-by-Job basis.
+	// Restart the JobSet by recreating all Jobs. Each Job is recreated as soon
+	// as its previous iteration (and its Pods) is deleted.
 	Recreate JobSetRestartStrategy = "Recreate"
 
-	// BlockingRecreate ensures that all Jobs (and Pods) from a previous iteration are deleted before
-	// creating new Jobs.
+	// Restart the JobSet by recreating all Jobs. Ensures that all Jobs (and
+	// their Pods) from the previous iteration are deleted before creating new
+	// Jobs.
 	BlockingRecreate JobSetRestartStrategy = "BlockingRecreate"
+
+	// When no Job has failed, restart the JobSet by restarting healthy Pods
+	// in-place and recreating failed Pods. When a Job has failed, fall back to
+	// action "Recreate" and execute the matching failure policy rule.
+	// Importantly, the in-place restart strategy assumes that Jobs never fail
+	// because the backoffLimit is set to the max (this is enforced by the webhook).
+	// If a job does fail, it is not optimal but it is also not a problem because
+	// in-place restart can handle Pods being recreated. The JobSet controller will
+	// recreate the failed Jobs as if the restart strategy is set to "Recreate".
+	// The barrier is lifted only when all agents are ready and in the new "in-place
+	// restart attempt".
+	InPlaceRestart JobSetRestartStrategy = "InPlaceRestart"
 )
 
 type SuccessPolicy struct {
@@ -430,6 +499,7 @@ const (
 	// AnyOrder means that we will start the replicated jobs
 	// without any specific order.
 	AnyOrder StartupPolicyOptions = "AnyOrder"
+
 	// InOrder starts the replicated jobs in order
 	// that they are listed.
 	InOrder StartupPolicyOptions = "InOrder"
@@ -457,6 +527,50 @@ type Coordinator struct {
 	// podIndex is the Job completion index of the coordinator pod.
 	PodIndex int `json:"podIndex,omitempty"`
 }
+
+// volumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.
+// +kubebuilder:validation:XValidation:rule="self.templates.all(t, !has(t.metadata.namespace) || size(t.metadata.namespace) == 0)",message="namespace cannot be set for VolumeClaimPolicies templates"
+type VolumeClaimPolicy struct {
+	// templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference.
+	// The JobSet controller is responsible for creating shared PVCs that can be mounted by
+	// multiple ReplicatedJobs. Every claim in this list must have a matching (by name)
+	// volumeMount in one container or initContainer in at least one ReplicatedJob template.
+	// ReplicatedJob template must not have volumes with the same name as defined in this template.
+	// PVC template must not have the namespace parameter.
+	// Generated PVC naming convention: <claim-name>-<jobset-name>
+	// Example: "model-cache-trainjob" (shared volume across all ReplicatedJobs).
+	// +kubebuilder:validation:MaxItems=50
+	// +optional
+	// +listType=atomic
+	Templates []corev1.PersistentVolumeClaim `json:"templates,omitempty"`
+
+	// retentionPolicy describes the lifecycle of persistent volume claims created from the template.
+	// By default, all persistent volume claims are deleted once JobSet is deleted.
+	// +optional
+	RetentionPolicy *VolumeRetentionPolicy `json:"retentionPolicy,omitempty"`
+}
+
+// volumeRetentionPolicy defines the retention policy used for PVCs created from the JobSet VolumeClaimPolicies.
+type VolumeRetentionPolicy struct {
+	// whenDeleted specifies what happens to PVCs when JobSet is deleted.
+	// +optional
+	// +kubebuilder:default=Delete
+	WhenDeleted *RetentionPolicyType `json:"whenDeleted,omitempty"`
+}
+
+// retentionPolicyType defines the retention policy for PVCs.
+// +kubebuilder:validation:Enum=Delete;Retain
+type RetentionPolicyType string
+
+const (
+	// retentionPolicyDelete is the default retention policy and specifies that
+	// PVC associated with JobSet VolumeClaimTemplates will be deleted.
+	RetentionPolicyDelete RetentionPolicyType = "Delete"
+
+	// retentionPolicyRetain is the retention policy and specifies that
+	// PVC associated with JobSet VolumeClaimTemplates will not be deleted.
+	RetentionPolicyRetain RetentionPolicyType = "Retain"
+)
 
 func init() {
 	SchemeBuilder.Register(&JobSet{}, &JobSetList{})

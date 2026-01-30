@@ -42,8 +42,10 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/config"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/cert"
+	"sigs.k8s.io/jobset/pkg/util/tlsconfig"
 	"sigs.k8s.io/jobset/pkg/util/useragent"
 	"sigs.k8s.io/jobset/pkg/version"
 	"sigs.k8s.io/jobset/pkg/webhooks"
@@ -71,7 +73,6 @@ func main() {
 	var probeAddr string
 	var qps float64
 	var burst int
-	var featureGates string
 	var configFile string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8443", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -80,7 +81,6 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Float64Var(&qps, "kube-api-qps", 500, "Maximum QPS to use while talking with Kubernetes API")
 	flag.IntVar(&burst, "kube-api-burst", 500, "Maximum burst for throttle while talking with Kubernetes API")
-	flag.StringVar(&featureGates, "feature-gates", "", "A set of key=value pairs that describe feature gates for alpha/experimental features.")
 	flag.StringVar(&configFile, "config", "",
 		"The controller will load its initial configuration from this file. "+
 			"Command-line flags will override any configurations set in this file. "+
@@ -98,11 +98,6 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	if err := utilfeature.DefaultMutableFeatureGate.Set(featureGates); err != nil {
-		setupLog.Error(err, "Unable to set flag gates for known features")
-		os.Exit(1)
-	}
-
 	metrics.Register()
 
 	var options manager.Options
@@ -118,6 +113,12 @@ func main() {
 		setupLog.Error(err, "Unable to load the configuration")
 		os.Exit(1)
 	}
+
+	if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(cfg.FeatureGates); err != nil {
+		setupLog.Error(err, "Unable to set flag gates for known features")
+		os.Exit(1)
+	}
+
 	kubeConfig.QPS = *cfg.ClientConnection.QPS
 	kubeConfig.Burst = int(*cfg.ClientConnection.Burst)
 
@@ -157,6 +158,20 @@ func main() {
 		setupLog.Info("disabling http/2")
 		c.NextProtos = []string{"http/1.1"}
 	}
+
+	// Parse TLS options from configuration if feature gate is enabled
+	tlsOpts := []func(*tls.Config){disableHTTP2}
+	if features.Enabled(features.TLSOptions) && cfg.TLS != nil {
+		parsedTLS, err := tlsconfig.ParseTLSOptions(cfg.TLS)
+		if err != nil {
+			setupLog.Error(err, "Unable to parse TLS options from configuration")
+			os.Exit(1)
+		}
+		if parsedTLS != nil {
+			tlsOpts = append(tlsOpts, tlsconfig.BuildTLSOptions(parsedTLS)...)
+		}
+	}
+
 	// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
 	// More info:
 	// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/metrics/server
@@ -165,7 +180,7 @@ func main() {
 		BindAddress:    metricsAddr,
 		SecureServing:  true,
 		FilterProvider: filters.WithAuthenticationAndAuthorization,
-		TLSOpts:        []func(*tls.Config){disableHTTP2},
+		TLSOpts:        tlsOpts,
 		CertDir:        options.Metrics.CertDir,
 		CertName:       options.Metrics.CertName,
 		KeyName:        options.Metrics.KeyName,

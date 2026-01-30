@@ -40,9 +40,11 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/metrics"
 	"sigs.k8s.io/jobset/pkg/util/collections"
 	"sigs.k8s.io/jobset/pkg/util/placement"
@@ -100,6 +102,7 @@ func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record re
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get;patch;update
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch;create
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -203,6 +206,14 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
+	// Reconcile VolumeClaimPolicies if it is set.
+	if len(js.Spec.VolumeClaimPolicies) > 0 {
+		if err := r.reconcileVolumeClaimPolicies(ctx, js); err != nil {
+			log.Error(err, "reconciling persistent volume claim policies")
+			return ctrl.Result{}, err
+		}
+	}
+
 	// If job has not failed or succeeded, reconcile the state of the replicatedJobs.
 	if err := r.reconcileReplicatedJobs(ctx, js, ownedJobs, rjobStatuses, updateStatusOpts); err != nil {
 		log.Error(err, "creating jobs")
@@ -222,20 +233,59 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 			return ctrl.Result{}, err
 		}
 	}
+
+	// The in-place restart strategy assumes that Jobs never fail because the backoffLimit is set to the max
+	// (this is enforced by the webhook). If a job does fail, it is not optimal but it is also not a problem
+	// because in-place restart can handle Pods being recreated. The JobSet controller will recreate the failed
+	// Jobs as if the restart strategy is set to "Recreate". The barrier is lifted only when all agents are
+	// ready and in the new "in-place restart attempt".
+	if isInPlaceRestartStrategy(js) {
+		if features.Enabled(features.InPlaceRestart) {
+			if err := r.reconcileInPlaceRestart(ctx, js, updateStatusOpts); err != nil {
+				log.Error(err, "reconciling in-place restart")
+				return ctrl.Result{}, err
+			}
+		} else {
+			log.Info("in-place restart strategy cannot be used when the feature gate is disabled", "featureGate", features.InPlaceRestart)
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
 		For(&jobset.JobSet{}).
 		Owns(&batchv1.Job{}).
-		Owns(&corev1.Service{}).
-		Complete(r)
+		Owns(&corev1.Service{})
+
+	// Watch Pods if in-place restart feature is enabled.
+	// This triggers the JobSet controller to reconcile when an associated Pod is created / modified / deleted.
+	if features.Enabled(features.InPlaceRestart) {
+		controllerBuilder = controllerBuilder.Watches(
+			&corev1.Pod{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []ctrl.Request {
+				pod := o.(*corev1.Pod)
+				jobSetName, ok := pod.Labels[jobset.JobSetNameKey]
+				if !ok {
+					return nil
+				}
+				return []ctrl.Request{
+					{NamespacedName: types.NamespacedName{
+						Name:      jobSetName,
+						Namespace: pod.Namespace,
+					}},
+				}
+			}),
+		)
+	}
+
+	return controllerBuilder.Complete(r)
 }
 
 func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error {
-	return indexer.IndexField(ctx, &batchv1.Job{}, constants.JobOwnerKey, func(obj client.Object) []string {
+	err := indexer.IndexField(ctx, &batchv1.Job{}, constants.JobsIndexByJobSetKey, func(obj client.Object) []string {
 		o := obj.(*batchv1.Job)
 		owner := metav1.GetControllerOf(o)
 		if owner == nil {
@@ -247,6 +297,24 @@ func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error 
 		}
 		return []string{owner.Name}
 	})
+	if err != nil {
+		return err
+	}
+
+	// Index Pods by namespaced JobSet name if in-place restart feature is enabled.
+	// This is used to efficiently find all Pods associated with a JobSet.
+	if features.Enabled(features.InPlaceRestart) {
+		err = indexer.IndexField(ctx, &corev1.Pod{}, constants.PodsIndexByJobSetKey, func(obj client.Object) []string {
+			pod := obj.(*corev1.Pod)
+			jobSetName, ok := pod.Labels[jobset.JobSetNameKey]
+			if !ok {
+				return nil
+			}
+			namespacedJobSetName := fmt.Sprintf("%s/%s", pod.Namespace, jobSetName)
+			return []string{namespacedJobSetName}
+		})
+	}
+	return err
 }
 
 // updateJobSetStatus will update the JobSet status if updateStatusOpts requires it,
@@ -277,7 +345,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 
 	// Get all active jobs owned by JobSet.
 	var childJobList batchv1.JobList
-	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{constants.JobOwnerKey: js.Name}); err != nil {
+	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{constants.JobsIndexByJobSetKey: js.Name}); err != nil {
 		return nil, err
 	}
 
@@ -423,7 +491,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 	rJobsReplicas := map[string]int32{}
 
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
-	// unsuspended and update the suspend condition to true.
+	// unsuspended and update the suspend condition to false.
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
 		replicatedJobStatus := findReplicatedJobStatus(replicatedJobStatuses, replicatedJob.Name)
 
@@ -537,6 +605,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		// Create jobs as necessary.
 		if err := r.createJobs(ctx, js, jobs); err != nil {
 			log.Error(err, "creating jobs")
+			r.Record.Eventf(js, corev1.EventTypeWarning, constants.JobCreationFailedReason, err.Error())
 			return err
 		}
 
@@ -725,6 +794,11 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) *ba
 	jobsetSuspended := jobSetSuspended(js)
 	job.Spec.Suspend = ptr.To(jobsetSuspended)
 
+	// If VolumeClaimPolicies are set, update Job spec to set volumes and volumeMounts.
+	if len(js.Spec.VolumeClaimPolicies) > 0 {
+		addVolumes(job, js)
+	}
+
 	return job
 }
 
@@ -798,8 +872,8 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 
 	// Apply coordinator annotation/label if a coordinator is defined in the JobSet spec.
 	if js.Spec.Coordinator != nil {
-		labels[jobset.CoordinatorKey] = coordinatorEndpoint(js)
-		annotations[jobset.CoordinatorKey] = coordinatorEndpoint(js)
+		labels[jobset.CoordinatorKey] = CoordinatorEndpoint(js)
+		annotations[jobset.CoordinatorKey] = CoordinatorEndpoint(js)
 	}
 
 	// Check for JobSet level exclusive placement.
@@ -837,7 +911,7 @@ func GetSubdomain(js *jobset.JobSet) string {
 	// This must be done in the controller rather than in the request-time defaulting, since if a JobSet
 	// uses generateName rather than setting the name explicitly, the JobSet name will still be an empty
 	// string at that time.
-	if js.Spec.Network.Subdomain != "" {
+	if js.Spec.Network != nil && js.Spec.Network.Subdomain != "" {
 		return js.Spec.Network.Subdomain
 	}
 	return js.Name
@@ -1083,9 +1157,9 @@ func exclusiveConditions(cond1, cond2 metav1.Condition) bool {
 	return inProgressAndCompleted || completedAndInProgress
 }
 
-// coordinatorEndpoint returns the stable network endpoint where the coordinator pod can be reached.
+// CoordinatorEndpoint returns the stable network endpoint where the coordinator pod can be reached.
 // This function assumes the caller has validated that jobset.Spec.Coordinator != nil.
-func coordinatorEndpoint(js *jobset.JobSet) string {
+func CoordinatorEndpoint(js *jobset.JobSet) string {
 	return fmt.Sprintf("%s-%s-%d-%d.%s", js.Name, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex, js.Spec.Coordinator.PodIndex, GetSubdomain(js))
 }
 
@@ -1103,7 +1177,7 @@ func coordinatorEndpoint(js *jobset.JobSet) string {
 // |                             my-jobset                             |
 // |        replicated job A         |        replicated job B         |
 // |    job index 0 |   job index 1  |   job index 0  | job index 1    |
-// | global index 0 | global index 2 | global index 3 | global index 4 |
+// | global index 0 | global index 1 | global index 2 | global index 3 |
 //
 // Returns an empty string if the parent replicated Job does not exist,
 // although this should never happen in practice.

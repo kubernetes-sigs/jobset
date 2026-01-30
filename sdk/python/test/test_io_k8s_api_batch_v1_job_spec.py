@@ -606,7 +606,10 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                                 key_path = '', 
                                                 key_type = '', 
                                                 max_expiration_seconds = 56, 
-                                                signer_name = '', ), 
+                                                signer_name = '', 
+                                                user_annotations = {
+                                                    'key' : ''
+                                                    }, ), 
                                             secret = jobset.models.io/k8s/api/core/v1/secret_projection.io.k8s.api.core.v1.SecretProjection(
                                                 name = '', 
                                                 optional = True, ), 
@@ -657,7 +660,11 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                     storage_policy_id = '', 
                                     storage_policy_name = '', 
                                     volume_path = '', ), )
-                            ], ), ),
+                            ], 
+                        workload_ref = jobset.models.io/k8s/api/core/v1/workload_reference.io.k8s.api.core.v1.WorkloadReference(
+                            name = '', 
+                            pod_group = '', 
+                            pod_group_replica_key = '', ), ), ),
                 ttl_seconds_after_finished = 56
             )
         else:
@@ -1188,7 +1195,10 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                                 key_path = '', 
                                                 key_type = '', 
                                                 max_expiration_seconds = 56, 
-                                                signer_name = '', ), 
+                                                signer_name = '', 
+                                                user_annotations = {
+                                                    'key' : ''
+                                                    }, ), 
                                             secret = jobset.models.io/k8s/api/core/v1/secret_projection.io.k8s.api.core.v1.SecretProjection(
                                                 name = '', 
                                                 optional = True, ), 
@@ -1239,7 +1249,11 @@ class TestIoK8sApiBatchV1JobSpec(unittest.TestCase):
                                     storage_policy_id = '', 
                                     storage_policy_name = '', 
                                     volume_path = '', ), )
-                            ], ), ),
+                            ], 
+                        workload_ref = jobset.models.io/k8s/api/core/v1/workload_reference.io.k8s.api.core.v1.WorkloadReference(
+                            name = '', 
+                            pod_group = '', 
+                            pod_group_replica_key = '', ), ), ),
         )
         """
 

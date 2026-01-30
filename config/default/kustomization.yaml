@@ -8,9 +8,11 @@ namespace: jobset-system
 # field above.
 namePrefix: jobset-
 
-# Labels to add to all resources and selectors.
-#commonLabels:
-#  someName: someValue
+# Common labels to add to all resources and selectors (matches Helm behavior).
+commonLabels:
+  app.kubernetes.io/name: jobset
+  app.kubernetes.io/instance: jobset
+  app.kubernetes.io/managed-by: kustomize
 
 resources:
 - ../components/crd
