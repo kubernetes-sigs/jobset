@@ -54,7 +54,7 @@ kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/release
 To install a released version of JobSet in your cluster using Helm, run the following command:
 
 ```shell
-helm install jobset oci://registry.k8s.io/jobset/charts/jobset --version $VERSION --create-namespace --namespace=jobset-system
+helm install jobset oci://registry.k8s.io/jobset/charts/jobset --version ${VERSION#v} --create-namespace --namespace=jobset-system
 ```
 
 For more HELM configurations options, follow the [instructions](https://github.com/kubernetes-sigs/jobset/tree/main/charts/jobset).
