@@ -1,0 +1,26 @@
+title: Support Elastic JobSets
+kep-number: 463
+authors:
+  - "@aniket2405"
+status: provisional
+creation-date: 2024-03-21
+reviewers:
+  - "@ahg-g"
+  - "@danielvegamyhre"
+approvers:
+  - "@ahg-g"
+
+see-also:
+  - "NA"
+replaces:
+  - "NA"
+
+# The target maturity stage in the current dev cycle for this KEP.
+stage: alpha
+
+# The most recent milestone for which work toward delivery of this KEP has been done.
+latest-milestone: "v0.8.0"
+
+# The milestone at which this feature was, or is targeted to be, at each stage.
+milestone:
+  alpha: "v0.8.0"
