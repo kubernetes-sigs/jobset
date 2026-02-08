@@ -66,7 +66,7 @@ make verify
 JobSet uses extensive code generation for Kubernetes clients and CRDs. After modifying API types or adding new fields:
 
 ```bash
-# Generate all: manifests, DeepCopy methods, client-go libraries, Python SDK
+# Generate all: manifests, DeepCopy methods, client-go libraries, Python API models
 make generate
 
 # Generate only CRDs and RBAC manifests
@@ -197,7 +197,7 @@ JobSet uses multiple code generators (all invoked via `make generate`):
 - **controller-gen**: Generates CRDs, RBAC, and webhook configs from Go markers
 - **client-gen**: Generates typed clientsets for jobset resources
 - **openapi-gen**: Generates OpenAPI spec for API validation
-- **Python SDK generator**: `hack/python-sdk/gen-sdk.sh` generates Python client library
+- **Python API generator**: `hack/python-api/gen-api.sh` generates Python API models package
 
 ## Important Development Notes
 
