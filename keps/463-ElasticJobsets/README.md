@@ -141,7 +141,11 @@ Cluster 100 GPUs @ 95% → Kueue scales: replicas 25→20
 
 ### API Details
 
-The validation webhook for `jobset.x-k8s.io/v1alpha2` will be modified to allow updates to `spec.replicatedJobs[i].replicas`.
+The validation webhook for `jobset.x-k8s.io/v1alpha2` will be modified to allow updates to:
+
+1. spec.replicatedJobs[i].replicas (Horizontal Job scaling)
+2. spec.replicatedJobs[i].template.spec.parallelism (Internal Pod scaling)
+3. spec.replicatedJobs[i].template.spec.completions (Internal Pod scaling)
 
 ```golang
 
@@ -153,29 +157,42 @@ type ReplicatedJob struct {
 	// This field is changed from immutable to mutable.
 	Replicas int32 `json:"replicas"`
 
-	// ... (Template and other fields remain immutable)
+	// Template is now partially mutable.
+  // Specifically, parallelism and completions can be updated
+  // to support Elastic Indexed Jobs.
+  Template batchv1.JobTemplateSpec `json:"template"`
 }
 
 ```
 
 ### Implementation
 
-The JobSet controller will implement a Reconcile-to-Desired pattern. This ensures that the state of child Jobs always migrates toward the spec.replicas count while maintaining index integrity.
+The JobSet controller will implement a multi-path reconciliation logic to support both horizontal and internal elasticity. This ensures the JobSet state remains synchronized with both spec.replicas and the template.spec parameters.
 
-Index Sorting: The controller fetches all Jobs owned by the JobSet and sorts them numerically by their index suffix (e.g., workers-0, workers-1).
+#### Index Sorting:
+The controller fetches all child Jobs owned by the JobSet and sorts them numerically by their index suffix (e.g., workers-0, workers-1).
 
-Scale Up: If desired > actual, the controller creates new Jobs for the missing indices sequentially (e.g., if scaling from 2 to 4, it creates indices 2 and 3).
+#### Horizontal Scaling (Job-level):
 
-Scale Down (LIFO): If actual > desired, the controller deletes Jobs starting from the highest index downward (Last-In, First-Out). This preserves the lower-indexed Jobs, which often host "leader" or "master" processes in distributed frameworks.
+Scale Up: If spec.replicas > actual Job count, the controller creates new Jobs for the missing indices sequentially (e.g., if scaling from 2 to 4, it creates indices 2 and 3).
 
-Graceful Termination: During scale-down, the controller issues a standard Delete call for the Job. It relies on the Job and Pod terminationGracePeriodSeconds to allow the application (e.g., PyTorch Elastic) to perform a final checkpoint or clean shutdown before the process is killed.
+Scale Down (LIFO): If actual Job count > spec.replicas, the controller deletes Jobs starting from the highest index downward. This preserves lower-indexed Jobs, which often host "leader" or "master" processes.
 
-### Failure Handling Priority
-To prevent "scaling into a fire," the controller will prioritize stability over elasticity:
+#### Internal Scaling (Pod-level):
 
-If any Job in the JobSet is in a Failed state, the controller will pause all scaling operations.
+Template Propagation: When the controller detects an update to spec.replicatedJobs[i].template.spec.parallelism or completions, it will iterate through all existing healthy child Jobs.
 
-The FailurePolicy must first reconcile the failed Job (either by restarting the set or hitting the backoffLimit) before any scale-up or scale-down requests are processed
+Opportunistic Patching: The controller will issue a Patch request to each existing child Job to synchronize its spec.parallelism and spec.completions with the new values in the JobSet template.
+
+Elastic Integration: By patching the child Jobs, the JobSet controller leverages the native Kubernetes Elastic Indexed Job functionality to scale the pod count within each job replica dynamically.
+
+#### Failure Handling Priority
+To prevent "scaling into a fire," the controller will prioritize stabili  ty over elasticity:
+
+If any Job in the JobSet is in a Failed state, the controller will pause both horizontal and internal scaling operations until the FailurePolicy has reconciled the failed resource (either by restarting the set or hitting the backoffLimit).
+
+#### Graceful Termination:
+During any scale-down event (either removing a Job replica or reducing internal parallelism), the controller relies on the terminationGracePeriodSeconds of the Jobs and Pods. This allows applications like PyTorch Elastic to perform final checkpoints or clean shutdowns.
 
 ### Status Management
 
@@ -187,14 +204,17 @@ Conditions: A new condition Scaling may be added to the JobSet status to indicat
 
 ### Defaulting/Validation
 
-Validation: Ensure replicas >= 0.
+Mutable Fields: replicas, template.spec.parallelism, and template.spec.completions.
 
-Immutability: All other fields within ReplicatedJob (Name, Template, Network config) remain immutable to prevent identity drift.
+Immutable Fields: All other fields in the template.spec (e.g., container.image, resources, nodeSelector) remain immutable. If a user attempts to change these, the webhook will deny the request.
+
+Indexed Job Constraint: Internal scaling of parallelism/completions is only supported if the Job is using completionMode: Indexed.
 
 ### Test Plan
 
 #### Unit Tests
-jobset_webhook_test.go: Ensure that updates to replicas are accepted while updates to template are rejected.
+jobset_webhook_test.go: Ensure that updates to replicas, parallelism, and completion are accepted,
+while updates to other template fields are rejected.
 
 jobset_controller_test.go: Verify the logic that calculates which Job indices to delete during a scale-down.
 
@@ -202,6 +222,8 @@ jobset_controller_test.go: Verify the logic that calculates which Job indices to
 Verify that a JobSet correctly scales up from 1 to 3 replicas.
 
 Verify that a JobSet correctly scales down from 3 to 1 replica, ensuring the Jobs with index 1 and 2 are the ones deleted.
+
+Verify that updating parallelism on the JobSet propagates to existing child Jobs.
 
 Test scaling in a JobSet that uses ExclusivePlacement to ensure pods are still placed correctly on new nodes.
 
