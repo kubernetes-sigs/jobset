@@ -326,3 +326,53 @@ tests:
             - key: key2
               operator: Exists
               effect: NoSchedule
+
+  - it: Should not have deployment annotations if `controller.annotations` is not set
+    set:
+      controller:
+        annotations: {}
+    template: controller/deployment.yaml
+    asserts:
+      - isNull:
+          path: metadata.annotations
+
+  - it: Should add deployment annotations if `controller.annotations` is set
+    set:
+      controller:
+        annotations:
+          test: 1
+          example.com/test: 2
+    template: controller/deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations.test
+          value: 1
+      - equal:
+          path: metadata.annotations["example.com/test"]
+          value: 2
+
+  - it: Should always add `config-hash` annotation to pod by default
+    set:
+      controller:
+        podAnnotations: {}
+    template: controller/deployment.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.metadata.annotations["jobset.x-k8s.io/config-hash"]
+
+  - it: Should add pod annotations if `controller.podAnnotations` is set
+    set:
+      controller:
+        podAnnotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "8080"
+    template: controller/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+          value: "8080"
+      - isNotNull:
+          path: spec.template.metadata.annotations["jobset.x-k8s.io/config-hash"]
