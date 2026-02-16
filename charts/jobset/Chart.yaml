@@ -33,7 +33,9 @@ home: https://github.com/kubernetes-sigs/jobset
 maintainers:
 - name: ahg-g
   url: https://github.com/ahg-g
-- name: danielvegamyhre
-  url: https://github.com/danielvegamyhre
+- name: andreyvelich
+  url: https://github.com/andreyvelich
+- name: GiuseppeTT
+  url: https://github.com/GiuseppeTT
 - name: kannon92
   url: https://github.com/kannon92
