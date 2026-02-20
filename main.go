@@ -247,21 +247,9 @@ func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
 		os.Exit(1)
 	}
 
-	// Set up JobSet validating/defaulting webhook.
-	jobSetWebHook, err := webhooks.NewJobSetWebhook(mgr.GetClient())
-	if err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "JobSet")
-		os.Exit(1)
-	}
-	if err := jobSetWebHook.SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to set up webhook", "webhook", "JobSet")
-		os.Exit(1)
-	}
-
-	// Set up pod mutating and admission webhook.
-	podWebhook := webhooks.NewPodWebhook(mgr.GetClient())
-	if err := podWebhook.SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to set up webhook", "webhook", "Pod")
+	// Set up webhooks.
+	if err := webhooks.Setup(mgr); err != nil {
+		setupLog.Error(err, "unable to set up webhooks")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

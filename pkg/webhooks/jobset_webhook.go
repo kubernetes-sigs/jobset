@@ -67,6 +67,9 @@ const (
 	// Error message returned by JobSet validation if the network subdomain
 	// will be longer than 63 characters.
 	subdomainTooLongErrMsg = ".spec.network.subdomain is too long, must be less than 63 characters"
+
+	// Default rule name for FailurePolicy
+	defaultRuleNameFmt = "failurePolicyRule%v"
 )
 
 // validOnJobFailureReasons stores supported values of the reason field of the condition of
@@ -82,23 +85,20 @@ var validOnJobFailureReasons = []string{
 
 //+kubebuilder:webhook:path=/mutate-jobset-x-k8s-io-v1alpha2-jobset,mutating=true,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create,versions=v1alpha2,name=mjobset.kb.io,admissionReviewVersions=v1
 
-// jobSetWebhook for defaulting and admission.
+// jobSetWebhook for defaulting and admission of JobSet.
 type jobSetWebhook struct {
 	client client.Client
 }
 
-func NewJobSetWebhook(mgrClient client.Client) (*jobSetWebhook, error) {
-	return &jobSetWebhook{client: mgrClient}, nil
-}
+var _ admission.Defaulter[*jobset.JobSet] = (*jobSetWebhook)(nil)
+var _ admission.Validator[*jobset.JobSet] = (*jobSetWebhook)(nil)
 
-func (j *jobSetWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func setupWebhookForJobSet(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, &jobset.JobSet{}).
-		WithDefaulter(j).
-		WithValidator(j).
+		WithDefaulter(&jobSetWebhook{client: mgr.GetClient()}).
+		WithValidator(&jobSetWebhook{client: mgr.GetClient()}).
 		Complete()
 }
-
-const defaultRuleNameFmt = "failurePolicyRule%v"
 
 // Default performs defaulting of jobset values as defined in the JobSet API.
 func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
@@ -156,43 +156,43 @@ func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha2-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=vjobset.kb.io,admissionReviewVersions=v1
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (admission.Warnings, error) {
+func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj *jobset.JobSet) (admission.Warnings, error) {
 	var allErrs []error
 
 	// Validate InPlaceRestart feature gate.
 	// The in-place restart API should be used only when the feature gate is enabled.
 	if !features.Enabled(features.InPlaceRestart) {
-		if js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
+		if obj.Spec.FailurePolicy != nil && obj.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
 			allErrs = append(allErrs, fmt.Errorf("InPlaceRestart restart strategy cannot be set when InPlaceRestart feature gate is disabled"))
 		}
 	}
 
 	// Validate that depends On can't be set for the first replicated job.
-	if len(js.Spec.ReplicatedJobs) > 0 && js.Spec.ReplicatedJobs[0].DependsOn != nil {
+	if len(obj.Spec.ReplicatedJobs) > 0 && obj.Spec.ReplicatedJobs[0].DependsOn != nil {
 		allErrs = append(allErrs, fmt.Errorf("DependsOn can't be set for the first ReplicatedJob"))
 	}
 
 	// Ensure that a provided subdomain is a valid DNS name
-	if js.Spec.Network != nil && js.Spec.Network.Subdomain != "" {
+	if obj.Spec.Network != nil && obj.Spec.Network.Subdomain != "" {
 		fieldPath := field.NewPath("spec", "network", "subdomain")
 		// This can return 1 or 2 errors, validating max length and format
-		for _, errMessage := range validation.IsDNS1123Subdomain(js.Spec.Network.Subdomain) {
-			allErrs = append(allErrs, field.Invalid(fieldPath, js.Spec.Network.Subdomain, errMessage))
+		for _, errMessage := range validation.IsDNS1123Subdomain(obj.Spec.Network.Subdomain) {
+			allErrs = append(allErrs, field.Invalid(fieldPath, obj.Spec.Network.Subdomain, errMessage))
 		}
 
 		// Since subdomain name is also used as service name, it must adhere to RFC 1035 as well.
-		for _, errMessage := range validation.IsDNS1035Label(js.Spec.Network.Subdomain) {
+		for _, errMessage := range validation.IsDNS1035Label(obj.Spec.Network.Subdomain) {
 			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 				errMessage = subdomainTooLongErrMsg
 			}
 
-			allErrs = append(allErrs, field.Invalid(fieldPath, js.Spec.Network.Subdomain, errMessage))
+			allErrs = append(allErrs, field.Invalid(fieldPath, obj.Spec.Network.Subdomain, errMessage))
 		}
 	}
 
 	// Validate the managedBy field used for multi-kueue support.
-	if js.Spec.ManagedBy != nil {
-		manager := *js.Spec.ManagedBy
+	if obj.Spec.ManagedBy != nil {
+		manager := *obj.Spec.ManagedBy
 		fieldPath := field.NewPath("spec", "managedBy")
 		for _, err := range validation.IsDomainPrefixedPath(fieldPath, manager) {
 			allErrs = append(allErrs, err)
@@ -205,7 +205,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 	rJobNames := sets.New[string]()
 
 	// Validate each replicatedJob.
-	for rJobIdx, rJob := range js.Spec.ReplicatedJobs {
+	for rJobIdx, rJob := range obj.Spec.ReplicatedJobs {
 		fieldPath := field.NewPath("spec", "replicatedJobs").Index(rJobIdx)
 		rJobNames.Insert(rJob.Name)
 
@@ -226,7 +226,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		}
 		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
 		// Use the largest job index as it will have the longest name.
-		longestJobName := placement.GenJobName(js.Name, rJob.Name, int(rJob.Replicas-1))
+		longestJobName := placement.GenJobName(obj.Name, rJob.Name, int(rJob.Replicas-1))
 		for _, errMessage := range validation.IsDNS1035Label(longestJobName) {
 			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 				errMessage = jobNameTooLongErrorMsg
@@ -239,7 +239,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 			maxJobIndex := strconv.Itoa(int(rJob.Replicas - 1))
 			maxPodIndex := strconv.Itoa(int(*rJob.Template.Spec.Completions - 1))
 			// Add 5 char suffix to the deterministic part of the pod name to validate the full pod name is compliant.
-			longestPodName := placement.GenPodName(js.Name, rJob.Name, maxJobIndex, maxPodIndex) + "-abcde"
+			longestPodName := placement.GenPodName(obj.Name, rJob.Name, maxJobIndex, maxPodIndex) + "-abcde"
 			for _, errMessage := range validation.IsDNS1035Label(longestPodName) {
 				if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 					errMessage = podNameTooLongErrorMsg
@@ -256,7 +256,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		}
 
 		// Validate in-place restart.
-		if features.Enabled(features.InPlaceRestart) && js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
+		if features.Enabled(features.InPlaceRestart) && obj.Spec.FailurePolicy != nil && obj.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
 			// Validate that the backoff limit is set to max int32.
 			if rJob.Template.Spec.BackoffLimit == nil || *rJob.Template.Spec.BackoffLimit != math.MaxInt32 {
 				allErrs = append(allErrs, field.Invalid(fieldPath.Child("template", "spec", "backoffLimit"), rJob.Template.Spec.BackoffLimit, fmt.Sprintf("replicatedJob %s: must be set to %d (MaxInt32) when in-place restart is enabled", rJob.Name, math.MaxInt32)))
@@ -275,54 +275,52 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 	}
 
 	// Validate the success policy's target replicated jobs are valid.
-	for _, rJobName := range js.Spec.SuccessPolicy.TargetReplicatedJobs {
+	for _, rJobName := range obj.Spec.SuccessPolicy.TargetReplicatedJobs {
 		if !rJobNames.Has(rJobName) {
 			allErrs = append(allErrs, fmt.Errorf("invalid replicatedJob name '%s' does not appear in .spec.ReplicatedJobs", rJobName))
 		}
 	}
 
 	// Validate failure policy
-	if js.Spec.FailurePolicy != nil {
-		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, rJobNames)
+	if obj.Spec.FailurePolicy != nil {
+		failurePolicyErrors := validateFailurePolicy(obj.Spec.FailurePolicy, rJobNames)
 		allErrs = append(allErrs, failurePolicyErrors...)
 	}
 
 	// Validate coordinator, if set.
-	if js.Spec.Coordinator != nil {
-		allErrs = append(allErrs, validateCoordinator(js))
-		allErrs = append(allErrs, validateCoordinatorLabelValue(js))
+	if obj.Spec.Coordinator != nil {
+		allErrs = append(allErrs, validateCoordinator(obj))
+		allErrs = append(allErrs, validateCoordinatorLabelValue(obj))
 	}
 
 	// Validate VolumeClaimPolicies, if set.
-	if len(js.Spec.VolumeClaimPolicies) > 0 {
-		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, js.Spec.VolumeClaimPolicies)...)
+	if len(obj.Spec.VolumeClaimPolicies) > 0 {
+		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, obj, obj.Spec.VolumeClaimPolicies)...)
 	}
 
 	return nil, errors.Join(allErrs...)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJS, js *jobset.JobSet) (admission.Warnings, error) {
-	mungedSpec := js.Spec.DeepCopy()
-
+func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj *jobset.JobSet) (admission.Warnings, error) {
 	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
 	// This is needed for integration with Kueue/DWS.
-	if ptr.Deref(oldJS.Spec.Suspend, false) || ptr.Deref(js.Spec.Suspend, false) {
-		for index := range js.Spec.ReplicatedJobs {
+	if ptr.Deref(oldObj.Spec.Suspend, false) || ptr.Deref(newObj.Spec.Suspend, false) {
+		for index := range newObj.Spec.ReplicatedJobs {
 			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
+			newObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
+			newObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
+			newObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
+			newObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
 
 			// Pod Scheduling Gates can be updated for batch/v1 Job: https://github.com/kubernetes/kubernetes/blob/ceb58a4dbc671b9d0a2de6d73a1616bc0c299863/pkg/apis/batch/validation/validation.go#L662
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates
+			newObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldObj.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates
 		}
 	}
 
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
-	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
+	errs := apivalidation.ValidateImmutableField(newObj.Spec.ReplicatedJobs, oldObj.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
+	errs = append(errs, apivalidation.ValidateImmutableField(newObj.Spec.ManagedBy, oldObj.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
 	return nil, errs.ToAggregate()
 }
 
