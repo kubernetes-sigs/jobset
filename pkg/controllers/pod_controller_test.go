@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -355,7 +355,7 @@ func makePod(args *makePodArgs) *testutils.PodWrapper {
 type fakeClient struct {
 	client client.WithWatch
 	scheme *runtime.Scheme
-	record record.EventRecorder
+	record events.EventRecorder
 }
 
 func makeFakeClient(interceptor interceptor.Funcs, initObjs ...client.Object) *fakeClient {
@@ -364,8 +364,6 @@ func makeFakeClient(interceptor interceptor.Funcs, initObjs ...client.Object) *f
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 
-	eventBroadcaster := record.NewBroadcaster()
-	recorder := eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "jobset-test-reconciler"})
 	fc := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(initObjs...).
@@ -375,6 +373,6 @@ func makeFakeClient(interceptor interceptor.Funcs, initObjs ...client.Object) *f
 	return &fakeClient{
 		client: fc,
 		scheme: scheme,
-		record: recorder,
+		record: nil,
 	}
 }

@@ -34,7 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
@@ -56,7 +56,7 @@ var apiGVStr = jobset.GroupVersion.String()
 type JobSetReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Record record.EventRecorder
+	Record events.EventRecorder
 	clock  clock.Clock
 }
 
@@ -91,11 +91,12 @@ type eventParams struct {
 	eventMessage string
 }
 
-func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *JobSetReconciler {
+func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record events.EventRecorder) *JobSetReconciler {
 	return &JobSetReconciler{Client: client, Scheme: scheme, Record: record, clock: clock.RealClock{}}
 }
 
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;watch;update;patch
 //+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets/finalizers,verbs=update
@@ -332,7 +333,7 @@ func (r *JobSetReconciler) updateJobSetStatus(ctx context.Context, js *jobset.Jo
 		}
 		// If the status update was successful, emit any enqueued events.
 		for _, event := range updateStatusOpts.events {
-			r.Record.Eventf(event.object, event.eventType, event.eventReason, event.eventMessage)
+			r.Record.Eventf(event.object, nil, event.eventType, event.eventReason, "Reconciling", event.eventMessage)
 		}
 	}
 	return nil
@@ -605,7 +606,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		// Create jobs as necessary.
 		if err := r.createJobs(ctx, js, jobs); err != nil {
 			log.Error(err, "creating jobs")
-			r.Record.Eventf(js, corev1.EventTypeWarning, constants.JobCreationFailedReason, err.Error())
+			r.Record.Eventf(js, nil, corev1.EventTypeWarning, constants.JobCreationFailedReason, "Reconciling", err.Error())
 			return err
 		}
 
@@ -721,7 +722,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 
 		// Create headless service.
 		if err := r.Create(ctx, &headlessSvc); err != nil {
-			r.Record.Eventf(js, corev1.EventTypeWarning, constants.HeadlessServiceCreationFailedReason, err.Error())
+			r.Record.Eventf(js, nil, corev1.EventTypeWarning, constants.HeadlessServiceCreationFailedReason, "Reconciling", err.Error())
 			return err
 		}
 		log.V(2).Info("successfully created headless service", "service", klog.KObj(&headlessSvc))

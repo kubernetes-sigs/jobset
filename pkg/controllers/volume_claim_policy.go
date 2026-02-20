@@ -60,7 +60,7 @@ func (r *JobSetReconciler) createPVCsIfNecessary(ctx context.Context, js *jobset
 		// Create PVC if it doesn't exist.
 		if err := r.Create(ctx, &pvc); err != nil {
 			if !apierrors.IsAlreadyExists(err) {
-				r.Record.Eventf(js, corev1.EventTypeWarning, constants.PVCCreationFailedReason, err.Error())
+				r.Record.Eventf(js, nil, corev1.EventTypeWarning, constants.PVCCreationFailedReason, "Reconciling", err.Error())
 				return err
 			}
 		} else {

@@ -807,7 +807,7 @@ func TestJobSetDefaulting(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := tc.js.DeepCopyObject()
-			if err := webhook.Default(context.TODO(), obj); err != nil {
+			if err := webhook.Default(context.TODO(), obj.(*jobset.JobSet)); err != nil {
 				t.Errorf("unexpected error defaulting jobset: %v", err)
 			}
 			if diff := cmp.Diff(tc.want, obj.(*jobset.JobSet)); diff != "" {
@@ -2947,7 +2947,7 @@ func TestValidateCreate(t *testing.T) {
 				t.Fatalf("error creating jobset webhook: %v", err)
 			}
 			features.SetFeatureGateDuringTest(t, features.InPlaceRestart, tc.enableInPlaceRestart)
-			_, err = testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopyObject())
+			_, err = testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
 			if err != nil && tc.want != nil {
 				assert.Contains(t, err.Error(), tc.want.Error())
 			} else if err != nil && tc.want == nil {
@@ -3310,8 +3310,8 @@ func TestValidateUpdate(t *testing.T) {
 			fakeClient := fake.NewFakeClient()
 			webhook, err := NewJobSetWebhook(fakeClient)
 			assert.Nil(t, err)
-			newObj := tc.js.DeepCopyObject()
-			oldObj := tc.oldJs.DeepCopyObject()
+			newObj := tc.js.DeepCopy()
+			oldObj := tc.oldJs.DeepCopy()
 			_, err = webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
 			// Ignore bad value to keep test cases short and readable.
 			if diff := cmp.Diff(tc.want, err, cmpopts.IgnoreFields(field.Error{}, "BadValue")); diff != "" {

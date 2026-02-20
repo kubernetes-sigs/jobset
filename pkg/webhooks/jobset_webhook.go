@@ -28,7 +28,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -85,23 +84,15 @@ var validOnJobFailureReasons = []string{
 
 // jobSetWebhook for defaulting and admission.
 type jobSetWebhook struct {
-	client  client.Client
-	decoder *admission.Decoder
+	client client.Client
 }
 
 func NewJobSetWebhook(mgrClient client.Client) (*jobSetWebhook, error) {
 	return &jobSetWebhook{client: mgrClient}, nil
 }
 
-// InjectDecoder injects the decoder into the jobSetWebhook.
-func (j *jobSetWebhook) InjectDecoder(d *admission.Decoder) error {
-	j.decoder = d
-	return nil
-}
-
 func (j *jobSetWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(&jobset.JobSet{}).
+	return ctrl.NewWebhookManagedBy(mgr, &jobset.JobSet{}).
 		WithDefaulter(j).
 		WithValidator(j).
 		Complete()
@@ -110,11 +101,7 @@ func (j *jobSetWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
 const defaultRuleNameFmt = "failurePolicyRule%v"
 
 // Default performs defaulting of jobset values as defined in the JobSet API.
-func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
-	js, ok := obj.(*jobset.JobSet)
-	if !ok {
-		return nil
-	}
+func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
 	// Default success policy to operator "All" targeting all replicatedJobs.
 	if js.Spec.SuccessPolicy == nil {
 		js.Spec.SuccessPolicy = &jobset.SuccessPolicy{Operator: jobset.OperatorAll}
@@ -169,12 +156,7 @@ func (j *jobSetWebhook) Default(ctx context.Context, obj runtime.Object) error {
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha2-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=vjobset.kb.io,admissionReviewVersions=v1
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	js, ok := obj.(*jobset.JobSet)
-	if !ok {
-		return nil, fmt.Errorf("expected a JobSet but got a %T", obj)
-	}
-
+func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (admission.Warnings, error) {
 	var allErrs []error
 
 	// Validate InPlaceRestart feature gate.
@@ -320,15 +302,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) 
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.Object) (admission.Warnings, error) {
-	js, ok := newObj.(*jobset.JobSet)
-	if !ok {
-		return nil, fmt.Errorf("expected a JobSet but got a %T", newObj)
-	}
-	oldJS, ok := old.(*jobset.JobSet)
-	if !ok {
-		return nil, fmt.Errorf("expected a JobSet from old object but got a %T", old)
-	}
+func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJS, js *jobset.JobSet) (admission.Warnings, error) {
 	mungedSpec := js.Spec.DeepCopy()
 
 	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
@@ -353,7 +327,7 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, old, newObj runtime.
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (j *jobSetWebhook) ValidateDelete(ctx context.Context, obj *jobset.JobSet) (admission.Warnings, error) {
 	return nil, nil
 }
 

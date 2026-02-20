@@ -22,8 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/client-go/tools/record"
-
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -31,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2/ktesting"
 
 	"github.com/google/go-cmp/cmp"
@@ -1677,14 +1676,11 @@ func TestCreateHeadlessSvcIfNecessary(t *testing.T) {
 			}
 			fakeClient := fakeClientBuilder.Build()
 
-			eventBroadcaster := record.NewBroadcaster()
-			recorder := eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "jobset-test-reconciler"})
-
 			// Create a JobSetReconciler instance with the fake client
 			r := &JobSetReconciler{
 				Client: fakeClient,
 				Scheme: scheme,
-				Record: recorder,
+				Record: events.NewFakeRecorder(32),
 			}
 
 			// Execute the function under test

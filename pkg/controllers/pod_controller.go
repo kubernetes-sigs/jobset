@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -52,10 +52,10 @@ const (
 type PodReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Record record.EventRecorder
+	Record events.EventRecorder
 }
 
-func NewPodReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *PodReconciler {
+func NewPodReconciler(client client.Client, scheme *runtime.Scheme, record events.EventRecorder) *PodReconciler {
 	return &PodReconciler{Client: client, Scheme: scheme, Record: record}
 }
 
