@@ -249,7 +249,7 @@ JobSet uses multiple code generators (all invoked via `make generate`):
 - Include rationale ("why") in commit messages and PR descriptions, not just "what"
 - Only modify files relevant to the task; keep diffs minimal
 - Do not push secrets or modify git config
-- If your change touches generated files, run `make generate` and include the generated changes in the same PR
+- Always run `make generate` after modifying the source code
 
 ## Core Development Principles
 
