@@ -1,10 +1,4 @@
-## Who This Is For
-
-- **AI agents**: Automate repository tasks with minimal context
-- **Contributors**: Humans using AI assistants or working directly
-- **Maintainers**: Ensure assistants follow project conventions and CI rules
-
-## Project Overview
+## Kubernetes JobSet
 
 JobSet is a Kubernetes-native API for managing groups of Kubernetes Jobs as a unit, designed for distributed AI/ML training workloads (PyTorch, Jax, TensorFlow) and HPC applications (MPI). It is a Kubernetes SIG (Special Interest Group) project maintained under kubernetes-sigs.
 
@@ -230,7 +224,6 @@ make helm-chart-package
 - Unit tests go in the same package as the source file (`*_test.go`)
 - Integration tests go in `test/integration/`
 - Use table-driven tests (map or slice of structs) for multiple scenarios
-- Use `require` (not `assert`) when test continuation after failure is meaningless
 
 ### Code Generation Tools
 
@@ -252,7 +245,8 @@ JobSet uses multiple code generators (all invoked via `make generate`):
 
 **Commit and PR hygiene:**
 
-- Follow the [Kubernetes commit message convention](https://www.kubernetes.dev/docs/guide/pull-requests/#commit-message-guidelines): short imperative subject, blank line, then body explaining the "why"
+- Follow the [Kubernetes commit message convention](https://www.kubernetes.dev/docs/guide/pull-requests/#commit-message-guidelines):
+  short imperative subject, blank line, then body explaining the "why"
 - Include rationale ("why") in commit messages and PR descriptions, not just "what"
 - Only modify files relevant to the task; keep diffs minimal
 - Do not push secrets or modify git config
