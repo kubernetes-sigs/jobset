@@ -61,22 +61,6 @@ jobset/
     └── integration/            # envtest based integration tests
 ```
 
-## Development Workflow for AI Agents
-
-**Before making changes:**
-
-1. Read existing code patterns, comments, and tests in neighboring files
-2. Check `pkg/constants/constants.go` for annotation/label keys before defining new ones
-3. Run `make verify` to establish a clean baseline before editing
-
-**Commit and PR hygiene:**
-
-- Follow the [Kubernetes commit message convention](https://www.kubernetes.dev/docs/guide/pull-requests/#commit-message-guidelines): short imperative subject, blank line, then body explaining the "why"
-- Include rationale ("why") in commit messages and PR descriptions, not just "what"
-- Only modify files relevant to the task; keep diffs minimal
-- Do not push secrets or modify git config
-- If your change touches generated files, run `make generate` and include the generated changes in the same PR
-
 ## Commands
 
 <!-- BEGIN: AGENT_COMMANDS -->
@@ -194,22 +178,6 @@ make helm-chart-package
 
 <!-- END: AGENT_COMMANDS -->
 
-## Development Workflow for AI Agents
-
-**Before making changes**:
-
-1. Read existing code patterns, comments, and tests for alignment
-2. Check the Core Development Principles below
-3. Run quick start command for validation and testing
-
-**Commit/PR hygiene**:
-
-- Follow Conventional Commits in titles and messages
-- See the [PULL_REQUEST_TEMPLATE](./.github/PULL_REQUEST_TEMPLATE.md) for PR description
-- Include rationale ("why") in commit messages/PR descriptions
-- Do not push secrets or change git config
-- Scope discipline: only modify files relevant to the task; keep diffs minimal
-
 ## Architecture Overview
 
 ### Core Components
@@ -272,6 +240,23 @@ JobSet uses multiple code generators (all invoked via `make generate`):
 - **client-gen**: Generates typed clientsets for jobset resources
 - **openapi-gen**: Generates OpenAPI spec for API validation
 - **Python SDK generator**: `hack/python-sdk/gen-sdk.sh` generates Python client library
+
+## Development Workflow for AI Agents
+
+**Before making changes:**
+
+1. Read existing code patterns, comments, and tests in neighboring files
+2. Check `pkg/constants/constants.go` for annotation/label keys before defining new ones
+3. Run `make verify` to establish a clean baseline before editing
+4. Check the Core Development Principles below
+
+**Commit and PR hygiene:**
+
+- Follow the [Kubernetes commit message convention](https://www.kubernetes.dev/docs/guide/pull-requests/#commit-message-guidelines): short imperative subject, blank line, then body explaining the "why"
+- Include rationale ("why") in commit messages and PR descriptions, not just "what"
+- Only modify files relevant to the task; keep diffs minimal
+- Do not push secrets or modify git config
+- If your change touches generated files, run `make generate` and include the generated changes in the same PR
 
 ## Core Development Principles
 
