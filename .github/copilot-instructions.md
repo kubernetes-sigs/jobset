@@ -42,7 +42,8 @@
 
 ## CI Pipeline Context
 
-**Important**: You review PRs immediately, before CI completes. Do not flag issues that CI will catch.
+**Important**: You review PRs immediately, before CI completes. For the categories listed under
+**Skip These** below, assume CI will catch them and do not comment on them.
 
 JobSet presubmit tests are defined here: https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes-sigs/jobset/jobset-presubmit-main.yaml
 
@@ -51,14 +52,15 @@ JobSet presubmit tests are defined here: https://github.com/kubernetes/test-infr
 - `pull-jobset-verify-main` - Code Quality Checks
 - `pull-jobset-test-unit-main` - Code generation and Go unit tests
 - `pull-jobset-test-integration-main` - Integration tests
-- `pull-jobset-test-e2e-main-1-**` - E2E tests for the supported Kubernetes versions (e.g. 1.36, 1.37, etc.)
+- `pull-jobset-test-e2e-main-1-**` - E2E tests for the supported Kubernetes versions
 
 ## Skip These (IMPORTANT)
 
 Do not comment on:
 
 - **Auto generated code** - CI handles this (`make generate`)
-- **Style/formatting** - CI handles this (gofmt, go vet, golangci)
+- **Python Code** - Python API is auto-generated
+- **Style/formatting** - CI handles this (gofmt)
 - **Test failures** - CI handles this (full test suite)
 - **Missing dependencies** - CI handles this
 
