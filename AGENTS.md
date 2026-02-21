@@ -33,13 +33,12 @@ Before writing code, agents should:
 ```
 jobset/
 ├── api/jobset/v1alpha2/        # API types (JobSet, ReplicatedJob); edit here for API changes
+├── charts/                     # Helm Charts to deploy JobSet
 ├── client-go/                  # Generated typed clientsets, informers, listers
 ├── cmd/                        # Controller manager entrypoint (main.go is at root)
-├── config/
-│   ├── components/webhook/     # Webhook TLS and configuration manifests
-│   ├── default/                # Kustomize default overlay
-│   └── prometheus/             # Prometheus scrape config and rules
-├── hack/                       # Code generation scripts, boilerplate, Python SDK gen
+├── config/                     # Kustomize manifests to deploy JobSet
+├── hack/                       # Code generation, boilerplate, deploy scripts
+├── keps/                       # Enhancement proposals for JobSet
 ├── pkg/
 │   ├── config/                 # JobSet configuration ConfigMap
 │   ├── constants/              # All annotation, label, and env var key constants
