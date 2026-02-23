@@ -124,9 +124,9 @@ spec:
 ```
 
 #### Story 3
-As a cluster admin, I want JobSets to integrate with Kueue elastic quotas for dynamic GPU scaling.
+As a cluster admin using Kueue for resource management, I want Kueue to gracefully handle quota adjustments when my JobSets dynamically scale.
 
-Kueue cannot scale JobSets today. With elastic support, Kueue scales based on cluster utilization:
+Currently, if an external autoscaler attempts to change the siz-=e of a running JobSet, the API rejects it. With elastic JobSets, an external controller can scale the workload, and Kueue can react to these size changes by updating the underlying `Workload` quota consumption dynamically, without suspending or restarting the training job:
 
 ```
 Cluster 100 GPUs @ 80% → Kueue scales: replicas 20→25
