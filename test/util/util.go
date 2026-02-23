@@ -48,7 +48,7 @@ func NumExpectedJobs(js *jobset.JobSet) int {
 
 func NumJobs(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (int, error) {
 	var jobList batchv1.JobList
-	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace), client.MatchingLabels{jobset.JobSetNameKey: js.Name}); err != nil {
 		return -1, err
 	}
 	return len(jobList.Items), nil
@@ -71,7 +71,7 @@ func NumJobsReadyOrSucceeded(ctx context.Context, k8sClient client.Client, js *j
 
 func NumJobsByRestartAttempt(ctx context.Context, k8sClient client.Client, js *jobset.JobSet) (map[int]int, error) {
 	var jobList batchv1.JobList
-	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace), client.MatchingLabels{jobset.JobSetNameKey: js.Name}); err != nil {
 		return nil, err
 	}
 	res := make(map[int]int)
