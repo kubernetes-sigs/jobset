@@ -27,10 +27,19 @@ tags, and then generate with `hack/update-toc.sh`.
     - [Story 2](#story-2)
     - [Story 3](#story-3)
   - [Risks and Mitigations](#risks-and-mitigations)
+    - [Resource &amp; Index Management](#resource--index-management)
+    - [Internal Scaling (KEP-3715 Integration)](#internal-scaling-kep-3715-integration)
+    - [JobSet Policy &amp; State Management](#jobset-policy--state-management)
 - [Design Details](#design-details)
   - [API Details](#api-details)
   - [Implementation](#implementation)
-  - [Policy Evaluation Priority](#policy-evaluation-priority)
+  - [Graduation Criteria](#graduation-criteria)
+    - [Index Sorting:](#index-sorting)
+    - [Horizontal Job Scaling (ReplicatedJob level)](#horizontal-job-scaling-replicatedjob-level)
+    - [Horizontal Pod Scaling (Pod-level)](#horizontal-pod-scaling-pod-level)
+    - [Policy Evaluation Priority](#policy-evaluation-priority)
+    - [Graceful Termination:](#graceful-termination)
+  - [Status Management](#status-management)
   - [Defaulting/Validation](#defaultingvalidation)
   - [Test Plan](#test-plan)
     - [Unit Tests](#unit-tests)
@@ -38,6 +47,7 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Implementation History](#implementation-history)
 - [Drawbacks](#drawbacks)
 - [Alternatives](#alternatives)
+- [Future Work](#future-work)
 <!-- /toc -->
 
 ## Summary
@@ -137,7 +147,7 @@ Cluster 100 GPUs @ 95% → Kueue scales: replicas 25→20
 
 #### Resource & Index Management
 - **Resource Leakage:** Deleting a replica might leave orphaned pods if the child Job is not cleaned up properly.
-  - *Mitigation:* The controller will rely on OwnerReferences and the standard Job deletion lifecycle to ensure all pods are terminated.
+  - *Mitigation:* The controller will use foreground deletion along with OwnerReferences to ensure all child pods are deterministically and fully terminated before the Job replica is removed.
 - **Index Fragmentation:** Scaling down and then up could lead to gaps in naming or indexing.
   - *Mitigation:* The controller will always scale down by removing the highest-indexed Jobs and scale up by appending new indices sequentially.
 
@@ -149,7 +159,8 @@ Cluster 100 GPUs @ 95% → Kueue scales: replicas 25→20
 
 #### JobSet Policy & State Management
 - **Scale-down Deletion Triggering FailurePolicy:** When horizontal scaling reduces `replicas`, the JobSet controller must delete the highest-indexed child Jobs. The reconciliation loop might misinterpret this deletion as an unexpected Job failure.
-  - *Mitigation:* The controller logic will explicitly differentiate between "Jobs deleted due to a scale-down event" and "Jobs that failed." Controlled deletions triggered by a `spec.replicas` update will bypass `FailurePolicy` evaluation.
+  - *Mitigation:* Because deleting a healthy Job does not inherently trigger a Failed condition, controlled deletions from a 
+  `spec.replicas` scale-down will naturally bypass `FailurePolicy` evaluation.
 - **Premature Success on Scale-down (`SuccessPolicy: All`):** If a JobSet is waiting on one specific Job to complete, and a scale-down event deletes that exact pending Job, the JobSet might instantly evaluate `SuccessPolicy: All` as true.
   - *Mitigation:* While this is the mathematically correct behavior for elasticity, it will be clearly documented. If the target `replicas` count is met by the remaining completed Jobs, the JobSet successfully completes.
 - **Mutating Terminal JobSets:** A user or external autoscaler might attempt to scale a JobSet up or down after the JobSet has already met its `SuccessPolicy` (Completed) or exhausted its `FailurePolicy` (Failed).
@@ -168,14 +179,14 @@ The validation webhook for `jobset.x-k8s.io/v1alpha2` will be modified to allow 
 ```golang
 
 type ReplicatedJob struct {
-	// Name of the ReplicatedJob.
-	Name string `json:"name"`
+  // Name of the ReplicatedJob.
+  Name string `json:"name"`
 
-	// Replicas is the number of desired Jobs for this ReplicatedJob.
-	// This field is changed from immutable to mutable.
-	Replicas int32 `json:"replicas"`
+  // Replicas is the number of desired Jobs for this ReplicatedJob.
+  // This field is changed from immutable to mutable.
+  Replicas int32 `json:"replicas"`
 
-	// Template is now partially mutable.
+  // Template is now partially mutable.
   // Specifically, parallelism and completions can be updated
   // to support Elastic Indexed Jobs.
   Template batchv1.JobTemplateSpec `json:"template"`
@@ -186,6 +197,9 @@ type ReplicatedJob struct {
 ### Implementation
 
 The JobSet controller will implement a multi-path reconciliation logic to support both horizontal and internal elasticity. This ensures the JobSet state remains synchronized with both spec.replicas and the template.spec parameters.
+
+### Graduation Criteria
+To ensure stability for existing workloads, this feature will be introduced incrementally using a standard feature gate.
 
 #### Index Sorting:
 The controller fetches all child Jobs owned by the JobSet and sorts them numerically by their index suffix (e.g., workers-0, workers-1).
@@ -226,9 +240,7 @@ Conditions: A new condition Scaling may be added to the JobSet status to indicat
 - **Mutable Fields:** `replicas`, `template.spec.parallelism`, and `template.spec.completions`.
 - **Minimum Value Constraints:** All three mutable scaling fields (`replicas`, `parallelism`, and `completions`) must be strictly `>= 1`. Setting `parallelism` to `0` natively suspends a Job, which conflicts with JobSet's explicit top-level `suspend` field. Elasticity cannot be used as a suspension mechanism.
 - **Elastic Indexed Job Constraints:** Horizontal pod-level scaling inherits the strict validation rules of upstream Elastic Indexed Jobs:
-  - `parallelism` and `completions` must be updated in tandem.
-  - The value of `parallelism` must equal the value of `completions` both before and after the update.
-  - The Job must be using `completionMode: Indexed`.
+- **Synchronous Webhook Validation:** Because the JobSet controller does not deeply validate the underlying Job template, mutations to these scaling fields will be manually validated in the JobSet Validating Admission Webhook. This ensures invalid configurations are rejected at the API server level, preventing the controller from stalling during reconciliation.
 - **Terminal State Freeze:** If the JobSet has a `Completed` or `Failed` condition set to `True`, any mutation to the scaling fields will be rejected.
 - **Immutable Fields:** All other fields in the `template.spec` (e.g., `container.image`, `resources`, `nodeSelector`) remain strictly immutable.
 
@@ -255,19 +267,22 @@ Conditions: A new condition Scaling may be added to the JobSet status to indicat
   - Verify that scaling down a `ReplicatedJob` (deleting a child Job) does *not* trigger the JobSet's `FailurePolicy`.
   - Verify that if a child Job fails, the `FailurePolicy` evaluates and executes (e.g., restarting the JobSet) and correctly aborts or defers any pending scaling operations.
 
-### Implementation History
+## Implementation History
 Mar 21, 2024: Issue #463 opened as an RFC.
 
 Jul 30, 2024: Discussions regarding framework requirements for PyTorch v2.
 
 Feb 04, 2026: KEP formally proposed for v1alpha2.
 
-### Drawbacks
+## Drawbacks
 Application Awareness: This feature is only useful if the application running inside the JobSet can handle its membership changing dynamically.
 
 Controller Overhead: Frequent scaling updates could increase the load on the JobSet controller and the Kubernetes API server.
 
-### Alternatives
+## Alternatives
 HorizontalPodAutoscaler (HPA) on Jobs: HPA can scale the parallelism of a standard Job, but it cannot manage the multi-job coordination that JobSet provides (e.g., DNS, multi-interface networking).
 
 Manual Re-creation: Deleting the JobSet and creating a new one with the desired size. This causes a full restart of all workers, which is inefficient for large-scale training.
+
+## Future Work
+- **UpdatePolicy API:** As the adoption of elastic JobSets expands, we anticipate the need for more control over how mutations are applied. Future iterations could introduce an `updatePolicy` API to configure scaling behaviors, such as defining which specific Job indices should be prioritized for deletion during a scale-down event.
