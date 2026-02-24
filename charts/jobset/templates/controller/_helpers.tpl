@@ -44,35 +44,6 @@ Create the name of the jobset controller service account.
 {{- include "jobset.controller.name" . }}
 {{- end }}
 
-
-{{/*
-Create the name of the jobset controller clusterrole.
-*/}}
-{{- define "jobset.controller.clusterRole.name" -}}
-{{ include "jobset.controller.name" . }}
-{{- end -}}
-
-{{/*
-Create the name of the jobset controller clusterrole binding.
-*/}}
-{{- define "jobset.controller.clusterRoleBinding.name" -}}
-{{ include "jobset.controller.name" . }}
-{{- end -}}
-
-{{/*
-Create the name of the jobset controller role.
-*/}}
-{{- define "jobset.controller.role.name" -}}
-{{ include "jobset.controller.name" . }}
-{{- end -}}
-
-{{/*
-Create the name of the jobset controller role binding.
-*/}}
-{{- define "jobset.controller.roleBinding.name" -}}
-{{ include "jobset.controller.name" . }}
-{{- end -}}
-
 {{/*
 Create the name of the jobset controller configmap.
 */}}
@@ -85,12 +56,4 @@ Create the name of the jobset controller deployment.
 */}}
 {{- define "jobset.controller.deployment.name" -}}
 {{ include "jobset.controller.name" . }}
-{{- end -}}
-
-
-{{/*
-Create the name of jobset controller image.
-*/}}
-{{- define "jobset.controller.image" -}}
-{{ include "jobset.image" . }}
 {{- end -}}
