@@ -137,7 +137,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 // reconcile is the internal method containing the core JobSet reconciliation logic.
 func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js))
+	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js), "jobSetUID", js.UID)
 	ctx = ctrl.LoggerInto(ctx, log)
 
 	// Check the controller configured for the JobSet.
