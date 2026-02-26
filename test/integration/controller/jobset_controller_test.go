@@ -231,6 +231,74 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("jobset should ignore jobs with same owner name but different owner UID", &testCase{
+			makeJobSet: testJobSet,
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						if len(jobList.Items) == 0 {
+							return
+						}
+
+						// Create a dummy job with the same owner name but different UID
+						ctx := context.Background()
+						jsName := jobList.Items[0].OwnerReferences[0].Name
+						jsNamespace := jobList.Items[0].Namespace
+						dummyJob := &batchv1.Job{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "dummy-job",
+								Namespace: jsNamespace,
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										APIVersion: jobset.GroupVersion.String(),
+										Kind:       "JobSet",
+										Name:       jsName,
+										UID:        "12345678-1234-1234-1234-123456789abc",
+										Controller: ptr.To(true),
+									},
+								},
+								Labels: map[string]string{
+									jobset.JobSetNameKey:        jsName,
+									jobset.ReplicatedJobNameKey: "non-existent-replicated-job",
+								},
+							},
+							Spec: batchv1.JobSpec{
+								Template: corev1.PodTemplateSpec{
+									Spec: corev1.PodSpec{
+										RestartPolicy: corev1.RestartPolicyNever,
+										Containers: []corev1.Container{
+											{
+												Name:  "test",
+												Image: "bash:latest",
+											},
+										},
+									},
+								},
+							},
+						}
+						gomega.Expect(k8sClient.Create(ctx, dummyJob)).To(gomega.Succeed())
+
+						// Complete all valid jobs
+						for i := range jobList.Items {
+							completeJob(&jobList.Items[i])
+						}
+					},
+					checkJobSetCondition: testutil.JobSetCompleted,
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Succeeded: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Succeeded: 1,
+							},
+						})
+					},
+				},
+			},
+		}),
 		ginkgo.Entry("jobset should not succeed if any job is not completed", &testCase{
 			makeJobSet: testJobSet,
 			steps: []*step{
