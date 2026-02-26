@@ -1,3 +1,11 @@
+## v0.11.1
+
+Changes since `v0.11.0`.
+
+### Bug Fixes
+
+- [[release-0.11] List child Jobs by JobSet UID instead of JobSet name + namespace](https://github.com/kubernetes-sigs/jobset/pull/1169)
+
 ## v0.11.0
 
 Changes since `v0.10.0`.
