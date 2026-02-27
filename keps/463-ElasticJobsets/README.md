@@ -45,7 +45,6 @@ tags, and then generate with `hack/update-toc.sh`.
 - [Alternatives](#alternatives)
 - [Future Work](#future-work)
   - [1. Horizontal Job Scaling (<code>replicas</code> mutability)](#1-horizontal-job-scaling--mutability)
-    - [Motivating User Story: TPU Slice Failures](#motivating-user-story-tpu-slice-failures)
     - [Proposed Implementation Mechanics](#proposed-implementation-mechanics)
     - [Identified Risks &amp; Mitigations for Job-Level Scaling](#identified-risks--mitigations-for-job-level-scaling)
   - [2. UpdatePolicy API](#2-updatepolicy-api)
@@ -235,31 +234,6 @@ While this initial implementation focuses strictly on Pod-level scaling (`parall
 
 ### 1. Horizontal Job Scaling (`replicas` mutability)
 Future iterations will introduce mutability to `jobSet.spec.replicatedJobs[].replicas`. This will allow the JobSet controller to natively handle scaling down (e.g., in response to a hardware failure) and scaling up (when new nodes become available) without requiring a full teardown.
-
-#### Motivating User Story: TPU Slice Failures
-As a Google Cloud TPU user, I want my training to continue when one TPU slice fails by scaling down replicas.
-
-TPU slices (e.g., 16 nodes each) fail atomically. Currently, if a slice goes down, the entire JobSet fails. With `replicas` mutability:
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: tpu-training
-spec:
-  replicatedJobs:
-  - name: workers
-    replicas: 4          # One Job per TPU slice
-    template:
-      spec:
-        completionMode: Indexed
-        parallelism: 16    # 16 TPU v4 cores per slice
-        completions: 16
-        template:
-          spec:
-            nodeSelector:
-              [cloud.google.com/gke-tpu-topology](https://cloud.google.com/gke-tpu-topology): 4x4
-# TPU slice 2 fails → scale: replicas: 4→3 (controller deletes workers-3)
-```
 
 #### Proposed Implementation Mechanics
 
