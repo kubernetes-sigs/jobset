@@ -103,5 +103,6 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | Name | Url |
 | ---- | --- |
 | ahg-g | <https://github.com/ahg-g> |
-| danielvegamyhre | <https://github.com/danielvegamyhre> |
+| andreyvelich | <https://github.com/andreyvelich> |
+| GiuseppeTT | <https://github.com/GiuseppeTT> |
 | kannon92 | <https://github.com/kannon92> |
