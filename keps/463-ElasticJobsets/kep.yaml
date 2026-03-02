@@ -2,7 +2,7 @@ title: Support Elastic JobSets
 kep-number: 463
 authors:
   - "@aniket2405"
-status: provisional
+status: implementable
 creation-date: 2026-02-04
 reviewers:
   - "@GiuseppeTT"
@@ -20,3 +20,7 @@ replaces:
 
 # The target maturity stage in the current dev cycle for this KEP.
 stage: alpha
+
+# List the feature gate name and the components for which it must be enabled
+feature-gates:
+  - name: ElasticJobsets
