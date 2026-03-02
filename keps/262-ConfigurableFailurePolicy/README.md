@@ -662,17 +662,17 @@ type ReplicatedJobStatus struct {
 	// suspended is the number of child Jobs which are in a suspended state.
 	Suspended int32 `json:"suspended"`
 
-  // restarts tracks the number of times each Job has restarted (i.e. recreated in case of RestartJob action).
+  // jobRestarts tracks the number of times each Job has restarted (i.e. recreated in case of RestartJob action).
   // The first value corresponds to the job with index 0, the second value corresponds to the job with index 1, etc.
   // Example: "0,1,0" implies that job 1 has restarted once, while jobs 0 and 2 haven't restarted.
   // +optional
-  Restarts *string `json:"restarts,omitempty"`
+  JobRestarts *string `json:"jobRestarts,omitempty"`
 
-  // restartsCountTowardsMax tracks the number of times each Job has restarted that counts towards the maximum allowed number of restarts.
+  // jobRestartsCountTowardsMax tracks the number of times each Job has restarted that counts towards the maximum allowed number of restarts.
   // The first value corresponds to the job with index 0, the second value corresponds to the job with index 1, etc.
   // Example: "0,1,0" implies that job 1 has restarted once, while jobs 0 and 2 haven't restarted.
   // +optional
-  RestartsCountTowardsMax *string `json:"restartsCountTowardsMax,omitempty"`
+  JobRestartsCountTowardsMax *string `json:"jobRestartsCountTowardsMax,omitempty"`
 }
 
 const (
@@ -730,29 +730,29 @@ Future restart logic for `action: RestartJobSet`:
 - Reconciliation loop 1
     - In `getChildJobs`, the JobSet controller detects failed Jobs (i.e., contain condition type `"Failed"`) and group them to `ownedJobs.failed`
     - If `len(ownedJobs.failed) > 0`, `executeFailurePolicy` is executed and the right restart action is used (`restartJobSetActionApplier` from `RestartJobSet` in this example)
-    - In `restartJobSetActionApplier`, the JobSet controller fails the JobSet if it failed too much (i.e., `js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts` or `js.Status.ReplicatedJobsStatus[rjName].RestartsCountTowardsMax[jobIndex] >= js.Spec.FailurePolicy.MaxRestarts`). Otherwise, it bumps `js.Status.Restarts += 1` and `js.Status.RestartsCountTowardsMax += 1` and `js.Status.ReplicatedJobsStatus[*].Restarts[*] += 1` and `js.Status.ReplicatedJobsStatus[*].RestartsCountTowardsMax[*] += 1`
+    - In `restartJobSetActionApplier`, the JobSet controller fails the JobSet if it failed too much (i.e., `js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts` or `js.Status.ReplicatedJobsStatus[rjName].JobRestartsCountTowardsMax[jobIndex] >= js.Spec.FailurePolicy.MaxRestarts`). Otherwise, it bumps `js.Status.Restarts += 1` and `js.Status.RestartsCountTowardsMax += 1` and `js.Status.ReplicatedJobsStatus[*].JobRestarts[*] += 1` and `js.Status.ReplicatedJobsStatus[*].JobRestartsCountTowardsMax[*] += 1`
 - Reconciliation loop 2
-    - In `getChildJobs`, the JobSet controller detects outdated Jobs (i.e., `job.labels['jobset.sigs.k8s.io/restart-attempt'] < js.Status.Restarts` or `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] < js.Status.ReplicatedJobsStatus[rjName].Restarts[jobIndex]`) and group them to `ownedJobs.previous`
+    - In `getChildJobs`, the JobSet controller detects outdated Jobs (i.e., `job.labels['jobset.sigs.k8s.io/restart-attempt'] < js.Status.Restarts` or `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] < js.Status.ReplicatedJobsStatus[rjName].JobRestarts[jobIndex]`) and group them to `ownedJobs.previous`
     - Later in the `reconcile` function, the Jobs in `ownedJobs.previous` are deleted
 - Reconciliation loop 3...N
-    - In `shouldCreateJob`, the JobSet controller blocks recreation for outdated Jobs that still exist. Jobs that do not exist are later created in `r.createJobs` with the updated labels `job.labels['jobset.sigs.k8s.io/restart-attempt'] = js.Status.Restarts` and `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] = js.Status.ReplicatedJobsStatus[rjName].Restarts[jobIndex]`
+    - In `shouldCreateJob`, the JobSet controller blocks recreation for outdated Jobs that still exist. Jobs that do not exist are later created in `r.createJobs` with the updated labels `job.labels['jobset.sigs.k8s.io/restart-attempt'] = js.Status.Restarts` and `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] = js.Status.ReplicatedJobsStatus[rjName].JobRestarts[jobIndex]`
 
 Future restart logic for `action: RestartJob`:
 
 - Reconciliation loop 1
     - In `getChildJobs`, the JobSet controller detects failed Jobs (i.e., contain condition type `"Failed"`) and group them to `ownedJobs.failed`
     - If `len(ownedJobs.failed) > 0`, `executeFailurePolicy` is executed and the right restart action is used (`restartJobActionApplier` from `RestartJob` in this example)
-    - In `restartJobActionApplier`, the JobSet controller fails the JobSet if it failed too much (i.e., `js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts ` or `js.Status.ReplicatedJobsStatus[rjName].RestartsCountTowardsMax[jobIndex] >= js.Spec.FailurePolicy.MaxRestarts`). Otherwise, it bumps `js.Status.ReplicatedJobsStatus[rjName].Restarts[jobIndex] += 1` and `js.Status.ReplicatedJobsStatus[rjName].RestartsCountTowardsMax[jobIndex] += 1`
+    - In `restartJobActionApplier`, the JobSet controller fails the JobSet if it failed too much (i.e., `js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts ` or `js.Status.ReplicatedJobsStatus[rjName].JobRestartsCountTowardsMax[jobIndex] >= js.Spec.FailurePolicy.MaxRestarts`). Otherwise, it bumps `js.Status.ReplicatedJobsStatus[rjName].JobRestarts[jobIndex] += 1` and `js.Status.ReplicatedJobsStatus[rjName].JobRestartsCountTowardsMax[jobIndex] += 1`
 - Reconciliation loop 2
-    - In `getChildJobs`, the JobSet controller detects outdated Jobs (i.e., `job.labels['jobset.sigs.k8s.io/restart-attempt'] < js.Status.Restarts` or `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] < js.Status.ReplicatedJobsStatus[rjName].Restarts[jobIndex]`) and group them to `ownedJobs.previous`
+    - In `getChildJobs`, the JobSet controller detects outdated Jobs (i.e., `job.labels['jobset.sigs.k8s.io/restart-attempt'] < js.Status.Restarts` or `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] < js.Status.ReplicatedJobsStatus[rjName].JobRestarts[jobIndex]`) and group them to `ownedJobs.previous`
     - Later in the `reconcile` function, the Jobs in `ownedJobs.previous` are deleted
 - Reconciliation loop 3...N
-    - In `shouldCreateJob`, the JobSet controller blocks recreation for outdated Jobs that still exist. Jobs that do not exist are later created in `r.createJobs` with the updated labels `job.labels['jobset.sigs.k8s.io/restart-attempt'] = js.Status.Restarts` and `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] = js.Status.ReplicatedJobsStatus[rjName].Restarts[jobIndex]`
+    - In `shouldCreateJob`, the JobSet controller blocks recreation for outdated Jobs that still exist. Jobs that do not exist are later created in `r.createJobs` with the updated labels `job.labels['jobset.sigs.k8s.io/restart-attempt'] = js.Status.Restarts` and `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] = js.Status.ReplicatedJobsStatus[rjName].JobRestarts[jobIndex]`
 
 Observability:
 
 - `jobSet.status.restarts`, `jobSet.status.restartsCountTowardsMax` and `job.labels['jobset.sigs.k8s.io/restart-attempt']` track only recreate-all-jobs restarts
-- `jobSet.status.replicatedJobsStatus[].restarts`, `jobSet.status.replicatedJobsStatus[].restartsCountTowardsMax` and `job.labels['jobset.sigs.k8s.io/job-restart-attempt']` track recreate-single-job and recreate-all-jobs for a given job. If the user wants to know only the number of recreate-single-job, they can subtract the fields such as `job.labels['jobset.sigs.k8s.io/job-restart-attempt']` - `job.labels['jobset.sigs.k8s.io/restart-attempt']`
+- `jobSet.status.replicatedJobsStatus[].jobRestarts`, `jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax` and `job.labels['jobset.sigs.k8s.io/job-restart-attempt']` track recreate-single-job and recreate-all-jobs for a given job. If the user wants to know only the number of recreate-single-job, they can subtract the fields such as `job.labels['jobset.sigs.k8s.io/job-restart-attempt']` - `job.labels['jobset.sigs.k8s.io/restart-attempt']`
 
 Future changes:
 
