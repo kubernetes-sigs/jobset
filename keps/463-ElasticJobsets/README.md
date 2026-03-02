@@ -158,10 +158,10 @@ type ReplicatedJob struct {
 
 ### Implementation
 
-The JobSet controller will mplement reconciliation logic to support internal elasticity. This ensures the JobSet state remains synchronized with the template.spec parameters.
+The JobSet controller will implement reconciliation logic to support internal elasticity. This ensures the JobSet state remains synchronized with the template.spec parameters.
 
 ### Graduation Criteria
-To ensure stability for existing workloads, this feature will be introduced incrementally using a standard feature gate.
+To ensure stability for existing workloads, the ElasticJobSet feature will be introduced incrementally using a standard feature gate.
 
 #### Horizontal Pod Scaling (Pod-level)
 
