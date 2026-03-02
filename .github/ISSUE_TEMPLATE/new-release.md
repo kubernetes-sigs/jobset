@@ -1,65 +1,110 @@
 ---
 name: New Release
 about: Propose a new release
-title: Release v0.x.0
+title: Release v$MAJ.$MIN.$PATCH
 labels: ''
 assignees: ''
-
 ---
 
 ## Release Checklist
+
 <!--
 Please do not remove items from the checklist
 -->
-- [ ] All [OWNERS](https://github.com/kubernetes-sigs/jobset/blob/main/OWNERS) must LGTM the release proposal
-- [ ] Verify that the changelog in this issue is up-to-date
-- [ ] For major or minor releases (v$MAJ.$MIN.0), create a new release branch.
-  - [ ] an OWNER creates a vanilla release branch with
-        `git branch release-$MAJ.$MIN main`
-  - [ ] An OWNER pushes the new release branch with
-        `git push release-$MAJ.$MIN`
-- [ ] When a new release branch is created, onboard that branch to prow by adding new jobs to test infra. <!-- example: https://github.com/kubernetes/test-infra/pull/36295 -->
-- [ ] Update `BRANCH_NAME` in the `Makefile` and set `export VERSION=vX.Y.Z`.
-   - [ ] Run `make prepare-release-branch` to update the assets.
-   - [ ] Update the `CHANGELOG-X.Y`
-   - [ ] Submit a PR with the changes against the release branch <!-- example: https://github.com/kubernetes-sigs/jobset/pull/1130 -->
-- [ ] After the above PR is merged rebase your local branch and create a signed tag running:
-     `git tag -s $VERSION`
-      and inserts the changelog into the tag description.
-      To perform this step, you need [a PGP key registered on github](https://docs.github.com/en/authentication/managing-commit-signature-verification/checking-for-existing-gpg-keys).
-- [ ] An OWNER pushes the tag with
-      `git push $VERSION`
-  - Triggers prow to build and publish a staging container image
-      `gcr.io/k8s-staging-jobset/jobset:$VERSION`
-- [ ] An OWNER [prepares a draft release](https://github.com/kubernetes-sigs/jobset/releases)
-  - [ ] Write the changelog into the draft release.
-  - [ ] Run `make artifacts IMAGE_REGISTRY=registry.k8s.io/jobset`
-      to generate the artifacts and upload the files in the `artifacts` folder
-      to the draft release.
-- [ ] Submit a PR against [k8s.io](https://github.com/kubernetes/k8s.io), 
-      updating `k8s.gcr.io/images/k8s-staging-jobset/images.yaml` to
-      [promote the container images](https://github.com/kubernetes/k8s.io/tree/main/k8s.gcr.io#image-promoter)
-      to production: <!-- example https://github.com/kubernetes/k8s.io/pull/8453-->
-- [ ] Wait for the PR to be merged and verify that the image `registry.k8s.io/jobset/jobset:$VERSION` is available.
-- [ ] Wait for the PR to be merged and verify that the chart `registry.k8s.io/jobset/charts/jobset` is available. 
-      Try `helm show chart oci://registry.k8s.io/jobset/charts/jobset --version ${VERSION/#v/}
-- [ ] Publish the draft release prepared at the [Github releases page](https://github.com/kubernetes-sigs/jobset/releases).
-- [ ] Add a link to the tagged release in this issue: <!-- example https://github.com/kubernetes-sigs/jobset/releases/tag/v0.1.0 -->
-- [ ] Send an announcement email to `sig-apps@kubernetes.io`, `sig-scheduling@kubernetes.io` and `wg-batch@kubernetes.io` with the subject `[ANNOUNCE] JobSet $VERSION is released`
-- [ ] Add a link to the release announcement in this issue: <!-- example https://groups.google.com/a/kubernetes.io/g/wg-batch/c/-gZOrSnwDV4 -->
-- [ ] For a major or minor release, update `README.md` in `main` branch:  <!-- TODO (andreyvelich): Add example here>
-- [ ] For a major or minor release, create an unannotated _devel_ tag in the
-      `main` branch, on the first commit that gets merged after the release
-       branch has been created (presumably the README update commit above), and, push the tag:
-      `DEVEL=v0.$(($MAJ+1)).0-devel; git tag $DEVEL main && git push $DEVEL`
-      This ensures that the devel builds on the `main` branch will have a meaningful version number.
-- [ ] For a major or minor release, submit a PR against [test-infra](https://github.com/kubernetes/test-infra),
-      updating `config/jobs/kubernetes-sigs/jobset` periodics to drop n - 1 release and add a periodic
-      covering the new release branch. <!-- example kubernetes/test-infra#35420-->
+
+Replace `$MAJ`, `$MIN`, `$PATCH` in the commands.
+
+Only proceed to the next step once the current step is done or if you know what you are doing.
+
+- [ ] Fill the section "Changelog" in this issue
+  - Tip: Use `https://github.com/kubernetes-sigs/jobset/compare/<tag>...<branch>`
+    - Example for new major / minor version: https://github.com/kubernetes-sigs/jobset/compare/v0.11.1...main
+    - Example for new patch version: https://github.com/kubernetes-sigs/jobset/compare/v0.11.0...release-0.11
+- [ ] Get LGTM from all [OWNERS](https://github.com/kubernetes-sigs/jobset/blob/main/OWNERS) for this release proposal
+- [ ] Create the new release branch
+  - Skip this step for patch versions
+  - [ ] Clone the JobSet repo
+  - [ ] Create the new release branch with `git branch release-$MAJ.$MIN main`
+  - [ ] Push the new release branch with `git push release-$MAJ.$MIN`
+- [ ] Onboard the new release branch to prow
+  - Skip this step for patch versions
+  - [ ] Add a new job to the test infra
+    - PR: \<Insert your PR here\>
+      - Example: https://github.com/kubernetes/test-infra/pull/36295
+- [ ] Update the new release branch
+  - [ ] Clone your JobSet fork
+  - [ ] Checkout to the new release branch
+  - [ ] Update `BRANCH_NAME` in the `Makefile` to `release-$MAJ.$MIN`
+    - Skip this substep for patch versions
+  - [ ] Run `export VERSION=v$MAJ.$MIN.$PATCH; make prepare-release-branch` to update the assets
+  - [ ] Update the file `CHANGELOG/CHANGELOG-$MAJ.$MIN.md` with the changes since the last release
+  - [ ] Submit a PR with the changes against the release branch
+    - PR: \<Insert your PR here\>
+      - Example: https://github.com/kubernetes-sigs/jobset/pull/1130
+- [ ] Create the release tag
+  - This step will trigger prow to build and publish a staging container image and helm chart 
+  - To perform this step, you need [a PGP key registered on github](https://docs.github.com/en/authentication/managing-commit-signature-verification/checking-for-existing-gpg-keys)
+  - [ ] Clone the JobSet repo
+  - [ ] Checkout to the new release branch
+  - [ ] Run `git tag -s v$MAJ.$MIN.$PATCH` to create the tag and add the changelog to the tag description
+  - [ ] Run `git push v$MAJ.$MIN.$PATCH` to push the tag to the JobSet repo
+- [ ] Create a [draft release](https://github.com/kubernetes-sigs/jobset/releases)
+  - [ ] Set the tag to the release tag just created
+  - [ ] Set name to `v$MAJ.$MIN.$PATCH`
+  - [ ] Set the description to the changelog
+  - [ ] Clone the JobSet repo
+  - [ ] Checkout to the new release branch
+  - [ ] Run `make artifacts IMAGE_REGISTRY=registry.k8s.io/jobset` in the release branch to generate the artifacts
+  - [ ] Upload the artifacts in the folder `artifacts/` to the draft release
+    - Tip: Artifacts `Source code (zip)` and `Source code (tar.gz)` are auto generated by GitHub instead of being uploaded
+  - Example: https://github.com/kubernetes-sigs/jobset/releases/tag/v0.11.1
+- [ ] Promote the release image and helm chart
+  - [ ] Get the release image in the staging repository us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset
+  - [ ] Check if the release image has been created with `docker manifest inspect <image address>` and share the results in a comment in this issue
+    - Example: `docker manifest inspect us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset:v0.11.1@sha256:88154814bfd507042c5e7d3ea551c0a214a6d9b319e1fb2c7110532055c0b5c5`
+  - [ ] Get the release chart in us-central1-docker.pkg.dev/k8s-staging-images/jobset/charts/jobset
+  - [ ] Check if the release helm chart has been created with `helm show chart oci://<chart address> --version <new version without the "v" prefix>` and share the results in a comment in this issue
+    - Example: `helm show chart oci://us-central1-docker.pkg.dev/k8s-staging-images/jobset/charts/jobset@sha256:34ab84eb4046562d5e7764eef4947bcf938f8a74f19654dd7a4097482f710aef --version 0.11.1`
+  - [ ] Submit a PR against [k8s.io](https://github.com/kubernetes/k8s.io) to update [this file](registry.k8s.io/images/k8s-staging-jobset/images.yaml)
+    - PR: \<Insert your PR here\>
+      - Example: https://github.com/kubernetes/k8s.io/pull/8453
+- [ ] Verify that the image and chart have been promoted
+  - You might have to wait after the PR is merged
+  - Prod registry is `registry.k8s.io/jobset/jobset`
+  - [ ] Check if the release image has been promoted with `docker manifest inspect registry.k8s.io/jobset/jobset:<new version>` and share the results in a comment in this issue
+    - Example: `docker manifest inspect registry.k8s.io/jobset/jobset:v0.11.1`
+  - [ ] Check if the release chart has been promoted with `helm show chart oci://registry.k8s.io/jobset/charts/jobset --version <new version without the "v" prefix>` and share the results in a comment in this issue
+    - Example: `helm show chart oci://registry.k8s.io/jobset/charts/jobset --version 0.11.1`
+- [ ] Publish the release
+  - [ ] Publish the draft release prepared at the [Github releases page](https://github.com/kubernetes-sigs/jobset/releases)
+  - [ ] Add a link to the release in this issue
+    - Release: \<Insert your release here\>
+      - Example: https://github.com/kubernetes-sigs/jobset/releases/tag/v0.11.1
+  - [ ] Send an announcement email to `sig-apps@kubernetes.io`, `sig-scheduling@kubernetes.io` and `wg-batch@kubernetes.io` with the subject `[ANNOUNCE] JobSet v$MAJ.$MIN.$PATCH is released`
+  - [ ] Add a link to the release announcement in this issue
+    - Announcement: \<Insert your announcement here\>
+      - Example: https://groups.google.com/a/kubernetes.io/g/wg-batch/c/NuBR43qzFOA
+- [ ] Update main branch
+  - [ ] Clone your JobSet fork
+  - [ ] Bump the references to the last JobSet version
+    - PR: \<Insert your PR here\>
+      - Example: https://github.com/kubernetes-sigs/jobset/pull/1175
+- [ ] Update devel tag
+  - Skip this step for patch versions
+  - [ ] Create an unannotated _devel_ tag in the `main` branch
+    - Create the tag on the first commit that gets merged after the release branch has been created (presumably the README update commit above)
+    - Run `DEVEL=v0.$(($MAJ+1)).0-devel; git tag $DEVEL main && git push $DEVEL` to push the tag
+    - This ensures that the devel builds on the `main` branch will have a meaningful version number
+- [ ] Update test infra
+  - Skip this step for patch versions
+  - [ ] Submit a PR against [test-infra](https://github.com/kubernetes/test-infra) to update `config/jobs/kubernetes-sigs/jobset` periodics
+    - Drop the n - 1 release and add a periodic covering the new release branch
+    - PR: \<Insert your PR here\>
+      - Example: https://github.com/kubernetes/test-infra/pull/35420
 - [ ] Close this issue
 
-
 ## Changelog
+
 <!--
 Describe changes since the last release here.
 -->
