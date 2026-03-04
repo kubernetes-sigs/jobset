@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Kubernetes Authors.
+Copyright The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -196,6 +196,19 @@ func TestGetInPlaceRestartAttempts(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			name: "failed pod is skipped",
+			childPods: &corev1.PodList{
+				Items: []corev1.Pod{
+					testutils.MakePod("pod-1", "default").
+						Annotations(map[string]string{jobset.InPlaceRestartAttemptKey: "1"}).Obj(),
+					testutils.MakePod("pod-2", "default").
+						SetStatus(corev1.PodStatus{Phase: corev1.PodFailed}).
+						Annotations(map[string]string{jobset.InPlaceRestartAttemptKey: "1"}).Obj(),
+				},
+			},
+			want: []int32{1},
 		},
 		{
 			name: "no pods",

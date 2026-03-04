@@ -1,6 +1,6 @@
 
 #
-# Copyright 2025 The Kubernetes authors.
+# Copyright The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,6 +41,8 @@ controller:
     qps: 500
     # --  Burst allows extra queries to accumulate when a client is exceeding its rate.
     burst: 500
+  # -- Annotations to add to the jobset controller deployment.
+  annotations: {}
   # -- Environment variables of the jobset controller container.
   env: []
   # -- Environment variable sources of the jobset controller container.
@@ -70,6 +72,8 @@ controller:
   affinity: {}
   # -- Tolerations of the jobset controller pods.
   tolerations: []
+  # -- Annotations to add to the jobset controller pods.
+  podAnnotations: {}
   # -- Security context of all jobset controller containers.
   podSecurityContext:
     runAsNonRoot: true

@@ -1,0 +1,57 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: js
+spec:
+  failurePolicy:
+    maxRestarts: 3
+    restartStrategy: InPlaceRestart
+  replicatedJobs:
+  # This example uses 4 Pods in total
+  - name: rj
+    replicas: 2
+    template:
+      spec:
+        completions: 2
+        parallelism: 2
+        backoffLimit: 2147483647
+        podReplacementPolicy: Failed
+        template:
+          spec:
+            # See examples/in-place-restart/service-account-example.yaml
+            serviceAccountName: jobset-in-place-restart
+            # Not necessary, but useful for testing
+            terminationGracePeriodSeconds: 0
+            containers:
+            - name: in-place-restart-agent
+              # See examples/in-place-restart/Dockerfile-main-container-mode
+              image: <CHANGE ME>
+              # In-place restart the Pod if the worker fails
+              restartPolicy: Never
+              restartPolicyRules:
+              - action: Restart
+                exitCodes:
+                  operator: NotIn
+                  values: [0]
+              env:
+              - name: JOBSET_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.annotations['jobset.sigs.k8s.io/jobset-name']
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              # This worker is useful for testing
+              # This worker exits `X` if the file `tmp/exitX` is created
+              - name: WORKER_COMMAND
+                value: |
+                  echo "Start"
+                  while sleep 1; do
+                    set -- /tmp/exit[0-9]*
+                    [ -f "$1" ] && {
+                      n=${1##*exit}
+                      echo "exiting $n"
+                      exit "$n"
+                    }
+                  done

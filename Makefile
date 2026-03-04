@@ -27,15 +27,12 @@ IMAGE_TAG ?= $(IMAGE_REPO):$(GIT_TAG)
 HELM_CHART_REPO := $(STAGING_IMAGE_REGISTRY)/jobset/charts
 
 # In-place restart agent image
-# TODO (k8s 1.35): Replace IN_PLACE_RESTART_AGENT_BASE_IMAGE with BASE_IMAGE (distroless/static:nonroot)
 # TODO (beta of in-place restart): Default IN_PLACE_RESTART_AGENT_IMAGE_REGISTRY to a valid registry URL to build and push the agent automatically
 IN_PLACE_RESTART_AGENT_IMAGE_REGISTRY ?=
 IN_PLACE_RESTART_AGENT_IMAGE_NAME := in-place-restart-agent
 IN_PLACE_RESTART_AGENT_IMAGE_REPO ?= $(IN_PLACE_RESTART_AGENT_IMAGE_REGISTRY)/$(IN_PLACE_RESTART_AGENT_IMAGE_NAME)
 IN_PLACE_RESTART_AGENT_IMAGE_TAG ?= $(IN_PLACE_RESTART_AGENT_IMAGE_REPO):$(GIT_TAG)
-IN_PLACE_RESTART_AGENT_DOCKERFILE ?= cmd/in-place-restart-agent/Dockerfile-example
-IN_PLACE_RESTART_AGENT_BASE_IMAGE ?= debian:bookworm-slim
-IN_PLACE_RESTART_AGENT_BUILDER_IMAGE ?= golang:$(GO_VERSION)
+IN_PLACE_RESTART_AGENT_DOCKERFILE ?= cmd/in-place-restart-agent/Dockerfile
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
@@ -213,15 +210,21 @@ image-build:
 image-push: PUSH=--push
 image-push: image-build
 
-# Build the in-place restart agent image
+# Build the in-place restart agent binary (sidecar container mode)
+.PHONY: in-place-restart-agent-build
+in-place-restart-agent-build: install-go-deps
+	$(GO_BUILD_ENV) $(GO_CMD) build -ldflags="$(LD_FLAGS)" -o bin/in-place-restart-agent cmd/in-place-restart-agent/main.go
+
+# Build the in-place restart agent image (sidecar container mode)
 .PHONY: in-place-restart-agent-image-build
 in-place-restart-agent-image-build:
 	$(IMAGE_BUILD_CMD) \
 		-t $(IN_PLACE_RESTART_AGENT_IMAGE_TAG) \
 		-t $(IN_PLACE_RESTART_AGENT_IMAGE_REPO):$(BRANCH_NAME) \
+		-f $(IN_PLACE_RESTART_AGENT_DOCKERFILE) \
 		--platform=$(PLATFORMS) \
-		--build-arg BASE_IMAGE=$(IN_PLACE_RESTART_AGENT_BASE_IMAGE) \
-		--build-arg BUILDER_IMAGE=$(IN_PLACE_RESTART_AGENT_BUILDER_IMAGE) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+		--build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) \
 		--build-arg CGO_ENABLED=$(CGO_ENABLED) \
 		$(PUSH) \
 		$(IMAGE_BUILD_EXTRA_OPTS) ./

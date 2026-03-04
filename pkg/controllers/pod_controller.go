@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Kubernetes Authors.
+Copyright The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -52,10 +52,10 @@ const (
 type PodReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Record record.EventRecorder
+	Record events.EventRecorder
 }
 
-func NewPodReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *PodReconciler {
+func NewPodReconciler(client client.Client, scheme *runtime.Scheme, record events.EventRecorder) *PodReconciler {
 	return &PodReconciler{Client: client, Scheme: scheme, Record: record}
 }
 
@@ -139,7 +139,13 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	if !exists {
 		return ctrl.Result{}, fmt.Errorf("job key label not found on leader pod: %q", leaderPod.Name)
 	}
-	podList, err := r.listPodsForJob(ctx, leaderPod.Namespace, jobKey)
+
+	owner := metav1.GetControllerOf(&leaderPod)
+	if owner == nil {
+		return ctrl.Result{}, fmt.Errorf("leader pod %q has no controller owner", leaderPod.Name)
+	}
+
+	podList, err := r.listPodsForJob(ctx, leaderPod.Namespace, jobKey, owner.UID)
 	if err != nil {
 		log.Error(err, "listing pods for job")
 		return ctrl.Result{}, err
@@ -159,13 +165,26 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	return ctrl.Result{}, nil
 }
 
-// listPodsForJobKey returns a list of pods owned by a specific job, using the
-// jobKey (SHA1 hash of the namespaced job name) label selector.
-func (r *PodReconciler) listPodsForJob(ctx context.Context, ns, jobKey string) (*corev1.PodList, error) {
+// listPodsForJob returns a list of pods owned by a specific job, using the
+// jobKey (SHA1 hash of the namespaced job name) label selector and the owner UID
+func (r *PodReconciler) listPodsForJob(ctx context.Context, ns, jobKey string, ownerUID types.UID) (*corev1.PodList, error) {
+	log := ctrl.LoggerFrom(ctx)
 	var podList corev1.PodList
 	if err := r.List(ctx, &podList, client.InNamespace(ns), &client.MatchingFields{podJobKey: jobKey}); err != nil {
 		return nil, err
 	}
+
+	var filteredPods []corev1.Pod
+	for _, pod := range podList.Items {
+		owner := metav1.GetControllerOf(&pod)
+		if owner != nil && owner.UID == ownerUID {
+			filteredPods = append(filteredPods, pod)
+		} else {
+			log.Info("WARNING: Pod with matching job-key but not the owner reference",
+				"pod", pod.Name, "jobKey", jobKey, "owner", owner)
+		}
+	}
+	podList.Items = filteredPods
 
 	return &podList, nil
 }

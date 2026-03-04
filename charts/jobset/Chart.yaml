@@ -1,5 +1,5 @@
 #
-# Copyright 2025 The Kubernetes authors.
+# Copyright The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ description: A Helm chart for deploying JobSet controller and webhook on Kuberne
 
 type: application
 
-version: 0.11.0
+version: 0.11.1
 
 keywords:
 - kubernetes
@@ -33,7 +33,9 @@ home: https://github.com/kubernetes-sigs/jobset
 maintainers:
 - name: ahg-g
   url: https://github.com/ahg-g
-- name: danielvegamyhre
-  url: https://github.com/danielvegamyhre
+- name: andreyvelich
+  url: https://github.com/andreyvelich
+- name: GiuseppeTT
+  url: https://github.com/GiuseppeTT
 - name: kannon92
   url: https://github.com/kannon92

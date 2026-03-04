@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2/ktesting"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -221,14 +221,12 @@ func TestReconcileVolumeClaimPolicies(t *testing.T) {
 				fakeClientBuilder.WithObjects(tc.existingPVC)
 			}
 			fakeClient := fakeClientBuilder.Build()
-			eventBroadcaster := record.NewBroadcaster()
-			recorder := eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "jobset-test-reconciler"})
 
 			// Create a JobSetReconciler instance with the fake client
 			r := &JobSetReconciler{
 				Client: fakeClient,
 				Scheme: scheme,
-				Record: recorder,
+				Record: events.NewFakeRecorder(32),
 			}
 
 			// Execute the function under test

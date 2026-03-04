@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Kubernetes Authors.
+Copyright The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -134,6 +134,11 @@ func getMaxContainerRestartCount(associatedPods *corev1.PodList) int32 {
 func getPodInPlaceRestartAttempts(associatedPods *corev1.PodList) ([]int32, error) {
 	podInPlaceRestartAttempts := []int32{}
 	for _, pod := range associatedPods.Items {
+		// Skip it if the pod is failed
+		// Failed Pods might persist while their new copy already exists
+		if pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
 		rawPodInPlaceRestartAttempt, ok := pod.Annotations[jobset.InPlaceRestartAttemptKey]
 		// Skip it if the annotation is missing
 		// It is likely due to the time between the Pod being created and the agent creating the annotation

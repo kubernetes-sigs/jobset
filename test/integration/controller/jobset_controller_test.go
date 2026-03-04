@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Kubernetes Authors.
+Copyright The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -28,6 +28,7 @@ import (
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -215,6 +216,74 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			steps: []*step{
 				{
 					jobUpdateFn:          completeAllJobs,
+					checkJobSetCondition: testutil.JobSetCompleted,
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
+							{
+								Name:      "replicated-job-b",
+								Succeeded: 3,
+							},
+							{
+								Name:      "replicated-job-a",
+								Succeeded: 1,
+							},
+						})
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("jobset should ignore jobs with same owner name but different owner UID", &testCase{
+			makeJobSet: testJobSet,
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						if len(jobList.Items) == 0 {
+							return
+						}
+
+						// Create a dummy job with the same owner name but different UID
+						ctx := context.Background()
+						jsName := jobList.Items[0].OwnerReferences[0].Name
+						jsNamespace := jobList.Items[0].Namespace
+						dummyJob := &batchv1.Job{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "dummy-job",
+								Namespace: jsNamespace,
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										APIVersion: jobset.GroupVersion.String(),
+										Kind:       "JobSet",
+										Name:       jsName,
+										UID:        "12345678-1234-1234-1234-123456789abc",
+										Controller: ptr.To(true),
+									},
+								},
+								Labels: map[string]string{
+									jobset.JobSetNameKey:        jsName,
+									jobset.ReplicatedJobNameKey: "non-existent-replicated-job",
+								},
+							},
+							Spec: batchv1.JobSpec{
+								Template: corev1.PodTemplateSpec{
+									Spec: corev1.PodSpec{
+										RestartPolicy: corev1.RestartPolicyNever,
+										Containers: []corev1.Container{
+											{
+												Name:  "test",
+												Image: "bash:latest",
+											},
+										},
+									},
+								},
+							},
+						}
+						gomega.Expect(k8sClient.Create(ctx, dummyJob)).To(gomega.Succeed())
+
+						// Complete all valid jobs
+						for i := range jobList.Items {
+							completeJob(&jobList.Items[i])
+						}
+					},
 					checkJobSetCondition: testutil.JobSetCompleted,
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetReplicatedStatus(js, []jobset.ReplicatedJobStatus{
@@ -2788,40 +2857,40 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 			ginkgo.By("checking that a warning event is emitted")
 			gomega.Eventually(func() (bool, error) {
-				var events corev1.EventList
-				if err := k8sClient.List(ctx, &events, client.InNamespace(ns.Name), client.MatchingFieldsSelector{
+				var eventList eventsv1.EventList
+				if err := k8sClient.List(ctx, &eventList, client.InNamespace(ns.Name), client.MatchingFieldsSelector{
 					Selector: fields.AndSelectors(
-						fields.OneTermEqualSelector("involvedObject.kind", "JobSet"),
-						fields.OneTermEqualSelector("involvedObject.name", js.Name),
+						fields.OneTermEqualSelector("regarding.kind", "JobSet"),
+						fields.OneTermEqualSelector("regarding.name", js.Name),
 						fields.OneTermEqualSelector("reason", "JobCreationFailed"),
 					),
 				}); err != nil {
 					return false, err
 				}
 
-				if len(events.Items) < 1 {
+				if len(eventList.Items) < 1 {
 					return false, nil
 				}
 
-				event := events.Items[0]
+				event := eventList.Items[0]
 				gomega.Expect(event.Type).To(gomega.Equal(corev1.EventTypeWarning))
 				return true, nil
 			}, timeout, interval).Should(gomega.BeTrue())
 
 			ginkgo.By("checking that the events are accumulated")
 			gomega.Eventually(func() (bool, error) {
-				var events corev1.EventList
-				if err := k8sClient.List(ctx, &events, client.InNamespace(ns.Name), client.MatchingFieldsSelector{
+				var eventList eventsv1.EventList
+				if err := k8sClient.List(ctx, &eventList, client.InNamespace(ns.Name), client.MatchingFieldsSelector{
 					Selector: fields.AndSelectors(
-						fields.OneTermEqualSelector("involvedObject.kind", "JobSet"),
-						fields.OneTermEqualSelector("involvedObject.name", js.Name),
+						fields.OneTermEqualSelector("regarding.kind", "JobSet"),
+						fields.OneTermEqualSelector("regarding.name", js.Name),
 						fields.OneTermEqualSelector("reason", "JobCreationFailed"),
 					),
 				}); err != nil {
 					return false, err
 				}
 
-				return len(events.Items) == 1 && events.Items[0].Count > 1, nil
+				return len(eventList.Items) == 1 && eventList.Items[0].Series != nil && eventList.Items[0].Series.Count > 1, nil
 			}, timeout, interval).Should(gomega.BeTrue())
 		})
 	})

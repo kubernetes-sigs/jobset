@@ -1,0 +1,31 @@
+# This is only for the main container mode of the in-place restart agent
+# See examples/in-place-restart/jobset-main-container-mode.yaml
+ARG BUILDER_IMAGE=golang:1.25
+ARG BASE_IMAGE=debian:12
+
+# Builder image
+FROM --platform=${BUILDPLATFORM} ${BUILDER_IMAGE} AS builder
+
+WORKDIR /workspace
+
+# Install dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the go source
+COPY . .
+
+# Build
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o bin/in-place-restart-agent cmd/in-place-restart-agent/main.go
+
+# Final image
+FROM --platform=${BUILDPLATFORM} ${BASE_IMAGE} AS final
+
+# Install ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# Copy the binary
+COPY --from=builder /workspace/bin/in-place-restart-agent /in-place-restart-agent
+
+# Set the entrypoint
+ENTRYPOINT ["/in-place-restart-agent"]

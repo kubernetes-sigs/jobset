@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Kubernetes Authors.
+Copyright The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -25,8 +25,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -355,7 +356,7 @@ func makePod(args *makePodArgs) *testutils.PodWrapper {
 type fakeClient struct {
 	client client.WithWatch
 	scheme *runtime.Scheme
-	record record.EventRecorder
+	record events.EventRecorder
 }
 
 func makeFakeClient(interceptor interceptor.Funcs, initObjs ...client.Object) *fakeClient {
@@ -364,8 +365,6 @@ func makeFakeClient(interceptor interceptor.Funcs, initObjs ...client.Object) *f
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 
-	eventBroadcaster := record.NewBroadcaster()
-	recorder := eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "jobset-test-reconciler"})
 	fc := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(initObjs...).
@@ -375,6 +374,138 @@ func makeFakeClient(interceptor interceptor.Funcs, initObjs ...client.Object) *f
 	return &fakeClient{
 		client: fc,
 		scheme: scheme,
-		record: recorder,
+		record: nil,
+	}
+}
+
+func TestListPodsForJob(t *testing.T) {
+	trueVar := true
+	var (
+		jobSetName = "test-jobset"
+		ns         = "default"
+		jobName    = "test-jobset-replicated-job-1-test-job-0"
+		jobUID     = types.UID("job-uid-1")
+		otherUID   = types.UID("job-uid-2")
+	)
+
+	leaderPod := makePod(&makePodArgs{
+		jobSetName:        jobSetName,
+		replicatedJobName: "replicated-job-1",
+		jobName:           jobName,
+		podName:           "leader-pod",
+		ns:                ns,
+		jobIdx:            0,
+	}).AddAnnotation(jobset.ExclusiveKey, "topologyKey").Obj()
+	leaderPod.OwnerReferences = []metav1.OwnerReference{
+		{
+			APIVersion: "batch/v1",
+			Kind:       "Job",
+			Name:       jobName,
+			UID:        jobUID,
+			Controller: &trueVar,
+		},
+	}
+
+	followerPod := makePod(&makePodArgs{
+		jobSetName:        jobSetName,
+		replicatedJobName: "replicated-job-1",
+		jobName:           jobName,
+		podName:           "follower-pod",
+		ns:                ns,
+		jobIdx:            0,
+	}).AddAnnotation(jobset.ExclusiveKey, "topologyKey").Obj()
+	followerPod.OwnerReferences = []metav1.OwnerReference{
+		{
+			APIVersion: "batch/v1",
+			Kind:       "Job",
+			Name:       jobName,
+			UID:        jobUID,
+			Controller: &trueVar,
+		},
+	}
+
+	inconsistentPod := makePod(&makePodArgs{
+		jobSetName:        jobSetName,
+		replicatedJobName: "replicated-job-1",
+		jobName:           jobName,
+		podName:           "inconsistent-pod",
+		ns:                ns,
+		jobIdx:            0,
+	}).AddAnnotation(jobset.ExclusiveKey, "topologyKey").Obj()
+	inconsistentPod.OwnerReferences = []metav1.OwnerReference{
+		{
+			APIVersion: "batch/v1",
+			Kind:       "Job",
+			Name:       "other-job",
+			UID:        otherUID,
+			Controller: &trueVar,
+		},
+	}
+
+	unownedPod := makePod(&makePodArgs{
+		jobSetName:        jobSetName,
+		replicatedJobName: "replicated-job-1",
+		jobName:           jobName,
+		podName:           "unowned-pod",
+		ns:                ns,
+		jobIdx:            0,
+	}).AddAnnotation(jobset.ExclusiveKey, "topologyKey").Obj()
+
+	tests := []struct {
+		name          string
+		pods          []corev1.Pod
+		expectedCount int
+	}{
+		{
+			name: "all legitimate pods",
+			pods: []corev1.Pod{
+				leaderPod,
+				followerPod,
+			},
+			expectedCount: 2,
+		},
+		{
+			name: "with inconsistent and unowned pods",
+			pods: []corev1.Pod{
+				leaderPod,
+				followerPod,
+				inconsistentPod,
+				unownedPod,
+			},
+			expectedCount: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			utilruntime.Must(corev1.AddToScheme(scheme))
+			utilruntime.Must(jobset.AddToScheme(scheme))
+
+			objs := make([]client.Object, len(tc.pods))
+			for i := range tc.pods {
+				objs[i] = &tc.pods[i]
+			}
+
+			fc := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(objs...).
+				WithIndex(&corev1.Pod{}, podJobKey, IndexPodJob).
+				Build()
+			r := &PodReconciler{
+				Client: fc,
+				Scheme: scheme,
+			}
+
+			jobKey := jobHashKey(ns, jobName)
+			podList, err := r.listPodsForJob(context.Background(), ns, jobKey, jobUID)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedCount, len(podList.Items))
+			for _, pod := range podList.Items {
+				owner := metav1.GetControllerOf(&pod)
+				assert.NotNil(t, owner)
+				assert.Equal(t, jobUID, owner.UID)
+			}
+		})
 	}
 }

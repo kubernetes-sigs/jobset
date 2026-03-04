@@ -7,7 +7,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,12 +21,7 @@ import (
 
 // ValidateCreate validates that follower pods (job completion index != 0) part of a JobSet using exclusive
 // placement are only admitted after the leader pod (job completion index == 0) has been scheduled.
-func (p *podWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	pod, ok := obj.(*corev1.Pod)
-	if !ok {
-		return nil, fmt.Errorf("expected a Pod but got a %T", obj)
-	}
-
+func (p *podWebhook) ValidateCreate(ctx context.Context, pod *corev1.Pod) (admission.Warnings, error) {
 	// If this pod is not part of a JobSet, we don't need to validate anything.
 	// We can check the existence of the JobSetName annotation to determine this.
 	if _, isJobSetPod := pod.Annotations[jobset.JobSetNameKey]; !isJobSetPod {
@@ -68,11 +62,11 @@ func (p *podWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (ad
 	return nil, nil
 }
 
-func (p *podWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+func (p *podWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj *corev1.Pod) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func (p *podWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (p *podWebhook) ValidateDelete(ctx context.Context, obj *corev1.Pod) (admission.Warnings, error) {
 	return nil, nil
 }
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Kubernetes Authors.
+Copyright The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -34,7 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
@@ -56,7 +56,7 @@ var apiGVStr = jobset.GroupVersion.String()
 type JobSetReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Record record.EventRecorder
+	Record events.EventRecorder
 	clock  clock.Clock
 }
 
@@ -91,11 +91,12 @@ type eventParams struct {
 	eventMessage string
 }
 
-func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *JobSetReconciler {
+func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record events.EventRecorder) *JobSetReconciler {
 	return &JobSetReconciler{Client: client, Scheme: scheme, Record: record, clock: clock.RealClock{}}
 }
 
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;watch;update;patch
 //+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets/finalizers,verbs=update
@@ -137,7 +138,7 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 // reconcile is the internal method containing the core JobSet reconciliation logic.
 func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js))
+	log := ctrl.LoggerFrom(ctx).WithValues("jobset", klog.KObj(js), "jobSetUID", js.UID)
 	ctx = ctrl.LoggerInto(ctx, log)
 
 	// Check the controller configured for the JobSet.
@@ -295,7 +296,7 @@ func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error 
 		if owner.APIVersion != apiGVStr || owner.Kind != "JobSet" {
 			return nil
 		}
-		return []string{owner.Name}
+		return []string{string(owner.UID)}
 	})
 	if err != nil {
 		return err
@@ -332,7 +333,7 @@ func (r *JobSetReconciler) updateJobSetStatus(ctx context.Context, js *jobset.Jo
 		}
 		// If the status update was successful, emit any enqueued events.
 		for _, event := range updateStatusOpts.events {
-			r.Record.Eventf(event.object, event.eventType, event.eventReason, event.eventMessage)
+			r.Record.Eventf(event.object, nil, event.eventType, event.eventReason, "Reconciling", event.eventMessage)
 		}
 	}
 	return nil
@@ -345,7 +346,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 
 	// Get all active jobs owned by JobSet.
 	var childJobList batchv1.JobList
-	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{constants.JobsIndexByJobSetKey: js.Name}); err != nil {
+	if err := r.List(ctx, &childJobList, client.InNamespace(js.Namespace), client.MatchingFields{constants.JobsIndexByJobSetKey: string(js.UID)}); err != nil {
 		return nil, err
 	}
 
@@ -415,6 +416,11 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label, can't update status", job.Name))
 			continue
 		}
+		replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
+		if replicatedJobsReady[replicatedJobName] == nil {
+			log.Error(nil, fmt.Sprintf("job %s has ReplicatedJobName %s that is not part of JobSet", job.Name, replicatedJobName))
+			continue
+		}
 		ready := ptr.Deref(job.Status.Ready, 0)
 		// parallelism is always set as it is otherwise defaulted by k8s to 1
 		podsCount := *(job.Spec.Parallelism)
@@ -422,23 +428,42 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 			podsCount = *job.Spec.Completions
 		}
 		if job.Status.Succeeded+ready >= podsCount {
-			replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["ready"]++
+			replicatedJobsReady[replicatedJobName]["ready"]++
 		}
 		if job.Status.Active > 0 {
-			replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["active"]++
+			replicatedJobsReady[replicatedJobName]["active"]++
 		}
 		if jobSuspended(job) {
-			replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["suspended"]++
+			replicatedJobsReady[replicatedJobName]["suspended"]++
 		}
 	}
 
 	// Calculate succeededJobs
 	for _, job := range jobs.successful {
-		replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["succeeded"]++
+		if job.Labels == nil || job.Labels[jobset.ReplicatedJobNameKey] == "" {
+			log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label, can't update status", job.Name))
+			continue
+		}
+		replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
+		if replicatedJobsReady[replicatedJobName] == nil {
+			log.Error(nil, fmt.Sprintf("job %s has ReplicatedJobName %s that is not part of JobSet", job.Name, replicatedJobName))
+			continue
+		}
+		replicatedJobsReady[replicatedJobName]["succeeded"]++
 	}
 
+	// Calculate failedJobs
 	for _, job := range jobs.failed {
-		replicatedJobsReady[job.Labels[jobset.ReplicatedJobNameKey]]["failed"]++
+		if job.Labels == nil || job.Labels[jobset.ReplicatedJobNameKey] == "" {
+			log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label, can't update status", job.Name))
+			continue
+		}
+		replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
+		if replicatedJobsReady[replicatedJobName] == nil {
+			log.Error(nil, fmt.Sprintf("job %s has ReplicatedJobName %s that is not part of JobSet", job.Name, replicatedJobName))
+			continue
+		}
+		replicatedJobsReady[replicatedJobName]["failed"]++
 	}
 
 	// Calculate ReplicatedJobsStatus
@@ -605,7 +630,7 @@ func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobs
 		// Create jobs as necessary.
 		if err := r.createJobs(ctx, js, jobs); err != nil {
 			log.Error(err, "creating jobs")
-			r.Record.Eventf(js, corev1.EventTypeWarning, constants.JobCreationFailedReason, err.Error())
+			r.Record.Eventf(js, nil, corev1.EventTypeWarning, constants.JobCreationFailedReason, "Reconciling", err.Error())
 			return err
 		}
 
@@ -721,7 +746,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 
 		// Create headless service.
 		if err := r.Create(ctx, &headlessSvc); err != nil {
-			r.Record.Eventf(js, corev1.EventTypeWarning, constants.HeadlessServiceCreationFailedReason, err.Error())
+			r.Record.Eventf(js, nil, corev1.EventTypeWarning, constants.HeadlessServiceCreationFailedReason, "Reconciling", err.Error())
 			return err
 		}
 		log.V(2).Info("successfully created headless service", "service", klog.KObj(&headlessSvc))
