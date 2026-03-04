@@ -131,6 +131,8 @@ spec:
                           - FailJobSet
                           - RestartJobSet
                           - RestartJobSetAndIgnoreMaxRestarts
+                          - RestartJob
+                          - RestartJobAndIgnoreMaxRestarts
                           type: string
                         name:
                           description: |-
@@ -10127,6 +10129,18 @@ spec:
                       description: failed is the number of failed child Jobs.
                       format: int32
                       type: integer
+                    jobRestarts:
+                      description: |-
+                        jobRestarts tracks the number of times the Job has individually restarted for each job index.
+                        It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
+                      maxLength: 32768
+                      type: string
+                    jobRestartsCountTowardsMax:
+                      description: |-
+                        jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
+                        It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
+                      maxLength: 32768
+                      type: string
                     name:
                       description: name of the ReplicatedJob.
                       type: string
@@ -10160,14 +10174,16 @@ spec:
                 - name
                 x-kubernetes-list-type: map
               restarts:
-                description: restarts tracks the number of times the JobSet has restarted
-                  (i.e. recreated in case of RecreateAll policy).
+                description: restarts tracks the number of times the JobSet has globally
+                  restarted (i.e. recreated all Jobs due to a restart action such
+                  as RestartJobSet).
                 format: int32
                 type: integer
               restartsCountTowardsMax:
                 description: restartsCountTowardsMax tracks the number of times the
-                  JobSet has restarted that counts towards the maximum allowed number
-                  of restarts.
+                  JobSet has globally restarted that counts towards the maximum allowed
+                  number of restarts (i.e. recreated all Jobs due to a restart action
+                  such as RestartJobSet).
                 format: int32
                 type: integer
               terminalState:
@@ -10175,6 +10191,18 @@ spec:
                   terminalState tracks the state of the JobSet when it finishes execution.
                   It can be either Completed or Failed. Otherwise, it is empty by default.
                 type: string
+              totalRestarts:
+                description: |-
+                  totalRestarts tracks the number of times the JobSet has restarted in any way (e.g., this also counts restart actions such as RestartJob).
+                  Nil should be treated as `jobSet.status.restarts`
+                format: int32
+                type: integer
+              totalRestartsCountTowardsMax:
+                description: |-
+                  totalRestartsCountTowardsMax tracks the number of times the JobSet has restarted in any way that counts towards the maximum allowed number of restarts (e.g., this also counts restart actions such as RestartJob).
+                  Nil should be treated as `jobSet.status.restartsCountTowardsMax`
+                format: int32
+                type: integer
             type: object
         type: object
     served: true

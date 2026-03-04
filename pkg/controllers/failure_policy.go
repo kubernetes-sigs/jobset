@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -35,6 +37,8 @@ var actionFunctionMap = map[jobset.FailurePolicyAction]failurePolicyActionApplie
 	jobset.FailJobSet:                        failJobSetActionApplier,
 	jobset.RestartJobSet:                     restartJobSetActionApplier,
 	jobset.RestartJobSetAndIgnoreMaxRestarts: restartJobSetAndIgnoreMaxRestartsActionApplier,
+	jobset.RestartJob:                        restartJobActionApplier,
+	jobset.RestartJobAndIgnoreMaxRestarts:    restartJobAndIgnoreMaxRestartsActionApplier,
 }
 
 // The source of truth for the definition of defaultFailurePolicyRuleAction is the Configurable Failure Policy KEP.
@@ -186,12 +190,25 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 		updateStatusOpts = &statusUpdateOpts{}
 	}
 
-	// Increment JobSet restarts. This will trigger reconciliation and result in deletions
+	// Increment JobSet global restarts. This will trigger reconciliation and result in deletions
 	// of old jobs not part of the current jobSet run.
 	js.Status.Restarts += 1
-
 	if shouldCountTowardsMax {
 		js.Status.RestartsCountTowardsMax += 1
+	}
+
+	// Bump the total restarts counters
+	if js.Status.TotalRestarts == nil {
+		// Default to `js.Status.Restarts` for backward compatibility
+		js.Status.TotalRestarts = ptr.To(js.Status.Restarts)
+	}
+	*js.Status.TotalRestarts += 1
+	if shouldCountTowardsMax {
+		if js.Status.TotalRestartsCountTowardsMax == nil {
+			// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
+			js.Status.TotalRestartsCountTowardsMax = ptr.To(js.Status.RestartsCountTowardsMax)
+		}
+		*js.Status.TotalRestartsCountTowardsMax += 1
 	}
 
 	updateStatusOpts.shouldUpdate = true
@@ -217,7 +234,8 @@ var failJobSetActionApplier failurePolicyActionApplier = func(ctx context.Contex
 
 // restartJobSetActionApplier applies the RestartJobSet FailurePolicyAction
 var restartJobSetActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
-	if js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts {
+	// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
+	if (js.Status.TotalRestartsCountTowardsMax != nil && *js.Status.TotalRestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) || (js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) {
 		failureBaseMessage := constants.ReachedMaxRestartsMessage
 		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
 
@@ -254,6 +272,94 @@ var restartJobSetAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = 
 	shouldCountTowardsMax := false
 	failurePolicyRecreateAll(ctx, js, shouldCountTowardsMax, updateStatusOpts, event)
 	return nil
+}
+
+// failurePolicyRecreateJob triggers an individual job restart for the next reconcillation loop.
+func failurePolicyRecreateJob(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, shouldCountTowardsMax bool, updateStatusOpts *statusUpdateOpts, event *eventParams) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	if updateStatusOpts == nil {
+		updateStatusOpts = &statusUpdateOpts{}
+	}
+
+	replicatedJobName, ok := matchingFailedJob.Labels[jobset.ReplicatedJobNameKey]
+	if !ok {
+		return fmt.Errorf("failed job %s missing %s label", matchingFailedJob.Name, jobset.ReplicatedJobNameKey)
+	}
+	jobIndex, err := strconv.Atoi(matchingFailedJob.Labels[jobset.JobIndexKey])
+	if err != nil {
+		return fmt.Errorf("failed job %s has missing or invalid %s label: %s", matchingFailedJob.Name, jobset.JobIndexKey, matchingFailedJob.Labels[jobset.JobIndexKey])
+	}
+
+	// Increment the individual restart count for the specific job
+	jobRestarts := getJobRestarts(js, replicatedJobName)
+	jobRestarts[jobIndex] += 1
+	setJobRestarts(js, replicatedJobName, jobRestarts)
+	if shouldCountTowardsMax {
+		jobRestartsCountTowardsMax := getJobRestartsCountTowardsMax(js, replicatedJobName)
+		jobRestartsCountTowardsMax[jobIndex] += 1
+		setJobRestartsCountTowardsMax(js, replicatedJobName, jobRestartsCountTowardsMax)
+	}
+
+	// Bump the total restarts counter
+	if js.Status.TotalRestarts == nil {
+		// Default to `js.Status.Restarts` for backward compatibility
+		js.Status.TotalRestarts = ptr.To(js.Status.Restarts)
+	}
+	*js.Status.TotalRestarts += 1
+	if shouldCountTowardsMax {
+		if js.Status.TotalRestartsCountTowardsMax == nil {
+			// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
+			js.Status.TotalRestartsCountTowardsMax = ptr.To(js.Status.RestartsCountTowardsMax)
+		}
+		*js.Status.TotalRestartsCountTowardsMax += 1
+	}
+
+	updateStatusOpts.shouldUpdate = true
+
+	// Emit event for each Job restarts for observability and debugability.
+	enqueueEvent(updateStatusOpts, event)
+	log.V(2).Info("attempting restart for job", "job", matchingFailedJob.Name)
+	return nil
+}
+
+// restartJobActionApplier applies the RestartJob FailurePolicyAction
+var restartJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
+	if (js.Status.TotalRestartsCountTowardsMax != nil && *js.Status.TotalRestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) || (js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) {
+		failureBaseMessage := constants.ReachedMaxRestartsMessage
+		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
+		failureReason := constants.ReachedMaxRestartsReason
+		setJobSetFailedCondition(js, failureReason, failureMessage, updateStatusOpts)
+		return nil
+	}
+
+	baseMessage := constants.RestartJobActionMessage
+	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
+	event := &eventParams{
+		object:       js,
+		eventType:    corev1.EventTypeWarning,
+		eventReason:  constants.RestartJobActionReason,
+		eventMessage: eventMessage,
+	}
+
+	shouldCountTowardsMax := true
+	return failurePolicyRecreateJob(ctx, js, matchingFailedJob, shouldCountTowardsMax, updateStatusOpts, event)
+}
+
+// restartJobAndIgnoreMaxRestartsActionApplier applies the RestartJobAndIgnoreMaxRestarts FailurePolicyAction
+var restartJobAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	baseMessage := constants.RestartJobAndIgnoreMaxRestartsActionMessage
+	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
+	event := &eventParams{
+		object:       js,
+		eventType:    corev1.EventTypeWarning,
+		eventReason:  constants.RestartJobAndIgnoreMaxRestartsActionReason,
+		eventMessage: eventMessage,
+	}
+
+	shouldCountTowardsMax := false
+	return failurePolicyRecreateJob(ctx, js, matchingFailedJob, shouldCountTowardsMax, updateStatusOpts, event)
 }
 
 // parentReplicatedJobName returns the name of the parent
@@ -336,4 +442,98 @@ func findFirstFailedJob(failedJobs []*batchv1.Job) *batchv1.Job {
 // messageWithFirstFailedJob appends the first failed job to the original event message in human readable way.
 func messageWithFirstFailedJob(msg, firstFailedJobName string) string {
 	return fmt.Sprintf("%s (first failed job: %s)", msg, firstFailedJobName)
+}
+
+// getJobRestarts returns the job individual restart attempts for the given replicated job.
+// If the replicated job is not found, defaults to returning a slice of 0s of the specified length.
+func getJobRestarts(js *jobset.JobSet, replicatedJobName string) []int32 {
+	for _, rjs := range js.Status.ReplicatedJobsStatus {
+		if rjs.Name == replicatedJobName {
+			jobRestarts := rjs.JobRestarts
+			replicas := getReplicatedJobReplicas(js, replicatedJobName)
+			return decodeJobRestarts(jobRestarts, replicas)
+		}
+	}
+	replicas := getReplicatedJobReplicas(js, replicatedJobName)
+	return decodeJobRestarts(nil, replicas)
+}
+
+// setJobRestarts sets the job individual restart attempts for the given replicated job.
+func setJobRestarts(js *jobset.JobSet, replicatedJobName string, jobRestarts []int32) {
+	for i, rjs := range js.Status.ReplicatedJobsStatus {
+		if rjs.Name == replicatedJobName {
+			js.Status.ReplicatedJobsStatus[i].JobRestarts = encodeJobRestarts(jobRestarts)
+			return
+		}
+	}
+}
+
+// getJobRestartsCountTowardsMax returns the job individual restart attempts that count towards max for the given replicated job.
+// If the replicated job is not found, defaults to returning a slice of 0s of the specified length.
+func getJobRestartsCountTowardsMax(js *jobset.JobSet, replicatedJobName string) []int32 {
+	for _, rjs := range js.Status.ReplicatedJobsStatus {
+		if rjs.Name == replicatedJobName {
+			jobRestarts := rjs.JobRestartsCountTowardsMax
+			replicas := getReplicatedJobReplicas(js, replicatedJobName)
+			return decodeJobRestarts(jobRestarts, replicas)
+		}
+	}
+	replicas := getReplicatedJobReplicas(js, replicatedJobName)
+	return decodeJobRestarts(nil, replicas)
+}
+
+// setJobRestartsCountTowardsMax sets the job individual restart attempts that count towards max for the given replicated job.
+func setJobRestartsCountTowardsMax(js *jobset.JobSet, replicatedJobName string, jobRestartsCountTowardsMax []int32) {
+	for i, rjs := range js.Status.ReplicatedJobsStatus {
+		if rjs.Name == replicatedJobName {
+			js.Status.ReplicatedJobsStatus[i].JobRestartsCountTowardsMax = encodeJobRestarts(jobRestartsCountTowardsMax)
+			return
+		}
+	}
+}
+
+// getReplicatedJobReplicas returns the number of replicas for the given replicated job.
+func getReplicatedJobReplicas(js *jobset.JobSet, replicatedJobName string) int32 {
+	for _, rj := range js.Spec.ReplicatedJobs {
+		if rj.Name == replicatedJobName {
+			return rj.Replicas
+		}
+	}
+	return 0
+}
+
+// decodeJobRestarts parses the given comma-separated string pointer into a slice of integers.
+// If the string is nil or empty, it returns a slice of 0s of the specified length.
+func decodeJobRestarts(restartsStr *string, length int32) []int32 {
+	restarts := make([]int32, length)
+	if restartsStr == nil || *restartsStr == "" {
+		return restarts
+	}
+
+	parts := strings.Split(*restartsStr, ",")
+	for i, p := range parts {
+		if int32(i) >= length {
+			break
+		}
+		if p == "" {
+			continue
+		}
+		r, err := strconv.Atoi(p)
+		if err == nil {
+			restarts[i] = int32(r)
+		}
+	}
+	return restarts
+}
+
+// encodeJobRestarts formats the given slice of integers as a comma-separated string pointer for jobRestarts and jobRestartsCountTowardsMax
+func encodeJobRestarts(restarts []int32) *string {
+	var sb strings.Builder
+	for i, r := range restarts {
+		sb.WriteString(strconv.Itoa(int(r)))
+		if i < len(restarts)-1 {
+			sb.WriteString(",")
+		}
+	}
+	return ptr.To(sb.String())
 }

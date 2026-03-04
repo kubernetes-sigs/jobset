@@ -37,6 +37,12 @@ type ReplicatedJobStatusApplyConfiguration struct {
 	Active *int32 `json:"active,omitempty"`
 	// suspended is the number of child Jobs which are in a suspended state.
 	Suspended *int32 `json:"suspended,omitempty"`
+	// jobRestarts tracks the number of times the Job has individually restarted for each job index.
+	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
+	JobRestarts *string `json:"jobRestarts,omitempty"`
+	// jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
+	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
+	JobRestartsCountTowardsMax *string `json:"jobRestartsCountTowardsMax,omitempty"`
 }
 
 // ReplicatedJobStatusApplyConfiguration constructs a declarative configuration of the ReplicatedJobStatus type for use with
@@ -90,5 +96,21 @@ func (b *ReplicatedJobStatusApplyConfiguration) WithActive(value int32) *Replica
 // If called multiple times, the Suspended field is set to the value of the last call.
 func (b *ReplicatedJobStatusApplyConfiguration) WithSuspended(value int32) *ReplicatedJobStatusApplyConfiguration {
 	b.Suspended = &value
+	return b
+}
+
+// WithJobRestarts sets the JobRestarts field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the JobRestarts field is set to the value of the last call.
+func (b *ReplicatedJobStatusApplyConfiguration) WithJobRestarts(value string) *ReplicatedJobStatusApplyConfiguration {
+	b.JobRestarts = &value
+	return b
+}
+
+// WithJobRestartsCountTowardsMax sets the JobRestartsCountTowardsMax field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the JobRestartsCountTowardsMax field is set to the value of the last call.
+func (b *ReplicatedJobStatusApplyConfiguration) WithJobRestartsCountTowardsMax(value string) *ReplicatedJobStatusApplyConfiguration {
+	b.JobRestartsCountTowardsMax = &value
 	return b
 }
