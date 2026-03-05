@@ -382,11 +382,11 @@
           "default": 0
         },
         "jobRestarts": {
-          "description": "jobRestarts tracks the number of times the Job has individually restarted for each job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e`",
+          "description": "jobRestarts tracks the number of times the Job has individually restarted for each job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
           "type": "string"
         },
         "jobRestartsCountTowardsMax": {
-          "description": "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e`",
+          "description": "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
           "type": "string"
         },
         "name": {

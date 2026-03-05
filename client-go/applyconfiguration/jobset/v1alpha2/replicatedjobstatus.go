@@ -39,9 +39,11 @@ type ReplicatedJobStatusApplyConfiguration struct {
 	Suspended *int32 `json:"suspended,omitempty"`
 	// jobRestarts tracks the number of times the Job has individually restarted for each job index.
 	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
+	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
 	JobRestarts *string `json:"jobRestarts,omitempty"`
 	// jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
 	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
+	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
 	JobRestartsCountTowardsMax *string `json:"jobRestartsCountTowardsMax,omitempty"`
 }
 
