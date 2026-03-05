@@ -41,6 +41,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
@@ -2069,6 +2070,7 @@ func TestSyncJobScaling(t *testing.T) {
 				Record: events.NewFakeRecorder(32),
 			}
 
+			features.SetFeatureGateDuringTest(t, features.ElasticJobSet, true)
 			err := r.syncJobScaling(ctx, tc.jobSet, tc.activeJobs)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)

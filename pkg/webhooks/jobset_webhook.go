@@ -307,45 +307,47 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJS, js *jobset.Jo
 	mungedSpec := js.Spec.DeepCopy()
 	var errs field.ErrorList
 
-	// Check if the JobSet is in a terminal state (Completed or Failed)
-	isTerminal := false
-	for _, cond := range oldJS.Status.Conditions {
-		if (cond.Type == string(jobset.JobSetCompleted) || cond.Type == string(jobset.JobSetFailed)) && cond.Status == metav1.ConditionTrue {
-			isTerminal = true
-			break
-		}
-	}
-
 	// Elastic JobSet Validation
-	for index := range js.Spec.ReplicatedJobs {
-		if index >= len(oldJS.Spec.ReplicatedJobs) {
-			continue
-		}
-
-		oldRJob := oldJS.Spec.ReplicatedJobs[index]
-		newRJob := js.Spec.ReplicatedJobs[index]
-		rJobPath := field.NewPath("spec", "replicatedJobs").Index(index).Child("template", "spec")
-
-		// Check if parallelism and completions have changed
-		parallelismChanged := !ptr.Equal(newRJob.Template.Spec.Parallelism, oldRJob.Template.Spec.Parallelism)
-		completionsChanged := !ptr.Equal(newRJob.Template.Spec.Completions, oldRJob.Template.Spec.Completions)
-
-		if parallelismChanged || completionsChanged {
-			if isTerminal {
-				errs = append(errs, field.Forbidden(rJobPath, "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"))
-			} else {
-				if parallelismChanged && newRJob.Template.Spec.Parallelism != nil && *newRJob.Template.Spec.Parallelism < 1 {
-					errs = append(errs, field.Invalid(rJobPath.Child("parallelism"), *newRJob.Template.Spec.Parallelism, "parallelism must be >= 1"))
-				}
-				if completionsChanged && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Completions < 1 {
-					errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be >= 1"))
-				}
+	if features.Enabled(features.ElasticJobSet) {
+		// Check if the JobSet is in a terminal state (Completed or Failed)
+		isTerminal := false
+		for _, cond := range oldJS.Status.Conditions {
+			if (cond.Type == string(jobset.JobSetCompleted) || cond.Type == string(jobset.JobSetFailed)) && cond.Status == metav1.ConditionTrue {
+				isTerminal = true
+				break
 			}
 		}
 
-		// Mask parallelism and completions in mungedSpec to bypass the strict immutability check
-		mungedSpec.ReplicatedJobs[index].Template.Spec.Parallelism = oldRJob.Template.Spec.Parallelism
-		mungedSpec.ReplicatedJobs[index].Template.Spec.Completions = oldRJob.Template.Spec.Completions
+		for index := range js.Spec.ReplicatedJobs {
+			if index >= len(oldJS.Spec.ReplicatedJobs) {
+				continue
+			}
+
+			oldRJob := oldJS.Spec.ReplicatedJobs[index]
+			newRJob := js.Spec.ReplicatedJobs[index]
+			rJobPath := field.NewPath("spec", "replicatedJobs").Index(index).Child("template", "spec")
+
+			// Check if parallelism and completions have changed
+			parallelismChanged := !ptr.Equal(newRJob.Template.Spec.Parallelism, oldRJob.Template.Spec.Parallelism)
+			completionsChanged := !ptr.Equal(newRJob.Template.Spec.Completions, oldRJob.Template.Spec.Completions)
+
+			if parallelismChanged || completionsChanged {
+				if isTerminal {
+					errs = append(errs, field.Forbidden(rJobPath, "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"))
+				} else {
+					if parallelismChanged && newRJob.Template.Spec.Parallelism != nil && *newRJob.Template.Spec.Parallelism < 1 {
+						errs = append(errs, field.Invalid(rJobPath.Child("parallelism"), *newRJob.Template.Spec.Parallelism, "parallelism must be >= 1"))
+					}
+					if completionsChanged && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Completions < 1 {
+						errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be >= 1"))
+					}
+				}
+			}
+
+			// Mask parallelism and completions in mungedSpec to bypass the strict immutability check
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Parallelism = oldRJob.Template.Spec.Parallelism
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Completions = oldRJob.Template.Spec.Completions
+		}
 	}
 
 	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.

@@ -216,9 +216,11 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 	}
 
 	// Opportunistically patch existing active jobs for pod-level scaling
-	if err := r.syncJobScaling(ctx, js, ownedJobs.active); err != nil {
-		log.Error(err, "syncing job scaling")
-		return ctrl.Result{}, err
+	if features.Enabled(features.ElasticJobSet) {
+		if err := r.syncJobScaling(ctx, js, ownedJobs.active); err != nil {
+			log.Error(err, "syncing job scaling")
+			return ctrl.Result{}, err
+		}
 	}
 
 	// If job has not failed or succeeded, reconcile the state of the replicatedJobs.
