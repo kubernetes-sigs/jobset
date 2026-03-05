@@ -2114,6 +2114,7 @@ func TestSyncJobScaling(t *testing.T) {
 				Record: events.NewFakeRecorder(32),
 			}
 
+			features.SetFeatureGateDuringTest(t, features.ElasticJobSet, true)
 			err := r.syncJobScaling(ctx, tc.jobSet, tc.activeJobs)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)

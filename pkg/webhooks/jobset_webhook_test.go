@@ -3120,10 +3120,11 @@ func TestValidateUpdate(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name  string
-		oldJs *jobset.JobSet
-		js    *jobset.JobSet
-		want  error
+		name                string
+		oldJs               *jobset.JobSet
+		js                  *jobset.JobSet
+		want                error
+		enableElasticJobSet bool
 	}{
 		{
 			name: "update suspend",
@@ -3475,6 +3476,7 @@ func TestValidateUpdate(t *testing.T) {
 					},
 				},
 			},
+			enableElasticJobSet: true,
 		},
 		{
 			name: "invalid scaling of parallelism to < 1",
@@ -3511,6 +3513,7 @@ func TestValidateUpdate(t *testing.T) {
 			want: field.ErrorList{
 				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "parallelism"), int32(0), "parallelism must be >= 1"),
 			}.ToAggregate(),
+			enableElasticJobSet: true,
 		},
 		{
 			name: "invalid scaling of completions to < 1",
@@ -3547,6 +3550,7 @@ func TestValidateUpdate(t *testing.T) {
 			want: field.ErrorList{
 				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "completions"), int32(0), "completions must be >= 1"),
 			}.ToAggregate(),
+			enableElasticJobSet: true,
 		},
 		{
 			name: "cannot scale parallelism if JobSet is Completed",
@@ -3591,6 +3595,7 @@ func TestValidateUpdate(t *testing.T) {
 			want: field.ErrorList{
 				field.Forbidden(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec"), "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"),
 			}.ToAggregate(),
+			enableElasticJobSet: true,
 		},
 		{
 			name: "cannot scale completions if JobSet is Failed",
@@ -3635,6 +3640,7 @@ func TestValidateUpdate(t *testing.T) {
 			want: field.ErrorList{
 				field.Forbidden(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec"), "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"),
 			}.ToAggregate(),
+			enableElasticJobSet: true,
 		},
 		{
 			name: "immutability still enforced for other fields during valid scale",
@@ -3673,6 +3679,7 @@ func TestValidateUpdate(t *testing.T) {
 			want: field.ErrorList{
 				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
 			}.ToAggregate(),
+			enableElasticJobSet: true,
 		},
 	}
 
@@ -3680,6 +3687,7 @@ func TestValidateUpdate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClient := fake.NewFakeClient()
 			webhook := &jobSetWebhook{client: fakeClient}
+			features.SetFeatureGateDuringTest(t, features.ElasticJobSet, tc.enableElasticJobSet)
 			newObj := tc.js.DeepCopy()
 			oldObj := tc.oldJs.DeepCopy()
 			_, err := webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
