@@ -48,7 +48,7 @@ const (
 	RestartJob featuregate.Feature = "RestartJob"
 
 	// owner: @aniket2405
-	// KEP: https://github.com/kubernetes-sigs/jobset/blob/main/keps/463-ElasticJobsets/README.md
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/463-ElasticJobsets/README.md
 	//
 	// ElasticJobSet enables the mutation of parallelism and completions for ReplicatedJobs
 	// to support dynamic horizontal pod-level scaling.
