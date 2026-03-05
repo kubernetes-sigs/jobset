@@ -1,16 +1,20 @@
 title: Support granular suspend/resume for individual Jobs within a JobSet
 kep-number: 1172
 authors:
-  - "@mwielgus"
-status: provisional
-creation-date: 2026-02-27
+  - "@imreddy"
+status: implementable
+creation-date: 2026-03-05
 reviewers:
-  - TBD
+  - "@kannon92"
+  - "@ahg"
 approvers:
-  - TBD
+  - "@kannon92"
 
-see-also: []
-replaces: []
+see-also:
+  - https://github.com/kubernetes-sigs/jobset/issues/1172
+
+replaces:
+  - "NA"
 
 # The target maturity stage in the current dev cycle for this KEP.
 stage: alpha
@@ -18,17 +22,8 @@ stage: alpha
 # The most recent milestone for which work toward delivery of this KEP has been
 # done. This can be the current (upcoming) milestone, if it is being actively
 # worked on.
-latest-milestone: "v0.7"
+latest-milestone: "v0.11.2"
 
 # The milestone at which this feature was, or is targeted to be, at each stage.
 milestone:
-  alpha: "v0.7"
-
-# The following PRR answers are required at alpha release
-# List the feature gate name and the components for which it must be enabled
-feature-gates:
-  - name: JobSetGranularSuspendResume
-disable-supported: true
-
-# The following PRR answers are required at beta release
-metrics: []
+  alpha: "v0.11.2"
