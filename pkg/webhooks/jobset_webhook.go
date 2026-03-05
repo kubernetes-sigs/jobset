@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -304,11 +305,59 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJS, js *jobset.JobSet) (admission.Warnings, error) {
 	mungedSpec := js.Spec.DeepCopy()
+	var errs field.ErrorList
+
+	// Check if the JobSet is in a terminal state (Completed or Failed)
+	isTerminal := false
+	for _, cond := range oldJS.Status.Conditions {
+		if (cond.Type == string(jobset.JobSetCompleted) || cond.Type == string(jobset.JobSetFailed)) && cond.Status == metav1.ConditionTrue {
+			isTerminal = true
+			break
+		}
+	}
+
+	// Elastic JobSet Validation
+	for index := range js.Spec.ReplicatedJobs {
+		if index >= len(oldJS.Spec.ReplicatedJobs) {
+			continue
+		}
+
+		oldRJob := oldJS.Spec.ReplicatedJobs[index]
+		newRJob := js.Spec.ReplicatedJobs[index]
+		rJobPath := field.NewPath("spec", "replicatedJobs").Index(index).Child("template", "spec")
+
+		// Check if parallelism and completions have changed
+		parallelismChanged := !ptr.Equal(newRJob.Template.Spec.Parallelism, oldRJob.Template.Spec.Parallelism)
+		completionsChanged := !ptr.Equal(newRJob.Template.Spec.Completions, oldRJob.Template.Spec.Completions)
+
+		if parallelismChanged || completionsChanged {
+			if isTerminal {
+				errs = append(errs, field.Forbidden(rJobPath, "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"))
+			} else {
+				if parallelismChanged && newRJob.Template.Spec.Parallelism != nil && *newRJob.Template.Spec.Parallelism < 1 {
+					errs = append(errs, field.Invalid(rJobPath.Child("parallelism"), *newRJob.Template.Spec.Parallelism, "parallelism must be >= 1"))
+				}
+				if completionsChanged && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Completions < 1 {
+					errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be >= 1"))
+				}
+			}
+		}
+
+		// Mask parallelism and completions in mungedSpec to bypass the strict immutability check
+		mungedSpec.ReplicatedJobs[index].Template.Spec.Parallelism = oldRJob.Template.Spec.Parallelism
+		mungedSpec.ReplicatedJobs[index].Template.Spec.Completions = oldRJob.Template.Spec.Completions
+	}
 
 	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
 	// This is needed for integration with Kueue/DWS.
 	if ptr.Deref(oldJS.Spec.Suspend, false) || ptr.Deref(js.Spec.Suspend, false) {
 		for index := range js.Spec.ReplicatedJobs {
+			// Skip if the index is out of bounds
+			// This can happen if a new ReplicatedJob is added or an existing ReplicatedJob is removed
+			// in the new JS spec
+			if index >= len(oldJS.Spec.ReplicatedJobs) {
+				continue
+			}
 			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
 			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
 			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
@@ -320,10 +369,14 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJS, js *jobset.Jo
 		}
 	}
 
-	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
-	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
+	// SucccessPolicy and failurePolicy are made immutable
+	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))...)
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
-	return nil, errs.ToAggregate()
+
+	if len(errs) > 0 {
+		return nil, errs.ToAggregate()
+	}
+	return nil, nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
