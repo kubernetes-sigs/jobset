@@ -3439,6 +3439,241 @@ func TestValidateUpdate(t *testing.T) {
 				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
 			}.ToAggregate(),
 		},
+		{
+			name: "valid scaling of parallelism and completions",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Completions: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](8),
+									Completions: ptr.To[int32](8),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid scaling of parallelism to < 1",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](0),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "parallelism"), int32(0), "parallelism must be >= 1"),
+			}.ToAggregate(),
+		},
+		{
+			name: "invalid scaling of completions to < 1",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Completions: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Completions: ptr.To[int32](0),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "completions"), int32(0), "completions must be >= 1"),
+			}.ToAggregate(),
+		},
+		{
+			name: "cannot scale parallelism if JobSet is Completed",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+				Status: jobset.JobSetStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(jobset.JobSetCompleted),
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](4),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Forbidden(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec"), "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"),
+			}.ToAggregate(),
+		},
+		{
+			name: "cannot scale completions if JobSet is Failed",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Completions: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+				Status: jobset.JobSetStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(jobset.JobSetFailed),
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Completions: ptr.To[int32](4),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Forbidden(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec"), "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"),
+			}.ToAggregate(),
+		},
+		{
+			name: "immutability still enforced for other fields during valid scale",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2, // <--- IMMUTABLE FIELD MODIFIED
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](4), // Valid scale operation
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+		},
 	}
 
 	for _, tc := range testCases {
