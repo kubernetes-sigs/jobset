@@ -371,7 +371,7 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJS, js *jobset.Jo
 		}
 	}
 
-	// SucccessPolicy and failurePolicy are made immutable
+	// SuccessPolicy and failurePolicy are made immutable
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))...)
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
 
