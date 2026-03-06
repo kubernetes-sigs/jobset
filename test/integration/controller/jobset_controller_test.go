@@ -743,8 +743,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetRestarts(js, 1)
 						matchJobSetRestartsCountTowardsMax(js, 1)
-						matchJobSetTotalRestarts(js, int32(1))
-						matchJobSetTotalRestartsCountTowardsMax(js, int32(1))
+						matchJobSetTotalRestarts(js, ptr.To(int32(1)))
+						matchJobSetTotalRestartsCountTowardsMax(js, ptr.To(int32(1)))
 						matchJobRestarts(js, "replicated-job-a", nil)
 						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
 					},
@@ -779,10 +779,46 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetRestarts(js, 0)
 						matchJobSetRestartsCountTowardsMax(js, 0)
-						matchJobSetTotalRestarts(js, int32(1))
-						matchJobSetTotalRestartsCountTowardsMax(js, int32(1))
+						matchJobSetTotalRestarts(js, ptr.To(int32(1)))
+						matchJobSetTotalRestartsCountTowardsMax(js, ptr.To(int32(1)))
 						matchJobRestarts(js, "replicated-job-a", ptr.To("1"))
 						matchJobRestartsCountTowardsMax(js, "replicated-job-a", ptr.To("1"))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobAndIgnoreMaxRestarts failure policy action.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJobAndIgnoreMaxRestarts,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 0)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+						matchJobSetTotalRestarts(js, ptr.To(int32(1)))
+						matchJobSetTotalRestartsCountTowardsMax(js, nil)
+						matchJobRestarts(js, "replicated-job-a", ptr.To("1"))
+						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
 					},
 				},
 			},
@@ -3388,7 +3424,7 @@ func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedCount int32) 
 
 // matchJobSetTotalRestarts checks that the supplied jobset js has expectedCount
 // as the value of js.Status.TotalRestarts.
-func matchJobSetTotalRestarts(js *jobset.JobSet, expectedCount int32) {
+func matchJobSetTotalRestarts(js *jobset.JobSet, expectedCount *int32) {
 	gomega.Eventually(func() (*int32, error) {
 		newJs := jobset.JobSet{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
@@ -3396,12 +3432,12 @@ func matchJobSetTotalRestarts(js *jobset.JobSet, expectedCount int32) {
 		}
 
 		return newJs.Status.TotalRestarts, nil
-	}, timeout, interval).Should(gomega.HaveValue(gomega.Equal(expectedCount)))
+	}, timeout, interval).Should(gomega.Equal(expectedCount))
 }
 
 // matchJobSetTotalRestartsCountTowardsMax checks that the supplied jobset js has expectedCount
 // as the value of js.Status.TotalRestartsCountTowardsMax.
-func matchJobSetTotalRestartsCountTowardsMax(js *jobset.JobSet, expectedCount int32) {
+func matchJobSetTotalRestartsCountTowardsMax(js *jobset.JobSet, expectedCount *int32) {
 	gomega.Eventually(func() (*int32, error) {
 		newJs := jobset.JobSet{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
@@ -3409,7 +3445,7 @@ func matchJobSetTotalRestartsCountTowardsMax(js *jobset.JobSet, expectedCount in
 		}
 
 		return newJs.Status.TotalRestartsCountTowardsMax, nil
-	}, timeout, interval).Should(gomega.HaveValue(gomega.Equal(expectedCount)))
+	}, timeout, interval).Should(gomega.Equal(expectedCount))
 }
 
 // matchJobRestarts checks that the supplied jobset js has expectedCount
