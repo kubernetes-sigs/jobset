@@ -300,14 +300,14 @@ func failurePolicyRecreateJob(ctx context.Context, js *jobset.JobSet, matchingFa
 	// Increment the individual restart count for the specific job
 	jobRestarts := getJobRestarts(js, replicatedJobName)
 	if jobIndex >= len(jobRestarts) {
-		return fmt.Errorf("failed job %s has invalid %s label: %s", matchingFailedJob.Name, jobset.JobIndexKey, matchingFailedJob.Labels[jobset.JobIndexKey])
+		return fmt.Errorf("failed job %s has index %d out of bounds for replicated job %s (replicas: %d)", matchingFailedJob.Name, jobIndex, replicatedJobName, len(jobRestarts))
 	}
 	jobRestarts[jobIndex] += 1
 	setJobRestarts(js, replicatedJobName, jobRestarts)
 	if shouldCountTowardsMax {
 		jobRestartsCountTowardsMax := getJobRestartsCountTowardsMax(js, replicatedJobName)
 		if jobIndex >= len(jobRestartsCountTowardsMax) {
-			return fmt.Errorf("failed job %s has invalid %s label: %s", matchingFailedJob.Name, jobset.JobIndexKey, matchingFailedJob.Labels[jobset.JobIndexKey])
+			return fmt.Errorf("failed job %s has index %d out of bounds for replicated job %s (replicas: %d)", matchingFailedJob.Name, jobIndex, replicatedJobName, len(jobRestarts))
 		}
 		jobRestartsCountTowardsMax[jobIndex] += 1
 		setJobRestartsCountTowardsMax(js, replicatedJobName, jobRestartsCountTowardsMax)
