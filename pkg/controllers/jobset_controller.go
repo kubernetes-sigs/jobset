@@ -353,16 +353,16 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 	// Categorize each job into a bucket: active, successful, failed or previous.
 	ownedJobs := childJobs{}
 	for i, job := range childJobList.Items {
-		// A job is marked for deletion if its global restart attempt is less than the JobSet's global restarts.
-		globalRestarts, err := strconv.Atoi(job.Labels[constants.RestartsKey])
+		// Jobs with jobset.sigs.k8s.io/restart-attempt < restarts are marked for deletion.
+
+		jobRestarts, err := strconv.Atoi(job.Labels[constants.RestartsKey])
 		if err != nil {
 			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", constants.RestartsKey))
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			return nil, err
 		}
-		targetGlobalRestarts := js.Status.Restarts
-		if int32(globalRestarts) < targetGlobalRestarts {
-			log.V(2).Info("child Job marked for recreation as value of global restarts label is less than target", "name", job.Name, constants.RestartsKey, globalRestarts, "targetGlobalRestarts", js.Status.Restarts)
+		if int32(jobRestarts) < js.Status.Restarts {
+			log.V(2).Info("child Job marked for recreation as value of restarts label is less than target", "name", job.Name, constants.RestartsKey, jobRestarts, "target", js.Status.Restarts)
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			continue
 		}
