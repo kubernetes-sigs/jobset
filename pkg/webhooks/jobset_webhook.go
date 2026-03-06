@@ -357,7 +357,7 @@ func validateFailurePolicy(js *jobset.JobSet, rJobNames sets.Set[string]) []erro
 	// Check if any rule has RestartJob action and validate that no replicated job has replicas > maxReplicasPerReplicatedJob.
 	hasRestartJob := false
 	for _, rule := range failurePolicy.Rules {
-		if rule.Action == jobset.RestartJob {
+		if rule.Action == jobset.RestartJob || rule.Action == jobset.RestartJobAndIgnoreMaxRestarts {
 			hasRestartJob = true
 			break
 		}
@@ -365,7 +365,7 @@ func validateFailurePolicy(js *jobset.JobSet, rJobNames sets.Set[string]) []erro
 	if hasRestartJob {
 		for _, rJob := range js.Spec.ReplicatedJobs {
 			if rJob.Replicas > maxReplicasPerReplicatedJob {
-				allErrs = append(allErrs, fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob action and a replicated job with replicas > %d", maxReplicasPerReplicatedJob))
+				allErrs = append(allErrs, fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > %d", maxReplicasPerReplicatedJob))
 				break
 			}
 		}
