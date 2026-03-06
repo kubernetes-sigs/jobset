@@ -370,7 +370,8 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		// A job is marked for deletion if its individual restart attempt is less than the target individual restart attempt.
 		replicatedJobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
 		if !ok {
-			log.Error(err, fmt.Sprintf("missing label %s", jobset.ReplicatedJobNameKey))
+			err := fmt.Errorf("missing label %s", jobset.ReplicatedJobNameKey)
+			log.Error(err, "")
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			return nil, err
 		}
