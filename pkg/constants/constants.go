@@ -105,8 +105,6 @@ const (
 
 	// Event reason used when a PVC creation fails.
 	// The event uses the error(s) as the message.
-	// Event reason used when a PVC creation fails.
-	// The event uses the error(s) as the message.
 	PVCCreationFailedReason = "PVCCreationFailed"
 
 	// Event reason and message related to applying the RestartJob failure policy action.
