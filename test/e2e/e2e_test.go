@@ -631,8 +631,8 @@ var _ = ginkgo.Describe("JobSet", func() {
 		})
 	})
 
-	ginkgo.FWhen("JobSet uses RestartJobSet failure policy action", func() {
-		ginkgo.FIt("should recover by recreating all jobs and succeeding eventually", func() {
+	ginkgo.When("JobSet uses RestartJobSet failure policy action", func() {
+		ginkgo.It("should recover by recreating all jobs and succeeding eventually", func() {
 			ctx := context.Background()
 
 			ginkgo.By("creating jobset with RestartJobSet failure policy")
@@ -649,8 +649,8 @@ var _ = ginkgo.Describe("JobSet", func() {
 			gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js)).Should(gomega.Succeed())
 			gomega.Expect(js.Status.Restarts).To(gomega.Equal(int32(1)))
 			gomega.Expect(js.Status.RestartsCountTowardsMax).To(gomega.Equal(int32(1)))
-			gomega.Expect(js.Status.TotalRestarts).To(gomega.Equal(ptr.To(int32(1))))
-			gomega.Expect(js.Status.TotalRestartsCountTowardsMax).To(gomega.Equal(ptr.To(int32(1))))
+			gomega.Expect(js.Status.TotalRestarts).To(gomega.HaveValue(gomega.Equal(int32(1))))
+			gomega.Expect(js.Status.TotalRestartsCountTowardsMax).To(gomega.HaveValue(gomega.Equal(int32(1))))
 			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestarts).To(gomega.BeNil())
 			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestartsCountTowardsMax).To(gomega.BeNil())
 		})
