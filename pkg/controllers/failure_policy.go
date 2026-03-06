@@ -288,9 +288,13 @@ func failurePolicyRecreateJob(ctx context.Context, js *jobset.JobSet, matchingFa
 	if !ok {
 		return fmt.Errorf("failed job %s missing %s label", matchingFailedJob.Name, jobset.ReplicatedJobNameKey)
 	}
-	jobIndex, err := strconv.Atoi(matchingFailedJob.Labels[jobset.JobIndexKey])
+	jobIndexStr, ok := matchingFailedJob.Labels[jobset.JobIndexKey]
+	if !ok {
+		return fmt.Errorf("failed job %s missing %s label", matchingFailedJob.Name, jobset.JobIndexKey)
+	}
+	jobIndex, err := strconv.Atoi(jobIndexStr)
 	if err != nil {
-		return fmt.Errorf("failed job %s has missing or invalid %s label: %s", matchingFailedJob.Name, jobset.JobIndexKey, matchingFailedJob.Labels[jobset.JobIndexKey])
+		return fmt.Errorf("failed job %s has invalid %s label: %s: %w", matchingFailedJob.Name, jobset.JobIndexKey, jobIndexStr, err)
 	}
 
 	// Increment the individual restart count for the specific job

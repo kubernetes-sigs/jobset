@@ -375,7 +375,14 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 			return nil, err
 		}
-		jobIndex, err := strconv.Atoi(job.Labels[jobset.JobIndexKey])
+		jobIndexStr, ok := job.Labels[jobset.JobIndexKey]
+		if !ok {
+			err := fmt.Errorf("missing label %s", jobset.JobIndexKey)
+			log.Error(err, "")
+			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+			return nil, err
+		}
+		jobIndex, err := strconv.Atoi(jobIndexStr)
 		if err != nil {
 			log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", jobset.JobIndexKey))
 			ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
