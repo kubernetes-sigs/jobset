@@ -38,6 +38,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	jobsetv1alpha2ac "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/constants"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	"sigs.k8s.io/jobset/test/util"
 )
@@ -629,6 +630,56 @@ var _ = ginkgo.Describe("JobSet", func() {
 
 		})
 	})
+
+	ginkgo.FWhen("JobSet uses RestartJobSet failure policy action", func() {
+		ginkgo.FIt("should recover by recreating all jobs and succeeding eventually", func() {
+			ctx := context.Background()
+
+			ginkgo.By("creating jobset with RestartJobSet failure policy")
+			js := restartJobSetFailurePolicyTestJobSet(ns)
+
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking jobset succeeds")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
+
+			ginkgo.By("checking the jobset was properly restarted")
+			gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js)).Should(gomega.Succeed())
+			gomega.Expect(js.Status.Restarts).To(gomega.Equal(int32(1)))
+			gomega.Expect(js.Status.RestartsCountTowardsMax).To(gomega.Equal(int32(1)))
+			gomega.Expect(js.Status.TotalRestarts).To(gomega.Equal(ptr.To(int32(1))))
+			gomega.Expect(js.Status.TotalRestartsCountTowardsMax).To(gomega.Equal(ptr.To(int32(1))))
+			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestarts).To(gomega.BeNil())
+			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestartsCountTowardsMax).To(gomega.BeNil())
+		})
+	})
+
+	ginkgo.When("JobSet uses RestartJob failure policy action", func() {
+		ginkgo.It("should recover by recreating only the failed job and succeeding eventually", func() {
+			ctx := context.Background()
+
+			ginkgo.By("creating jobset with RestartJob failure policy")
+			js := restartJobFailurePolicyTestJobSet(ns)
+
+			ginkgo.By("checking that jobset creation succeeds")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
+
+			ginkgo.By("checking jobset succeeds")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
+
+			ginkgo.By("checking the job was properly restarted")
+			gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js)).Should(gomega.Succeed())
+			gomega.Expect(js.Status.Restarts).To(gomega.Equal(int32(0)))
+			gomega.Expect(js.Status.RestartsCountTowardsMax).To(gomega.Equal(int32(0)))
+			gomega.Expect(js.Status.TotalRestarts).To(gomega.HaveValue(gomega.Equal(int32(1))))
+			gomega.Expect(js.Status.TotalRestartsCountTowardsMax).To(gomega.HaveValue(gomega.Equal(int32(1))))
+			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestarts).To(gomega.Equal(ptr.To("0,1")))
+			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestartsCountTowardsMax).To(gomega.Equal(ptr.To("0,1")))
+		})
+	})
 }) // end of Describe
 
 // getPingCommand returns ping command for 4 hostnames
@@ -894,4 +945,126 @@ func volumeClaimTestJobSet(ns *corev1.Namespace) *testing.JobSetWrapper {
 				}).Obj()).
 			Replicas(2).
 			Obj())
+}
+
+// restartJobSetFailurePolicyTestJobSet creates a JobSet with RestartJobSet Failure Policy Action.
+func restartJobSetFailurePolicyTestJobSet(ns *corev1.Namespace) *jobset.JobSet {
+	jsName := "js-restart-jobset"
+	rjobName := "rjob"
+	replicas := 2
+
+	jobTemplate := testing.MakeJobTemplate("job", ns.Name).
+		PodSpec(corev1.PodSpec{
+			RestartPolicy: "Never",
+			Containers: []corev1.Container{
+				{
+					Name:    "test-container",
+					Image:   "docker.io/library/bash:latest",
+					Command: []string{"bash", "-c"},
+					Args: []string{
+						`if [[ "$JOB_INDEX" == "1" && "$RESTART_ATTEMPT" == "0" ]]; then echo "Failing intentionally"; exit 1; else echo "Succeeding"; exit 0; fi`,
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name: "JOB_INDEX",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: fmt.Sprintf("metadata.annotations['%s']", jobset.JobIndexKey),
+								},
+							},
+						},
+						{
+							Name: "RESTART_ATTEMPT",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: fmt.Sprintf("metadata.annotations['%s']", constants.RestartsKey),
+								},
+							},
+						},
+					},
+				},
+			},
+		}).Obj()
+
+	// Use 0 retries to fail immediately and trigger BackoffLimitExceeded
+	jobTemplate.Spec.BackoffLimit = ptr.To[int32](0)
+
+	return testing.MakeJobSet(jsName, ns.Name).
+		FailurePolicy(&jobset.FailurePolicy{
+			MaxRestarts: 3,
+			Rules: []jobset.FailurePolicyRule{
+				{
+					Action: jobset.RestartJobSet,
+					OnJobFailureReasons: []string{
+						"BackoffLimitExceeded",
+					},
+				},
+			},
+		}).
+		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
+			Job(jobTemplate).
+			Replicas(int32(replicas)).
+			Obj()).
+		Obj()
+}
+
+// restartJobFailurePolicyTestJobSet creates a JobSet with RestartJob Failure Policy Action.
+func restartJobFailurePolicyTestJobSet(ns *corev1.Namespace) *jobset.JobSet {
+	jsName := "js-restart-job"
+	rjobName := "rjob"
+	replicas := 2
+
+	jobTemplate := testing.MakeJobTemplate("job", ns.Name).
+		PodSpec(corev1.PodSpec{
+			RestartPolicy: "Never",
+			Containers: []corev1.Container{
+				{
+					Name:    "test-container",
+					Image:   "docker.io/library/bash:latest",
+					Command: []string{"bash", "-c"},
+					Args: []string{
+						`if [[ "$JOB_INDEX" == "1" && "$INDIVIDUAL_RESTART_ATTEMPT" == "0" ]]; then echo "Failing intentionally"; exit 1; else echo "Succeeding"; exit 0; fi`,
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name: "JOB_INDEX",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: fmt.Sprintf("metadata.annotations['%s']", jobset.JobIndexKey),
+								},
+							},
+						},
+						{
+							Name: "INDIVIDUAL_RESTART_ATTEMPT",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: fmt.Sprintf("metadata.annotations['%s']", constants.JobRestartAttemptKey),
+								},
+							},
+						},
+					},
+				},
+			},
+		}).Obj()
+
+	// Use 0 retries to fail immediately and trigger BackoffLimitExceeded
+	jobTemplate.Spec.BackoffLimit = ptr.To[int32](0)
+
+	return testing.MakeJobSet(jsName, ns.Name).
+		FailurePolicy(&jobset.FailurePolicy{
+			MaxRestarts: 3,
+			Rules: []jobset.FailurePolicyRule{
+				{
+					Action: jobset.RestartJob,
+					OnJobFailureReasons: []string{
+						"BackoffLimitExceeded",
+					},
+				},
+			},
+		}).
+		ReplicatedJob(testing.MakeReplicatedJob(rjobName).
+			Job(jobTemplate).
+			Replicas(int32(replicas)).
+			Obj()).
+		Obj()
 }
