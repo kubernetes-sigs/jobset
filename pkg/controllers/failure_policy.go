@@ -201,14 +201,16 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 	if js.Status.TotalRestarts == nil {
 		// Default to `js.Status.Restarts` for backward compatibility
 		js.Status.TotalRestarts = ptr.To(js.Status.Restarts)
+	} else {
+		*js.Status.TotalRestarts += 1
 	}
-	*js.Status.TotalRestarts += 1
 	if shouldCountTowardsMax {
 		if js.Status.TotalRestartsCountTowardsMax == nil {
 			// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
 			js.Status.TotalRestartsCountTowardsMax = ptr.To(js.Status.RestartsCountTowardsMax)
+		} else {
+			*js.Status.TotalRestartsCountTowardsMax += 1
 		}
-		*js.Status.TotalRestartsCountTowardsMax += 1
 	}
 
 	updateStatusOpts.shouldUpdate = true
