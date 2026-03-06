@@ -30,6 +30,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	"sigs.k8s.io/jobset/test/util"
 )
@@ -45,6 +46,10 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 	var ns *corev1.Namespace
 
 	ginkgo.BeforeEach(func() {
+
+		// Ensure feature gate is off by default for all standard tests
+		_ = features.SetEnable(features.ElasticJobSet, false)
+
 		// Create test namespace before each test.
 		ns = &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -752,6 +757,44 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("validate updating parallelism and completions is ALLOWED when ElasticJobSet is enabled", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("elastic-js-webhook-enabled", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).
+							Parallelism(2).
+							Completions(2).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				// Turn the feature gate ON just before we hit the update webhook
+				_ = features.SetEnable(features.ElasticJobSet, true)
+				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
+			},
+			updateShouldFail: false,
+		}),
+		ginkgo.Entry("validate updating parallelism and completions FAILS when ElasticJobSet is disabled", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("elastic-js-webhook-disabled", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).
+							Parallelism(2).
+							Completions(2).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				// Ensure the feature gate is OFF (testing the default behavior)
+				_ = features.SetEnable(features.ElasticJobSet, false)
+				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
+			},
+			updateShouldFail: true,
 		}),
 	) // end of DescribeTable
 }) // end of Describe
