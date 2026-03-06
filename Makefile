@@ -137,6 +137,14 @@ toc-update:
 toc-verify:
 	./hack/verify-toc.sh
 
+YAML_PROCESSOR_LOG_LEVEL ?= info
+
+.PHONY: update-helm
+update-helm: manifests ## Generate Helm templates from Kustomize manifests.
+	$(GO_CMD) run -modfile=$(PROJECT_DIR)/hack/tools/yaml-processor/go.mod \
+	sigs.k8s.io/kueue/hack/tools/yaml-processor \
+	-zap-log-level=$(YAML_PROCESSOR_LOG_LEVEL) $(PROJECT_DIR)/hack/processing-plan.yaml
+
 .PHONY: helm-verify
 helm-verify: helm-unittest helm-lint
 	${HELM} template charts/jobset
@@ -168,7 +176,7 @@ test-python-sdk:
 	./hack/python-sdk/test-sdk.sh
 
 .PHONY: verify
-verify: vet fmt-verify ci-lint lint-api manifests generate helm-verify toc-verify generate-apiref
+verify: vet fmt-verify ci-lint lint-api manifests generate update-helm helm-verify toc-verify generate-apiref
 	git --no-pager diff --exit-code config api client-go sdk charts
 
 

@@ -1,0 +1,437 @@
+globalOptions:
+  boilerplatePath: ./hack/boilerplate.go.txt
+files:
+  - path: ./config/components/rbac/*.yaml
+    outputDir: ./charts/jobset/templates/rbac/
+    removeComments: true
+    excludes:
+      - kustomization.yaml
+    continueOnError: true
+    operations:
+      - type: DELETE
+        key: .metadata.labels
+      - type: APPEND
+        key: .metadata.name
+        value: '"{{ include \"jobset.fullname\" . }}-"'
+        onFileCondition: '.kind != "ServiceAccount" and .metadata.name != "manager-role" and .metadata.name != "manager-rolebinding"'
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.controller.serviceAccount.name\" . }}"'
+        onFileCondition: '.kind == "ServiceAccount"'
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.controller.name\" . }}"'
+        onFileCondition: '.metadata.name == "manager-role" or .metadata.name == "manager-rolebinding"'
+      - type: UPDATE
+        key: .metadata.namespace
+        value: '"{{ .Release.Namespace }}"'
+      - type: APPEND
+        key: .roleRef.name
+        value: '"{{ include \"jobset.fullname\" . }}-"'
+        onFileCondition: '.roleRef.name != "manager-role"'
+      - type: UPDATE
+        key: .roleRef.name
+        value: '"{{ include \"jobset.controller.name\" . }}"'
+        onFileCondition: '.roleRef.name == "manager-role"'
+      - type: UPDATE
+        key: .subjects.[].name
+        value: '"{{ include \"jobset.controller.serviceAccount.name\" . }}"'
+      - type: UPDATE
+        key: .subjects.[].namespace
+        value: '"{{ .Release.Namespace }}"'
+    postOperations:
+      - type: INSERT_TEXT
+        key: .metadata
+        value: |
+          labels:
+          {{- include "jobset.labels" . | nindent 4 }}
+        indentation: 2
+      - type: INSERT_TEXT
+        key: .metadata.name
+        value: |
+          namespace: '{{ .Release.Namespace }}'
+        onFileCondition: '.kind == "Role" or .kind == "RoleBinding"'
+      - type: INSERT_TEXT
+        position: START
+        value: |
+          {{- if .Values.controller.leaderElection.enable }}
+        onFileCondition: '.metadata.name | test("leader-election")'
+      - type: INSERT_TEXT
+        position: END
+        value: |
+          {{- end }}
+        onFileCondition: '.metadata.name | test("leader-election")'
+  - path: ./config/components/webhook/service.yaml
+    outputDir: ./charts/jobset/templates/webhook/
+    removeComments: true
+    continueOnError: true
+    operations:
+      - type: DELETE
+        key: .metadata.labels
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.webhook.service.name\" . }}"'
+      - type: UPDATE
+        key: .metadata.namespace
+        value: '"{{ .Release.Namespace }}"'
+      - type: DELETE
+        key: .spec.selector
+      - type: DELETE
+        key: .spec.ports
+      - type: INSERT_OBJECT
+        key: .spec.type
+        value: '"ClusterIP"'
+        addKeyIfMissing: true
+    postOperations:
+      - type: INSERT_TEXT
+        key: .metadata
+        value: |
+          labels:
+          {{- include "jobset.webhook.labels" . | nindent 4 }}
+        indentation: 2
+      - type: INSERT_TEXT
+        key: .spec.type
+        value: |
+          selector:
+          {{- include "jobset.selectorLabels" . | nindent 4 }}
+          ports:
+          - name: webhook
+            protocol: TCP
+            port: 443
+            targetPort: webhook
+  - path: ./config/components/webhook/manifests.yaml
+    outputDir: ./charts/jobset/templates/webhook/
+    removeComments: true
+    continueOnError: true
+    operations:
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.webhook.mutatingWebhookConfiguration.name\" . }}"'
+        onFileCondition: '.kind == "MutatingWebhookConfiguration"'
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.webhook.validatingWebhookConfiguration.name\" . }}"'
+        onFileCondition: '.kind == "ValidatingWebhookConfiguration"'
+      - type: UPDATE
+        key: .webhooks.[].clientConfig.service.name
+        value: '"{{ include \"jobset.webhook.service.name\" . }}"'
+      - type: UPDATE
+        key: .webhooks.[].clientConfig.service.namespace
+        value: '"{{ .Release.Namespace }}"'
+      - type: DELETE
+        key: .webhooks.[].failurePolicy
+      - type: UPDATE
+        key: .webhooks.[].name
+        value: '"mutate-jobset-x-k8s-io-v1alpha2-jobset.x-k8s.io"'
+        onFileCondition: '.kind == "MutatingWebhookConfiguration"'
+        onItemCondition: '.webhooks.[].name == "mjobset.kb.io"'
+      - type: UPDATE
+        key: .webhooks.[].name
+        value: '"mutate--v1-pod.x-k8s.io"'
+        onFileCondition: '.kind == "MutatingWebhookConfiguration"'
+        onItemCondition: '.webhooks.[].name == "mpod.kb.io"'
+      - type: UPDATE
+        key: .webhooks.[].name
+        value: '"validate-jobset-x-k8s-io-v1alpha2-jobset.x-k8s.io"'
+        onFileCondition: '.kind == "ValidatingWebhookConfiguration"'
+        onItemCondition: '.webhooks.[].name == "vjobset.kb.io"'
+      - type: UPDATE
+        key: .webhooks.[].name
+        value: '"validate--v1-pod.x-k8s.io"'
+        onFileCondition: '.kind == "ValidatingWebhookConfiguration"'
+        onItemCondition: '.webhooks.[].name == "vpod.kb.io"'
+    postOperations:
+      - type: INSERT_TEXT
+        key: .metadata
+        value: |
+          labels:
+          {{- include "jobset.webhook.labels" . | nindent 4 }}
+        indentation: 2
+      - type: INSERT_TEXT
+        key: .metadata.name
+        value: |
+          {{- if .Values.certManager.enable }}
+          annotations:
+            cert-manager.io/inject-ca-from: '{{ .Release.Namespace }}/{{ include "jobset.certManager.certificate.name" . }}'
+          {{- end }}
+      - type: INSERT_TEXT
+        key: .webhooks.[].sideEffects
+        value: |
+          objectSelector:
+            matchExpressions:
+            - key: jobset.sigs.k8s.io/jobset-name
+              operator: Exists
+        onFileCondition: '.kind == "MutatingWebhookConfiguration"'
+        onItemCondition: '.webhooks.[].clientConfig.service.path == "/mutate--v1-pod"'
+      - type: INSERT_TEXT
+        key: .webhooks.[].sideEffects
+        value: |
+          objectSelector:
+            matchExpressions:
+            - key: jobset.sigs.k8s.io/jobset-name
+              operator: Exists
+        onFileCondition: '.kind == "ValidatingWebhookConfiguration"'
+        onItemCondition: '.webhooks.[].clientConfig.service.path == "/validate--v1-pod"'
+  - path: ./config/components/internalcert/secret.yaml
+    outputDir: ./charts/jobset/templates/internalcert/
+    removeComments: true
+    continueOnError: true
+    operations:
+      - type: APPEND
+        key: .metadata.name
+        value: '"{{ include \"jobset.fullname\" . }}-"'
+      - type: UPDATE
+        key: .metadata.namespace
+        value: '"{{ .Release.Namespace }}"'
+    postOperations:
+      - type: INSERT_TEXT
+        key: .metadata
+        value: |
+          labels:
+          {{- include "jobset.webhook.labels" . | nindent 4 }}
+        indentation: 2
+      - type: INSERT_TEXT
+        position: END
+        value: |
+          data:
+            ca.crt: ""
+            ca.key: ""
+            tls.crt: ""
+            tls.key: ""
+      - type: INSERT_TEXT
+        position: START
+        value: |
+          {{- if not .Values.certManager.enable }}
+      - type: INSERT_TEXT
+        position: END
+        value: |
+          {{- end }}
+  - path: ./config/components/certmanager/*.yaml
+    outputDir: ./charts/jobset/templates/certmanager/
+    removeComments: true
+    excludes:
+      - kustomization.yaml
+      - kustomizeconfig.yaml
+    continueOnError: true
+    operations:
+      - type: DELETE
+        key: .metadata.labels
+      - type: UPDATE
+        key: .spec.secretName
+        value: '"{{ include \"jobset.webhook.secret.name\" . }}"'
+        onFileCondition: '.kind == "Certificate" and (.metadata.name | test("serving-cert"))'
+      - type: UPDATE
+        key: .spec.secretName
+        value: '"{{ include \"jobset.metrics.secret.name\" . }}"'
+        onFileCondition: '.kind == "Certificate" and (.metadata.name | test("metrics-cert"))'
+      - type: UPDATE
+        key: .spec.commonName
+        value: '"{{ include \"jobset.name\" . }}-webhook"'
+        onFileCondition: '.kind == "Certificate" and (.metadata.name | test("serving-cert"))'
+      - type: UPDATE
+        key: .spec.commonName
+        value: '"{{ include \"jobset.name\" . }}-metrics"'
+        onFileCondition: '.kind == "Certificate" and (.metadata.name | test("metrics-cert"))'
+      - type: DELETE
+        key: .spec.dnsNames
+        onFileCondition: '.kind == "Certificate"'
+      - type: DELETE
+        key: .spec.issuerRef
+        onFileCondition: '.kind == "Certificate"'
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.certManager.issuer.name\" . }}"'
+        onFileCondition: '.kind == "Issuer"'
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.certManager.certificate.name\" . }}"'
+        onFileCondition: '.kind == "Certificate" and (.metadata.name | test("serving-cert"))'
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.certManager.metricsCertificate.name\" . }}"'
+        onFileCondition: '.kind == "Certificate" and (.metadata.name | test("metrics-cert"))'
+      - type: UPDATE
+        key: .metadata.namespace
+        value: '"{{ .Release.Namespace }}"'
+    postOperations:
+      - type: INSERT_TEXT
+        key: .metadata
+        value: |
+          labels:
+          {{- include "jobset.labels" . | nindent 4 }}
+        indentation: 2
+      - type: INSERT_TEXT
+        key: .spec.secretName
+        value: |
+          issuerRef:
+          {{- if not .Values.certManager.issuerRef }}
+            group: cert-manager.io
+            kind: Issuer
+            name: '{{ include "jobset.certManager.issuer.name" . }}'
+          {{- else }}
+            {{- toYaml .Values.certManager.issuerRef | nindent 4 }}
+          {{- end }}
+          dnsNames:
+          - '{{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc'
+          - '{{ include "jobset.webhook.service.name" . }}.{{ .Release.Namespace }}.svc.{{ .Values.kubernetesClusterDomain | default "cluster.local" }}'
+        onFileCondition: '.kind == "Certificate" and (.spec.secretName | test("webhook"))'
+      - type: INSERT_TEXT
+        key: .spec.secretName
+        value: |
+          issuerRef:
+          {{- if not .Values.certManager.issuerRef }}
+            group: cert-manager.io
+            kind: Issuer
+            name: '{{ include "jobset.certManager.issuer.name" . }}'
+          {{- else }}
+            {{- toYaml .Values.certManager.issuerRef | nindent 4 }}
+          {{- end }}
+          dnsNames:
+          - '{{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc'
+          - '{{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc.{{ .Values.kubernetesClusterDomain | default "cluster.local" }}'
+        onFileCondition: '.kind == "Certificate" and (.spec.secretName | test("metrics"))'
+      - type: INSERT_TEXT
+        position: START
+        value: |
+          {{- if and .Values.certManager.enable (not .Values.certManager.issuerRef) }}
+        onFileCondition: '.kind == "Issuer"'
+      - type: INSERT_TEXT
+        position: END
+        value: |
+          {{- end }}
+        onFileCondition: '.kind == "Issuer"'
+      - type: INSERT_TEXT
+        position: START
+        value: |
+          {{- if .Values.certManager.enable }}
+        onFileCondition: '.kind == "Certificate"'
+      - type: INSERT_TEXT
+        position: END
+        value: |
+          {{- end }}
+        onFileCondition: '.kind == "Certificate"'
+  - path: ./config/components/prometheus/role.yaml
+    outputDir: ./charts/jobset/templates/prometheus/
+    removeComments: true
+    continueOnError: true
+    operations:
+      - type: APPEND
+        key: .metadata.name
+        value: '"{{ include \"jobset.fullname\" . }}-"'
+      - type: UPDATE
+        key: .metadata.namespace
+        value: '"{{ .Release.Namespace }}"'
+      - type: APPEND
+        key: .roleRef.name
+        value: '"{{ include \"jobset.fullname\" . }}-"'
+      - type: UPDATE
+        key: .subjects.[].namespace
+        value: '"{{ .Values.prometheus.prometheusNamespace }}"'
+    postOperations:
+      - type: INSERT_TEXT
+        key: .metadata
+        value: |
+          labels:
+          {{- include "jobset.labels" . | nindent 4 }}
+        indentation: 2
+      - type: INSERT_TEXT
+        position: START
+        value: |
+          {{- if .Values.prometheus.enable }}
+      - type: INSERT_TEXT
+        position: END
+        value: |
+          {{- end }}
+  - path: ./config/components/prometheus/monitor.yaml
+    outputDir: ./charts/jobset/templates/prometheus/
+    removeComments: true
+    continueOnError: true
+    operations:
+      - type: DELETE
+        key: .metadata.labels
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.metrics.serviceMonitor.name\" . }}"'
+      - type: UPDATE
+        key: .metadata.namespace
+        value: '"{{ .Release.Namespace }}"'
+      - type: DELETE
+        key: .spec.endpoints.[].tlsConfig
+      - type: DELETE
+        key: .spec.selector
+    postOperations:
+      - type: INSERT_TEXT
+        key: .metadata
+        value: |
+          labels:
+          {{- include "jobset.labels" . | nindent 4 }}
+        indentation: 2
+      - type: INSERT_TEXT
+        key: .spec
+        value: |
+          selector:
+            matchLabels:
+            {{- include "jobset.controller.selectorLabels" . | nindent 6 }}
+        indentation: 2
+      - type: INSERT_TEXT
+        key: .spec.endpoints.[].bearerTokenFile
+        value: |
+          {{- if .Values.certManager.enable }}
+          tlsConfig:
+            ca:
+              secret:
+                key: ca.crt
+                name: '{{ include "jobset.metrics.secret.name" . }}'
+            cert:
+              secret:
+                key: tls.crt
+                name: '{{ .Values.prometheus.prometheusClientCertSecretName }}'
+            insecureSkipVerify: false
+            keySecret:
+              key: tls.key
+              name: '{{ .Values.prometheus.prometheusClientCertSecretName }}'
+            serverName: '{{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc'
+          {{- else }}
+          tlsConfig:
+            insecureSkipVerify: true
+          {{- end }}
+      - type: INSERT_TEXT
+        position: START
+        value: |
+          {{- if .Values.prometheus.enable }}
+          {{- if not (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor") }}
+          {{- fail "The cluster does not support the required API resource `monitoring.coreos.com/v1/ServiceMonitor`." }}
+          {{- end -}}
+      - type: INSERT_TEXT
+        position: END
+        value: |
+          {{- end }}
+  - path: ./config/default/manager_metrics_service.yaml
+    outputDir: ./charts/jobset/templates/prometheus/
+    removeComments: true
+    continueOnError: true
+    operations:
+      - type: DELETE
+        key: .metadata.labels
+      - type: UPDATE
+        key: .metadata.name
+        value: '"{{ include \"jobset.metrics.service.name\" . }}"'
+      - type: UPDATE
+        key: .metadata.namespace
+        value: '"{{ .Release.Namespace }}"'
+      - type: DELETE
+        key: .spec.selector
+    postOperations:
+      - type: INSERT_TEXT
+        key: .metadata
+        value: |
+          labels:
+          {{- include "jobset.controller.selectorLabels" . | nindent 4 }}
+        indentation: 2
+      - type: INSERT_TEXT
+        key: .spec
+        value: |
+          type: ClusterIP
+          selector:
+          {{- include "jobset.controller.selectorLabels" . | nindent 4 }}
+        indentation: 2
