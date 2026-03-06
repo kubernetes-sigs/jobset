@@ -133,7 +133,7 @@
         "metadata": {
           "description": "metadata is the object metadata for JobSet",
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.1/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
         },
         "spec": {
           "description": "spec is the specification for jobset",
@@ -171,7 +171,7 @@
         },
         "metadata": {
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.1/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
         }
       }
     },
@@ -244,7 +244,7 @@
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.1/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
           },
           "x-kubernetes-list-map-keys": [
             "type"
@@ -274,19 +274,29 @@
           "x-kubernetes-list-type": "map"
         },
         "restarts": {
-          "description": "restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).",
+          "description": "restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).",
           "type": "integer",
           "format": "int32",
           "default": 0
         },
         "restartsCountTowardsMax": {
-          "description": "restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.",
+          "description": "restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).",
           "type": "integer",
           "format": "int32"
         },
         "terminalState": {
           "description": "terminalState tracks the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",
           "type": "string"
+        },
+        "totalRestarts": {
+          "description": "totalRestarts tracks the number of times the JobSet has restarted in any way (e.g., this also counts restart actions such as RestartJob). Nil should be treated as `jobSet.status.restarts`",
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalRestartsCountTowardsMax": {
+          "description": "totalRestartsCountTowardsMax tracks the number of times the JobSet has restarted in any way that counts towards the maximum allowed number of restarts (e.g., this also counts restart actions such as RestartJob). Nil should be treated as `jobSet.status.restartsCountTowardsMax`",
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -343,7 +353,7 @@
         "template": {
           "description": "template defines the template of the Job that will be created.",
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.1/api/openapi-spec/swagger.json#/definitions/io.k8s.api.batch.v1.JobTemplateSpec"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.batch.v1.JobTemplateSpec"
         }
       }
     },
@@ -370,6 +380,14 @@
           "type": "integer",
           "format": "int32",
           "default": 0
+        },
+        "jobRestarts": {
+          "description": "jobRestarts tracks the number of times the Job has individually restarted for each job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
+          "type": "string"
+        },
+        "jobRestartsCountTowardsMax": {
+          "description": "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
+          "type": "string"
         },
         "name": {
           "description": "name of the ReplicatedJob.",
@@ -444,7 +462,7 @@
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.1/api/openapi-spec/swagger.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.35.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
           },
           "x-kubernetes-list-type": "atomic"
         }

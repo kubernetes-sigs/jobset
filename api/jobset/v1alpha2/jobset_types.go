@@ -201,13 +201,23 @@ type JobSetStatus struct {
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
+	// restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
 	// +optional
 	Restarts int32 `json:"restarts"`
 
-	// restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.
+	// restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
 	// +optional
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
+
+	// totalRestarts tracks the number of times the JobSet has restarted in any way (e.g., this also counts restart actions such as RestartJob).
+	// Nil should be treated as `jobSet.status.restarts`
+	// +optional
+	TotalRestarts *int32 `json:"totalRestarts,omitempty"`
+
+	// totalRestartsCountTowardsMax tracks the number of times the JobSet has restarted in any way that counts towards the maximum allowed number of restarts (e.g., this also counts restart actions such as RestartJob).
+	// Nil should be treated as `jobSet.status.restartsCountTowardsMax`
+	// +optional
+	TotalRestartsCountTowardsMax *int32 `json:"totalRestartsCountTowardsMax,omitempty"`
 
 	// terminalState tracks the state of the JobSet when it finishes execution.
 	// It can be either Completed or Failed. Otherwise, it is empty by default.
@@ -262,6 +272,20 @@ type ReplicatedJobStatus struct {
 
 	// suspended is the number of child Jobs which are in a suspended state.
 	Suspended int32 `json:"suspended"`
+
+	// jobRestarts tracks the number of times the Job has individually restarted for each job index.
+	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
+	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
+	// +kubebuilder:validation:MaxLength=32768
+	// +optional
+	JobRestarts *string `json:"jobRestarts,omitempty"`
+
+	// jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
+	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
+	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
+	// +kubebuilder:validation:MaxLength=32768
+	// +optional
+	JobRestartsCountTowardsMax *string `json:"jobRestartsCountTowardsMax,omitempty"`
 }
 
 // +genclient
@@ -393,6 +417,13 @@ const (
 
 	// Do not count the failure against maxRestarts.
 	RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobSetAndIgnoreMaxRestarts"
+
+	// Restart (i.e., recreate) the failed Job individually if the number of restart attempts is less than MaxRestarts.
+	// Otherwise, fail the JobSet.
+	RestartJob FailurePolicyAction = "RestartJob"
+
+	// Restart (i.e., recreate) the failed Job individually and do not count the failure against maxRestarts.
+	RestartJobAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobAndIgnoreMaxRestarts"
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
@@ -406,7 +437,7 @@ type FailurePolicyRule struct {
 	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
 	Name string `json:"name"`
 	// action to take if the rule is matched.
-	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts
+	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts;RestartJob;RestartJobAndIgnoreMaxRestarts
 	Action FailurePolicyAction `json:"action"`
 	// onJobFailureReasons is a list of job failures reasons.
 	// The requirement is satisfied

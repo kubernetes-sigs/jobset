@@ -37,6 +37,8 @@ class TestJobsetV1alpha2ReplicatedJobStatus(unittest.TestCase):
             return JobsetV1alpha2ReplicatedJobStatus(
                 active = 56,
                 failed = 56,
+                job_restarts = '',
+                job_restarts_count_towards_max = '',
                 name = '',
                 ready = 56,
                 succeeded = 56,

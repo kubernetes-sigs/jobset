@@ -168,6 +168,8 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                                     active = 56, 
                                     failed = 56, 
+                                    job_restarts = '', 
+                                    job_restarts_count_towards_max = '', 
                                     name = '', 
                                     ready = 56, 
                                     succeeded = 56, 
@@ -175,7 +177,9 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 ], 
                             restarts = 56, 
                             restarts_count_towards_max = 56, 
-                            terminal_state = '', ), )
+                            terminal_state = '', 
+                            total_restarts = 56, 
+                            total_restarts_count_towards_max = 56, ), )
                     ],
                 kind = '',
                 metadata = jobset.models.io/k8s/apimachinery/pkg/apis/meta/v1/list_meta.io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta(
@@ -318,6 +322,8 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                                     active = 56, 
                                     failed = 56, 
+                                    job_restarts = '', 
+                                    job_restarts_count_towards_max = '', 
                                     name = '', 
                                     ready = 56, 
                                     succeeded = 56, 
@@ -325,7 +331,9 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 ], 
                             restarts = 56, 
                             restarts_count_towards_max = 56, 
-                            terminal_state = '', ), )
+                            terminal_state = '', 
+                            total_restarts = 56, 
+                            total_restarts_count_towards_max = 56, ), )
                     ],
         )
         """

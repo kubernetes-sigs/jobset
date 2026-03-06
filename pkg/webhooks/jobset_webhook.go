@@ -47,6 +47,11 @@ import (
 const maxManagedByLength = 63
 const maxVolumeClaimLength = 63
 
+// maxReplicasPerReplicatedJob limits the number of replicas when using the RestartJob action.
+// The limit is based on the 32KB MaxLength of the JobRestarts string field in ReplicatedJobStatus.
+// See api/jobset/v1alpha2/jobset_types.go for more details.
+const maxReplicasPerReplicatedJob = 2978
+
 const (
 	// This is the error message returned by IsDNS1035Label when the given input
 	// is longer than 63 characters.
@@ -283,7 +288,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 
 	// Validate failure policy
 	if js.Spec.FailurePolicy != nil {
-		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, rJobNames)
+		failurePolicyErrors := validateFailurePolicy(js, rJobNames)
 		allErrs = append(allErrs, failurePolicyErrors...)
 	}
 
@@ -342,10 +347,28 @@ const (
 var ruleNameRegexp = regexp.MustCompile(ruleNameFmt)
 
 // validateFailurePolicy performs validation for jobset failure policies and returns all errors detected.
-func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, rJobNames sets.Set[string]) []error {
+func validateFailurePolicy(js *jobset.JobSet, rJobNames sets.Set[string]) []error {
 	var allErrs []error
+	failurePolicy := js.Spec.FailurePolicy
 	if failurePolicy == nil {
 		return allErrs
+	}
+
+	// Check if any rule has RestartJob action and validate that no replicated job has replicas > maxReplicasPerReplicatedJob.
+	hasRestartJob := false
+	for _, rule := range failurePolicy.Rules {
+		if rule.Action == jobset.RestartJob || rule.Action == jobset.RestartJobAndIgnoreMaxRestarts {
+			hasRestartJob = true
+			break
+		}
+	}
+	if hasRestartJob {
+		for _, rJob := range js.Spec.ReplicatedJobs {
+			if rJob.Replicas > maxReplicasPerReplicatedJob {
+				allErrs = append(allErrs, fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > %d", maxReplicasPerReplicatedJob))
+				break
+			}
+		}
 	}
 
 	// ruleNameToRulesWithName is used to verify that rule names are unique

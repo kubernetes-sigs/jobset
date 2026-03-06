@@ -426,6 +426,13 @@ func TestFindFirstFailedPolicyRuleAndJob(t *testing.T) {
 func TestApplyFailurePolicyRuleAction(t *testing.T) {
 	matchingFailedJob := jobWithFailedCondition("failed-job", time.Now())
 
+	matchingFailedJobWithLabels := matchingFailedJob.DeepCopy()
+	if matchingFailedJobWithLabels.Labels == nil {
+		matchingFailedJobWithLabels.Labels = make(map[string]string)
+	}
+	matchingFailedJobWithLabels.Labels[jobset.ReplicatedJobNameKey] = "rjob"
+	matchingFailedJobWithLabels.Labels[jobset.JobIndexKey] = "0"
+
 	testCases := []struct {
 		name                 string
 		jobSet               *jobset.JobSet
@@ -453,15 +460,19 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			name: "RestartJobSet when restarts < maxRestarts increments restarts count and counts towards max",
 			jobSet: testutils.MakeJobSet("test-js", "default").FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
 				SetStatus(jobset.JobSetStatus{
-					Restarts:                1,
-					RestartsCountTowardsMax: 1,
+					Restarts:                     1,
+					RestartsCountTowardsMax:      1,
+					TotalRestarts:                ptr.To[int32](1),
+					TotalRestartsCountTowardsMax: ptr.To[int32](1),
 				}).
 				Obj(),
 			matchingFailedJob:   matchingFailedJob,
 			failurePolicyAction: jobset.RestartJobSet,
 			expectedJobSetStatus: jobset.JobSetStatus{
-				Restarts:                2,
-				RestartsCountTowardsMax: 2,
+				Restarts:                     2,
+				RestartsCountTowardsMax:      2,
+				TotalRestarts:                ptr.To[int32](2),
+				TotalRestartsCountTowardsMax: ptr.To[int32](2),
 			},
 		},
 		{
@@ -469,16 +480,20 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 2}).
 				SetStatus(jobset.JobSetStatus{
-					Restarts:                2,
-					RestartsCountTowardsMax: 2,
+					Restarts:                     2,
+					RestartsCountTowardsMax:      2,
+					TotalRestarts:                ptr.To[int32](2),
+					TotalRestartsCountTowardsMax: ptr.To[int32](2),
 				}).
 				Obj(),
 			matchingFailedJob:   matchingFailedJob,
 			failurePolicyAction: jobset.RestartJobSet,
 			expectedJobSetStatus: jobset.JobSetStatus{
-				Restarts:                2,
-				RestartsCountTowardsMax: 2,
-				TerminalState:           string(jobset.JobSetFailed),
+				Restarts:                     2,
+				RestartsCountTowardsMax:      2,
+				TotalRestarts:                ptr.To[int32](2),
+				TotalRestartsCountTowardsMax: ptr.To[int32](2),
+				TerminalState:                string(jobset.JobSetFailed),
 				Conditions: []metav1.Condition{
 					{
 						Type:   string(jobset.JobSetFailed),
@@ -493,15 +508,175 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1}).
 				SetStatus(jobset.JobSetStatus{
-					Restarts:                1,
-					RestartsCountTowardsMax: 1,
+					Restarts:                     1,
+					RestartsCountTowardsMax:      1,
+					TotalRestarts:                ptr.To[int32](1),
+					TotalRestartsCountTowardsMax: ptr.To[int32](1),
 				}).
 				Obj(),
 			matchingFailedJob:   matchingFailedJob,
 			failurePolicyAction: jobset.RestartJobSetAndIgnoreMaxRestarts,
 			expectedJobSetStatus: jobset.JobSetStatus{
-				Restarts:                2,
-				RestartsCountTowardsMax: 1, // not incremented
+				Restarts:                     2,
+				RestartsCountTowardsMax:      1, // not incremented
+				TotalRestarts:                ptr.To[int32](2),
+				TotalRestartsCountTowardsMax: ptr.To[int32](1),
+			},
+		},
+		{
+			name: "RestartJob action when combined restarts < maxRestarts increments jobRestart count and counts towards max",
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                     0,
+					RestartsCountTowardsMax:      0,
+					TotalRestarts:                ptr.To[int32](0),
+					TotalRestartsCountTowardsMax: ptr.To[int32](0),
+					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+						{
+							Name:                       "rjob",
+							JobRestarts:                ptr.To("0"),
+							JobRestartsCountTowardsMax: ptr.To("0"),
+						},
+					},
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJobWithLabels,
+			failurePolicyAction: jobset.RestartJob,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                     0,
+				RestartsCountTowardsMax:      0,
+				TotalRestarts:                ptr.To[int32](1),
+				TotalRestartsCountTowardsMax: ptr.To[int32](1),
+				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+					{
+						Name:                       "rjob",
+						JobRestarts:                ptr.To("1"),
+						JobRestartsCountTowardsMax: ptr.To("1"),
+					},
+				},
+			},
+		},
+		{
+			name: "RestartJob action when combined restarts >= maxRestarts fails the jobset",
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 2}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                     1,
+					RestartsCountTowardsMax:      1,
+					TotalRestarts:                ptr.To[int32](2),
+					TotalRestartsCountTowardsMax: ptr.To[int32](2),
+					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+						{
+							Name:                       "rjob",
+							JobRestarts:                ptr.To("1"),
+							JobRestartsCountTowardsMax: ptr.To("1"),
+						},
+					},
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJobWithLabels,
+			failurePolicyAction: jobset.RestartJob,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                     1,
+				RestartsCountTowardsMax:      1,
+				TotalRestarts:                ptr.To[int32](2),
+				TotalRestartsCountTowardsMax: ptr.To[int32](2),
+				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+					{
+						Name:                       "rjob",
+						JobRestarts:                ptr.To("1"),
+						JobRestartsCountTowardsMax: ptr.To("1"),
+					},
+				},
+				TerminalState: string(jobset.JobSetFailed),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetFailed),
+						Status: metav1.ConditionTrue,
+						Reason: constants.ReachedMaxRestartsReason,
+					},
+				},
+			},
+		},
+		{
+			name: "RestartJob action when combined restarts >= maxRestarts and a previous individual restart fails the jobset",
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 2}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                     1,
+					RestartsCountTowardsMax:      1,
+					TotalRestarts:                ptr.To[int32](2),
+					TotalRestartsCountTowardsMax: ptr.To[int32](2),
+					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+						{
+							Name:                       "rjob",
+							JobRestarts:                ptr.To("1"),
+							JobRestartsCountTowardsMax: ptr.To("1"),
+						},
+					},
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJobWithLabels,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                     1,
+				RestartsCountTowardsMax:      1,
+				TotalRestarts:                ptr.To[int32](2),
+				TotalRestartsCountTowardsMax: ptr.To[int32](2),
+				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+					{
+						Name:                       "rjob",
+						JobRestarts:                ptr.To("1"),
+						JobRestartsCountTowardsMax: ptr.To("1"),
+					},
+				},
+				TerminalState: string(jobset.JobSetFailed),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetFailed),
+						Status: metav1.ConditionTrue,
+						Reason: constants.ReachedMaxRestartsReason,
+					},
+				},
+			},
+		},
+		{
+			name: "RestartJobAndIgnoreMaxRestarts action does not count toward max restarts",
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                     0,
+					RestartsCountTowardsMax:      0,
+					TotalRestarts:                ptr.To[int32](0),
+					TotalRestartsCountTowardsMax: ptr.To[int32](0),
+					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+						{
+							Name:                       "rjob",
+							JobRestarts:                ptr.To("0"),
+							JobRestartsCountTowardsMax: ptr.To("0"),
+						},
+					},
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJobWithLabels,
+			failurePolicyAction: jobset.RestartJobAndIgnoreMaxRestarts,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                     0,
+				RestartsCountTowardsMax:      0,
+				TotalRestarts:                ptr.To[int32](1),
+				TotalRestartsCountTowardsMax: ptr.To[int32](0),
+				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+					{
+						Name:                       "rjob",
+						JobRestarts:                ptr.To("1"),
+						JobRestartsCountTowardsMax: ptr.To("0"),
+					},
+				},
 			},
 		},
 	}
