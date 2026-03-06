@@ -31,6 +31,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -57,6 +58,10 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	var err error
+	err = features.SetEnable(features.ElasticJobSet, true)
+	Expect(err).NotTo(HaveOccurred())
+
 	ctx, cancel = context.WithCancel(context.Background())
 
 	By("bootstrapping test environment")
@@ -65,7 +70,6 @@ var _ = BeforeSuite(func() {
 		ErrorIfCRDPathMissing: true,
 	}
 
-	var err error
 	// cfg is defined in this file globally.
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())

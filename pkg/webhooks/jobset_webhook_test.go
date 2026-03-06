@@ -3676,7 +3676,7 @@ func TestValidateUpdate(t *testing.T) {
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "test-jobset-replicated-job-0",
-							Replicas: 2, // <--- IMMUTABLE FIELD MODIFIED
+							Replicas: 2, // immutable field modified
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Parallelism: ptr.To[int32](4), // Valid scale operation
@@ -3690,6 +3690,47 @@ func TestValidateUpdate(t *testing.T) {
 				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
 			}.ToAggregate(),
 			enableElasticJobSet: true,
+		},
+		{
+			name: "invalid scaling of parallelism and completions when feature gate is disabled",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Completions: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](8),
+									Completions: ptr.To[int32](8),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+			enableElasticJobSet: false, // Feature gate disabled
 		},
 	}
 
