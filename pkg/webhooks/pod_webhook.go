@@ -199,37 +199,37 @@ func (p *podWebhook) topologyFromPod(ctx context.Context, pod *corev1.Pod, topol
 
 // ValidateCreate validates that follower pods (job completion index != 0) part of a JobSet using exclusive
 // placement are only admitted after the leader pod (job completion index == 0) has been scheduled.
-func (p *podWebhook) ValidateCreate(ctx context.Context, obj *corev1.Pod) (admission.Warnings, error) {
+func (p *podWebhook) ValidateCreate(ctx context.Context, pod *corev1.Pod) (admission.Warnings, error) {
 	// If this pod is not part of a JobSet, we don't need to validate anything.
-	if _, isJobSetPod := obj.Annotations[jobset.JobSetNameKey]; !isJobSetPod {
+	if _, isJobSetPod := pod.Annotations[jobset.JobSetNameKey]; !isJobSetPod {
 		return nil, nil
 	}
 
 	// If pod is part of a JobSet that is using the node selector exclusive placement strategy,
 	// we don't need to validate anything.
-	if _, usingNodeSelectorStrategy := obj.Annotations[jobset.NodeSelectorStrategyKey]; usingNodeSelectorStrategy {
+	if _, usingNodeSelectorStrategy := pod.Annotations[jobset.NodeSelectorStrategyKey]; usingNodeSelectorStrategy {
 		return nil, nil
 	}
 
 	// If pod is not part of a JobSet using exclusive placement, we don't need to validate anything.
-	topologyKey, usingExclusivePlacement := obj.Annotations[jobset.ExclusiveKey]
+	topologyKey, usingExclusivePlacement := pod.Annotations[jobset.ExclusiveKey]
 	if !usingExclusivePlacement {
 		return nil, nil
 	}
 
 	// Do not validate anything else for leader pods, proceed with creation immediately.
-	if placement.IsLeaderPod(obj) {
+	if placement.IsLeaderPod(pod) {
 		return nil, nil
 	}
 	// If a follower pod node selector has not been set, reject the creation.
-	if obj.Spec.NodeSelector == nil {
+	if pod.Spec.NodeSelector == nil {
 		return nil, fmt.Errorf("follower pod node selector not set")
 	}
-	if _, exists := obj.Spec.NodeSelector[topologyKey]; !exists {
+	if _, exists := pod.Spec.NodeSelector[topologyKey]; !exists {
 		return nil, fmt.Errorf("follower pod node selector for topology domain not found. missing selector: %s", topologyKey)
 	}
 	// For follower pods, validate leader pod exists and is scheduled.
-	leaderScheduled, err := p.leaderPodScheduled(ctx, obj)
+	leaderScheduled, err := p.leaderPodScheduled(ctx, pod)
 	if err != nil {
 		return nil, err
 	}
@@ -239,11 +239,11 @@ func (p *podWebhook) ValidateCreate(ctx context.Context, obj *corev1.Pod) (admis
 	return nil, nil
 }
 
-func (p *podWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj *corev1.Pod) (admission.Warnings, error) {
+func (p *podWebhook) ValidateUpdate(ctx context.Context, oldPod, newPod *corev1.Pod) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func (p *podWebhook) ValidateDelete(ctx context.Context, obj *corev1.Pod) (admission.Warnings, error) {
+func (p *podWebhook) ValidateDelete(ctx context.Context, pod *corev1.Pod) (admission.Warnings, error) {
 	return nil, nil
 }
 
