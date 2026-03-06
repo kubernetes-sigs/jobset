@@ -385,7 +385,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		// If the label is missing, just log instead of deleting the Job for backward compatibility
 		// If this Job is ever recreated, it will have the label
 		if !ok {
-			log.Error(err, fmt.Sprintf("missing label %s", constants.JobRestartAttemptKey))
+			log.Error(fmt.Errorf("missing label %s", constants.JobRestartAttemptKey), "")
 		} else {
 			individualRestarts, err := strconv.Atoi(individualRestartsStr)
 			if err != nil {
