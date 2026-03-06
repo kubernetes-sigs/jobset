@@ -393,7 +393,14 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 				ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
 				return nil, err
 			}
-			targetIndividualRestarts := getJobRestarts(js, replicatedJobName)[jobIndex]
+			allTargetIndividualRestarts := getJobRestarts(js, replicatedJobName)
+			if jobIndex >= len(allTargetIndividualRestarts) {
+				err := fmt.Errorf("job index %d is out of bounds for replicated job %s", jobIndex, replicatedJobName)
+				log.Error(err, "")
+				ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+				return nil, err
+			}
+			targetIndividualRestarts := allTargetIndividualRestarts[jobIndex]
 			if int32(individualRestarts) < targetIndividualRestarts {
 				log.V(2).Info("child Job marked for recreation as value of job restart attempt is less than target", "name", job.Name, constants.JobRestartAttemptKey, individualRestarts, "targetJobRestartAttempt", targetIndividualRestarts)
 				ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
