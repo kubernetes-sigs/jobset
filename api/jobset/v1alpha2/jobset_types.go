@@ -96,6 +96,11 @@ const (
 	// strategy is not used (or the feature gate is not enabled). One example is
 	// downgrading the JobSet CRD to a version that does not support in-place restart
 	DisableInPlaceRestartKey string = "jobset.sigs.k8s.io/disable-in-place-restart"
+
+	// SkipSuspendReconciliationAnnotation is a JobSet annotation that, if "true", instructs the JobSet controller
+	// to not reconcile the suspend state of the JobSet onto its child Jobs.
+	// This also forces the JobSet suspend field to be nil.
+	SkipSuspendReconciliationAnnotation string = "jobset.sigs.k8s.io/skip-suspend-reconciliation"
 )
 
 type JobSetConditionType string
