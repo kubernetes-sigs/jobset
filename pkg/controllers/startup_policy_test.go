@@ -80,7 +80,7 @@ func TestReplicatedJobStarted(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "replicas 4; replicatedJobStatus mix of ready, failed and succeded",
+			name:     "replicas 4; replicatedJobStatus mix of ready, failed and succeeded",
 			replicas: 4,
 			replicatedJobStatus: &jobset.ReplicatedJobStatus{
 				Name:      "test",
