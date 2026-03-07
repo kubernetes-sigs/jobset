@@ -658,7 +658,7 @@ func (r *JobSetReconciler) createJobs(ctx context.Context, js *jobset.JobSet, jo
 	workqueue.ParallelizeUntil(ctx, constants.MaxParallelism, len(jobs), func(i int) {
 		job := jobs[i]
 
-		// Set jobset controller as owner of the job for garbage collection and reconcilation.
+		// Set jobset controller as owner of the job for garbage collection and reconciliation.
 		if err := ctrl.SetControllerReference(js, job, r.Scheme); err != nil {
 			lock.Lock()
 			defer lock.Unlock()
@@ -739,7 +739,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 			},
 		}
 
-		// Set controller owner reference for garbage collection and reconcilation.
+		// Set controller owner reference for garbage collection and reconciliation.
 		if err := ctrl.SetControllerReference(js, &headlessSvc, r.Scheme); err != nil {
 			return err
 		}
@@ -1014,7 +1014,7 @@ func managedByExternalController(js *jobset.JobSet) *string {
 }
 
 // enqueueEvent appends a new k8s event to be emitted if and only after running the status
-// update functions in the updateStatusOpts, the status update API call suceeds.
+// update functions in the updateStatusOpts, the status update API call succeeds.
 func enqueueEvent(updateStatusOpts *statusUpdateOpts, event *eventParams) {
 	updateStatusOpts.events = append(updateStatusOpts.events, event)
 }

@@ -1,6 +1,13 @@
 version: "2"
 linters:
   enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - staticcheck
+    - unconvert
     - unparam
   exclusions:
     generated: lax
