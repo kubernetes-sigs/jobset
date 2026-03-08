@@ -2664,6 +2664,74 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("dynamic horizontal pod scaling propagates parallelism and completions to child jobs", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("elastic-js", ns.Name).
+					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+					ReplicatedJob(testing.MakeReplicatedJob("workers").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).
+							Parallelism(2).
+							Completions(2).
+							Obj()).
+						Replicas(1).
+						Obj())
+			},
+			steps: []*step{
+				{
+					// Step 1: Wait for the initial job to be created and verify its parallelism/completions.
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(func() (bool, error) {
+							var jobList batchv1.JobList
+							if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+								return false, err
+							}
+							if len(jobList.Items) != 1 {
+								return false, nil
+							}
+							p := ptr.Deref(jobList.Items[0].Spec.Parallelism, 0)
+							c := ptr.Deref(jobList.Items[0].Spec.Completions, 0)
+							return p == 2 && c == 2, nil
+						}, timeout, interval).Should(gomega.BeTrue())
+					},
+				},
+				{
+					// Step 2: Simulate an external scaling operation.
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						var latestJS jobset.JobSet
+						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js), &latestJS)
+						gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to fetch latest JobSet")
+
+						// Mutating Parallelism and Completions locally and forcing the update to the cluster
+						latestJS.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+						latestJS.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
+
+						err = k8sClient.Update(ctx, &latestJS)
+						gomega.Expect(err).NotTo(gomega.HaveOccurred(), "API Server rejected the JobSet update")
+
+						// Update the local pointer so the test framework has the correct ResourceVersion
+						*js = latestJS
+					},
+					// Step 3: Verify the controller caught the update and patched the child job in-place.
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking child jobs are patched with new parallelism and completions")
+						gomega.Eventually(func() (bool, error) {
+							var jobList batchv1.JobList
+							if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+								return false, err
+							}
+							if len(jobList.Items) != 1 {
+								return false, nil
+							}
+							p := ptr.Deref(jobList.Items[0].Spec.Parallelism, 0)
+							c := ptr.Deref(jobList.Items[0].Spec.Completions, 0)
+							return p == 4 && c == 4, nil
+						}, timeout, interval).Should(gomega.BeTrue())
+					},
+				},
+			},
+		}),
 	) // end of DescribeTable
 
 	ginkgo.When("A JobSet is managed by another controller", ginkgo.Ordered, func() {

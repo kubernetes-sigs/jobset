@@ -41,6 +41,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
@@ -1988,6 +1989,97 @@ func TestGroupReplicas(t *testing.T) {
 			actualGroupReplicas := groupReplicas(tc.jobSet, tc.groupName)
 			if diff := cmp.Diff(tc.expectedGroupReplicas, actualGroupReplicas); diff != "" {
 				t.Errorf("unexpected group replicas (-want/+got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestSyncJobScaling(t *testing.T) {
+	var (
+		jobSetName        = "test-jobset"
+		replicatedJobName = "replicated-job"
+		jobName           = "test-job"
+		ns                = "default"
+	)
+
+	tests := []struct {
+		name        string
+		jobSet      *jobset.JobSet
+		activeJobs  []*batchv1.Job
+		expectPatch bool
+	}{
+		{
+			name: "jobs in sync, no patch needed",
+			jobSet: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Parallelism(2).Completions(2).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			activeJobs: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-job-0",
+					ns:                ns,
+				}).Parallelism(2).Completions(2).Obj(),
+			},
+			expectPatch: false,
+		},
+		{
+			name: "jobs out of sync, patch needed",
+			jobSet: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Parallelism(8).Completions(8).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			activeJobs: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-job-0",
+					ns:                ns,
+				}).Parallelism(2).Completions(2).Obj(),
+			},
+			expectPatch: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var patchesSent int
+			_, ctx := ktesting.NewTestContext(t)
+			scheme := runtime.NewScheme()
+			utilruntime.Must(jobset.AddToScheme(scheme))
+			utilruntime.Must(corev1.AddToScheme(scheme))
+			utilruntime.Must(batchv1.AddToScheme(scheme))
+
+			fakeClientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithInterceptorFuncs(interceptor.Funcs{
+				Patch: func(ctx context.Context, client client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					patchesSent++
+					patchedJob := obj.(*batchv1.Job)
+					if *patchedJob.Spec.Parallelism != 8 || *patchedJob.Spec.Completions != 8 {
+						t.Errorf("Expected job to be patched to Parallelism/Completions 8, got %d and %d", *patchedJob.Spec.Parallelism, *patchedJob.Spec.Completions)
+					}
+					return nil
+				},
+			})
+
+			r := &JobSetReconciler{
+				Client: fakeClientBuilder.Build(),
+				Scheme: scheme,
+				Record: events.NewFakeRecorder(32),
+			}
+
+			features.SetFeatureGateDuringTest(t, features.ElasticJobSet, true)
+			err := r.syncJobScaling(ctx, tc.jobSet, tc.activeJobs)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if tc.expectPatch && patchesSent == 0 {
+				t.Errorf("Expected patch to be sent, but none were")
+			}
+			if !tc.expectPatch && patchesSent > 0 {
+				t.Errorf("Expected no patches to be sent, but got %d", patchesSent)
 			}
 		})
 	}
