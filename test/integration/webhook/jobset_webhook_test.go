@@ -78,6 +78,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 		defaultsApplied          func(*jobset.JobSet) bool
 		updateJobSet             func(set *jobset.JobSet)
 		updateShouldFail         bool
+		expectedUpdateError      string
 	}
 
 	ginkgo.DescribeTable("jobset webhook tests",
@@ -106,11 +107,15 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 
 			if tc.updateJobSet != nil {
 				tc.updateJobSet(&fetchedJS)
+				err := k8sClient.Update(ctx, &fetchedJS)
 				// Verify jobset created successfully.
 				if tc.updateShouldFail {
-					gomega.Expect(k8sClient.Update(ctx, &fetchedJS)).Should(gomega.Not(gomega.Succeed()))
+					gomega.Expect(err).Should(gomega.HaveOccurred())
+					if tc.expectedUpdateError != "" {
+						gomega.Expect(err.Error()).Should(gomega.ContainSubstring(tc.expectedUpdateError))
+					}
 				} else {
-					gomega.Expect(k8sClient.Update(ctx, &fetchedJS)).Should(gomega.Succeed())
+					gomega.Expect(err).Should(gomega.Succeed())
 				}
 			}
 		},
@@ -794,7 +799,8 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
 				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
 			},
-			updateShouldFail: true,
+			updateShouldFail:    true,
+			expectedUpdateError: "field is immutable",
 		}),
 	) // end of DescribeTable
 }) // end of Describe
