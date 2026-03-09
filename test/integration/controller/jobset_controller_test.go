@@ -746,8 +746,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetRestartsCountTowardsMax(js, 1)
 						matchJobSetTotalRestarts(js, nil)
 						matchJobSetTotalRestartsCountTowardsMax(js, nil)
-						matchJobRestarts(js, "replicated-job-a", nil)
-						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
+						matchJobRestarts(js, nil)
+						matchJobRestartsCountTowardsMax(js, nil)
 					},
 				},
 			},
@@ -783,8 +783,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetRestartsCountTowardsMax(js, 1)
 						matchJobSetTotalRestarts(js, ptr.To(int32(1)))
 						matchJobSetTotalRestartsCountTowardsMax(js, ptr.To(int32(1)))
-						matchJobRestarts(js, "replicated-job-a", nil)
-						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
+						matchJobRestarts(js, nil)
+						matchJobRestartsCountTowardsMax(js, nil)
 					},
 				},
 			},
@@ -820,8 +820,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetRestartsCountTowardsMax(js, 0)
 						matchJobSetTotalRestarts(js, ptr.To(int32(1)))
 						matchJobSetTotalRestartsCountTowardsMax(js, ptr.To(int32(1)))
-						matchJobRestarts(js, "replicated-job-a", ptr.To("1"))
-						matchJobRestartsCountTowardsMax(js, "replicated-job-a", ptr.To("1"))
+						matchJobRestarts(js, ptr.To("1"))
+						matchJobRestartsCountTowardsMax(js, ptr.To("1"))
 					},
 				},
 			},
@@ -857,8 +857,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetRestartsCountTowardsMax(js, 0)
 						matchJobSetTotalRestarts(js, ptr.To(int32(1)))
 						matchJobSetTotalRestartsCountTowardsMax(js, nil)
-						matchJobRestarts(js, "replicated-job-a", ptr.To("1"))
-						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
+						matchJobRestarts(js, ptr.To("1"))
+						matchJobRestartsCountTowardsMax(js, nil)
 					},
 				},
 			},
@@ -1040,8 +1040,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetRestartsCountTowardsMax(js, 0)
 						matchJobSetTotalRestarts(js, ptr.To(int32(3)))
 						matchJobSetTotalRestartsCountTowardsMax(js, nil)
-						matchJobRestarts(js, "replicated-job-a", nil)
-						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
+						matchJobRestarts(js, nil)
+						matchJobRestartsCountTowardsMax(js, nil)
 					},
 				},
 				{
@@ -1122,8 +1122,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetRestartsCountTowardsMax(js, 0)
 						matchJobSetTotalRestarts(js, ptr.To(int32(3)))
 						matchJobSetTotalRestartsCountTowardsMax(js, nil)
-						matchJobRestarts(js, "replicated-job-a", nil)
-						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
+						matchJobRestarts(js, nil)
+						matchJobRestartsCountTowardsMax(js, nil)
 					},
 				},
 				{
@@ -3576,14 +3576,14 @@ func matchJobSetTotalRestartsCountTowardsMax(js *jobset.JobSet, expectedCount *i
 
 // matchJobRestarts checks that the supplied jobset js has expectedCount
 // as the value of js.Status.ReplicatedJobsStatus[<where Name == replicatedJobName>].JobRestarts.
-func matchJobRestarts(js *jobset.JobSet, replicatedJobName string, expectedCount *string) {
+func matchJobRestarts(js *jobset.JobSet, expectedCount *string) {
 	gomega.Eventually(func() (*string, error) {
 		newJs := jobset.JobSet{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
 			return nil, err
 		}
 		for _, rjs := range newJs.Status.ReplicatedJobsStatus {
-			if rjs.Name == replicatedJobName {
+			if rjs.Name == "replicated-job-a" {
 				return rjs.JobRestarts, nil
 			}
 		}
@@ -3593,14 +3593,14 @@ func matchJobRestarts(js *jobset.JobSet, replicatedJobName string, expectedCount
 
 // matchJobRestartsCountTowardsMax checks that the supplied jobset js has expectedCount
 // as the value of js.Status.ReplicatedJobsStatus[<where Name == replicatedJobName>].JobRestartsCountTowardsMax.
-func matchJobRestartsCountTowardsMax(js *jobset.JobSet, replicatedJobName string, expectedCount *string) {
+func matchJobRestartsCountTowardsMax(js *jobset.JobSet, expectedCount *string) {
 	gomega.Eventually(func() (*string, error) {
 		newJs := jobset.JobSet{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
 			return nil, err
 		}
 		for _, rjs := range newJs.Status.ReplicatedJobsStatus {
-			if rjs.Name == replicatedJobName {
+			if rjs.Name == "replicated-job-a" {
 				return rjs.JobRestartsCountTowardsMax, nil
 			}
 		}
