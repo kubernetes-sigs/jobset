@@ -27,6 +27,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
@@ -435,6 +436,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 
 	testCases := []struct {
 		name                 string
+		enableRestartJob     bool
 		jobSet               *jobset.JobSet
 		matchingFailedJob    *batchv1.Job
 		failurePolicyAction  jobset.FailurePolicyAction
@@ -457,7 +459,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name: "RestartJobSet when restarts < maxRestarts increments restarts count and counts towards max",
+			name:             "RestartJobSet when restarts < maxRestarts increments restarts count and counts towards max",
+			enableRestartJob: true,
 			jobSet: testutils.MakeJobSet("test-js", "default").FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
 				SetStatus(jobset.JobSetStatus{
 					Restarts:                     1,
@@ -476,7 +479,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name: "RestartJobSet action when restarts >= maxRestarts fails the jobset",
+			name:             "RestartJobSet action when restarts >= maxRestarts fails the jobset",
+			enableRestartJob: true,
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 2}).
 				SetStatus(jobset.JobSetStatus{
@@ -504,7 +508,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name: "RestartJobSetAndIgnoreMaxRestarts action does not count toward max restarts",
+			name:             "RestartJobSetAndIgnoreMaxRestarts action does not count toward max restarts",
+			enableRestartJob: true,
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1}).
 				SetStatus(jobset.JobSetStatus{
@@ -524,7 +529,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name: "RestartJob action when combined restarts < maxRestarts increments jobRestart count and counts towards max",
+			name:             "RestartJob action when combined restarts < maxRestarts increments jobRestart count and counts towards max",
+			enableRestartJob: true,
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
@@ -559,7 +565,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name: "RestartJob action when combined restarts >= maxRestarts fails the jobset",
+			name:             "RestartJob action when combined restarts >= maxRestarts fails the jobset",
+			enableRestartJob: true,
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 2}).
@@ -602,7 +609,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name: "RestartJob action when combined restarts >= maxRestarts and a previous individual restart fails the jobset",
+			name:             "RestartJob action when combined restarts >= maxRestarts and a previous individual restart fails the jobset",
+			enableRestartJob: true,
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 2}).
@@ -645,7 +653,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name: "RestartJobAndIgnoreMaxRestarts action does not count toward max restarts",
+			name:             "RestartJobAndIgnoreMaxRestarts action does not count toward max restarts",
+			enableRestartJob: true,
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
 				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1}).
@@ -683,6 +692,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.enableRestartJob)
 			updateStatusOpts := &statusUpdateOpts{}
 			jobSetCopy := tc.jobSet.DeepCopy()
 			err := applyFailurePolicyRuleAction(context.TODO(), jobSetCopy, tc.matchingFailedJob, updateStatusOpts, tc.failurePolicyAction)

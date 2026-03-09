@@ -649,37 +649,13 @@ var _ = ginkgo.Describe("JobSet", func() {
 			gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js)).Should(gomega.Succeed())
 			gomega.Expect(js.Status.Restarts).To(gomega.Equal(int32(1)))
 			gomega.Expect(js.Status.RestartsCountTowardsMax).To(gomega.Equal(int32(1)))
-			gomega.Expect(js.Status.TotalRestarts).To(gomega.HaveValue(gomega.Equal(int32(1))))
-			gomega.Expect(js.Status.TotalRestartsCountTowardsMax).To(gomega.HaveValue(gomega.Equal(int32(1))))
+			gomega.Expect(js.Status.TotalRestarts).To(gomega.BeNil())
+			gomega.Expect(js.Status.TotalRestartsCountTowardsMax).To(gomega.BeNil())
 			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestarts).To(gomega.BeNil())
 			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestartsCountTowardsMax).To(gomega.BeNil())
 		})
 	})
 
-	ginkgo.When("JobSet uses RestartJob failure policy action", func() {
-		ginkgo.It("should recover by recreating only the failed job and succeeding eventually", func() {
-			ctx := context.Background()
-
-			ginkgo.By("creating jobset with RestartJob failure policy")
-			js := restartJobFailurePolicyTestJobSet(ns)
-
-			ginkgo.By("checking that jobset creation succeeds")
-			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
-			gomega.Eventually(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobset.JobSet{}), timeout, interval).Should(gomega.Succeed())
-
-			ginkgo.By("checking jobset succeeds")
-			util.JobSetCompleted(ctx, k8sClient, js, timeout)
-
-			ginkgo.By("checking the job was properly restarted")
-			gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js)).Should(gomega.Succeed())
-			gomega.Expect(js.Status.Restarts).To(gomega.Equal(int32(0)))
-			gomega.Expect(js.Status.RestartsCountTowardsMax).To(gomega.Equal(int32(0)))
-			gomega.Expect(js.Status.TotalRestarts).To(gomega.HaveValue(gomega.Equal(int32(1))))
-			gomega.Expect(js.Status.TotalRestartsCountTowardsMax).To(gomega.HaveValue(gomega.Equal(int32(1))))
-			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestarts).To(gomega.Equal(ptr.To("0,1")))
-			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestartsCountTowardsMax).To(gomega.Equal(ptr.To("0,1")))
-		})
-	})
 }) // end of Describe
 
 // getPingCommand returns ping command for 4 hostnames

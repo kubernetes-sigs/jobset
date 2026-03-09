@@ -363,6 +363,9 @@ func validateFailurePolicy(js *jobset.JobSet, rJobNames sets.Set[string]) []erro
 		}
 	}
 	if hasRestartJob {
+		if !features.Enabled(features.RestartJob) {
+			allErrs = append(allErrs, fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when JobLevelRestart feature gate is disabled"))
+		}
 		for _, rJob := range js.Spec.ReplicatedJobs {
 			if rJob.Replicas > maxReplicasPerReplicatedJob {
 				allErrs = append(allErrs, fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > %d", maxReplicasPerReplicatedJob))

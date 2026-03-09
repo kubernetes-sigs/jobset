@@ -41,6 +41,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
@@ -941,6 +942,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			features.SetFeatureGateDuringTest(t, features.RestartJob, true)
 			// Here we update the expected Jobs with certain features which require
 			// direct access to the JobSet object itself to calculate. For example,
 			// the `jobset.sigs.k8s.io/job-global-index` annotation requires access to the

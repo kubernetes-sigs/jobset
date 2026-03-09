@@ -29,6 +29,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/metrics"
 )
 
@@ -130,7 +131,7 @@ func applyFailurePolicyRuleAction(ctx context.Context, js *jobset.JobSet, matchi
 	}
 
 	if err := applier(ctx, js, matchingFailedJob, updateStatusOps); err != nil {
-		log.Error(err, "error applying the FailurePolicyRuleAction: %v", failurePolicyRuleAction)
+		log.Error(err, fmt.Sprintf("error applying the FailurePolicyRuleAction: %v", failurePolicyRuleAction))
 		return err
 	}
 
@@ -197,19 +198,21 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 		js.Status.RestartsCountTowardsMax += 1
 	}
 
-	// Bump the total restarts counters
-	if js.Status.TotalRestarts == nil {
-		// Default to `js.Status.Restarts` for backward compatibility
-		js.Status.TotalRestarts = ptr.To(js.Status.Restarts)
-	} else {
-		*js.Status.TotalRestarts += 1
-	}
-	if shouldCountTowardsMax {
-		if js.Status.TotalRestartsCountTowardsMax == nil {
-			// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
-			js.Status.TotalRestartsCountTowardsMax = ptr.To(js.Status.RestartsCountTowardsMax)
+	if features.Enabled(features.RestartJob) {
+		// Bump the total restarts counters
+		if js.Status.TotalRestarts == nil {
+			// Default to `js.Status.Restarts` for backward compatibility
+			js.Status.TotalRestarts = ptr.To(js.Status.Restarts)
 		} else {
-			*js.Status.TotalRestartsCountTowardsMax += 1
+			*js.Status.TotalRestarts += 1
+		}
+		if shouldCountTowardsMax {
+			if js.Status.TotalRestartsCountTowardsMax == nil {
+				// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
+				js.Status.TotalRestartsCountTowardsMax = ptr.To(js.Status.RestartsCountTowardsMax)
+			} else {
+				*js.Status.TotalRestartsCountTowardsMax += 1
+			}
 		}
 	}
 
@@ -237,7 +240,7 @@ var failJobSetActionApplier failurePolicyActionApplier = func(ctx context.Contex
 // restartJobSetActionApplier applies the RestartJobSet FailurePolicyAction
 var restartJobSetActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
 	// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
-	if (js.Status.TotalRestartsCountTowardsMax != nil && *js.Status.TotalRestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) || (js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) {
+	if (features.Enabled(features.RestartJob) && js.Status.TotalRestartsCountTowardsMax != nil && *js.Status.TotalRestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) || (js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) {
 		failureBaseMessage := constants.ReachedMaxRestartsMessage
 		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
 
@@ -337,6 +340,10 @@ func failurePolicyRecreateJob(ctx context.Context, js *jobset.JobSet, matchingFa
 
 // restartJobActionApplier applies the RestartJob FailurePolicyAction
 var restartJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	if !features.Enabled(features.RestartJob) {
+		return fmt.Errorf("RestartJob failure policy action cannot be used when the feature gate is disabled")
+	}
+
 	// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
 	if (js.Status.TotalRestartsCountTowardsMax != nil && *js.Status.TotalRestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) || (js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) {
 		failureBaseMessage := constants.ReachedMaxRestartsMessage
@@ -361,6 +368,10 @@ var restartJobActionApplier failurePolicyActionApplier = func(ctx context.Contex
 
 // restartJobAndIgnoreMaxRestartsActionApplier applies the RestartJobAndIgnoreMaxRestarts FailurePolicyAction
 var restartJobAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
+	if !features.Enabled(features.RestartJob) {
+		return fmt.Errorf("RestartJobAndIgnoreMaxRestarts failure policy action cannot be used when the feature gate is disabled")
+	}
+
 	baseMessage := constants.RestartJobAndIgnoreMaxRestartsActionMessage
 	eventMessage := messageWithFirstFailedJob(baseMessage, matchingFailedJob.Name)
 	event := &eventParams{

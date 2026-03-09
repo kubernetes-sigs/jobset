@@ -40,6 +40,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	testutil "sigs.k8s.io/jobset/test/util"
 )
@@ -715,8 +716,45 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action.", &testCase{
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action (without RestartJob feature gate).", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJobSet,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 1)
+						matchJobSetTotalRestarts(js, nil)
+						matchJobSetTotalRestartsCountTowardsMax(js, nil)
+						matchJobRestarts(js, "replicated-job-a", nil)
+						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action (with RestartJob feature gate).", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
 						MaxRestarts: 1,
@@ -753,6 +791,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJob failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
 						MaxRestarts: 1,
@@ -789,6 +828,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJobAndIgnoreMaxRestarts failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
 						MaxRestarts: 1,
@@ -932,7 +972,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action.", &testCase{
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action (without RestartJob feature gate).", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -998,6 +1038,92 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetRestarts(js, 3)
 						matchJobSetRestartsCountTowardsMax(js, 0)
+						matchJobSetTotalRestarts(js, ptr.To(int32(3)))
+						matchJobSetTotalRestartsCountTowardsMax(js, nil)
+						matchJobRestarts(js, "replicated-job-a", nil)
+						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action (with RestartJob feature gate).", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJobSetAndIgnoreMaxRestarts,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 2)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 3)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+						matchJobSetTotalRestarts(js, ptr.To(int32(3)))
+						matchJobSetTotalRestartsCountTowardsMax(js, nil)
+						matchJobRestarts(js, "replicated-job-a", nil)
+						matchJobRestartsCountTowardsMax(js, "replicated-job-a", nil)
 					},
 				},
 				{

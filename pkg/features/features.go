@@ -38,6 +38,14 @@ const (
 	//
 	// Enables TLSOptions for TLSMinVersion and CipherSuites for JobSet servers.
 	TLSOptions featuregate.Feature = "TLSOptions"
+
+	// owner: @giuseppett
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/262-ConfigurableFailurePolicy/README.md
+	//
+	// Enables the restart actions `RestartJob` and `RestartJobAndIgnoreMaxRestarts`, allowing JobSet to
+	// recover from failures (i.e., failed Jobs) by recreating only the failed Job instead of all Jobs
+	// as in `RestartJobSet`.
+	RestartJob featuregate.Feature = "RestartJob"
 )
 
 func init() {
@@ -54,6 +62,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	InPlaceRestart: {Default: false, PreRelease: featuregate.Alpha},
 
 	TLSOptions: {Default: true, PreRelease: featuregate.Beta},
+
+	RestartJob: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {
