@@ -1,0 +1,39 @@
+[project]
+name = "jobset_api"
+dynamic = ["version"]
+requires-python = ">=3.9"
+authors = [
+  { name = "The Kubernetes Authors" },
+]
+license = "Apache-2.0"
+description = "JobSet API models for managing groups of Kubernetes Jobs."
+readme = "README.md"
+keywords = ["kubernetes", "jobset", "distributed-training", "hpc", "api"]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = ["pydantic>=2.10.0"]
+
+[project.urls]
+Homepage = "https://github.com/kubernetes-sigs/jobset"
+Documentation = "https://jobset.sigs.k8s.io/"
+Source = "https://github.com/kubernetes-sigs/jobset"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "jobset_api/__init__.py"

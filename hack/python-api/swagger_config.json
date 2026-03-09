@@ -1,0 +1,6 @@
+{
+  "packageName": "jobset_api",
+  "typeMappings": {
+    "V1Time": "datetime"
+  }
+}

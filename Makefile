@@ -115,7 +115,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: manifests controller-gen code-generator openapi-gen helm helm-docs ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations and client-go libraries.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 	./hack/update-codegen.sh $(GO_CMD) $(PROJECT_DIR)/bin
-	./hack/python-sdk/gen-sdk.sh
+	./hack/python-api/gen-api.sh
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -159,17 +159,12 @@ lint-api-fix: golangci-lint-kal
 	$(GOLANGCI_LINT_KAL) run -v --config $(PROJECT_DIR)/.golangci-kal.yml --fix
 
 .PHONY: test
-test: manifests fmt vet envtest gotestsum test-python-sdk
+test: manifests fmt vet envtest gotestsum
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GOTESTSUM) --junitfile $(ARTIFACTS)/junit.xml -- ./pkg/... ./api/... -coverprofile  $(ARTIFACTS)/cover.out
-
-.PHONY: test-python-sdk
-test-python-sdk:
-	echo "testing Python SDK..."
-	./hack/python-sdk/test-sdk.sh
 
 .PHONY: verify
 verify: vet fmt-verify ci-lint lint-api manifests generate helm-verify toc-verify generate-apiref
-	git --no-pager diff --exit-code config api client-go sdk charts
+	git --no-pager diff --exit-code config api client-go charts
 
 
 ##@ Build
@@ -285,6 +280,7 @@ helm-chart-push: helm-chart-package
 # Chart version should not have "v".
 .PHONY: prepare-release-branch
 prepare-release-branch: kustomize ## Prepare the release branch with the release version.
+	echo "$(VERSION)" > VERSION
 	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_REPO}:${VERSION}
 	$(SED) -r "s|download/v[0-9]+\.[0-9]+\.[0-9]+|download/${VERSION}|g" -i README.md
 	$(SED) -r "s/v[0-9]+\.[0-9]+\.[0-9]+/${VERSION}/g" -i site/hugo.toml
