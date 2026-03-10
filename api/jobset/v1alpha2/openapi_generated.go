@@ -470,7 +470,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					},
 					"restarts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).",
+							Description: "restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet). That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -478,7 +478,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					},
 					"restartsCountTowardsMax": {
 						SchemaProps: spec.SchemaProps{
-							Description: "restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).",
+							Description: "restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet). That is, it tracks how many times the restart action RestartJobSet was executed.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -704,14 +704,14 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref common.ReferenceC
 					},
 					"jobRestarts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "jobRestarts tracks the number of times the Job has individually restarted for each job index. It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
+							Description: "jobRestarts tracks the number of times the Job has individually restarted for each job index. That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts were executed for that job index. It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"jobRestartsCountTowardsMax": {
 						SchemaProps: spec.SchemaProps{
-							Description: "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
+							Description: "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index. It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
 							Type:        []string{"string"},
 							Format:      "",
 						},

@@ -202,10 +202,12 @@ type JobSetStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+	// That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.
 	// +optional
 	Restarts int32 `json:"restarts"`
 
 	// restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+	// That is, it tracks how many times the restart action RestartJobSet was executed.
 	// +optional
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 
@@ -274,6 +276,8 @@ type ReplicatedJobStatus struct {
 	Suspended int32 `json:"suspended"`
 
 	// jobRestarts tracks the number of times the Job has individually restarted for each job index.
+	// That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
+	// were executed for that job index.
 	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
 	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
 	// +kubebuilder:validation:MaxLength=32768
@@ -281,6 +285,7 @@ type ReplicatedJobStatus struct {
 	JobRestarts *string `json:"jobRestarts,omitempty"`
 
 	// jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
+	// That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.
 	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
 	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
 	// +kubebuilder:validation:MaxLength=32768

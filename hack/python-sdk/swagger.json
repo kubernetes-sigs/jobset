@@ -274,13 +274,13 @@
           "x-kubernetes-list-type": "map"
         },
         "restarts": {
-          "description": "restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).",
+          "description": "restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet). That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.",
           "type": "integer",
           "format": "int32",
           "default": 0
         },
         "restartsCountTowardsMax": {
-          "description": "restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).",
+          "description": "restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet). That is, it tracks how many times the restart action RestartJobSet was executed.",
           "type": "integer",
           "format": "int32"
         },
@@ -382,11 +382,11 @@
           "default": 0
         },
         "jobRestarts": {
-          "description": "jobRestarts tracks the number of times the Job has individually restarted for each job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
+          "description": "jobRestarts tracks the number of times the Job has individually restarted for each job index. That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts were executed for that job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
           "type": "string"
         },
         "jobRestartsCountTowardsMax": {
-          "description": "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
+          "description": "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
           "type": "string"
         },
         "name": {
