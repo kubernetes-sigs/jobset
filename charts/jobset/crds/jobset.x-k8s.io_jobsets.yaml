@@ -10195,18 +10195,6 @@ spec:
                   terminalState tracks the state of the JobSet when it finishes execution.
                   It can be either Completed or Failed. Otherwise, it is empty by default.
                 type: string
-              totalRestarts:
-                description: |-
-                  totalRestarts tracks the number of times the JobSet has restarted in any way (e.g., this also counts restart actions such as RestartJob).
-                  This will be set to Restarts if not specified.
-                format: int32
-                type: integer
-              totalRestartsCountTowardsMax:
-                description: |-
-                  totalRestartsCountTowardsMax tracks the number of times the JobSet has restarted in any way that counts towards the maximum allowed number of restarts (e.g., this also counts restart actions such as RestartJob).
-                  This will be set to RestartsCountTowardsMax if not specified.
-                format: int32
-                type: integer
             type: object
         type: object
     served: true

@@ -59,9 +59,7 @@ class TestJobsetV1alpha2JobSetStatus(unittest.TestCase):
                     ],
                 restarts = 56,
                 restarts_count_towards_max = 56,
-                terminal_state = '',
-                total_restarts = 56,
-                total_restarts_count_towards_max = 56
+                terminal_state = ''
             )
         else:
             return JobsetV1alpha2JobSetStatus(

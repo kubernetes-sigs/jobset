@@ -177,9 +177,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 ], 
                             restarts = 56, 
                             restarts_count_towards_max = 56, 
-                            terminal_state = '', 
-                            total_restarts = 56, 
-                            total_restarts_count_towards_max = 56, ), )
+                            terminal_state = '', ), )
                     ],
                 kind = '',
                 metadata = jobset.models.io/k8s/apimachinery/pkg/apis/meta/v1/list_meta.io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta(
@@ -331,9 +329,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 ], 
                             restarts = 56, 
                             restarts_count_towards_max = 56, 
-                            terminal_state = '', 
-                            total_restarts = 56, 
-                            total_restarts_count_towards_max = 56, ), )
+                            terminal_state = '', ), )
                     ],
         )
         """

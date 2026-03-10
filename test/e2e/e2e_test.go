@@ -649,8 +649,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 			gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, js)).Should(gomega.Succeed())
 			gomega.Expect(js.Status.Restarts).To(gomega.Equal(int32(1)))
 			gomega.Expect(js.Status.RestartsCountTowardsMax).To(gomega.Equal(int32(1)))
-			gomega.Expect(js.Status.TotalRestarts).To(gomega.BeNil())
-			gomega.Expect(js.Status.TotalRestartsCountTowardsMax).To(gomega.BeNil())
+
 			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestarts).To(gomega.BeNil())
 			gomega.Expect(js.Status.ReplicatedJobsStatus[0].JobRestartsCountTowardsMax).To(gomega.BeNil())
 		})

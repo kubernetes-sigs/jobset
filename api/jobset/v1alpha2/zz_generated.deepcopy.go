@@ -246,16 +246,6 @@ func (in *JobSetStatus) DeepCopyInto(out *JobSetStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.TotalRestarts != nil {
-		in, out := &in.TotalRestarts, &out.TotalRestarts
-		*out = new(int32)
-		**out = **in
-	}
-	if in.TotalRestartsCountTowardsMax != nil {
-		in, out := &in.TotalRestartsCountTowardsMax, &out.TotalRestartsCountTowardsMax
-		*out = new(int32)
-		**out = **in
-	}
 	if in.ReplicatedJobsStatus != nil {
 		in, out := &in.ReplicatedJobsStatus, &out.ReplicatedJobsStatus
 		*out = make([]ReplicatedJobStatus, len(*in))

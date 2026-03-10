@@ -198,24 +198,6 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 		js.Status.RestartsCountTowardsMax += 1
 	}
 
-	if features.Enabled(features.RestartJob) {
-		// Bump the total restarts counters
-		if js.Status.TotalRestarts == nil {
-			// Default to `js.Status.Restarts` for backward compatibility
-			js.Status.TotalRestarts = ptr.To(js.Status.Restarts)
-		} else {
-			*js.Status.TotalRestarts += 1
-		}
-		if shouldCountTowardsMax {
-			if js.Status.TotalRestartsCountTowardsMax == nil {
-				// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
-				js.Status.TotalRestartsCountTowardsMax = ptr.To(js.Status.RestartsCountTowardsMax)
-			} else {
-				*js.Status.TotalRestartsCountTowardsMax += 1
-			}
-		}
-	}
-
 	updateStatusOpts.shouldUpdate = true
 
 	// Emit event for each JobSet restarts for observability and debugability.
@@ -239,8 +221,7 @@ var failJobSetActionApplier failurePolicyActionApplier = func(ctx context.Contex
 
 // restartJobSetActionApplier applies the RestartJobSet FailurePolicyAction
 var restartJobSetActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
-	// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
-	if (features.Enabled(features.RestartJob) && js.Status.TotalRestartsCountTowardsMax != nil && *js.Status.TotalRestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) || (js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) {
+	if (features.Enabled(features.RestartJob) && totalRestartsCountTowardsMax(js) >= js.Spec.FailurePolicy.MaxRestarts) || (js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) {
 		failureBaseMessage := constants.ReachedMaxRestartsMessage
 		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
 
@@ -316,20 +297,6 @@ func failurePolicyRecreateJob(ctx context.Context, js *jobset.JobSet, matchingFa
 		setJobRestartsCountTowardsMax(js, replicatedJobName, jobRestartsCountTowardsMax)
 	}
 
-	// Bump the total restarts counter
-	if js.Status.TotalRestarts == nil {
-		// Default to `js.Status.Restarts` for backward compatibility
-		js.Status.TotalRestarts = ptr.To(js.Status.Restarts)
-	}
-	*js.Status.TotalRestarts += 1
-	if shouldCountTowardsMax {
-		if js.Status.TotalRestartsCountTowardsMax == nil {
-			// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
-			js.Status.TotalRestartsCountTowardsMax = ptr.To(js.Status.RestartsCountTowardsMax)
-		}
-		*js.Status.TotalRestartsCountTowardsMax += 1
-	}
-
 	updateStatusOpts.shouldUpdate = true
 
 	// Emit event for each Job restarts for observability and debugability.
@@ -344,8 +311,7 @@ var restartJobActionApplier failurePolicyActionApplier = func(ctx context.Contex
 		return fmt.Errorf("RestartJob failure policy action cannot be used when the feature gate is disabled")
 	}
 
-	// Default to `js.Status.RestartsCountTowardsMax` for backward compatibility
-	if (js.Status.TotalRestartsCountTowardsMax != nil && *js.Status.TotalRestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) || (js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) {
+	if totalRestartsCountTowardsMax(js) >= js.Spec.FailurePolicy.MaxRestarts {
 		failureBaseMessage := constants.ReachedMaxRestartsMessage
 		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
 		failureReason := constants.ReachedMaxRestartsReason
@@ -557,4 +523,23 @@ func encodeJobRestarts(restarts []int32) *string {
 		}
 	}
 	return ptr.To(sb.String())
+}
+
+// sumJobRestartsCountTowardsMax calculates the sum of all individual job restarts that count towards max across all replicated jobs.
+func sumJobRestartsCountTowardsMax(js *jobset.JobSet) int32 {
+	var total int32
+	for _, rjs := range js.Status.ReplicatedJobsStatus {
+		replicas := getReplicatedJobReplicas(js, rjs.Name)
+		restarts := decodeJobRestarts(rjs.JobRestartsCountTowardsMax, replicas)
+		for _, r := range restarts {
+			total += r
+		}
+	}
+	return total
+}
+
+// totalRestartsCountTowardsMax calculates the total number of restarts that count towards the max, including both global and individual job restarts.
+// That is, this is equal to the total number of times the restart actions RestartJobSet and RestartJob have been applied.
+func totalRestartsCountTowardsMax(js *jobset.JobSet) int32 {
+	return js.Status.RestartsCountTowardsMax + sumJobRestartsCountTowardsMax(js)
 }

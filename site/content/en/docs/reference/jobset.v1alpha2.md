@@ -426,30 +426,16 @@ volumeMount in one container in the template.</p>
 <code>int32</code>
 </td>
 <td>
-   <p>restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).</p>
+   <p>restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.</p>
 </td>
 </tr>
 <tr><td><code>restartsCountTowardsMax</code><br/>
 <code>int32</code>
 </td>
 <td>
-   <p>restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).</p>
-</td>
-</tr>
-<tr><td><code>totalRestarts</code><br/>
-<code>int32</code>
-</td>
-<td>
-   <p>totalRestarts tracks the number of times the JobSet has restarted in any way (e.g., this also counts restart actions such as RestartJob).
-Nil should be treated as <code>jobSet.status.restarts</code></p>
-</td>
-</tr>
-<tr><td><code>totalRestartsCountTowardsMax</code><br/>
-<code>int32</code>
-</td>
-<td>
-   <p>totalRestartsCountTowardsMax tracks the number of times the JobSet has restarted in any way that counts towards the maximum allowed number of restarts (e.g., this also counts restart actions such as RestartJob).
-Nil should be treated as <code>jobSet.status.restartsCountTowardsMax</code></p>
+   <p>restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+That is, it tracks how many times the restart action RestartJobSet was executed.</p>
 </td>
 </tr>
 <tr><td><code>terminalState</code><br/>
@@ -676,6 +662,8 @@ which are not marked for deletion.</p>
 </td>
 <td>
    <p>jobRestarts tracks the number of times the Job has individually restarted for each job index.
+That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
+were executed for that job index.
 It is encoded as <code>&lt;restarts of job 0&gt;,...,&lt;restarts of job replicas - 1&gt;</code>
 Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob</p>
 </td>
@@ -685,6 +673,7 @@ Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas
 </td>
 <td>
    <p>jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
+That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.
 It is encoded as <code>&lt;restarts of job 0&gt;,...,&lt;restarts of job replicas - 1&gt;</code>
 Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob</p>
 </td>
