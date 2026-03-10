@@ -1858,6 +1858,41 @@ func TestValidateCreate(t *testing.T) {
 				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when JobLevelRestart feature gate is disabled"),
 			),
 		},
+		{
+			name:             "jobset failure policy rule has RestartJobAndIgnoreMaxRestarts action and JobLevelRestart feature gate is disabled",
+			enableRestartJob: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action: jobset.RestartJobAndIgnoreMaxRestarts,
+								Name:   "restartJobAndIgnoreMaxRestartsRule",
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when JobLevelRestart feature gate is disabled"),
+			),
+		},
 	}
 
 	dependsOnTests := []validationTestCase{
