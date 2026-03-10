@@ -532,9 +532,7 @@ func decodeJobRestarts(restartsStr *string, length int32) []int32 {
 	if restartsStr == nil || *restartsStr == "" {
 		return restarts
 	}
-
-	parts := strings.Split(*restartsStr, ",")
-	for i, p := range parts {
+	for i, p := range strings.Split(*restartsStr, ",") {
 		if int32(i) >= length {
 			break
 		}
