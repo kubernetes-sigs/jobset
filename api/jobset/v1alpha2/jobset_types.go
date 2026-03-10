@@ -212,12 +212,12 @@ type JobSetStatus struct {
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 
 	// totalRestarts tracks the number of times the JobSet has restarted in any way (e.g., this also counts restart actions such as RestartJob).
-	// Nil should be treated as `jobSet.status.restarts`
+	// This will be set to Restarts if not specified.
 	// +optional
 	TotalRestarts *int32 `json:"totalRestarts,omitempty"`
 
 	// totalRestartsCountTowardsMax tracks the number of times the JobSet has restarted in any way that counts towards the maximum allowed number of restarts (e.g., this also counts restart actions such as RestartJob).
-	// Nil should be treated as `jobSet.status.restartsCountTowardsMax`
+	// This will be set to RestartsCountTowardsMax if not specified.
 	// +optional
 	TotalRestartsCountTowardsMax *int32 `json:"totalRestartsCountTowardsMax,omitempty"`
 

@@ -10198,13 +10198,13 @@ spec:
               totalRestarts:
                 description: |-
                   totalRestarts tracks the number of times the JobSet has restarted in any way (e.g., this also counts restart actions such as RestartJob).
-                  Nil should be treated as `jobSet.status.restarts`
+                  This will be set to Restarts if not specified.
                 format: int32
                 type: integer
               totalRestartsCountTowardsMax:
                 description: |-
                   totalRestartsCountTowardsMax tracks the number of times the JobSet has restarted in any way that counts towards the maximum allowed number of restarts (e.g., this also counts restart actions such as RestartJob).
-                  Nil should be treated as `jobSet.status.restartsCountTowardsMax`
+                  This will be set to RestartsCountTowardsMax if not specified.
                 format: int32
                 type: integer
             type: object

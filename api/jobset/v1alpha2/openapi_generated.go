@@ -485,14 +485,14 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					},
 					"totalRestarts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "totalRestarts tracks the number of times the JobSet has restarted in any way (e.g., this also counts restart actions such as RestartJob). Nil should be treated as `jobSet.status.restarts`",
+							Description: "totalRestarts tracks the number of times the JobSet has restarted in any way (e.g., this also counts restart actions such as RestartJob). This will be set to Restarts if not specified.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"totalRestartsCountTowardsMax": {
 						SchemaProps: spec.SchemaProps{
-							Description: "totalRestartsCountTowardsMax tracks the number of times the JobSet has restarted in any way that counts towards the maximum allowed number of restarts (e.g., this also counts restart actions such as RestartJob). Nil should be treated as `jobSet.status.restartsCountTowardsMax`",
+							Description: "totalRestartsCountTowardsMax tracks the number of times the JobSet has restarted in any way that counts towards the maximum allowed number of restarts (e.g., this also counts restart actions such as RestartJob). This will be set to RestartsCountTowardsMax if not specified.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
