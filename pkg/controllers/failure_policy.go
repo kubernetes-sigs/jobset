@@ -307,7 +307,7 @@ func failurePolicyRecreateJob(ctx context.Context, js *jobset.JobSet, matchingFa
 // restartJobActionApplier applies the RestartJob FailurePolicyAction
 var restartJobActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
 	if !features.Enabled(features.RestartJob) {
-		return fmt.Errorf("RestartJob failure policy action cannot be used when the feature gate is disabled")
+		return fmt.Errorf("RestartJob failure policy action cannot be used when the feature gate RestartJob is disabled")
 	}
 
 	if totalRestartsCountTowardsMax(js) >= js.Spec.FailurePolicy.MaxRestarts {
@@ -334,7 +334,7 @@ var restartJobActionApplier failurePolicyActionApplier = func(ctx context.Contex
 // restartJobAndIgnoreMaxRestartsActionApplier applies the RestartJobAndIgnoreMaxRestarts FailurePolicyAction
 var restartJobAndIgnoreMaxRestartsActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, updateStatusOpts *statusUpdateOpts) error {
 	if !features.Enabled(features.RestartJob) {
-		return fmt.Errorf("RestartJobAndIgnoreMaxRestarts failure policy action cannot be used when the feature gate is disabled")
+		return fmt.Errorf("RestartJobAndIgnoreMaxRestarts failure policy action cannot be used when the feature gate RestartJob is disabled")
 	}
 
 	baseMessage := constants.RestartJobAndIgnoreMaxRestartsActionMessage
