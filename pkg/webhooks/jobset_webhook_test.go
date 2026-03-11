@@ -1824,7 +1824,7 @@ func TestValidateCreate(t *testing.T) {
 			),
 		},
 		{
-			name:             "jobset failure policy rule has RestartJob action and JobLevelRestart feature gate is disabled",
+			name:             "jobset failure policy rule has RestartJob action and RestartJob feature gate is disabled",
 			enableRestartJob: false,
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -1855,11 +1855,11 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when JobLevelRestart feature gate is disabled"),
+				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when RestartJob feature gate is disabled"),
 			),
 		},
 		{
-			name:             "jobset failure policy rule has RestartJobAndIgnoreMaxRestarts action and JobLevelRestart feature gate is disabled",
+			name:             "jobset failure policy rule has RestartJobAndIgnoreMaxRestarts action and RestartJob feature gate is disabled",
 			enableRestartJob: false,
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -1890,7 +1890,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when JobLevelRestart feature gate is disabled"),
+				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when RestartJob feature gate is disabled"),
 			),
 		},
 	}
