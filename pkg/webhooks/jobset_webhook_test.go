@@ -1754,7 +1754,7 @@ func TestValidateCreate(t *testing.T) {
 			want: fmt.Errorf("spec will lead to invalid label value"),
 		},
 		{
-			name:             "jobset failure policy rule has RestartJob action and a replicated job with replicas > 2978",
+			name:             "jobset failure policy rule has RestartJob action and a replicated job with replicas > 1024",
 			enableRestartJob: true,
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -1763,7 +1763,7 @@ func TestValidateCreate(t *testing.T) {
 						{
 							Name:      "rj",
 							GroupName: "default",
-							Replicas:  2979,
+							Replicas:  1025,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									CompletionMode: ptr.To(batchv1.IndexedCompletion),
@@ -1785,11 +1785,11 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 2978"),
+				fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 1024"),
 			),
 		},
 		{
-			name:             "jobset failure policy rule has RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 2978",
+			name:             "jobset failure policy rule has RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 1024",
 			enableRestartJob: true,
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -1798,7 +1798,7 @@ func TestValidateCreate(t *testing.T) {
 						{
 							Name:      "rj",
 							GroupName: "default",
-							Replicas:  2979,
+							Replicas:  1025,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									CompletionMode: ptr.To(batchv1.IndexedCompletion),
@@ -1820,7 +1820,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(
-				fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 2978"),
+				fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 1024"),
 			),
 		},
 		{

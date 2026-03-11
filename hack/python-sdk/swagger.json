@@ -372,12 +372,24 @@
           "default": 0
         },
         "jobRestarts": {
-          "description": "jobRestarts tracks the number of times the Job has individually restarted for each job index. That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts were executed for that job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
-          "type": "string"
+          "description": "jobRestarts tracks the number of times the Job has individually restarted for each job index. That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts were executed for that job index.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          },
+          "x-kubernetes-list-type": "atomic"
         },
         "jobRestartsCountTowardsMax": {
-          "description": "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index. It is encoded as `\u003crestarts of job 0\u003e,...,\u003crestarts of job replicas - 1\u003e` Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob",
-          "type": "string"
+          "description": "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          },
+          "x-kubernetes-list-type": "atomic"
         },
         "name": {
           "description": "name of the ReplicatedJob.",

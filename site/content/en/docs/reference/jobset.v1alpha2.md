@@ -658,24 +658,20 @@ which are not marked for deletion.</p>
 </td>
 </tr>
 <tr><td><code>jobRestarts</code><br/>
-<code>string</code>
+<code>[]int32</code>
 </td>
 <td>
    <p>jobRestarts tracks the number of times the Job has individually restarted for each job index.
 That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
-were executed for that job index.
-It is encoded as <code>&lt;restarts of job 0&gt;,...,&lt;restarts of job replicas - 1&gt;</code>
-Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob</p>
+were executed for that job index.</p>
 </td>
 </tr>
 <tr><td><code>jobRestartsCountTowardsMax</code><br/>
-<code>string</code>
+<code>[]int32</code>
 </td>
 <td>
    <p>jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
-That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.
-It is encoded as <code>&lt;restarts of job 0&gt;,...,&lt;restarts of job replicas - 1&gt;</code>
-Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob</p>
+That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.</p>
 </td>
 </tr>
 </tbody>

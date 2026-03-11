@@ -19,7 +19,6 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
-	"strings"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -438,20 +437,22 @@ func messageWithFirstFailedJob(msg, firstFailedJobName string) string {
 func getJobRestarts(js *jobset.JobSet, replicatedJobName string) []int32 {
 	for _, rjs := range js.Status.ReplicatedJobsStatus {
 		if rjs.Name == replicatedJobName {
-			jobRestarts := rjs.JobRestarts
-			replicas := getReplicatedJobReplicas(js, replicatedJobName)
-			return decodeJobRestarts(jobRestarts, replicas)
+			if len(rjs.JobRestarts) == 0 {
+				replicas := getReplicatedJobReplicas(js, replicatedJobName)
+				return make([]int32, replicas)
+			}
+			return slices.Clone(rjs.JobRestarts)
 		}
 	}
 	replicas := getReplicatedJobReplicas(js, replicatedJobName)
-	return decodeJobRestarts(nil, replicas)
+	return make([]int32, replicas)
 }
 
 // setJobRestarts sets the job individual restart attempts for the given replicated job.
 func setJobRestarts(js *jobset.JobSet, replicatedJobName string, jobRestarts []int32) {
 	for i, rjs := range js.Status.ReplicatedJobsStatus {
 		if rjs.Name == replicatedJobName {
-			js.Status.ReplicatedJobsStatus[i].JobRestarts = encodeJobRestarts(jobRestarts)
+			js.Status.ReplicatedJobsStatus[i].JobRestarts = jobRestarts
 			return
 		}
 	}
@@ -462,20 +463,22 @@ func setJobRestarts(js *jobset.JobSet, replicatedJobName string, jobRestarts []i
 func getJobRestartsCountTowardsMax(js *jobset.JobSet, replicatedJobName string) []int32 {
 	for _, rjs := range js.Status.ReplicatedJobsStatus {
 		if rjs.Name == replicatedJobName {
-			jobRestarts := rjs.JobRestartsCountTowardsMax
-			replicas := getReplicatedJobReplicas(js, replicatedJobName)
-			return decodeJobRestarts(jobRestarts, replicas)
+			if len(rjs.JobRestartsCountTowardsMax) == 0 {
+				replicas := getReplicatedJobReplicas(js, replicatedJobName)
+				return make([]int32, replicas)
+			}
+			return slices.Clone(rjs.JobRestartsCountTowardsMax)
 		}
 	}
 	replicas := getReplicatedJobReplicas(js, replicatedJobName)
-	return decodeJobRestarts(nil, replicas)
+	return make([]int32, replicas)
 }
 
 // setJobRestartsCountTowardsMax sets the job individual restart attempts that count towards max for the given replicated job.
 func setJobRestartsCountTowardsMax(js *jobset.JobSet, replicatedJobName string, jobRestartsCountTowardsMax []int32) {
 	for i, rjs := range js.Status.ReplicatedJobsStatus {
 		if rjs.Name == replicatedJobName {
-			js.Status.ReplicatedJobsStatus[i].JobRestartsCountTowardsMax = encodeJobRestarts(jobRestartsCountTowardsMax)
+			js.Status.ReplicatedJobsStatus[i].JobRestartsCountTowardsMax = jobRestartsCountTowardsMax
 			return
 		}
 	}
@@ -491,47 +494,11 @@ func getReplicatedJobReplicas(js *jobset.JobSet, replicatedJobName string) int32
 	return 0
 }
 
-// decodeJobRestarts parses the given comma-separated string pointer into a slice of integers.
-// If the string is nil or empty, it returns a slice of 0s of the specified length.
-func decodeJobRestarts(restartsStr *string, length int32) []int32 {
-	restarts := make([]int32, length)
-	if restartsStr == nil || *restartsStr == "" {
-		return restarts
-	}
-	for i, p := range strings.Split(*restartsStr, ",") {
-		if int32(i) >= length {
-			break
-		}
-		if p == "" {
-			continue
-		}
-		r, err := strconv.Atoi(p)
-		if err == nil {
-			restarts[i] = int32(r)
-		}
-	}
-	return restarts
-}
-
-// encodeJobRestarts formats the given slice of integers as a comma-separated string pointer for jobRestarts and jobRestartsCountTowardsMax
-func encodeJobRestarts(restarts []int32) *string {
-	var sb strings.Builder
-	for i, r := range restarts {
-		sb.WriteString(strconv.Itoa(int(r)))
-		if i < len(restarts)-1 {
-			sb.WriteString(",")
-		}
-	}
-	return ptr.To(sb.String())
-}
-
 // sumJobRestartsCountTowardsMax calculates the sum of all individual job restarts that count towards max across all replicated jobs.
 func sumJobRestartsCountTowardsMax(js *jobset.JobSet) int32 {
 	var total int32
 	for _, rjs := range js.Status.ReplicatedJobsStatus {
-		replicas := getReplicatedJobReplicas(js, rjs.Name)
-		restarts := decodeJobRestarts(rjs.JobRestartsCountTowardsMax, replicas)
-		for _, r := range restarts {
+		for _, r := range rjs.JobRestartsCountTowardsMax {
 			total += r
 		}
 	}

@@ -814,8 +814,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetRestarts(js, 0)
 						matchJobSetRestartsCountTowardsMax(js, 0)
-						matchJobRestarts(js, ptr.To("1"))
-						matchJobRestartsCountTowardsMax(js, ptr.To("1"))
+						matchJobRestarts(js, []int32{1})
+						matchJobRestartsCountTowardsMax(js, []int32{1})
 					},
 				},
 			},
@@ -849,7 +849,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetRestarts(js, 0)
 						matchJobSetRestartsCountTowardsMax(js, 0)
-						matchJobRestarts(js, ptr.To("1"))
+						matchJobRestarts(js, []int32{1})
 						matchJobRestartsCountTowardsMax(js, nil)
 					},
 				},
@@ -3538,8 +3538,8 @@ func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedCount int32) 
 
 // matchJobRestarts checks that the supplied jobset js has expectedCount
 // as the value of js.Status.ReplicatedJobsStatus[<where Name == replicatedJobName>].JobRestarts.
-func matchJobRestarts(js *jobset.JobSet, expectedCount *string) {
-	gomega.Eventually(func() (*string, error) {
+func matchJobRestarts(js *jobset.JobSet, expectedCount []int32) {
+	gomega.Eventually(func() ([]int32, error) {
 		newJs := jobset.JobSet{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
 			return nil, err
@@ -3555,8 +3555,8 @@ func matchJobRestarts(js *jobset.JobSet, expectedCount *string) {
 
 // matchJobRestartsCountTowardsMax checks that the supplied jobset js has expectedCount
 // as the value of js.Status.ReplicatedJobsStatus[<where Name == replicatedJobName>].JobRestartsCountTowardsMax.
-func matchJobRestartsCountTowardsMax(js *jobset.JobSet, expectedCount *string) {
-	gomega.Eventually(func() (*string, error) {
+func matchJobRestartsCountTowardsMax(js *jobset.JobSet, expectedCount []int32) {
+	gomega.Eventually(func() ([]int32, error) {
 		newJs := jobset.JobSet{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
 			return nil, err

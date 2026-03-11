@@ -528,8 +528,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 						{
 							Name:                       "rjob",
-							JobRestarts:                ptr.To("0"),
-							JobRestartsCountTowardsMax: ptr.To("0"),
+							JobRestarts:                []int32{0},
+							JobRestartsCountTowardsMax: []int32{0},
 						},
 					},
 				}).
@@ -542,8 +542,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 					{
 						Name:                       "rjob",
-						JobRestarts:                ptr.To("1"),
-						JobRestartsCountTowardsMax: ptr.To("1"),
+						JobRestarts:                []int32{1},
+						JobRestartsCountTowardsMax: []int32{1},
 					},
 				},
 			},
@@ -560,8 +560,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 						{
 							Name:                       "rjob",
-							JobRestarts:                ptr.To("1"),
-							JobRestartsCountTowardsMax: ptr.To("1"),
+							JobRestarts:                []int32{1},
+							JobRestartsCountTowardsMax: []int32{1},
 						},
 					},
 				}).
@@ -574,8 +574,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 					{
 						Name:                       "rjob",
-						JobRestarts:                ptr.To("1"),
-						JobRestartsCountTowardsMax: ptr.To("1"),
+						JobRestarts:                []int32{1},
+						JobRestartsCountTowardsMax: []int32{1},
 					},
 				},
 				TerminalState: string(jobset.JobSetFailed),
@@ -589,7 +589,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
-			name:             "RestartJob action when combined restarts >= maxRestarts and a previous individual restart fails the jobset",
+			name:             "RestartJobSet action when combined restarts >= maxRestarts and a previous individual restart fails the jobset",
 			enableRestartJob: true,
 			jobSet: testutils.MakeJobSet("test-js", "default").
 				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
@@ -600,8 +600,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 						{
 							Name:                       "rjob",
-							JobRestarts:                ptr.To("1"),
-							JobRestartsCountTowardsMax: ptr.To("1"),
+							JobRestarts:                []int32{1},
+							JobRestartsCountTowardsMax: []int32{1},
 						},
 					},
 				}).
@@ -614,8 +614,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 					{
 						Name:                       "rjob",
-						JobRestarts:                ptr.To("1"),
-						JobRestartsCountTowardsMax: ptr.To("1"),
+						JobRestarts:                []int32{1},
+						JobRestartsCountTowardsMax: []int32{1},
 					},
 				},
 				TerminalState: string(jobset.JobSetFailed),
@@ -640,8 +640,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 						{
 							Name:                       "rjob",
-							JobRestarts:                ptr.To("0"),
-							JobRestartsCountTowardsMax: ptr.To("0"),
+							JobRestarts:                []int32{1},
+							JobRestartsCountTowardsMax: []int32{0},
 						},
 					},
 				}).
@@ -654,8 +654,8 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 					{
 						Name:                       "rjob",
-						JobRestarts:                ptr.To("1"),
-						JobRestartsCountTowardsMax: ptr.To("0"),
+						JobRestarts:                []int32{2},
+						JobRestartsCountTowardsMax: []int32{0},
 					},
 				},
 			},

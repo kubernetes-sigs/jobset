@@ -910,7 +910,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 						{
 							Name:        replicatedJobName,
-							JobRestarts: ptr.To("1,0"),
+							JobRestarts: []int32{1, 0},
 						},
 					},
 				}).Obj(),

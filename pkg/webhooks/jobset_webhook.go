@@ -47,11 +47,6 @@ import (
 const maxManagedByLength = 63
 const maxVolumeClaimLength = 63
 
-// maxReplicasPerReplicatedJob limits the number of replicas when using the RestartJob action.
-// The limit is based on the 32KB MaxLength of the JobRestarts string field in ReplicatedJobStatus.
-// See api/jobset/v1alpha2/jobset_types.go for more details.
-const maxReplicasPerReplicatedJob = 2978
-
 const (
 	// This is the error message returned by IsDNS1035Label when the given input
 	// is longer than 63 characters.
@@ -72,6 +67,11 @@ const (
 	// Error message returned by JobSet validation if the network subdomain
 	// will be longer than 63 characters.
 	subdomainTooLongErrMsg = ".spec.network.subdomain is too long, must be less than 63 characters"
+
+	// maxReplicasPerReplicatedJob limits the number of replicas when using the RestartJob action.
+	// The limit is based on the 1024 MaxItems of the JobRestarts field in ReplicatedJobStatus.
+	// See api/jobset/v1alpha2/jobset_types.go for more details.
+	maxReplicasPerReplicatedJob = 1024
 )
 
 // validOnJobFailureReasons stores supported values of the reason field of the condition of

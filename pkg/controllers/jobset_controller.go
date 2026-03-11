@@ -532,7 +532,7 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 		if features.Enabled(features.RestartJob) {
 			// Preserve existing JobRestarts and JobRestartsCountTowardsMax
 			// They are possibly changed in the failure policy code later
-			var jobRestarts, jobRestartsCountTowardsMax *string
+			var jobRestarts, jobRestartsCountTowardsMax []int32
 			for _, existing := range js.Status.ReplicatedJobsStatus {
 				if existing.Name == name {
 					jobRestarts = existing.JobRestarts

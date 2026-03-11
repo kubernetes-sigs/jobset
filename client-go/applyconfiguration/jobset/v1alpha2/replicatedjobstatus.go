@@ -40,14 +40,10 @@ type ReplicatedJobStatusApplyConfiguration struct {
 	// jobRestarts tracks the number of times the Job has individually restarted for each job index.
 	// That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
 	// were executed for that job index.
-	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
-	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
-	JobRestarts *string `json:"jobRestarts,omitempty"`
+	JobRestarts []int32 `json:"jobRestarts,omitempty"`
 	// jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
 	// That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.
-	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
-	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
-	JobRestartsCountTowardsMax *string `json:"jobRestartsCountTowardsMax,omitempty"`
+	JobRestartsCountTowardsMax []int32 `json:"jobRestartsCountTowardsMax,omitempty"`
 }
 
 // ReplicatedJobStatusApplyConfiguration constructs a declarative configuration of the ReplicatedJobStatus type for use with
@@ -104,18 +100,22 @@ func (b *ReplicatedJobStatusApplyConfiguration) WithSuspended(value int32) *Repl
 	return b
 }
 
-// WithJobRestarts sets the JobRestarts field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the JobRestarts field is set to the value of the last call.
-func (b *ReplicatedJobStatusApplyConfiguration) WithJobRestarts(value string) *ReplicatedJobStatusApplyConfiguration {
-	b.JobRestarts = &value
+// WithJobRestarts adds the given value to the JobRestarts field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the JobRestarts field.
+func (b *ReplicatedJobStatusApplyConfiguration) WithJobRestarts(values ...int32) *ReplicatedJobStatusApplyConfiguration {
+	for i := range values {
+		b.JobRestarts = append(b.JobRestarts, values[i])
+	}
 	return b
 }
 
-// WithJobRestartsCountTowardsMax sets the JobRestartsCountTowardsMax field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the JobRestartsCountTowardsMax field is set to the value of the last call.
-func (b *ReplicatedJobStatusApplyConfiguration) WithJobRestartsCountTowardsMax(value string) *ReplicatedJobStatusApplyConfiguration {
-	b.JobRestartsCountTowardsMax = &value
+// WithJobRestartsCountTowardsMax adds the given value to the JobRestartsCountTowardsMax field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the JobRestartsCountTowardsMax field.
+func (b *ReplicatedJobStatusApplyConfiguration) WithJobRestartsCountTowardsMax(values ...int32) *ReplicatedJobStatusApplyConfiguration {
+	for i := range values {
+		b.JobRestartsCountTowardsMax = append(b.JobRestartsCountTowardsMax, values[i])
+	}
 	return b
 }

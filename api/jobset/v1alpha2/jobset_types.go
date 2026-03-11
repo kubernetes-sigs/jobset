@@ -268,19 +268,17 @@ type ReplicatedJobStatus struct {
 	// jobRestarts tracks the number of times the Job has individually restarted for each job index.
 	// That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
 	// were executed for that job index.
-	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
-	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
-	// +kubebuilder:validation:MaxLength=32768
+	// +kubebuilder:validation:MaxItems=1024
+	// +listType=atomic
 	// +optional
-	JobRestarts *string `json:"jobRestarts,omitempty"`
+	JobRestarts []int32 `json:"jobRestarts,omitempty"`
 
 	// jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
 	// That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.
-	// It is encoded as `<restarts of job 0>,...,<restarts of job replicas - 1>`
-	// Max length is set to 32KB (32768 bytes). This is enough to handle 2 978 replicas per replicatedJob
-	// +kubebuilder:validation:MaxLength=32768
+	// +kubebuilder:validation:MaxItems=1024
+	// +listType=atomic
 	// +optional
-	JobRestartsCountTowardsMax *string `json:"jobRestartsCountTowardsMax,omitempty"`
+	JobRestartsCountTowardsMax []int32 `json:"jobRestartsCountTowardsMax,omitempty"`
 }
 
 // +genclient

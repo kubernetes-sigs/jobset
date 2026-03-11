@@ -326,13 +326,13 @@ func (in *ReplicatedJobStatus) DeepCopyInto(out *ReplicatedJobStatus) {
 	*out = *in
 	if in.JobRestarts != nil {
 		in, out := &in.JobRestarts, &out.JobRestarts
-		*out = new(string)
-		**out = **in
+		*out = make([]int32, len(*in))
+		copy(*out, *in)
 	}
 	if in.JobRestartsCountTowardsMax != nil {
 		in, out := &in.JobRestartsCountTowardsMax, &out.JobRestartsCountTowardsMax
-		*out = new(string)
-		**out = **in
+		*out = make([]int32, len(*in))
+		copy(*out, *in)
 	}
 }
 
