@@ -800,10 +800,7 @@ func TestJobSetDefaulting(t *testing.T) {
 	}
 
 	fakeClient := fake.NewFakeClient()
-	webhook, err := NewJobSetWebhook(fakeClient)
-	if err != nil {
-		t.Fatalf("error creating jobset webhook: %v", err)
-	}
+	webhook := &jobSetWebhook{client: fakeClient}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := tc.js.DeepCopyObject()
@@ -3083,13 +3080,10 @@ func TestValidateCreate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a new client with existing objects if provided
 			testClient := fake.NewFakeClient(tc.existingObjs...)
-			testWebhook, err := NewJobSetWebhook(testClient)
-			if err != nil {
-				t.Fatalf("error creating jobset webhook: %v", err)
-			}
+			testWebhook := &jobSetWebhook{client: testClient}
 			features.SetFeatureGateDuringTest(t, features.InPlaceRestart, tc.enableInPlaceRestart)
 			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.enableRestartJob)
-			_, err = testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
+			_, err := testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
 			if err != nil && tc.want != nil {
 				assert.Contains(t, err.Error(), tc.want.Error())
 			} else if err != nil && tc.want == nil {
@@ -3450,11 +3444,10 @@ func TestValidateUpdate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClient := fake.NewFakeClient()
-			webhook, err := NewJobSetWebhook(fakeClient)
-			assert.Nil(t, err)
+			webhook := &jobSetWebhook{client: fakeClient}
 			newObj := tc.js.DeepCopy()
 			oldObj := tc.oldJs.DeepCopy()
-			_, err = webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
+			_, err := webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
 			// Ignore bad value to keep test cases short and readable.
 			if diff := cmp.Diff(tc.want, err, cmpopts.IgnoreFields(field.Error{}, "BadValue")); diff != "" {
 				t.Errorf("ValidateResources() mismatch (-want +got):\n%s", diff)
