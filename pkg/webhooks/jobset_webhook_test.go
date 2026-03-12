@@ -781,6 +781,59 @@ func TestJobSetDefaulting(t *testing.T) {
 			},
 		},
 	}
+	skipSuspendReconciliationTests := []jobSetDefaultingTestCase{
+		{
+			name: "JobSet suspend is defaulted to nil if skip suspend reconciliation annotation is enabled",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						jobset.SkipSuspendReconciliationAnnotation: "true",
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					Suspend:       ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
+				},
+			},
+			want: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						jobset.SkipSuspendReconciliationAnnotation: "true",
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					Suspend:       nil,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
+				},
+			},
+		},
+	}
 
 	testGroups := [][]jobSetDefaultingTestCase{
 		jobCompletionTests,
@@ -793,6 +846,7 @@ func TestJobSetDefaulting(t *testing.T) {
 		managedByTests,
 		failurePolicyRuleNameTests,
 		volumeRetentionPolicyTests,
+		skipSuspendReconciliationTests,
 	}
 	var testCases []jobSetDefaultingTestCase
 	for _, testGroup := range testGroups {
@@ -3443,6 +3497,86 @@ func TestValidateUpdate(t *testing.T) {
 			},
 			want: field.ErrorList{
 				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+		},
+		{
+			name: "suspend must be nil when skip suspend reconciliation annotation is true",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.SkipSuspendReconciliationAnnotation: "true",
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.SkipSuspendReconciliationAnnotation: "true",
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        nil,
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("suspend"), ptr.To(true), fmt.Sprintf("must be nil when %s annotation is true", jobset.SkipSuspendReconciliationAnnotation)),
+			}.ToAggregate(),
+		},
+		{
+			name: "skip suspend reconciliation annotation cannot be added to an existing JobSet",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.SkipSuspendReconciliationAnnotation: "true",
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        nil,
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend:        nil,
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("metadata").Child("annotations"), "true", "cannot be set to true on an existing JobSet. It must be done at JobSet creation"),
+			}.ToAggregate(),
+		},
+		{
+			name: "skip suspend reconciliation annotation cannot be removed from an existing JobSet",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend:        nil,
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.SkipSuspendReconciliationAnnotation: "true",
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        nil,
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("metadata").Child("annotations"), "", "cannot be removed from an existing JobSet. It must be done at JobSet creation"),
 			}.ToAggregate(),
 		},
 	}

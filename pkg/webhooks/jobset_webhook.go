@@ -155,6 +155,11 @@ func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
 		}
 	}
 
+	// Default JobSet suspend to nil if the skip suspend reconciliation annotateion is enabled.
+	if controllers.ShouldSkipSuspendReconciliation(js) {
+		js.Spec.Suspend = nil
+	}
+
 	return nil
 }
 
@@ -328,6 +333,22 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJS, js *jobset.Jo
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
 	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
+
+	// Block JobSet suspendsion from being changed to another value than nil if the skip suspend reconciliation annotation is set.
+	if controllers.ShouldSkipSuspendReconciliation(js) && js.Spec.Suspend != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec").Child("suspend"), js.Spec.Suspend, fmt.Sprintf("must be nil when %s annotation is true", jobset.SkipSuspendReconciliationAnnotation)))
+	}
+
+	// Block skip suspend reconciliation annotation from being added to an existing JobSet
+	if !controllers.ShouldSkipSuspendReconciliation(oldJS) && controllers.ShouldSkipSuspendReconciliation(js) {
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations"), js.Annotations[jobset.SkipSuspendReconciliationAnnotation], fmt.Sprintf("cannot be set to true on an existing JobSet. It must be done at JobSet creation")))
+	}
+
+	// Block skip suspend reconciliation annotation from being removed from an existing JobSet
+	if controllers.ShouldSkipSuspendReconciliation(oldJS) && !controllers.ShouldSkipSuspendReconciliation(js) {
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations"), js.Annotations[jobset.SkipSuspendReconciliationAnnotation], fmt.Sprintf("cannot be removed from an existing JobSet. It must be done at JobSet creation")))
+	}
+
 	return nil, errs.ToAggregate()
 }
 
