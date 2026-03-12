@@ -131,6 +131,8 @@ spec:
                           - FailJobSet
                           - RestartJobSet
                           - RestartJobSetAndIgnoreMaxRestarts
+                          - RestartJob
+                          - RestartJobAndIgnoreMaxRestarts
                           type: string
                         name:
                           description: |-
@@ -10127,6 +10129,27 @@ spec:
                       description: failed is the number of failed child Jobs.
                       format: int32
                       type: integer
+                    jobRestarts:
+                      description: |-
+                        jobRestarts tracks the number of times the Job has individually restarted for each job index.
+                        That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
+                        were executed for that job index.
+                      items:
+                        format: int32
+                        type: integer
+                      maxItems: 1024
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    jobRestartsCountTowardsMax:
+                      description: |-
+                        jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
+                        That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.
+                      items:
+                        format: int32
+                        type: integer
+                      maxItems: 1024
+                      type: array
+                      x-kubernetes-list-type: atomic
                     name:
                       description: name of the ReplicatedJob.
                       type: string
@@ -10160,14 +10183,15 @@ spec:
                 - name
                 x-kubernetes-list-type: map
               restarts:
-                description: restarts tracks the number of times the JobSet has restarted
-                  (i.e. recreated in case of RecreateAll policy).
+                description: |-
+                  restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+                  That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.
                 format: int32
                 type: integer
               restartsCountTowardsMax:
-                description: restartsCountTowardsMax tracks the number of times the
-                  JobSet has restarted that counts towards the maximum allowed number
-                  of restarts.
+                description: |-
+                  restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+                  That is, it tracks how many times the restart action RestartJobSet was executed.
                 format: int32
                 type: integer
               terminalState:

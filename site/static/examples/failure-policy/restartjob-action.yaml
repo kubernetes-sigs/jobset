@@ -1,0 +1,79 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: js
+spec:
+  failurePolicy:
+    maxRestarts: 2
+    rules:
+    # If any Job from replicatedJob `rj-leader` fails, restart the JobSet by recreating ALL Jobs
+    # Count the restart towards `jobSet.spec.failurePolicy.maxRestarts`
+    - name: r_leader
+      action: RestartJobSet
+      targetReplicatedJobs:
+      - rj-leader
+    # If any Job from replicatedJob `rj-worker` fails, restart the JobSet by recreating only the failed Job
+    # Count the restart towards `jobSet.spec.failurePolicy.maxRestarts`
+    - name: r_worker
+      action: RestartJob
+      targetReplicatedJobs:
+      - rj-worker
+  replicatedJobs:
+  - name: rj-leader
+    replicas: 1
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        backoffLimit: 0 # Job fails if any Pod fails
+        template:
+          spec:
+            restartPolicy: Never
+            terminationGracePeriodSeconds: 0 # Useful for testing
+            containers:
+            - name: leader
+              image: busybox:1.37
+              command: ["/bin/sh", "-c"]
+              # Fail a leader Pod with `kubectl exec ${POD_NAME:?} -c leader -- touch /tmp/fail`
+              args:
+              - |
+                echo "Start"
+                while true; do
+                  if [ -f /tmp/fail ]; then
+                    echo "Exiting 1"
+                    exit 1
+                  elif [ -f /tmp/succeed ]; then
+                    echo "Exiting 0"
+                    exit 0
+                  fi
+                  sleep 1
+                done
+  - name: rj-worker
+    replicas: 1
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        backoffLimit: 0 # Job fails if any Pod fails
+        template:
+          spec:
+            restartPolicy: Never
+            terminationGracePeriodSeconds: 0 # Useful for testing
+            containers:
+            - name: worker
+              image: busybox:1.37
+              command: ["/bin/sh", "-c"]
+              # Fail a worker Pod with `kubectl exec ${POD_NAME:?} -c worker -- touch /tmp/fail`
+              args:
+              - |
+                echo "Start"
+                while true; do
+                  if [ -f /tmp/fail ]; then
+                    echo "Exiting 1"
+                    exit 1
+                  elif [ -f /tmp/succeed ]; then
+                    echo "Exiting 0"
+                    exit 0
+                  fi
+                  sleep 1
+                done

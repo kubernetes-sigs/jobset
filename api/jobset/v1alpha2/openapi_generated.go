@@ -470,7 +470,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					},
 					"restarts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).",
+							Description: "restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet). That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -478,7 +478,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					},
 					"restartsCountTowardsMax": {
 						SchemaProps: spec.SchemaProps{
-							Description: "restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.",
+							Description: "restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet). That is, it tracks how many times the restart action RestartJobSet was executed.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -686,6 +686,46 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref common.ReferenceC
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
+						},
+					},
+					"jobRestarts": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "jobRestarts tracks the number of times the Job has individually restarted for each job index. That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts were executed for that job index.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: 0,
+										Type:    []string{"integer"},
+										Format:  "int32",
+									},
+								},
+							},
+						},
+					},
+					"jobRestartsCountTowardsMax": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: 0,
+										Type:    []string{"integer"},
+										Format:  "int32",
+									},
+								},
+							},
 						},
 					},
 				},

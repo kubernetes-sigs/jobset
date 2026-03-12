@@ -350,7 +350,7 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 		return nil, err
 	}
 
-	// Categorize each job into a bucket: active, successful, failed, or delete.
+	// Categorize each job into a bucket: active, successful, failed or previous.
 	ownedJobs := childJobs{}
 	for i, job := range childJobList.Items {
 		// Jobs with jobset.sigs.k8s.io/restart-attempt < restarts are marked for deletion.
@@ -367,8 +367,59 @@ func (r *JobSetReconciler) getChildJobs(ctx context.Context, js *jobset.JobSet) 
 			continue
 		}
 
-		// Jobs with jobset.sigs.k8s.io/restart-attempt == jobset.status.restarts are part of
-		// the current JobSet run, and marked either active, successful, or failed.
+		if features.Enabled(features.RestartJob) {
+			// A job is marked for deletion if its individual restart attempt is less than the target individual restart attempt.
+			replicatedJobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
+			if !ok {
+				err := fmt.Errorf("missing label %s", jobset.ReplicatedJobNameKey)
+				log.Error(err, "")
+				ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+				return nil, err
+			}
+			jobIndexStr, ok := job.Labels[jobset.JobIndexKey]
+			if !ok {
+				err := fmt.Errorf("missing label %s", jobset.JobIndexKey)
+				log.Error(err, "")
+				ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+				return nil, err
+			}
+			jobIndex, err := strconv.Atoi(jobIndexStr)
+			if err != nil {
+				log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", jobset.JobIndexKey))
+				ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+				return nil, err
+			}
+			individualRestartsStr, ok := job.Labels[constants.JobRestartAttemptKey]
+			// If the label is missing, just log instead of deleting the Job for backward compatibility
+			// If this Job is ever recreated, it will have the label
+			if !ok {
+				log.Error(fmt.Errorf("missing label %s", constants.JobRestartAttemptKey), "")
+			} else {
+				individualRestarts, err := strconv.Atoi(individualRestartsStr)
+				if err != nil {
+					log.Error(err, fmt.Sprintf("invalid value for label %s, must be integer", constants.JobRestartAttemptKey))
+					ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+					return nil, err
+				}
+				allTargetIndividualRestarts := getJobRestarts(js, replicatedJobName)
+				if jobIndex >= len(allTargetIndividualRestarts) {
+					err := fmt.Errorf("job index %d is out of bounds for replicated job %s", jobIndex, replicatedJobName)
+					log.Error(err, "")
+					ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+					return nil, err
+				}
+				targetIndividualRestarts := allTargetIndividualRestarts[jobIndex]
+				if int32(individualRestarts) < targetIndividualRestarts {
+					log.V(2).Info("child Job marked for recreation as value of job restart attempt is less than target", "name", job.Name, constants.JobRestartAttemptKey, individualRestarts, "targetJobRestartAttempt", targetIndividualRestarts)
+					ownedJobs.previous = append(ownedJobs.previous, &childJobList.Items[i])
+					continue
+				}
+			}
+		}
+
+		// Jobs with job.labels['jobset.sigs.k8s.io/restart-attempt'] == jobset.status.restarts and
+		// job.labels['jobset.sigs.k8s.io/job-restart-attempt'] == jobset.status.replicatedJobsStatus[replicatedJobName].jobRestarts[jobIndex]
+		// are part of the current JobSet run, and marked either active, successful, or failed.
 		_, finishedType := JobFinished(&job)
 		switch finishedType {
 		case "": // active
@@ -469,15 +520,33 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 	// Calculate ReplicatedJobsStatus
 	var rjStatus []jobset.ReplicatedJobStatus
 	for name, status := range replicatedJobsReady {
-		rjStatus = append(rjStatus, jobset.ReplicatedJobStatus{
+		rjs := jobset.ReplicatedJobStatus{
 			Name:      name,
 			Ready:     status["ready"],
 			Succeeded: status["succeeded"],
 			Failed:    status["failed"],
 			Active:    status["active"],
 			Suspended: status["suspended"],
-		})
+		}
+
+		if features.Enabled(features.RestartJob) {
+			// Preserve existing JobRestarts and JobRestartsCountTowardsMax
+			// They are possibly changed in the failure policy code later
+			var jobRestarts, jobRestartsCountTowardsMax []int32
+			for _, existing := range js.Status.ReplicatedJobsStatus {
+				if existing.Name == name {
+					jobRestarts = existing.JobRestarts
+					jobRestartsCountTowardsMax = existing.JobRestartsCountTowardsMax
+					break
+				}
+			}
+			rjs.JobRestarts = jobRestarts
+			rjs.JobRestartsCountTowardsMax = jobRestartsCountTowardsMax
+		}
+
+		rjStatus = append(rjStatus, rjs)
 	}
+
 	return rjStatus
 }
 
@@ -871,6 +940,9 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	labels[jobset.JobSetUIDKey] = string(js.GetUID())
 	labels[jobset.ReplicatedJobNameKey] = rjob.Name
 	labels[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	if features.Enabled(features.RestartJob) {
+		labels[constants.JobRestartAttemptKey] = strconv.Itoa(int(getJobRestarts(js, rjob.Name)[jobIdx]))
+	}
 	labels[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	labels[jobset.GlobalReplicasKey] = globalReplicas(js)
 	labels[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
@@ -886,6 +958,9 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	annotations[jobset.JobSetUIDKey] = string(js.GetUID())
 	annotations[jobset.ReplicatedJobNameKey] = rjob.Name
 	annotations[constants.RestartsKey] = strconv.Itoa(int(js.Status.Restarts))
+	if features.Enabled(features.RestartJob) {
+		annotations[constants.JobRestartAttemptKey] = strconv.Itoa(int(getJobRestarts(js, rjob.Name)[jobIdx]))
+	}
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.GlobalReplicasKey] = globalReplicas(js)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)

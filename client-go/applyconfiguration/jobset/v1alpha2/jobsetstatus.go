@@ -28,9 +28,11 @@ import (
 type JobSetStatusApplyConfiguration struct {
 	// conditions track status
 	Conditions []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
-	// restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
+	// restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+	// That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.
 	Restarts *int32 `json:"restarts,omitempty"`
-	// restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.
+	// restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+	// That is, it tracks how many times the restart action RestartJobSet was executed.
 	RestartsCountTowardsMax *int32 `json:"restartsCountTowardsMax,omitempty"`
 	// terminalState tracks the state of the JobSet when it finishes execution.
 	// It can be either Completed or Failed. Otherwise, it is empty by default.

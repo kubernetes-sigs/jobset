@@ -426,14 +426,16 @@ volumeMount in one container in the template.</p>
 <code>int32</code>
 </td>
 <td>
-   <p>restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).</p>
+   <p>restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.</p>
 </td>
 </tr>
 <tr><td><code>restartsCountTowardsMax</code><br/>
 <code>int32</code>
 </td>
 <td>
-   <p>restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.</p>
+   <p>restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
+That is, it tracks how many times the restart action RestartJobSet was executed.</p>
 </td>
 </tr>
 <tr><td><code>terminalState</code><br/>
@@ -653,6 +655,23 @@ which are not marked for deletion.</p>
 </td>
 <td>
    <p>suspended is the number of child Jobs which are in a suspended state.</p>
+</td>
+</tr>
+<tr><td><code>jobRestarts</code><br/>
+<code>[]int32</code>
+</td>
+<td>
+   <p>jobRestarts tracks the number of times the Job has individually restarted for each job index.
+That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
+were executed for that job index.</p>
+</td>
+</tr>
+<tr><td><code>jobRestartsCountTowardsMax</code><br/>
+<code>[]int32</code>
+</td>
+<td>
+   <p>jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
+That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.</p>
 </td>
 </tr>
 </tbody>

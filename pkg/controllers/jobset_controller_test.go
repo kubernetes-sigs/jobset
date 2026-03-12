@@ -41,6 +41,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
@@ -897,10 +898,51 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					}).Obj(),
 			},
 		},
+		{
+			name: "JobRestartAttempt based on ReplicatedJobsStatus",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(2).
+					GroupName("default").
+					Obj()).
+				SetStatus(jobset.JobSetStatus{
+					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+						{
+							Name:        replicatedJobName,
+							JobRestarts: []int32{1, 0},
+						},
+					},
+				}).Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					groupName:         "default",
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            0,
+					jobRestartAttempt: 1}).
+					Suspend(false).Obj(),
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					groupName:         "default",
+					jobName:           "test-jobset-replicated-job-1",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            1,
+					jobRestartAttempt: 0}).
+					Suspend(false).Obj(),
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			features.SetFeatureGateDuringTest(t, features.RestartJob, true)
 			// Here we update the expected Jobs with certain features which require
 			// direct access to the JobSet object itself to calculate. For example,
 			// the `jobset.sigs.k8s.io/job-global-index` annotation requires access to the
@@ -1512,6 +1554,7 @@ type makeJobArgs struct {
 	replicas             int
 	jobIdx               int
 	restarts             int
+	jobRestartAttempt    int
 	topology             string
 	nodeSelectorStrategy bool
 }
@@ -1519,24 +1562,26 @@ type makeJobArgs struct {
 // Helper function to create a Job for unit testing.
 func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 	labels := map[string]string{
-		jobset.JobSetNameKey:         args.jobSetName,
-		jobset.JobSetUIDKey:          args.jobSetUID,
-		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
-		jobset.GroupNameKey:          args.groupName,
-		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
-		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		constants.RestartsKey:        strconv.Itoa(args.restarts),
-		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
+		jobset.JobSetNameKey:           args.jobSetName,
+		jobset.JobSetUIDKey:            args.jobSetUID,
+		jobset.ReplicatedJobNameKey:    args.replicatedJobName,
+		jobset.GroupNameKey:            args.groupName,
+		jobset.ReplicatedJobReplicas:   strconv.Itoa(args.replicas),
+		jobset.JobIndexKey:             strconv.Itoa(args.jobIdx),
+		constants.RestartsKey:          strconv.Itoa(args.restarts),
+		constants.JobRestartAttemptKey: strconv.Itoa(args.jobRestartAttempt),
+		jobset.JobKey:                  jobHashKey(args.ns, args.jobName),
 	}
 	annotations := map[string]string{
-		jobset.JobSetNameKey:         args.jobSetName,
-		jobset.JobSetUIDKey:          args.jobSetUID,
-		jobset.ReplicatedJobNameKey:  args.replicatedJobName,
-		jobset.GroupNameKey:          args.groupName,
-		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
-		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
-		constants.RestartsKey:        strconv.Itoa(args.restarts),
-		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
+		jobset.JobSetNameKey:           args.jobSetName,
+		jobset.JobSetUIDKey:            args.jobSetUID,
+		jobset.ReplicatedJobNameKey:    args.replicatedJobName,
+		jobset.GroupNameKey:            args.groupName,
+		jobset.ReplicatedJobReplicas:   strconv.Itoa(args.replicas),
+		jobset.JobIndexKey:             strconv.Itoa(args.jobIdx),
+		constants.RestartsKey:          strconv.Itoa(args.restarts),
+		constants.JobRestartAttemptKey: strconv.Itoa(args.jobRestartAttempt),
+		jobset.JobKey:                  jobHashKey(args.ns, args.jobName),
 	}
 	// Only set exclusive key if we are using exclusive placement per topology.
 	if args.topology != "" {
