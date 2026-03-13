@@ -1,0 +1,45 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: v6e-multislice
+  labels:
+    # Kueue integration: Routes the workload to a specific LocalQueue
+    kueue.x-k8s.io/queue-name: multislice-queue
+  annotations:
+    # Ensures 1:1 mapping between child Jobs and physical TPU Node Pools
+    alpha.jobset.sigs.k8s.io/exclusive-topology: cloud.google.com/gke-nodepool
+spec:
+  failurePolicy:
+    # Synchronous JAX training requires JobSet to restart if any node fails
+    maxRestarts: 4
+  replicatedJobs:
+    - name: slice
+      # Provision 2 independent TPU v6e slices (multislice)
+      replicas: 2
+      template:
+        spec:
+          # A 4x4 v6e slice has 16 chips. With 4 chips per node, we need 4 nodes per slice.
+          parallelism: 4
+          completions: 4
+          backoffLimit: 0
+          template:
+            spec:
+              hostNetwork: true
+              dnsPolicy: ClusterFirstWithHostNet
+              nodeSelector:
+                cloud.google.com/gke-tpu-accelerator: tpu-v6e-slice
+                cloud.google.com/gke-tpu-topology: 4x4
+              containers:
+                - name: jax-tpu
+                  image: us-docker.pkg.dev/cloud-tpu-images/jax-ai-image/tpu:latest
+                  securityContext:
+                    privileged: true
+                  command:
+                    - bash
+                    - -c
+                    - |
+                      python3 -c 'import jax; print("Global device count:", jax.device_count())'
+                      sleep 60
+                  resources:
+                    limits:
+                      google.com/tpu: 4 # 4 Trillium chips per node
