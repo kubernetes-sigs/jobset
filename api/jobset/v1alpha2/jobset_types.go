@@ -118,9 +118,11 @@ const (
 // +kubebuilder:validation:XValidation:rule="!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder == 'InOrder' && self.replicatedJobs.exists(x, has(x.dependsOn)))",message="StartupPolicy and DependsOn APIs are mutually exclusive"
 type JobSetSpec struct {
 	// replicatedJobs is the group of jobs that will form the set.
+	// +patchMergeKey=name
+	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=name
-	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty"`
+	ReplicatedJobs []ReplicatedJob `json:"replicatedJobs,omitempty" patchStrategy:"merge" patchMergeKey:"name"`
 
 	// network defines the networking options for the jobset.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
@@ -197,9 +199,11 @@ type JobSetSpec struct {
 type JobSetStatus struct {
 	// conditions track status
 	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=type
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 
 	// restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
 	// That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.
@@ -218,9 +222,11 @@ type JobSetStatus struct {
 
 	// replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.
 	// +optional
+	// +patchMergeKey=name
+	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=name
-	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
+	ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty" patchStrategy:"merge" patchMergeKey:"name"`
 
 	// previousInPlaceRestartAttempt tracks the previous in-place restart attempt
 	// of the JobSet. It is read by the agent. If the in-place restart
@@ -339,9 +345,11 @@ type ReplicatedJob struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	// +kubebuilder:validation:MaxItems=5
 	// +optional
+	// +patchMergeKey=name
+	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=name
-	DependsOn []DependsOn `json:"dependsOn,omitempty"`
+	DependsOn []DependsOn `json:"dependsOn,omitempty" patchStrategy:"merge" patchMergeKey:"name"`
 }
 
 // DependsOn defines the dependency on the previous ReplicatedJob status.
