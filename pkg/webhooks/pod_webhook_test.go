@@ -535,6 +535,103 @@ func TestPodWebhookValidateCreate(t *testing.T) {
 			},
 			wantErr: "follower pod node selector not set despite leader pod being scheduled",
 		},
+		{
+			name: "follower pod requires topology node selector key after leader is scheduled",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-1-follower",
+					Namespace: "default",
+					Labels: map[string]string{
+						jobset.JobSetNameKey:        "js",
+						jobset.ReplicatedJobNameKey: "rjob",
+						jobset.JobIndexKey:          "0",
+					},
+					Annotations: map[string]string{
+						jobset.JobSetNameKey:                       "js",
+						jobset.ExclusiveKey:                        "topology.kubernetes.io/zone",
+						"batch.kubernetes.io/job-completion-index": "1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+				Spec: corev1.PodSpec{
+					NodeSelector: map[string]string{
+						"kubernetes.io/hostname": "node-a",
+					},
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "js-rjob-0-0-leader",
+						Namespace: "default",
+						Labels: map[string]string{
+							jobset.JobSetNameKey:        "js",
+							jobset.ReplicatedJobNameKey: "rjob",
+							jobset.JobIndexKey:          "0",
+						},
+						Annotations: map[string]string{
+							jobset.ExclusiveKey:                        "topology.kubernetes.io/zone",
+							"batch.kubernetes.io/job-completion-index": "0",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+						},
+					},
+					Spec: corev1.PodSpec{NodeName: "node-a"},
+				},
+			},
+			wantErr: "follower pod node selector for topology domain not found. missing selector: topology.kubernetes.io/zone",
+		},
+		{
+			name: "follower pod allows create when leader is scheduled and topology node selector is set",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-1-follower",
+					Namespace: "default",
+					Labels: map[string]string{
+						jobset.JobSetNameKey:        "js",
+						jobset.ReplicatedJobNameKey: "rjob",
+						jobset.JobIndexKey:          "0",
+					},
+					Annotations: map[string]string{
+						jobset.JobSetNameKey:                       "js",
+						jobset.ExclusiveKey:                        "topology.kubernetes.io/zone",
+						"batch.kubernetes.io/job-completion-index": "1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+				Spec: corev1.PodSpec{
+					NodeSelector: map[string]string{
+						"topology.kubernetes.io/zone": "zone-a",
+					},
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "js-rjob-0-0-leader",
+						Namespace: "default",
+						Labels: map[string]string{
+							jobset.JobSetNameKey:        "js",
+							jobset.ReplicatedJobNameKey: "rjob",
+							jobset.JobIndexKey:          "0",
+						},
+						Annotations: map[string]string{
+							jobset.ExclusiveKey:                        "topology.kubernetes.io/zone",
+							"batch.kubernetes.io/job-completion-index": "0",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+						},
+					},
+					Spec: corev1.PodSpec{NodeName: "node-a"},
+				},
+			},
+		},
 	}
 
 	scheme := runtime.NewScheme()
@@ -552,11 +649,17 @@ func TestPodWebhookValidateCreate(t *testing.T) {
 
 			p := &podWebhook{client: fakeClient}
 			_, err := p.ValidateCreate(t.Context(), tc.pod)
-			if err == nil {
-				t.Fatalf("expected error %q, got nil", tc.wantErr)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error %q, got nil", tc.wantErr)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error to contain %q, got %q", tc.wantErr, err.Error())
+				}
+				return
 			}
-			if !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("expected error to contain %q, got %q", tc.wantErr, err.Error())
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
 			}
 		})
 	}
