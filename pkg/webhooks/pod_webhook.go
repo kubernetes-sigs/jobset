@@ -221,13 +221,6 @@ func (p *podWebhook) ValidateCreate(ctx context.Context, pod *corev1.Pod) (admis
 	if placement.IsLeaderPod(pod) {
 		return nil, nil
 	}
-	// If a follower pod node selector has not been set, reject the creation.
-	if pod.Spec.NodeSelector == nil {
-		return nil, fmt.Errorf("follower pod node selector not set")
-	}
-	if _, exists := pod.Spec.NodeSelector[topologyKey]; !exists {
-		return nil, fmt.Errorf("follower pod node selector for topology domain not found. missing selector: %s", topologyKey)
-	}
 	// For follower pods, validate leader pod exists and is scheduled.
 	leaderScheduled, err := p.leaderPodScheduled(ctx, pod)
 	if err != nil {
@@ -235,6 +228,13 @@ func (p *podWebhook) ValidateCreate(ctx context.Context, pod *corev1.Pod) (admis
 	}
 	if !leaderScheduled {
 		return nil, fmt.Errorf("leader pod not yet scheduled, not creating follower pod. this is an expected, transient error")
+	}
+	// If a follower pod node selector has not been set, reject the creation.
+	if pod.Spec.NodeSelector == nil {
+		return nil, fmt.Errorf("follower pod node selector not set despite leader pod being scheduled")
+	}
+	if _, exists := pod.Spec.NodeSelector[topologyKey]; !exists {
+		return nil, fmt.Errorf("follower pod node selector for topology domain not found. missing selector: %s", topologyKey)
 	}
 	return nil, nil
 }
