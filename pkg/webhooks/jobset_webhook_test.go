@@ -3666,7 +3666,7 @@ func TestValidateUpdate(t *testing.T) {
 					ReplicatedJobs: []jobset.ReplicatedJob{
 						{
 							Name:     "test-jobset-replicated-job-0",
-							Replicas: 2, // <--- IMMUTABLE FIELD MODIFIED
+							Replicas: 2, // immutable field modified
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
 									Parallelism: ptr.To[int32](4), // Valid scale operation
