@@ -35,6 +35,7 @@ type FailurePolicyRuleApplyConfiguration struct {
 	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
 	Name *string `json:"name,omitempty"`
 	// action to take if the rule is matched.
+	// Valid values are FailJobSet, RestartJobSet, RestartJobSetAndIgnoreMaxRestarts, RestartJob, RestartJobAndIgnoreMaxRestarts.
 	Action *jobsetv1alpha2.FailurePolicyAction `json:"action,omitempty"`
 	// onJobFailureReasons is a list of job failures reasons.
 	// The requirement is satisfied

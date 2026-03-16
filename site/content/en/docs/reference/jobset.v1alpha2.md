@@ -663,7 +663,8 @@ which are not marked for deletion.</p>
 <td>
    <p>jobRestarts tracks the number of times the Job has individually restarted for each job index.
 That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
-were executed for that job index.</p>
+were executed for that job index.
+The maximum number of items is 1024.</p>
 </td>
 </tr>
 <tr><td><code>jobRestartsCountTowardsMax</code><br/>
@@ -671,7 +672,8 @@ were executed for that job index.</p>
 </td>
 <td>
    <p>jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
-That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.</p>
+That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.
+The maximum number of items is 1024.</p>
 </td>
 </tr>
 </tbody>
