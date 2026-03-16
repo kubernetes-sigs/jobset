@@ -201,13 +201,13 @@ type JobSetStatus struct {
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
-	// That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.
+	// restarts tracks the number of times the JobSet has been globally restarted.
+	// That is, restarts is the number of times the restart action RestartJobSet or RestartJobSetAndIgnoreMaxRestarts have been executed and led to the recreation of all Jobs.
 	// +optional
 	Restarts int32 `json:"restarts"`
 
-	// restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
-	// That is, it tracks how many times the restart action RestartJobSet was executed.
+	// restartsCountTowardsMax tracks the number of times the JobSet has been globally restarted that counts towards the maximum allowed number of restarts.
+	// That is, restartsCountTowardsMax is the number of times the restart action RestartJobSet has been executed and led to the recreation of all Jobs.
 	// +optional
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 
@@ -265,16 +265,15 @@ type ReplicatedJobStatus struct {
 	// suspended is the number of child Jobs which are in a suspended state.
 	Suspended int32 `json:"suspended"`
 
-	// jobRestarts tracks the number of times the Job has individually restarted for each job index.
-	// That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
-	// were executed for that job index.
+	// jobRestarts tracks the number of times the Jobs have been individually restarted.
+	// That is, jobRestarts[jobIndex] is the number of times the restart action RestartJob or RestartJobAndIgnoreMaxRestarts have been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.
 	// +kubebuilder:validation:MaxItems=1024
 	// +listType=atomic
 	// +optional
 	JobRestarts []int32 `json:"jobRestarts,omitempty"`
 
-	// jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
-	// That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.
+	// jobRestartsCountTowardsMax tracks the number of times the Jobs have been individually restarted that count towards the maximum allowed number of restarts.
+	// That is, jobRestartsCountTowardsMax[jobIndex] is the number of times the restart action RestartJob has been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.
 	// +kubebuilder:validation:MaxItems=1024
 	// +listType=atomic
 	// +optional
@@ -401,21 +400,27 @@ const (
 type FailurePolicyAction string
 
 const (
-	// Fail the JobSet immediately, regardless of maxRestarts.
+	// Fail the JobSet immediately.
 	FailJobSet FailurePolicyAction = "FailJobSet"
 
-	// Restart the JobSet if the number of restart attempts is less than MaxRestarts.
+	// Restart the JobSet globally (i.e., recreate all Jobs) if `jobSet.status.restartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) < jobSet.spec.maxRestarts`.
 	// Otherwise, fail the JobSet.
+	// Bumps `jobSet.status.restarts += 1` and `jobSet.status.restartsCountTowardsMax += 1`
 	RestartJobSet FailurePolicyAction = "RestartJobSet"
 
-	// Do not count the failure against maxRestarts.
+	// Same as RestartJobSet, but does not check `jobSet.spec.maxRestarts`.
+	// Bumps `jobSet.status.restarts += 1`.
 	RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobSetAndIgnoreMaxRestarts"
 
-	// Restart (i.e., recreate) the failed Job individually if the number of restart attempts is less than MaxRestarts.
+	// Restart the Job individually (i.e., recreate only the failed Job without touching the other Jobs) if `jobSet.status.restartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) < jobSet.spec.maxRestarts`.
 	// Otherwise, fail the JobSet.
+	// Bumps `jobSet.status.replicatedJobsStatus[replicatedJobName].restarts[jobIndex] += 1` and `jobSet.status.replicatedJobsStatus[replicatedJobName].jobRestartsCountTowardsMax[jobIndex] += 1`.
+	// Importantly, if this action is used, all `jobSet.spec.replicatedJobs[].replicas` must be less than or equal to 1024.
 	RestartJob FailurePolicyAction = "RestartJob"
 
-	// Restart (i.e., recreate) the failed Job individually and do not count the failure against maxRestarts.
+	// Same as RestartJob, but does not check `jobSet.spec.maxRestarts`.
+	// Bumps `jobSet.status.replicatedJobsStatus[replicatedJobName].restarts[jobIndex] += 1`
+	// Importantly, if this action is used, all `jobSet.spec.replicatedJobs[].replicas` must be less than or equal to 1024.
 	RestartJobAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobAndIgnoreMaxRestarts"
 )
 
@@ -430,6 +435,7 @@ type FailurePolicyRule struct {
 	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
 	Name string `json:"name"`
 	// action to take if the rule is matched.
+	// Valid values are FailJobSet, RestartJobSet, RestartJobSetAndIgnoreMaxRestarts, RestartJob, RestartJobAndIgnoreMaxRestarts.
 	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts;RestartJob;RestartJobAndIgnoreMaxRestarts
 	Action FailurePolicyAction `json:"action"`
 	// onJobFailureReasons is a list of job failures reasons.
