@@ -30,10 +30,12 @@ const (
 
 	// RestartsKey is an annotation and label key which defines the global restart attempt number
 	// the Job is currently on.
+	// It should match `jobSet.spec.restarts`
 	RestartsKey = "jobset.sigs.k8s.io/restart-attempt"
 
 	// JobRestartAttemptKey is an annotation and label key which defines the individual restart attempt number
-	// the Job is currently on. This does not include global restarts.
+	// the Job is currently on.
+	// That is, it should match `jobSet.spec.replicatedJobs[replicatedJobName].jobRestarts[jobIndex]`
 	JobRestartAttemptKey = "jobset.sigs.k8s.io/job-restart-attempt"
 
 	// PriorityKey is a label key to record the pod priority. This is needed to enforce exclusive placement
