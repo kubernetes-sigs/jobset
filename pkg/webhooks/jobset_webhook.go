@@ -67,6 +67,14 @@ const (
 	// Error message returned by JobSet validation if the network subdomain
 	// will be longer than 63 characters.
 	subdomainTooLongErrMsg = ".spec.network.subdomain is too long, must be less than 63 characters"
+
+	// maxReplicasPerReplicatedJob limits the number of replicas when using the RestartJob action.
+	// The limit is based on the 1024 MaxItems of the JobRestarts field in ReplicatedJobStatus.
+	// See api/jobset/v1alpha2/jobset_types.go for more details.
+	maxReplicasPerReplicatedJob = 1024
+
+	// Default rule name for FailurePolicy
+	defaultRuleNameFmt = "failurePolicyRule%v"
 )
 
 // validOnJobFailureReasons stores supported values of the reason field of the condition of
@@ -82,23 +90,20 @@ var validOnJobFailureReasons = []string{
 
 //+kubebuilder:webhook:path=/mutate-jobset-x-k8s-io-v1alpha2-jobset,mutating=true,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create,versions=v1alpha2,name=mjobset.kb.io,admissionReviewVersions=v1
 
-// jobSetWebhook for defaulting and admission.
+// jobSetWebhook for defaulting and admission of JobSet.
 type jobSetWebhook struct {
 	client client.Client
 }
 
-func NewJobSetWebhook(mgrClient client.Client) (*jobSetWebhook, error) {
-	return &jobSetWebhook{client: mgrClient}, nil
-}
+var _ admission.Defaulter[*jobset.JobSet] = (*jobSetWebhook)(nil)
+var _ admission.Validator[*jobset.JobSet] = (*jobSetWebhook)(nil)
 
-func (j *jobSetWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func setupWebhookForJobSet(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, &jobset.JobSet{}).
-		WithDefaulter(j).
-		WithValidator(j).
+		WithDefaulter(&jobSetWebhook{client: mgr.GetClient()}).
+		WithValidator(&jobSetWebhook{client: mgr.GetClient()}).
 		Complete()
 }
-
-const defaultRuleNameFmt = "failurePolicyRule%v"
 
 // Default performs defaulting of jobset values as defined in the JobSet API.
 func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
@@ -283,7 +288,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 
 	// Validate failure policy
 	if js.Spec.FailurePolicy != nil {
-		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, rJobNames)
+		failurePolicyErrors := validateFailurePolicy(js, rJobNames)
 		allErrs = append(allErrs, failurePolicyErrors...)
 	}
 
@@ -302,32 +307,30 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJS, js *jobset.JobSet) (admission.Warnings, error) {
-	mungedSpec := js.Spec.DeepCopy()
-
+func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset.JobSet) (admission.Warnings, error) {
 	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
 	// This is needed for integration with Kueue/DWS.
-	if ptr.Deref(oldJS.Spec.Suspend, false) || ptr.Deref(js.Spec.Suspend, false) {
-		for index := range js.Spec.ReplicatedJobs {
+	if ptr.Deref(oldJs.Spec.Suspend, false) || ptr.Deref(newJs.Spec.Suspend, false) {
+		for index := range newJs.Spec.ReplicatedJobs {
 			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
+			newJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
+			newJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
+			newJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
+			newJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
 
 			// Pod Scheduling Gates can be updated for batch/v1 Job: https://github.com/kubernetes/kubernetes/blob/ceb58a4dbc671b9d0a2de6d73a1616bc0c299863/pkg/apis/batch/validation/validation.go#L662
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates
+			newJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates
 		}
 	}
 
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
-	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
+	errs := apivalidation.ValidateImmutableField(newJs.Spec.ReplicatedJobs, oldJs.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
+	errs = append(errs, apivalidation.ValidateImmutableField(newJs.Spec.ManagedBy, oldJs.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
 	return nil, errs.ToAggregate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateDelete(ctx context.Context, obj *jobset.JobSet) (admission.Warnings, error) {
+func (j *jobSetWebhook) ValidateDelete(ctx context.Context, js *jobset.JobSet) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -342,10 +345,32 @@ const (
 var ruleNameRegexp = regexp.MustCompile(ruleNameFmt)
 
 // validateFailurePolicy performs validation for jobset failure policies and returns all errors detected.
-func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, rJobNames sets.Set[string]) []error {
+func validateFailurePolicy(js *jobset.JobSet, rJobNames sets.Set[string]) []error {
 	var allErrs []error
+	failurePolicy := js.Spec.FailurePolicy
 	if failurePolicy == nil {
 		return allErrs
+	}
+
+	// Check if any rule has RestartJob action and validate that no replicated job has replicas > maxReplicasPerReplicatedJob.
+	hasRestartJob := false
+	for _, rule := range failurePolicy.Rules {
+		if rule.Action == jobset.RestartJob || rule.Action == jobset.RestartJobAndIgnoreMaxRestarts {
+			hasRestartJob = true
+			break
+		}
+	}
+	if hasRestartJob {
+		if !features.Enabled(features.RestartJob) {
+			allErrs = append(allErrs, fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when RestartJob feature gate is disabled"))
+			return allErrs // early return for critical error (missing feature gate)
+		}
+		for _, rJob := range js.Spec.ReplicatedJobs {
+			if rJob.Replicas > maxReplicasPerReplicatedJob {
+				allErrs = append(allErrs, fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > %d", maxReplicasPerReplicatedJob))
+				break
+			}
+		}
 	}
 
 	// ruleNameToRulesWithName is used to verify that rule names are unique

@@ -41,6 +41,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	"sigs.k8s.io/jobset/pkg/features"
 	testutils "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
@@ -154,13 +155,15 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 	)
 
 	tests := []struct {
-		name      string
-		js        *jobset.JobSet
-		ownedJobs *childJobs
-		want      []*batchv1.Job
+		name              string
+		restartJobEnabled bool
+		js                *jobset.JobSet
+		ownedJobs         *childJobs
+		want              []*batchv1.Job
 	}{
 		{
-			name: "no jobs created",
+			name:              "no jobs created",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
@@ -173,7 +176,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "all jobs created",
+			name:              "all jobs created",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
@@ -203,7 +207,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "all jobs/pods created with labels and annotations",
+			name:              "all jobs/pods created with labels and annotations",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).
@@ -246,7 +251,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "one job created, one job not created (already active)",
+			name:              "one job created, one job not created (already active)",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
@@ -271,7 +277,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "one job created, one job not created (already succeeded)",
+			name:              "one job created, one job not created (already succeeded)",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
@@ -296,7 +303,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "one job created, one job not created (already failed)",
+			name:              "one job created, one job not created (already failed)",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
@@ -321,7 +329,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "one job created, one job not created (marked for deletion)",
+			name:              "one job created, one job not created (marked for deletion)",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
@@ -363,7 +372,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "multiple replicated jobs",
+			name:              "multiple replicated jobs",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-A").
 					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
@@ -411,7 +421,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "exclusive placement for a ReplicatedJob",
+			name:              "exclusive placement for a ReplicatedJob",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				// Replicated Job A has exclusive placement annotation.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
@@ -452,7 +463,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "exclusive placement using nodeSelectorStrategy for a ReplicatedJob",
+			name:              "exclusive placement using nodeSelectorStrategy for a ReplicatedJob",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				// Replicated Job A has exclusive placement annotation.
 				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
@@ -513,7 +525,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "exclusive placement for entire JobSet",
+			name:              "exclusive placement for entire JobSet",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SetAnnotations(map[string]string{jobset.ExclusiveKey: topologyDomain}).
 				// Replicated Job A has.
@@ -554,7 +567,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "exclusive placement using nodeSelectorStrategy for entire JobSet",
+			name:              "exclusive placement using nodeSelectorStrategy for entire JobSet",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				SetAnnotations(map[string]string{
 					jobset.ExclusiveKey:            topologyDomain,
@@ -620,7 +634,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "pod dns hostnames enabled",
+			name:              "pod dns hostnames enabled",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				EnableDNSHostnames(true).
 				NetworkSubdomain(jobSetName).
@@ -646,7 +661,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "suspend job set",
+			name:              "suspend job set",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Suspend(true).
 				EnableDNSHostnames(true).
@@ -673,7 +689,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "resume job set",
+			name:              "resume job set",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Suspend(false).
 				EnableDNSHostnames(true).
@@ -700,7 +717,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "node selector exclusive placement strategy enabled",
+			name:              "node selector exclusive placement strategy enabled",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				EnableDNSHostnames(true).
 				NetworkSubdomain(jobSetName).
@@ -743,7 +761,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "coordinator",
+			name:              "coordinator",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Coordinator(&jobset.Coordinator{
 					ReplicatedJob: replicatedJobName,
@@ -778,7 +797,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "startup-policy",
+			name:              "startup-policy",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				StartupPolicy(&jobset.StartupPolicy{
 					StartupPolicyOrder: jobset.InOrder,
@@ -807,7 +827,8 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "volume-claim-policies",
+			name:              "volume-claim-policies",
+			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				EnableDNSHostnames(true).
 				NetworkSubdomain(jobSetName).
@@ -897,10 +918,93 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					}).Obj(),
 			},
 		},
+		{
+			name:              "JobRestartAttempt based on ReplicatedJobsStatus",
+			restartJobEnabled: true,
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(2).
+					GroupName("default").
+					Obj()).
+				SetStatus(jobset.JobSetStatus{
+					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+						{
+							Name:        replicatedJobName,
+							JobRestarts: []int32{1, 0},
+						},
+					},
+				}).Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					groupName:         "default",
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            0,
+					jobRestartAttempt: 1}).
+					Suspend(false).Obj(),
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					groupName:         "default",
+					jobName:           "test-jobset-replicated-job-1",
+					ns:                ns,
+					replicas:          2,
+					jobIdx:            1,
+					jobRestartAttempt: 0}).
+					Suspend(false).Obj(),
+			},
+		},
+		{
+			name:              "JobRestartAttempt not added when RestartJob feature is disabled",
+			restartJobEnabled: false,
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(2).
+					GroupName("default").
+					Obj()).
+				SetStatus(jobset.JobSetStatus{
+					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+						{
+							Name:        replicatedJobName,
+							JobRestarts: []int32{1, 0},
+						},
+					},
+				}).Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:            jobSetName,
+					replicatedJobName:     replicatedJobName,
+					groupName:             "default",
+					jobName:               "test-jobset-replicated-job-0",
+					ns:                    ns,
+					replicas:              2,
+					jobIdx:                0,
+					omitJobRestartAttempt: true}).
+					Suspend(false).Obj(),
+				makeJob(&makeJobArgs{
+					jobSetName:            jobSetName,
+					replicatedJobName:     replicatedJobName,
+					groupName:             "default",
+					jobName:               "test-jobset-replicated-job-1",
+					ns:                    ns,
+					replicas:              2,
+					jobIdx:                1,
+					omitJobRestartAttempt: true}).
+					Suspend(false).Obj(),
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.restartJobEnabled)
 			// Here we update the expected Jobs with certain features which require
 			// direct access to the JobSet object itself to calculate. For example,
 			// the `jobset.sigs.k8s.io/job-global-index` annotation requires access to the
@@ -1499,21 +1603,23 @@ func jobWithFailedConditionAndOpts(name string, failureTime time.Time, opts *fai
 }
 
 type makeJobArgs struct {
-	jobSetName           string
-	jobSetUID            string
-	replicatedJobName    string
-	groupName            string
-	jobName              string
-	ns                   string
-	jobLabels            map[string]string
-	jobAnnotations       map[string]string
-	podLabels            map[string]string
-	podAnnotations       map[string]string
-	replicas             int
-	jobIdx               int
-	restarts             int
-	topology             string
-	nodeSelectorStrategy bool
+	jobSetName            string
+	jobSetUID             string
+	replicatedJobName     string
+	groupName             string
+	jobName               string
+	ns                    string
+	jobLabels             map[string]string
+	jobAnnotations        map[string]string
+	podLabels             map[string]string
+	podAnnotations        map[string]string
+	replicas              int
+	jobIdx                int
+	restarts              int
+	jobRestartAttempt     int
+	omitJobRestartAttempt bool
+	topology              string
+	nodeSelectorStrategy  bool
 }
 
 // Helper function to create a Job for unit testing.
@@ -1537,6 +1643,10 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
+	}
+	if !args.omitJobRestartAttempt {
+		labels[constants.JobRestartAttemptKey] = strconv.Itoa(args.jobRestartAttempt)
+		annotations[constants.JobRestartAttemptKey] = strconv.Itoa(args.jobRestartAttempt)
 	}
 	// Only set exclusive key if we are using exclusive placement per topology.
 	if args.topology != "" {

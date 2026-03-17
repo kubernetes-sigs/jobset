@@ -800,10 +800,7 @@ func TestJobSetDefaulting(t *testing.T) {
 	}
 
 	fakeClient := fake.NewFakeClient()
-	webhook, err := NewJobSetWebhook(fakeClient)
-	if err != nil {
-		t.Fatalf("error creating jobset webhook: %v", err)
-	}
+	webhook := &jobSetWebhook{client: fakeClient}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := tc.js.DeepCopyObject()
@@ -820,6 +817,7 @@ func TestJobSetDefaulting(t *testing.T) {
 type validationTestCase struct {
 	name                 string
 	enableInPlaceRestart bool
+	enableRestartJob     bool
 	js                   *jobset.JobSet
 	want                 error
 	existingObjs         []runtime.Object // objects to pre-populate in the fake client
@@ -1751,6 +1749,146 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: fmt.Errorf("spec will lead to invalid label value"),
+		},
+		{
+			name:             "jobset failure policy rule has RestartJob action and a replicated job with replicas > 1024",
+			enableRestartJob: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1025,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action: jobset.RestartJob,
+								Name:   "restartJobRule",
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 1024"),
+			),
+		},
+		{
+			name:             "jobset failure policy rule has RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 1024",
+			enableRestartJob: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1025,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action: jobset.RestartJobAndIgnoreMaxRestarts,
+								Name:   "restartJobAndIgnoreMaxRestartsRule",
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 1024"),
+			),
+		},
+		{
+			name:             "jobset failure policy rule has RestartJob action and RestartJob feature gate is disabled",
+			enableRestartJob: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action: jobset.RestartJob,
+								Name:   "restartJobRule",
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when RestartJob feature gate is disabled"),
+			),
+		},
+		{
+			name:             "jobset failure policy rule has RestartJobAndIgnoreMaxRestarts action and RestartJob feature gate is disabled",
+			enableRestartJob: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action: jobset.RestartJobAndIgnoreMaxRestarts,
+								Name:   "restartJobAndIgnoreMaxRestartsRule",
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when RestartJob feature gate is disabled"),
+			),
 		},
 	}
 
@@ -2942,12 +3080,10 @@ func TestValidateCreate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a new client with existing objects if provided
 			testClient := fake.NewFakeClient(tc.existingObjs...)
-			testWebhook, err := NewJobSetWebhook(testClient)
-			if err != nil {
-				t.Fatalf("error creating jobset webhook: %v", err)
-			}
+			testWebhook := &jobSetWebhook{client: testClient}
 			features.SetFeatureGateDuringTest(t, features.InPlaceRestart, tc.enableInPlaceRestart)
-			_, err = testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
+			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.enableRestartJob)
+			_, err := testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
 			if err != nil && tc.want != nil {
 				assert.Contains(t, err.Error(), tc.want.Error())
 			} else if err != nil && tc.want == nil {
@@ -3308,11 +3444,10 @@ func TestValidateUpdate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClient := fake.NewFakeClient()
-			webhook, err := NewJobSetWebhook(fakeClient)
-			assert.Nil(t, err)
+			webhook := &jobSetWebhook{client: fakeClient}
 			newObj := tc.js.DeepCopy()
 			oldObj := tc.oldJs.DeepCopy()
-			_, err = webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
+			_, err := webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
 			// Ignore bad value to keep test cases short and readable.
 			if diff := cmp.Diff(tc.want, err, cmpopts.IgnoreFields(field.Error{}, "BadValue")); diff != "" {
 				t.Errorf("ValidateResources() mismatch (-want +got):\n%s", diff)

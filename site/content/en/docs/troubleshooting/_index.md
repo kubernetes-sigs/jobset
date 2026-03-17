@@ -103,3 +103,23 @@ PING network-jobset-workers-0-1.example (10.6.2.28): 56 data bytes
 64 bytes from 10.6.2.28: seq=2 ttl=63 time=0.079 ms
 --- network-jobset-workers-0-1.example ping statistics ---
 ```
+
+## 5. Follower pods rejected with "follower pod node selector not set"
+
+**Symptom**:
+When creating a JobSet, you see `FailedCreate` events for follower pods with the message:
+`admission webhook "vpod.kb.io" denied the request: follower pod node selector not set`
+
+**Cause**:
+In TPU multi-slice or exclusive placement configurations, the JobSet controller must identify the leader pod to patch followers with the correct `nodeSelector` (ensuring topology-aware scheduling). This error is typically a symptom of the leader pod being unschedulable. If the leader remains `Pending`, the controller cannot find it to propagate the selector, causing the webhook to reject followers.
+
+**Solution**:
+1. **Review JobSet Controller**: Verify if any admission errors are present in the JobSet controller logs. You may see a transient error log like the following, which is expected.
+   ```
+   2026-02-27T19:51:30Z	ERROR	admission	finding leader pod for follower	{"webhookGroup": "", "webhookKind": "Pod", "Pod": {"name":"","namespace":"default"}, "namespace": "default", "name": "", "resource": {"group":"","version":"v1","resource":"pods"}, "user": "system:serviceaccount:kube-system:job-controller", "requestID": "<request-id>", "error": "expected 1 leader pod (jobname-0-0)), but got 0. this is an expected, transient error"}
+   ```
+2. **Identify the Leader Pod**: Locate the pod with index `0` in your first `replicatedJob`.
+3. **Describe the Leader**: Run `kubectl describe pod <leader-pod-name>` and check the **Events** section to understand why it is not scheduling.
+4. **Resolve Scheduling Issues**:
+   * **Resource Quota**: Ensure your project has sufficient TPU/GPU quota and check for hardware availability in the target cloud region.
+   * **Node Taints**: Ensure that provisioned nodes are not being delayed by persistent taints such as `node.kubernetes.io/not-ready`.

@@ -35,6 +35,20 @@ In [this example](https://github.com/kubernetes-sigs/jobset/blob/main/site/stati
 
 {{< include file="/examples/failure-policy/restartjobsetandignoremaxrestarts-action.yaml" lang="yaml" >}}
 
+### `RestartJob`
+This action restarts by recreating the individual failed job, rather than recreating all jobs in the JobSet. The number of restarts before failure is limited by `failurePolicy.maxRestarts`. The maximum number of replicas per ReplicatedJob is 1024 when using this action.
+
+In [this example](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/failure-policy/restartjob-action.yaml), failures in the leader Jobs force all Jobs to be recreated, whereas failures in the worker Jobs only recreate the failed worker Job. This happens up to 3 times, no matter the type of failure.
+
+{{< include file="/examples/failure-policy/restartjob-action.yaml" lang="yaml" >}}
+
+### `RestartJobAndIgnoreMaxRestarts`
+This action is similar to `RestartJob`, but the individual job restart does not count towards the `maxRestarts` limit. The maximum number of replicas per ReplicatedJob is 1024 when using this action.
+
+In [this example](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/failure-policy/restartjobandignoremaxrestarts-action.yaml), failures in the leader Jobs force all Jobs to be recreated, whereas failures in the worker Jobs only recreate the failed worker Job. The failures are not counted towards the `maxRestarts` limit.
+
+{{< include file="/examples/failure-policy/restartjobandignoremaxrestarts-action.yaml" lang="yaml" >}}
+
 ## Targeting Specific Failures
 
 You can make your failure policy rules more granular by using `targetReplicatedJobs` and `onJobFailureReasons`.

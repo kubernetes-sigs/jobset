@@ -27,12 +27,14 @@ tags, and then generate with `hack/update-toc.sh`.
     - [Story 3: RestartJobSetAndIgnoreMaxRestarts](#story-3-restartjobsetandignoremaxrestarts)
     - [Story 4: Different failure policies for different replicated jobs](#story-4-different-failure-policies-for-different-replicated-jobs)
     - [Story 5: Distinguishing retriable from non retriable Pod failure policies](#story-5-distinguishing-retriable-from-non-retriable-pod-failure-policies)
+    - [Story 6: RestartJob and RestartJobAndIgnoreMaxRestarts](#story-6-restartjob-and-restartjobandignoremaxrestarts)
   - [Notes/Constraints/Caveats (Optional)](#notesconstraintscaveats-optional)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Design Details](#design-details)
   - [Proposed Failure Policy API](#proposed-failure-policy-api)
   - [Constraints](#constraints)
   - [Implementation](#implementation)
+    - [Extension: RestartJob and RestartJobAndIgnoreMaxRestarts](#extension-restartjob-and-restartjobandignoremaxrestarts)
   - [Test Plan](#test-plan)
       - [Prerequisite testing updates](#prerequisite-testing-updates)
     - [Unit Tests](#unit-tests)
@@ -552,28 +554,36 @@ Consider including folks who also work outside the SIG or subproject.
 
 ### Proposed Failure Policy API
 
+Spec
+
 ```go
 // FailurePolicyAction defines the action the JobSet controller will take for
 // a given FailurePolicyRule.
 type FailurePolicyAction string
 
 const (
-  // Fail the JobSet immediately, regardless of maxRestarts.
-  FailJobSet FailurePolicyAction = "FailJobSet"
+	// Fail the JobSet immediately.
+	FailJobSet FailurePolicyAction = "FailJobSet"
 
-  // Restart the JobSet if the number of restart attempts is less than MaxRestarts.
-  // Otherwise, fail the JobSet.
-  RestartJobSet FailurePolicyAction = "RestartJobSet"
+	// Restart the JobSet globally (i.e., recreate all Jobs) if `jobSet.status.restartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) < jobSet.spec.maxRestarts`.
+	// Otherwise, fail the JobSet.
+	// Bumps `jobSet.status.restarts += 1` and `jobSet.status.restartsCountTowardsMax += 1`
+	RestartJobSet FailurePolicyAction = "RestartJobSet"
 
-  // Don't count the failure against maxRestarts.
-  RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobSetAndIgnoreMaxRestarts"
+	// Same as RestartJobSet, but does not check `jobSet.spec.maxRestarts`.
+	// Bumps `jobSet.status.restarts += 1`.
+	RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobSetAndIgnoreMaxRestarts"
 
-  // Restart only the failed Job if the number of restart attempts is less than MaxRestarts.
-  // Otherwise, fail the JobSet.
-  RestartJob FailurePolicyAction = "RestartJob"
+	// Restart the Job individually (i.e., recreate only the failed Job without touching the other Jobs) if `jobSet.status.restartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) < jobSet.spec.maxRestarts`.
+	// Otherwise, fail the JobSet.
+	// Bumps `jobSet.status.replicatedJobsStatus[replicatedJobName].restarts[jobIndex] += 1` and `jobSet.status.replicatedJobsStatus[replicatedJobName].jobRestartsCountTowardsMax[jobIndex] += 1`.
+	// Importantly, if this action is used, all `jobSet.spec.replicatedJobs[].replicas` must be less than or equal to 1024.
+	RestartJob FailurePolicyAction = "RestartJob"
 
-  // Same as RestartJob but do not count the failure against maxRestarts.
-  RestartJobAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobAndIgnoreMaxRestarts"
+	// Same as RestartJob, but does not check `jobSet.spec.maxRestarts`.
+	// Bumps `jobSet.status.replicatedJobsStatus[replicatedJobName].restarts[jobIndex] += 1`
+	// Importantly, if this action is used, all `jobSet.spec.replicatedJobs[].replicas` must be less than or equal to 1024.
+	RestartJobAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobAndIgnoreMaxRestarts"
 )
 
 // FailurePolicyRule defines a FailurePolicyAction to be executed if a child job
@@ -582,107 +592,122 @@ const (
 // failure reason and the job failure message. The rules are evaluated in
 // order and the first matching rule is executed.
 type FailurePolicyRule struct {
-  // The name of the failure policy rule.
-  // The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
-  // The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
-  Name string `json:"name"`
-  // The action to take if the rule is matched.
-  // +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts;RestartJob;RestartJobAndIgnoreMaxRestarts
-  Action FailurePolicyAction `json:"action"`
-  // The requirement on the job failure reasons. The requirement is satisfied
-  // if at least one reason matches the list. An empty list matches any job
-  // failure reason.
-  // +kubebuilder:validation:UniqueItems:true
-  OnJobFailureReasons []string `json:"onJobFailureReasons,omitempty"`
-  // The requirement on the job failure message. The requirement is satisfied
-  // if at least one pattern (regex) matches the job failure message. An
-  // empty list matches any job failure message.
-  // The syntax of the regular expressions accepted is the same general
-  // syntax used by Perl, Python, and other languages. More precisely, it is
-  // the syntax accepted by RE2 and described at https://golang.org/s/re2syntax,
-  // except for \C. For an overview of the syntax, see
-  // https://pkg.go.dev/regexp/syntax.
-  // +kubebuilder:validation:UniqueItems:true
-  OnJobFailureMessagePatterns []string `json:"onJobFailureMessagePatterns,omitempty"`
-  // TargetReplicatedJobs are the names of the replicated jobs the operator applies to.
-  // An empty list will apply to all replicatedJobs.
-  // +optional
-  // +listType=atomic
-  TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
+	// name of the failure policy rule.
+	// The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
+	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
+	Name string `json:"name"`
+	// action to take if the rule is matched.
+	// Valid values are FailJobSet, RestartJobSet, RestartJobSetAndIgnoreMaxRestarts, RestartJob, RestartJobAndIgnoreMaxRestarts.
+	// +kubebuilder:validation:Enum:=FailJobSet;RestartJobSet;RestartJobSetAndIgnoreMaxRestarts;RestartJob;RestartJobAndIgnoreMaxRestarts
+	Action FailurePolicyAction `json:"action"`
+	// onJobFailureReasons is a list of job failures reasons.
+	// The requirement is satisfied
+	// if at least one reason matches the list. An empty list matches any job
+	// failure reason.
+	// +kubebuilder:validation:UniqueItems:true
+	OnJobFailureReasons []string `json:"onJobFailureReasons,omitempty"`
+	// onJobFailureMessagePatterns is a requirement on the job failure messages.
+	// The requirement is satisfied
+	// if at least one pattern (regex) matches the job failure message. An
+	// empty list matches any job failure message.
+	// The syntax of the regular expressions accepted is the same general
+	// syntax used by Perl, Python, and other languages. More precisely, it is
+	// the syntax accepted by RE2 and described at https://golang.org/s/re2syntax,
+	// except for \C. For an overview of the syntax, see
+	// https://pkg.go.dev/regexp/syntax.
+	// +kubebuilder:validation:UniqueItems:true
+	OnJobFailureMessagePatterns []string `json:"onJobFailureMessagePatterns,omitempty"`
+	// targetReplicatedJobs are the names of the replicated jobs the operator applies to.
+	// An empty list will apply to all replicatedJobs.
+	// +optional
+	// +listType=atomic
+	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
 }
 
 type FailurePolicy struct {
-  // MaxRestarts defines the limit on the number of JobSet restarts.
-  // A restart is achieved by recreating all active child jobs.
-  MaxRestarts int32 `json:"maxRestarts,omitempty"`
-  // List of failure policy rules for this JobSet.
-  // For a given Job failure, the rules will be evaluated in order,
-  // and only the first matching rule will be executed.
-  // If no matching rule is found, the RestartJobSet action is applied.
-  Rules []FailurePolicyRule `json:"rules,omitempty"`
+	// maxRestarts defines the limit on the number of JobSet restarts.
+	// If the restart strategy "InPlaceRestart" is used, this field
+	// also defines the limit on the number of container restarts of
+	// any child container. This is required to handle the edge case
+	// in which a container keeps failing too fast to complete a JobSet
+	// restart.
+	MaxRestarts int32 `json:"maxRestarts,omitempty"`
+
+	// restartStrategy defines the strategy to use when restarting the JobSet.
+	// Defaults to Recreate.
+	// +optional
+	// +kubebuilder:default=Recreate
+	RestartStrategy JobSetRestartStrategy `json:"restartStrategy,omitempty"`
+
+	// rules is a list of failure policy rules for this JobSet.
+	// For a given Job failure, the rules will be evaluated in order,
+	// and only the first matching rule will be executed.
+	// If no matching rule is found, the RestartJobSet action is applied.
+	Rules []FailurePolicyRule `json:"rules,omitempty"`
 }
 
+// +kubebuilder:validation:Enum=Recreate;BlockingRecreate
+type JobSetRestartStrategy string
+
+const (
+	// Restart the JobSet by recreating all Jobs. Each Job is recreated as soon
+	// as its previous iteration (and its Pods) is deleted.
+	Recreate JobSetRestartStrategy = "Recreate"
+
+	// Restart the JobSet by recreating all Jobs. Ensures that all Jobs (and
+	// their Pods) from the previous iteration are deleted before creating new
+	// Jobs.
+	BlockingRecreate JobSetRestartStrategy = "BlockingRecreate"
+)
+```
+
+Status
+
+```go
 // JobSetStatus defines the observed state of JobSet
 type JobSetStatus struct {
-  // restarts tracks the number of times the JobSet has restarted (i.e. recreated in case of RecreateAll policy).
-  // +optional
-  Restarts int32 `json:"restarts"`
+	// restarts tracks the number of times the JobSet has been globally restarted.
+	// That is, restarts is the number of times the restart action RestartJobSet or RestartJobSetAndIgnoreMaxRestarts have been executed and led to the recreation of all Jobs.
+	// +optional
+	Restarts int32 `json:"restarts"`
 
-  // restartsCountTowardsMax tracks the number of times the JobSet has restarted that counts towards the maximum allowed number of restarts.
-  // +optional
-  RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
-
-  // replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.
-  // +optional
-  // +listType=map
-  // +listMapKey=name
-  ReplicatedJobsStatus []ReplicatedJobStatus `json:"replicatedJobsStatus,omitempty"`
+	// restartsCountTowardsMax tracks the number of times the JobSet has been globally restarted that counts towards the maximum allowed number of restarts.
+	// That is, restartsCountTowardsMax is the number of times the restart action RestartJobSet has been executed and led to the recreation of all Jobs.
+	// +optional
+	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 }
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
 type ReplicatedJobStatus struct {
-	// name of the ReplicatedJob.
-	Name string `json:"name"`
+	// jobRestarts tracks the number of times the Jobs have been individually restarted.
+	// That is, jobRestarts[jobIndex] is the number of times the restart action RestartJob or RestartJobAndIgnoreMaxRestarts have been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.
+	// +kubebuilder:validation:MaxItems=1024
+	// +listType=atomic
+	// +optional
+	JobRestarts []int32 `json:"jobRestarts,omitempty"`
 
-	// ready is the number of child Jobs where the number of ready pods and completed pods
-	// is greater than or equal to the total expected pod count for the Job (i.e., the minimum
-	// of job.spec.parallelism and job.spec.completions).
-	Ready int32 `json:"ready"`
-
-	// succeeded is the number of successfully completed child Jobs.
-	Succeeded int32 `json:"succeeded"`
-
-	// failed is the number of failed child Jobs.
-	Failed int32 `json:"failed"`
-
-	// active is the number of child Jobs with at least 1 pod in a running or pending state
-	// which are not marked for deletion.
-	Active int32 `json:"active"`
-
-	// suspended is the number of child Jobs which are in a suspended state.
-	Suspended int32 `json:"suspended"`
-
-  // jobRestarts tracks the number of times each Job has restarted (i.e. recreated in case of RestartJob action).
-  // The first value corresponds to the job with index 0, the second value corresponds to the job with index 1, etc.
-  // Example: "0,1,0" implies that job 1 has restarted once, while jobs 0 and 2 haven't restarted.
-  // +optional
-  JobRestarts *string `json:"jobRestarts,omitempty"`
-
-  // jobRestartsCountTowardsMax tracks the number of times each Job has restarted that counts towards the maximum allowed number of restarts.
-  // The first value corresponds to the job with index 0, the second value corresponds to the job with index 1, etc.
-  // Example: "0,1,0" implies that job 1 has restarted once, while jobs 0 and 2 haven't restarted.
-  // +optional
-  JobRestartsCountTowardsMax *string `json:"jobRestartsCountTowardsMax,omitempty"`
+	// jobRestartsCountTowardsMax tracks the number of times the Jobs have been individually restarted that count towards the maximum allowed number of restarts.
+	// That is, jobRestartsCountTowardsMax[jobIndex] is the number of times the restart action RestartJob has been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.
+	// +kubebuilder:validation:MaxItems=1024
+	// +listType=atomic
+	// +optional
+	JobRestartsCountTowardsMax []int32 `json:"jobRestartsCountTowardsMax,omitempty"`
 }
+```
 
+Constants
+
+```go
 const (
-  // RestartsKey is an annotation and label key which defines the restart attempt number
-  // the JobSet is currently on.
-  RestartsKey = "jobset.sigs.k8s.io/restart-attempt"
+	// RestartsKey is an annotation and label key which defines the global restart attempt number
+	// the Job is currently on.
+	// It should match `jobSet.spec.restarts`
+	RestartsKey = "jobset.sigs.k8s.io/restart-attempt"
 
-  // JobRestartsKey is an annotation and label key which defines the restart attempt number
-  // the Job is currently on.
-  JobRestartsKey = "jobset.sigs.k8s.io/job-restart-attempt"
+	// JobRestartAttemptKey is an annotation and label key which defines the individual restart attempt number
+	// the Job is currently on.
+	// That is, it should match `jobSet.spec.replicatedJobs[replicatedJobName].jobRestarts[jobIndex]`
+	JobRestartAttemptKey = "jobset.sigs.k8s.io/job-restart-attempt"
 )
 ```
 
@@ -730,7 +755,7 @@ Future restart logic for `action: RestartJobSet`:
 - Reconciliation loop 1
     - In `getChildJobs`, the JobSet controller detects failed Jobs (i.e., contain condition type `"Failed"`) and group them to `ownedJobs.failed`
     - If `len(ownedJobs.failed) > 0`, `executeFailurePolicy` is executed and the right restart action is used (`restartJobSetActionApplier` from `RestartJobSet` in this example)
-    - In `restartJobSetActionApplier`, the JobSet controller fails the JobSet if it failed too much (i.e., `js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts` or `js.Status.ReplicatedJobsStatus[rjName].JobRestartsCountTowardsMax[jobIndex] >= js.Spec.FailurePolicy.MaxRestarts`). Otherwise, it bumps `js.Status.Restarts += 1` and `js.Status.RestartsCountTowardsMax += 1` and `js.Status.ReplicatedJobsStatus[*].JobRestarts[*] += 1` and `js.Status.ReplicatedJobsStatus[*].JobRestartsCountTowardsMax[*] += 1`
+    - In `restartJobSetActionApplier`, the JobSet controller fails the JobSet if it failed too much (i.e., `js.Status.RestartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) >= js.Spec.FailurePolicy.MaxRestarts`). Otherwise, it bumps `js.Status.Restarts += 1` and `js.Status.RestartsCountTowardsMax += 1`
 - Reconciliation loop 2
     - In `getChildJobs`, the JobSet controller detects outdated Jobs (i.e., `job.labels['jobset.sigs.k8s.io/restart-attempt'] < js.Status.Restarts` or `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] < js.Status.ReplicatedJobsStatus[rjName].JobRestarts[jobIndex]`) and group them to `ownedJobs.previous`
     - Later in the `reconcile` function, the Jobs in `ownedJobs.previous` are deleted
@@ -742,7 +767,7 @@ Future restart logic for `action: RestartJob`:
 - Reconciliation loop 1
     - In `getChildJobs`, the JobSet controller detects failed Jobs (i.e., contain condition type `"Failed"`) and group them to `ownedJobs.failed`
     - If `len(ownedJobs.failed) > 0`, `executeFailurePolicy` is executed and the right restart action is used (`restartJobActionApplier` from `RestartJob` in this example)
-    - In `restartJobActionApplier`, the JobSet controller fails the JobSet if it failed too much (i.e., `js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts ` or `js.Status.ReplicatedJobsStatus[rjName].JobRestartsCountTowardsMax[jobIndex] >= js.Spec.FailurePolicy.MaxRestarts`). Otherwise, it bumps `js.Status.ReplicatedJobsStatus[rjName].JobRestarts[jobIndex] += 1` and `js.Status.ReplicatedJobsStatus[rjName].JobRestartsCountTowardsMax[jobIndex] += 1`
+    - In `restartJobActionApplier`, the JobSet controller fails the JobSet if it failed too much (i.e., `js.Status.RestartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) >= js.Spec.FailurePolicy.MaxRestarts`). Otherwise, it bumps `js.Status.ReplicatedJobsStatus[rjName].JobRestarts[jobIndex] += 1` and `js.Status.ReplicatedJobsStatus[rjName].JobRestartsCountTowardsMax[jobIndex] += 1`
 - Reconciliation loop 2
     - In `getChildJobs`, the JobSet controller detects outdated Jobs (i.e., `job.labels['jobset.sigs.k8s.io/restart-attempt'] < js.Status.Restarts` or `job.labels['jobset.sigs.k8s.io/job-restart-attempt'] < js.Status.ReplicatedJobsStatus[rjName].JobRestarts[jobIndex]`) and group them to `ownedJobs.previous`
     - Later in the `reconcile` function, the Jobs in `ownedJobs.previous` are deleted
@@ -752,7 +777,7 @@ Future restart logic for `action: RestartJob`:
 Observability:
 
 - `jobSet.status.restarts`, `jobSet.status.restartsCountTowardsMax` and `job.labels['jobset.sigs.k8s.io/restart-attempt']` track only recreate-all-jobs restarts
-- `jobSet.status.replicatedJobsStatus[].jobRestarts`, `jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax` and `job.labels['jobset.sigs.k8s.io/job-restart-attempt']` track recreate-single-job and recreate-all-jobs for a given job. If the user wants to know only the number of recreate-single-job, they can subtract the fields such as `job.labels['jobset.sigs.k8s.io/job-restart-attempt']` - `job.labels['jobset.sigs.k8s.io/restart-attempt']`
+- `jobSet.status.replicatedJobsStatus[].jobRestarts`, `jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax` and `job.labels['jobset.sigs.k8s.io/job-restart-attempt']` track only recreate-single-job restarts
 
 Future changes:
 
