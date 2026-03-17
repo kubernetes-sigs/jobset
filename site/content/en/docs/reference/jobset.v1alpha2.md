@@ -230,7 +230,8 @@ The name must match the regular expression &quot;^<a href="%5BA-Za-z0-9_,:%5D*%5
 <a href="#jobset-x-k8s-io-v1alpha2-FailurePolicyAction"><code>FailurePolicyAction</code></a>
 </td>
 <td>
-   <p>action to take if the rule is matched.</p>
+   <p>action to take if the rule is matched.
+Valid values are FailJobSet, RestartJobSet, RestartJobSetAndIgnoreMaxRestarts, RestartJob, RestartJobAndIgnoreMaxRestarts.</p>
 </td>
 </tr>
 <tr><td><code>onJobFailureReasons</code> <B>[Required]</B><br/>
@@ -426,16 +427,16 @@ volumeMount in one container in the template.</p>
 <code>int32</code>
 </td>
 <td>
-   <p>restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
-That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.</p>
+   <p>restarts tracks the number of times the JobSet has been globally restarted.
+That is, restarts is the number of times the restart action RestartJobSet or RestartJobSetAndIgnoreMaxRestarts have been executed and led to the recreation of all Jobs.</p>
 </td>
 </tr>
 <tr><td><code>restartsCountTowardsMax</code><br/>
 <code>int32</code>
 </td>
 <td>
-   <p>restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet).
-That is, it tracks how many times the restart action RestartJobSet was executed.</p>
+   <p>restartsCountTowardsMax tracks the number of times the JobSet has been globally restarted that counts towards the maximum allowed number of restarts.
+That is, restartsCountTowardsMax is the number of times the restart action RestartJobSet has been executed and led to the recreation of all Jobs.</p>
 </td>
 </tr>
 <tr><td><code>terminalState</code><br/>
@@ -661,17 +662,16 @@ which are not marked for deletion.</p>
 <code>[]int32</code>
 </td>
 <td>
-   <p>jobRestarts tracks the number of times the Job has individually restarted for each job index.
-That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
-were executed for that job index.</p>
+   <p>jobRestarts tracks the number of times the Jobs have been individually restarted.
+That is, jobRestarts[jobIndex] is the number of times the restart action RestartJob or RestartJobAndIgnoreMaxRestarts have been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.</p>
 </td>
 </tr>
 <tr><td><code>jobRestartsCountTowardsMax</code><br/>
 <code>[]int32</code>
 </td>
 <td>
-   <p>jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
-That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.</p>
+   <p>jobRestartsCountTowardsMax tracks the number of times the Jobs have been individually restarted that count towards the maximum allowed number of restarts.
+That is, jobRestartsCountTowardsMax[jobIndex] is the number of times the restart action RestartJob has been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.</p>
 </td>
 </tr>
 </tbody>

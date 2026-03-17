@@ -37,12 +37,11 @@ type ReplicatedJobStatusApplyConfiguration struct {
 	Active *int32 `json:"active,omitempty"`
 	// suspended is the number of child Jobs which are in a suspended state.
 	Suspended *int32 `json:"suspended,omitempty"`
-	// jobRestarts tracks the number of times the Job has individually restarted for each job index.
-	// That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts
-	// were executed for that job index.
+	// jobRestarts tracks the number of times the Jobs have been individually restarted.
+	// That is, jobRestarts[jobIndex] is the number of times the restart action RestartJob or RestartJobAndIgnoreMaxRestarts have been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.
 	JobRestarts []int32 `json:"jobRestarts,omitempty"`
-	// jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index.
-	// That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.
+	// jobRestartsCountTowardsMax tracks the number of times the Jobs have been individually restarted that count towards the maximum allowed number of restarts.
+	// That is, jobRestartsCountTowardsMax[jobIndex] is the number of times the restart action RestartJob has been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.
 	JobRestartsCountTowardsMax []int32 `json:"jobRestartsCountTowardsMax,omitempty"`
 }
 

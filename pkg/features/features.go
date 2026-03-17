@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// owner: @giuseppett
+	// owner: @GiuseppeTT
 	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/467-InPlaceRestart/README.md
 	//
 	// Enables in-place restart, allowing JobSet workloads to restart much faster by restarting
@@ -39,7 +39,7 @@ const (
 	// Enables TLSOptions for TLSMinVersion and CipherSuites for JobSet servers.
 	TLSOptions featuregate.Feature = "TLSOptions"
 
-	// owner: @giuseppett
+	// owner: @GiuseppeTT
 	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/262-ConfigurableFailurePolicy/README.md
 	//
 	// Enables the restart actions `RestartJob` and `RestartJobAndIgnoreMaxRestarts`, allowing JobSet to

@@ -170,7 +170,7 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref common.ReferenceCal
 					},
 					"action": {
 						SchemaProps: spec.SchemaProps{
-							Description: "action to take if the rule is matched.",
+							Description: "action to take if the rule is matched. Valid values are FailJobSet, RestartJobSet, RestartJobSetAndIgnoreMaxRestarts, RestartJob, RestartJobAndIgnoreMaxRestarts.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -470,7 +470,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					},
 					"restarts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "restarts tracks the number of times the JobSet has globally restarted (i.e. recreated all Jobs due to a restart action such as RestartJobSet). That is, it tracks how many times the restart actions RestartJobSet and RestartJobSetAndIgnoreMaxRestarts were executed.",
+							Description: "restarts tracks the number of times the JobSet has been globally restarted. That is, restarts is the number of times the restart action RestartJobSet or RestartJobSetAndIgnoreMaxRestarts have been executed and led to the recreation of all Jobs.",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -478,7 +478,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 					},
 					"restartsCountTowardsMax": {
 						SchemaProps: spec.SchemaProps{
-							Description: "restartsCountTowardsMax tracks the number of times the JobSet has globally restarted that counts towards the maximum allowed number of restarts (i.e. recreated all Jobs due to a restart action such as RestartJobSet). That is, it tracks how many times the restart action RestartJobSet was executed.",
+							Description: "restartsCountTowardsMax tracks the number of times the JobSet has been globally restarted that counts towards the maximum allowed number of restarts. That is, restartsCountTowardsMax is the number of times the restart action RestartJobSet has been executed and led to the recreation of all Jobs.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -695,7 +695,7 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref common.ReferenceC
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "jobRestarts tracks the number of times the Job has individually restarted for each job index. That is, for each job index, it tracks how many times the restart actions RestartJob and RestartJobAndIgnoreMaxRestarts were executed for that job index.",
+							Description: "jobRestarts tracks the number of times the Jobs have been individually restarted. That is, jobRestarts[jobIndex] is the number of times the restart action RestartJob or RestartJobAndIgnoreMaxRestarts have been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -715,7 +715,7 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref common.ReferenceC
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "jobRestartsCountTowardsMax tracks the number of times the Job has individually restarted that counts towards the maximum allowed number of restarts for each job index. That is, for each job index, it tracks how many times the restart action RestartJob was executed for that job index.",
+							Description: "jobRestartsCountTowardsMax tracks the number of times the Jobs have been individually restarted that count towards the maximum allowed number of restarts. That is, jobRestartsCountTowardsMax[jobIndex] is the number of times the restart action RestartJob has been executed for the Job with index jobIndex and led to its recreation without affecting the other Jobs.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
