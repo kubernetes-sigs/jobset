@@ -3732,6 +3732,47 @@ func TestValidateUpdate(t *testing.T) {
 			}.ToAggregate(),
 			enableElasticJobSet: false, // Feature gate disabled
 		},
+		{
+			name: "invalid scaling: parallelism and completions must be equal",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Completions: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](4),
+									Completions: ptr.To[int32](5), // mismatch
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "completions"), int32(5), "completions must be equal to parallelism for Elastic Indexed Jobs"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
 	}
 
 	for _, tc := range testCases {

@@ -348,6 +348,9 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 					if completionsChanged && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Completions < 1 {
 						errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be >= 1"))
 					}
+					if newRJob.Template.Spec.Parallelism != nil && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Parallelism != *newRJob.Template.Spec.Completions {
+						errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be equal to parallelism for Elastic Indexed Jobs"))
+					}
 				}
 			}
 
