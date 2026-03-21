@@ -128,11 +128,8 @@ func (r *JobSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return result, err
 	}
 
-	if err := r.updateJobSetStatus(ctx, &js, &updateStatusOpts); apierrors.IsConflict(err) {
-		return ctrl.Result{Requeue: true}, nil
-	}
 	// At the end of this Reconcile attempt, do one API call to persist all the JobSet status changes.
-	return ctrl.Result{RequeueAfter: result.RequeueAfter}, err
+	return ctrl.Result{RequeueAfter: result.RequeueAfter}, r.updateJobSetStatus(ctx, &js, &updateStatusOpts)
 }
 
 // reconcile is the internal method containing the core JobSet reconciliation logic.
