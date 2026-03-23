@@ -314,7 +314,7 @@ GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
 GOLANGCI_LINT_KAL = $(PROJECT_DIR)/bin/golangci-lint-kube-api-linter
 .PHONY: golangci-lint
 golangci-lint: ## Download golangci-lint locally if necessary.
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v2.7.2
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v2.11.3
 
 .PHONY: golangci-lint-kal
 golangci-lint-kal: golangci-lint ## Build golangci-lint-kal from custom configuration.
