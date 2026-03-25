@@ -299,7 +299,7 @@ type JobSetSpec struct {
 - `KIND_CLUSTER_NAME`: Name of Kind cluster (default: "kind")
 - `USE_EXISTING_CLUSTER`: Set to "true" to test against existing cluster instead of creating new Kind cluster
 - `E2E_KIND_VERSION`: Kubernetes version for Kind cluster (default: kindest/node:v1.34.0)
-- `E2E_TARGET`: Test target pattern (default: ./test/e2e/...)
+- `E2E_TEST_PATH`: Ginkgo test path to run (default: ./test/e2e/...)
 
 ### Webhook Development
 

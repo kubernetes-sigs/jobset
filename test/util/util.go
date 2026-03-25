@@ -16,12 +16,15 @@ package util
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"time"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,13 +33,21 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 
+	discoveryv1 "k8s.io/api/discovery/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
+	configv1alpha1 "sigs.k8s.io/jobset/api/config/v1alpha1"
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
 )
 
-const interval = time.Millisecond * 250
+const (
+	timeout  = 10 * time.Minute
+	interval = time.Millisecond * 250
+)
 
 func NumExpectedJobs(js *jobset.JobSet) int {
 	expectedJobs := 0
@@ -295,4 +306,192 @@ func removeJobSetFinalizer(js *jobset.JobSet, finalizer string) {
 			js.Finalizers = append(js.Finalizers[:i], js.Finalizers[i+1:]...)
 		}
 	}
+}
+
+func ShouldDumpNamespace() bool {
+	return os.Getenv("JOBSET_E2E_TESTS_DUMP_NAMESPACE") == "true"
+}
+
+func getNamespace() string {
+	namespace := os.Getenv("NAMESPACE")
+	if namespace == "" {
+		namespace = "jobset-system"
+	}
+	return namespace
+}
+
+func JobSetReadyForTesting(ctx context.Context, k8sClient client.Client) {
+	ginkgo.By("waiting for resources to be ready for testing")
+	deploymentKey := types.NamespacedName{Namespace: getNamespace(), Name: "jobset-controller-manager"}
+	deployment := &appsv1.Deployment{}
+	pods := &corev1.PodList{}
+	gomega.Eventually(func(g gomega.Gomega) error {
+		// Get controller-manager deployment.
+		g.Expect(k8sClient.Get(ctx, deploymentKey, deployment)).To(gomega.Succeed())
+		// Get pods matches for controller-manager deployment.
+		g.Expect(k8sClient.List(ctx, pods, client.InNamespace(deploymentKey.Namespace), client.MatchingLabels(deployment.Spec.Selector.MatchLabels))).To(gomega.Succeed())
+		for _, pod := range pods.Items {
+			for _, cs := range pod.Status.ContainerStatuses {
+				// To make sure that we don't have restarts of controller-manager.
+				// If we have that's mean that something went wrong, and there is
+				// no needs to continue trying check availability.
+				if cs.RestartCount > 0 {
+					return gomega.StopTrying(fmt.Sprintf("%q in %q has restarted %d times", cs.Name, pod.Name, cs.RestartCount))
+				}
+			}
+		}
+		// To verify that webhooks are ready, checking is deployment have condition Available=True.
+		g.Expect(deployment.Status.Conditions).To(gomega.ContainElement(gomega.BeComparableTo(
+			appsv1.DeploymentCondition{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue},
+			cmpopts.IgnoreFields(appsv1.DeploymentCondition{}, "Reason", "Message", "LastUpdateTime", "LastTransitionTime")),
+		))
+		return nil
+	}, timeout, interval).Should(gomega.Succeed())
+}
+
+func GetJobSetConfiguration(ctx context.Context, k8sClient client.Client) *configv1alpha1.Configuration {
+	var cm corev1.ConfigMap
+	gomega.ExpectWithOffset(1, k8sClient.Get(ctx, types.NamespacedName{
+		Namespace: getNamespace(),
+		Name:      "jobset-manager-config",
+	}, &cm)).To(gomega.Succeed())
+
+	cfg := &configv1alpha1.Configuration{}
+	gomega.ExpectWithOffset(1, yaml.Unmarshal([]byte(cm.Data["controller_manager_config.yaml"]), cfg)).To(gomega.Succeed())
+	return cfg
+}
+
+func UpdateJobSetConfigurationAndRestart(ctx context.Context, k8sClient client.Client, defaultCfg *configv1alpha1.Configuration, applyChanges func(cfg *configv1alpha1.Configuration)) {
+	ginkgo.By("updating jobset controller configuration")
+	cfg := defaultCfg.DeepCopy()
+	applyChanges(cfg)
+
+	data, err := yaml.Marshal(cfg)
+	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
+
+	var cm corev1.ConfigMap
+	gomega.ExpectWithOffset(1, k8sClient.Get(ctx, types.NamespacedName{
+		Namespace: getNamespace(),
+		Name:      "jobset-manager-config",
+	}, &cm)).To(gomega.Succeed())
+
+	cm.Data["controller_manager_config.yaml"] = string(data)
+	gomega.ExpectWithOffset(1, k8sClient.Update(ctx, &cm)).To(gomega.Succeed())
+
+	RestartJobSetController(ctx, k8sClient)
+}
+
+func RestartJobSetController(ctx context.Context, k8sClient client.Client) {
+	ginkgo.By("restarting jobset controller")
+	deploymentKey := types.NamespacedName{Namespace: getNamespace(), Name: "jobset-controller-manager"}
+	updateDeploymentAndWaitForProgressing(ctx, k8sClient, deploymentKey, func(deployment *appsv1.Deployment) {
+		if deployment.Spec.Template.Annotations == nil {
+			deployment.Spec.Template.Annotations = make(map[string]string)
+		}
+		deployment.Spec.Template.Annotations["jobset.sigs.k8s.io/restartedAt"] = time.Now().Format(time.RFC3339)
+	})
+	waitForDeploymentAvailability(ctx, k8sClient, deploymentKey)
+	waitForWebhookEndpointsReady(ctx, k8sClient, deploymentKey)
+}
+
+func updateDeploymentAndWaitForProgressing(ctx context.Context, k8sClient client.Client, key types.NamespacedName, applyChanges func(deployment *appsv1.Deployment)) {
+	deployment := &appsv1.Deployment{}
+
+	var beforeObservedGeneration int64
+	gomega.Eventually(func(g gomega.Gomega) {
+		g.Expect(k8sClient.Get(ctx, key, deployment)).To(gomega.Succeed())
+		g.Expect(deployment.Generation).To(gomega.Equal(deployment.Status.ObservedGeneration))
+		beforeObservedGeneration = deployment.Status.ObservedGeneration
+		applyChanges(deployment)
+		g.Expect(k8sClient.Update(ctx, deployment)).To(gomega.Succeed())
+	}, timeout, interval).Should(gomega.Succeed())
+
+	gomega.Eventually(func(g gomega.Gomega) {
+		g.Expect(k8sClient.Get(ctx, key, deployment)).To(gomega.Succeed())
+		g.Expect(deployment.Status.ObservedGeneration).NotTo(gomega.Equal(beforeObservedGeneration))
+	}, timeout, interval).Should(gomega.Succeed())
+}
+
+func waitForDeploymentAvailability(ctx context.Context, k8sClient client.Client, key types.NamespacedName) {
+	ginkgo.By(fmt.Sprintf("waiting for availability of deployment: %q", key))
+	gomega.Eventually(func(g gomega.Gomega) {
+		deployment := &appsv1.Deployment{}
+		g.Expect(k8sClient.Get(ctx, key, deployment)).To(gomega.Succeed())
+		desiredReplicas := *deployment.Spec.Replicas
+		g.Expect(deployment.Status.ObservedGeneration).To(gomega.Equal(deployment.Generation))
+		g.Expect(deployment.Status.Replicas).To(gomega.Equal(desiredReplicas))
+		g.Expect(deployment.Status.UpdatedReplicas).To(gomega.Equal(desiredReplicas))
+		g.Expect(deployment.Status.AvailableReplicas).To(gomega.Equal(desiredReplicas))
+		// For K8s 1.35+ with DeploymentReplicaSetTerminatingReplicas feature gate.
+		// On older versions, TerminatingReplicas is nil, so this is always true.
+		g.Expect(ptr.Deref(deployment.Status.TerminatingReplicas, 0)).To(gomega.BeZero())
+		g.Expect(deployment.Status.Conditions).To(gomega.ContainElement(gomega.BeComparableTo(
+			appsv1.DeploymentCondition{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue},
+			cmpopts.IgnoreFields(appsv1.DeploymentCondition{}, "Reason", "Message", "LastUpdateTime", "LastTransitionTime")),
+		))
+
+		selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		pods := &corev1.PodList{}
+		g.Expect(k8sClient.List(ctx, pods,
+			client.InNamespace(key.Namespace),
+			client.MatchingLabelsSelector{Selector: selector},
+		)).To(gomega.Succeed())
+		readyPods := 0
+		for _, pod := range pods.Items {
+			if pod.DeletionTimestamp != nil {
+				continue
+			}
+			for _, c := range pod.Status.Conditions {
+				if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+					readyPods++
+				}
+			}
+		}
+		g.Expect(int32(readyPods)).To(gomega.Equal(desiredReplicas))
+	}, timeout, interval).Should(gomega.Succeed())
+}
+
+func waitForWebhookEndpointsReady(ctx context.Context, k8sClient client.Client, key types.NamespacedName) {
+	ginkgo.By(fmt.Sprintf("waiting for webhook endpoints to match ready pods: %q", key))
+	gomega.Eventually(func(g gomega.Gomega) {
+		deployment := &appsv1.Deployment{}
+		g.Expect(k8sClient.Get(ctx, key, deployment)).To(gomega.Succeed())
+
+		selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		pods := &corev1.PodList{}
+		g.Expect(k8sClient.List(ctx, pods,
+			client.InNamespace(key.Namespace),
+			client.MatchingLabelsSelector{Selector: selector},
+		)).To(gomega.Succeed())
+
+		readyPodIPs := sets.New[string]()
+		for _, pod := range pods.Items {
+			if pod.DeletionTimestamp == nil && pod.Status.PodIP != "" {
+				for _, c := range pod.Status.Conditions {
+					if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+						readyPodIPs.Insert(pod.Status.PodIP)
+					}
+				}
+			}
+		}
+
+		endpointSlices := &discoveryv1.EndpointSliceList{}
+		g.Expect(k8sClient.List(ctx, endpointSlices,
+			client.InNamespace(key.Namespace),
+			client.MatchingLabels{discoveryv1.LabelServiceName: "jobset-webhook-service"},
+		)).To(gomega.Succeed())
+
+		endpointIPs := sets.New[string]()
+		for _, slice := range endpointSlices.Items {
+			for _, ep := range slice.Endpoints {
+				if ep.Conditions.Ready == nil || *ep.Conditions.Ready {
+					endpointIPs.Insert(ep.Addresses...)
+				}
+			}
+		}
+		g.Expect(endpointIPs).To(gomega.Equal(readyPodIPs))
+	}, timeout, interval).Should(gomega.Succeed())
 }

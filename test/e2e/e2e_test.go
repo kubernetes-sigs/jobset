@@ -18,7 +18,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
@@ -42,10 +41,6 @@ import (
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	"sigs.k8s.io/jobset/test/util"
 )
-
-func shouldDumpNamespace() bool {
-	return os.Getenv("JOBSET_E2E_TESTS_DUMP_NAMESPACE") == "true"
-}
 
 var _ = ginkgo.Describe("JobSet", func() {
 
@@ -74,7 +69,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 	ginkgo.AfterEach(func() {
 		// Dump the namespace content, optionally.
 		// This is only visible on failure since ginkgo.GinkgoWriter is being used.
-		if shouldDumpNamespace() {
+		if util.ShouldDumpNamespace() {
 			var printer printers.YAMLPrinter
 
 			fmt.Fprintf(ginkgo.GinkgoWriter, "\nDumping relevant resources in namespace %s:\n\n", ns.Name)
