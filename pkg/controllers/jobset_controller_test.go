@@ -1000,6 +1000,54 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Suspend(false).Obj(),
 			},
 		},
+		{
+			name:              "independent reconciliation mode keeps job unsuspended",
+			restartJobEnabled: true,
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(map[string]string{jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent}).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Suspend(false).Obj()).
+					Replicas(1).
+					GroupName("default").
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					groupName:         "default",
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).
+					Suspend(false).Obj(),
+			},
+		},
+		{
+			name:              "independent reconciliation mode keeps job suspended",
+			restartJobEnabled: true,
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(map[string]string{jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent}).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Suspend(true).Obj()).
+					Replicas(1).
+					GroupName("default").
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					groupName:         "default",
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0}).
+					Suspend(true).Obj(),
+			},
+		},
 	}
 
 	for _, tc := range tests {
