@@ -27,7 +27,7 @@ This KEP introduces fine-grained suspend and resume capabilities at the individu
 
 ## Motivation
 
-This feature is necessary to support advanced scheduling and placement optimizations in Kueue or similar schedulers, particularly around topology awareness. See corresponding [Kueue issue](https://github.com/kubernetes-sigs/jobset/pull/1178).
+This feature is necessary to support advanced scheduling and placement optimizations in Kueue or similar schedulers, particularly around topology awareness. See corresponding [Kueue issue](https://github.com/kubernetes-sigs/kueue/issues/9940).
 
 Currently, the JobSet API assumes that if one Job changes (recreated, suspended, etc), then all Jobs should change accordingly. However, there are use cases that require only a single Job being changed without affecting the rest.
 
@@ -53,6 +53,10 @@ We propose adding a mechanism (e.g., via an API field or annotation in the JobSe
 #### Story 1
 As a user utilizing Kueue for topology-aware scheduling, I want to relocate a single fragmented Job to a better topological location without killing or pausing the other jobs in my JobSet, so that large-scale parallel processing is more resilient to location constraints.
 
+### Notes/Constraints/Caveats (Optional)
+
+N/A
+
 ### Risks and Mitigations
 
 The primary risk is introducing complexity to the JobSet controller, as it now has to manage the suspension state of individual jobs rather than just propagating the JobSet's suspension down to all jobs uniformly. This will be mitigated by thorough unit and integration testing.
@@ -70,6 +74,27 @@ Based on usage & feedback, we will evaluate if we should modify the JobSet API t
 We cannot use `jobSet.spec.suspend = nil` as a signal to not reconcile the field `job.spec.suspend` of child Jobs because the JobSet controller currently treats `jobSet.spec.suspend = nil` as a synonym for `jobSet.spec.suspend = false`. If users are unsuspending JobSets by setting `jobSet.spec.suspend = nil` instead of `false`, this change would break their workflow. 
 
 This simple annotation-based solution gives the use case time to evolve before proposing a more complete API (such as an `updatePolicy` field in the future).
+
+#### Interaction with existing JobSet features:
+
+1. DependsOn
+With `reconciliation-mode: Independent`, suspending an already running child Job should have no effect on the dependsOn logic. The "gate" for dependsOn is only checked at the time of Job creation or re-creation on failure. It should be up to the scheduler to choose what order to suspend/unsuspend Jobs. This feature will still respect dependsOn ordering at Job creation time.
+
+2. FailurePolicy
+With `reconciliation-mode: Independent`, suspending a Job will not trigger the failure policy action for the ReplicatedJob since the Job doesn't "fail". Jobs being suspended or unsuspended will not count towards maxRestarts.
+
+JobSet failure policy applies to suspended jobs too i.e. if job A is suspended & job B fails, job A will also be restarted. If a Job fails and then is suspended by Kueue before the JobSet controller processes the failure, the controller will still respect the FailurePolicy.
+
+As a follow up, Kueue should support failure policy actions with this feature. We can also add a new field to track number of per job restarts that includes suspensions + failure policy restarts.
+
+3. SuccessPolicy
+With `reconciliation-mode: Independent`, if the SuccessPolicy is set to All, the JobSet will never reach a Succeeded state as long as any Job is suspended.
+If a SuccessPolicy targets a specific ReplicatedJob (e.g., "Succeed if the 'leader' Job completes"), suspending Jobs in other ReplicatedJobs will not prevent the JobSet from succeeding once the leader finishes.
+
+Once a JobSet meets its SuccessPolicy, the controller deletes or cleans up all Jobs including suspended ones.
+
+4. PVCs
+With `reconciliation-mode: Independent`, when a Job is suspended, its Pods are terminated, but the Job object and its associated PVCs should persist. When the Job is resumed, the new Pods will mount the same PVCs.
 
 #### Future API Evolution
 
@@ -125,9 +150,26 @@ We will add unit tests to the following packages to ensure the new `jobset.sigs.
 
 #### Integration tests
 
-1. Create a JobSet with the `jobset.sigs.k8s.io/reconciliation-mode: Independent` annotation and verify the webhook enforces `jobSet.spec.suspend = nil`.
-2. Create a JobSet with the annotation, wait for child Jobs to be created, then manually toggle `suspend: true` and `suspend: false` on specific child Jobs via Kueue. Verify the JobSet controller does not revert these changes.
-3. (Backwards Compatibility) Create a standard JobSet without the annotation. Toggle the JobSet's `suspend` field and verify all child Jobs are correctly suspended or resumed, ensuring existing behavior is unbroken.
+1. Basic Functionality
+- Independent Sync: Verify that when reconciliation-mode: Independent is set, changing JobSet.spec.suspend from false to true does not suspend Jobs that were already running, and vice versa.
+
+- Granular Control: Manually suspend 1 of 3 Jobs in a ReplicatedJob and verify the other 2 continue running. Verify the JobSet status remains Active.
+
+2. Policy Interactions with `reconciliation-mode: Independent`:
+DependsOn + Suspension: Create a JobSet where Job B depends on Job A. Suspend one replica of Job A. Verify Job B is never created. Resume the replic, and verify Job B is then created.
+
+- FailurePolicy + Restart: Set a FailurePolicy with maxRestarts: 1. Suspend one Job, then force a failure in another Job. Verify the JobSet restarts and check if the previously suspended Job is recreated as "running" (demonstrating the state loss during restart).
+
+- SuccessPolicy (All): Suspend one Job and let all others succeed. Verify the JobSet does not transition to Succeeded. Unsuspend the Job, let it finish, and verify the JobSet then succeeds.
+
+- SuccessPolicy (Any): Define a policy where only the first ReplicatedJob needs to succeed. Suspend a Job in the second ReplicatedJob. Verify the JobSet still succeeds when the first finishes.
+
+3. PVC Retention with reconciliation-mode: Independent
+Suspend a Job that has a JobSet-managed PVC. Verify the PVC is not deleted. Resume the Job and verify it successfully mounts the same PVC.
+
+4. JobSet Deletion with reconciliation-mode: Independent: Delete a JobSet while some child Jobs are suspended. Verify all Jobs (running and suspended) and their associated resources are cleaned up correctly.
+
+5. (Backwards Compatibility) Create a standard JobSet without the annotation. Toggle the JobSet's `suspend` field and verify all child Jobs are correctly suspended or resumed, ensuring existing behavior is unbroken.
 
 ### Graduation Criteria
 
