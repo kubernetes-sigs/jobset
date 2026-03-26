@@ -996,8 +996,8 @@ func jobSetSuspended(js *jobset.JobSet) bool {
 }
 
 func ShouldSkipSuspendReconciliation(js *jobset.JobSet) bool {
-	val, ok := js.Annotations[jobset.SkipSuspendReconciliationAnnotation]
-	return ok && val == "true"
+	val, ok := js.Annotations[jobset.ReconciliationModeAnnotation]
+	return ok && val == jobset.ReconciliationModeIndependent
 }
 
 func jobSuspended(job *batchv1.Job) bool {

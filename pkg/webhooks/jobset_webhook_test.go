@@ -783,11 +783,11 @@ func TestJobSetDefaulting(t *testing.T) {
 	}
 	skipSuspendReconciliationTests := []jobSetDefaultingTestCase{
 		{
-			name: "JobSet suspend is defaulted to nil if skip suspend reconciliation annotation is enabled",
+			name: "JobSet suspend is defaulted to nil if reconciliation mode is independent",
 			js: &jobset.JobSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						jobset.SkipSuspendReconciliationAnnotation: "true",
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
 					},
 				},
 				Spec: jobset.JobSetSpec{
@@ -811,7 +811,7 @@ func TestJobSetDefaulting(t *testing.T) {
 			want: &jobset.JobSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						jobset.SkipSuspendReconciliationAnnotation: "true",
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
 					},
 				},
 				Spec: jobset.JobSetSpec{
@@ -3358,12 +3358,12 @@ func TestValidateUpdate(t *testing.T) {
 			}.ToAggregate(),
 		},
 		{
-			name: "suspend must be nil when skip suspend reconciliation annotation is true",
+			name: "suspend must be nil when reconciliation mode is independent",
 			js: &jobset.JobSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "js",
 					Annotations: map[string]string{
-						jobset.SkipSuspendReconciliationAnnotation: "true",
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
 					},
 				},
 				Spec: jobset.JobSetSpec{
@@ -3375,7 +3375,7 @@ func TestValidateUpdate(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "js",
 					Annotations: map[string]string{
-						jobset.SkipSuspendReconciliationAnnotation: "true",
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
 					},
 				},
 				Spec: jobset.JobSetSpec{
@@ -3384,16 +3384,16 @@ func TestValidateUpdate(t *testing.T) {
 				},
 			},
 			want: field.ErrorList{
-				field.Invalid(field.NewPath("spec").Child("suspend"), ptr.To(true), fmt.Sprintf("must be nil when %s annotation is true", jobset.SkipSuspendReconciliationAnnotation)),
+				field.Invalid(field.NewPath("spec").Child("suspend"), ptr.To(true), fmt.Sprintf("must be nil when %s annotation is %s", jobset.ReconciliationModeAnnotation, jobset.ReconciliationModeIndependent)),
 			}.ToAggregate(),
 		},
 		{
-			name: "skip suspend reconciliation annotation cannot be added to an existing JobSet",
+			name: "reconciliation mode annotation cannot be added to an existing JobSet",
 			js: &jobset.JobSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "js",
 					Annotations: map[string]string{
-						jobset.SkipSuspendReconciliationAnnotation: "true",
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
 					},
 				},
 				Spec: jobset.JobSetSpec{
@@ -3409,11 +3409,11 @@ func TestValidateUpdate(t *testing.T) {
 				},
 			},
 			want: field.ErrorList{
-				field.Invalid(field.NewPath("metadata").Child("annotations"), "true", "cannot be set to true on an existing JobSet. It must be done at JobSet creation"),
+				field.Invalid(field.NewPath("metadata").Child("annotations"), jobset.ReconciliationModeIndependent, fmt.Sprintf("cannot be set to %s on an existing JobSet. It must be done at JobSet creation", jobset.ReconciliationModeIndependent)),
 			}.ToAggregate(),
 		},
 		{
-			name: "skip suspend reconciliation annotation cannot be removed from an existing JobSet",
+			name: "reconciliation mode annotation cannot be removed from an existing JobSet",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
 				Spec: jobset.JobSetSpec{
@@ -3425,7 +3425,7 @@ func TestValidateUpdate(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "js",
 					Annotations: map[string]string{
-						jobset.SkipSuspendReconciliationAnnotation: "true",
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
 					},
 				},
 				Spec: jobset.JobSetSpec{
@@ -3434,7 +3434,7 @@ func TestValidateUpdate(t *testing.T) {
 				},
 			},
 			want: field.ErrorList{
-				field.Invalid(field.NewPath("metadata").Child("annotations"), "", "cannot be removed from an existing JobSet. It must be done at JobSet creation"),
+				field.Invalid(field.NewPath("metadata").Child("annotations"), jobset.ReconciliationModeAnnotation, fmt.Sprintf("set to %s cannot be removed from an existing JobSet. It must be done at JobSet creation", jobset.ReconciliationModeIndependent)),
 			}.ToAggregate(),
 		},
 	}
