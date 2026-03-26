@@ -96,6 +96,12 @@ const (
 	// strategy is not used (or the feature gate is not enabled). One example is
 	// downgrading the JobSet CRD to a version that does not support in-place restart
 	DisableInPlaceRestartKey string = "jobset.sigs.k8s.io/disable-in-place-restart"
+
+	// ReconciliationModeAnnotation is a JobSet annotation that, if set to "Independent" (ReconciliationModeIndependent),
+	// instructs the JobSet controller to not reconcile the suspend state of the JobSet onto its child Jobs.
+	// This also forces the JobSet suspend field to be nil.
+	ReconciliationModeAnnotation  string = "jobset.sigs.k8s.io/reconciliation-mode"
+	ReconciliationModeIndependent string = "Independent"
 )
 
 type JobSetConditionType string
