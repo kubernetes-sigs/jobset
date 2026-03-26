@@ -782,6 +782,60 @@ func TestJobSetDefaulting(t *testing.T) {
 		},
 	}
 
+	independentModeDefaultingTests := []jobSetDefaultingTestCase{
+		{
+			name: "suspend is defaulted to nil when reconciliation mode is Independent",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:       ptr.To(true),
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
+				},
+			},
+			want: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:       nil,
+					SuccessPolicy: defaultSuccessPolicy,
+					StartupPolicy: defaultStartupPolicy,
+					Network:       defaultNetwork,
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template:       TestPodTemplate,
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+								},
+							},
+						},
+					},
+					ManagedBy: ptr.To(jobset.JobSetControllerName),
+				},
+			},
+		},
+	}
+
 	testGroups := [][]jobSetDefaultingTestCase{
 		jobCompletionTests,
 		enablingDNSHostnameTests,
@@ -793,6 +847,7 @@ func TestJobSetDefaulting(t *testing.T) {
 		managedByTests,
 		failurePolicyRuleNameTests,
 		volumeRetentionPolicyTests,
+		independentModeDefaultingTests,
 	}
 	var testCases []jobSetDefaultingTestCase
 	for _, testGroup := range testGroups {
@@ -3063,6 +3118,40 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
+	independentModeValidationCreateTests := []validationTestCase{
+		{
+			name: "suspend must be nil when reconciliation mode is Independent",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "test-jobset-replicated-job-0",
+							GroupName: "test-group",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](1),
+									Template:    validPodTemplateSpec,
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("must be nil when %s annotation is %s", jobset.ReconciliationModeAnnotation, jobset.ReconciliationModeIndependent),
+			),
+		},
+	}
+
 	testGroups := [][]validationTestCase{
 		uncategorizedTests,
 		jobsetControllerNameTests,
@@ -3070,6 +3159,7 @@ func TestValidateCreate(t *testing.T) {
 		dependsOnTests,
 		volumeClaimPolicyTests,
 		inPlaceRestartTests,
+		independentModeValidationCreateTests,
 	}
 	var testCases []validationTestCase
 	for _, testGroup := range testGroups {
@@ -3437,6 +3527,82 @@ func TestValidateUpdate(t *testing.T) {
 			},
 			want: field.ErrorList{
 				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+		},
+		{
+			name: "suspend cannot be set to a value other than nil if reconciliation mode is Independent",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        nil,
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("suspend"), ptr.To(true), fmt.Sprintf("must be nil when %s annotation is %s", jobset.ReconciliationModeAnnotation, jobset.ReconciliationModeIndependent)),
+			}.ToAggregate(),
+		},
+		{
+			name: "reconciliation mode Independent cannot be added on update",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("metadata").Child("annotations"), jobset.ReconciliationModeAnnotation, fmt.Sprintf("cannot be set to %s on an existing JobSet. It must be done at JobSet creation", jobset.ReconciliationModeIndependent)),
+			}.ToAggregate(),
+		},
+		{
+			name: "reconciliation mode Independent cannot be removed on update",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("metadata").Child("annotations"), jobset.ReconciliationModeAnnotation, fmt.Sprintf("set to %s cannot be removed from an existing JobSet. It must be done at JobSet creation", jobset.ReconciliationModeIndependent)),
 			}.ToAggregate(),
 		},
 	}
