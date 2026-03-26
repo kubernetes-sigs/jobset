@@ -237,6 +237,74 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateShouldFail: true,
 		}),
+		ginkgo.Entry("suspend is forced to nil when reconciliation mode is Independent", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("independent-mode", ns.Name).
+					SetAnnotations(map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					}).
+					Suspend(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return js.Spec.Suspend == nil
+			},
+		}),
+		ginkgo.Entry("adding Independent reconciliation mode annotation to an existing JobSet is rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("independent-mode-add", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				if js.Annotations == nil {
+					js.Annotations = make(map[string]string)
+				}
+				js.Annotations[jobset.ReconciliationModeAnnotation] = jobset.ReconciliationModeIndependent
+			},
+			updateShouldFail: true,
+		}),
+		ginkgo.Entry("removing Independent reconciliation mode annotation from an existing JobSet is rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("independent-mode-remove", ns.Name).
+					SetAnnotations(map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				delete(js.Annotations, jobset.ReconciliationModeAnnotation)
+			},
+			updateShouldFail: true,
+		}),
+		ginkgo.Entry("modifying suspend state when Independent reconciliation mode is set is rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("independent-mode-suspend", ns.Name).
+					SetAnnotations(map[string]string{
+						jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent,
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				js.Spec.Suspend = ptr.To(true)
+			},
+			updateShouldFail: true,
+		}),
 		ginkgo.Entry("success policy defaults to all", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("success-policy", ns.Name).
