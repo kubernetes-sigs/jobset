@@ -1539,6 +1539,34 @@ func TestCalculateReplicatedJobStatuses(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "active job with nil Parallelism defaults to 1",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob("replicated-job-1").
+					Job(testutils.MakeJobTemplate("test-job", ns).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			jobs: childJobs{
+				active: []*batchv1.Job{
+					// Parallelism not set (nil) — ptr.Deref defaults to 1, so Ready(1) makes it ready.
+					makeJob(&makeJobArgs{
+						jobSetName:        jobSetName,
+						replicatedJobName: "replicated-job-1",
+						groupName:         "default",
+						jobName:           "test-jobset-replicated-job-1-test-job-0",
+						ns:                ns,
+						replicas:          1,
+						jobIdx:            0}).
+						Ready(1).Obj(),
+				},
+			},
+			expected: []jobset.ReplicatedJobStatus{
+				{
+					Name:  "replicated-job-1",
+					Ready: 1,
+				},
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
