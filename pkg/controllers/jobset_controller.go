@@ -219,16 +219,18 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 	}
 
 	// Handle suspending a jobset or resuming a suspended jobset.
-	jobsetSuspended := jobSetSuspended(js)
-	if jobsetSuspended {
-		if err := r.suspendJobs(ctx, js, ownedJobs.active, updateStatusOpts); err != nil {
-			log.Error(err, "suspending jobset")
-			return ctrl.Result{}, err
-		}
-	} else {
-		if err := r.resumeJobsIfNecessary(ctx, js, ownedJobs.active, rjobStatuses, updateStatusOpts); err != nil {
-			log.Error(err, "resuming jobset")
-			return ctrl.Result{}, err
+	if !ShouldSkipSuspendReconciliation(js) {
+		jobsetSuspended := jobSetSuspended(js)
+		if jobsetSuspended {
+			if err := r.suspendJobs(ctx, js, ownedJobs.active, updateStatusOpts); err != nil {
+				log.Error(err, "suspending jobset")
+				return ctrl.Result{}, err
+			}
+		} else {
+			if err := r.resumeJobsIfNecessary(ctx, js, ownedJobs.active, rjobStatuses, updateStatusOpts); err != nil {
+				log.Error(err, "resuming jobset")
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
@@ -881,9 +883,11 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) *ba
 		addTaintToleration(job)
 	}
 
-	// if Suspend is set, then we assume all jobs will be suspended also.
-	jobsetSuspended := jobSetSuspended(js)
-	job.Spec.Suspend = ptr.To(jobsetSuspended)
+	if !ShouldSkipSuspendReconciliation(js) {
+		// if Suspend is set, then we assume all jobs will be suspended also.
+		jobsetSuspended := jobSetSuspended(js)
+		job.Spec.Suspend = ptr.To(jobsetSuspended)
+	}
 
 	// If VolumeClaimPolicies are set, update Job spec to set volumes and volumeMounts.
 	if len(js.Spec.VolumeClaimPolicies) > 0 {
@@ -1065,6 +1069,11 @@ func jobSetSuspended(js *jobset.JobSet) bool {
 
 func jobSuspended(job *batchv1.Job) bool {
 	return ptr.Deref(job.Spec.Suspend, false)
+}
+
+func ShouldSkipSuspendReconciliation(js *jobset.JobSet) bool {
+	val, ok := js.Annotations[jobset.ReconciliationModeAnnotation]
+	return ok && val == jobset.ReconciliationModeIndependent
 }
 
 func findReplicatedJobStatus(replicatedJobStatus []jobset.ReplicatedJobStatus, replicatedJobName string) *jobset.ReplicatedJobStatus {

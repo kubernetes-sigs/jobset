@@ -155,6 +155,11 @@ func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
 		}
 	}
 
+	// Default JobSet suspend to nil if the reconciliation mode annotation is set to independent mode.
+	if controllers.ShouldSkipSuspendReconciliation(js) {
+		js.Spec.Suspend = nil
+	}
+
 	return nil
 }
 
@@ -303,6 +308,11 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, js.Spec.VolumeClaimPolicies)...)
 	}
 
+	// Block JobSet suspension from being set to another value than nil if the reconciliation mode annotation is set to independent mode.
+	if controllers.ShouldSkipSuspendReconciliation(js) && js.Spec.Suspend != nil {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("suspend"), js.Spec.Suspend, fmt.Sprintf("must be nil when %s annotation is %s", jobset.ReconciliationModeAnnotation, jobset.ReconciliationModeIndependent)))
+	}
+
 	return nil, errors.Join(allErrs...)
 }
 
@@ -326,6 +336,22 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
 	errs := apivalidation.ValidateImmutableField(newJs.Spec.ReplicatedJobs, oldJs.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
 	errs = append(errs, apivalidation.ValidateImmutableField(newJs.Spec.ManagedBy, oldJs.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
+
+	// Block JobSet suspension from being changed to another value than nil if the reconciliation mode annotation is set to independent mode.
+	if controllers.ShouldSkipSuspendReconciliation(newJs) && newJs.Spec.Suspend != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec").Child("suspend"), newJs.Spec.Suspend, fmt.Sprintf("must be nil when %s annotation is %s", jobset.ReconciliationModeAnnotation, jobset.ReconciliationModeIndependent)))
+	}
+
+	// Block reconciliation mode annotation be set to independent mode on an existing JobSet.
+	if !controllers.ShouldSkipSuspendReconciliation(oldJs) && controllers.ShouldSkipSuspendReconciliation(newJs) {
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations"), jobset.ReconciliationModeAnnotation, fmt.Sprintf("cannot be set to %s on an existing JobSet. It must be done at JobSet creation", jobset.ReconciliationModeIndependent)))
+	}
+
+	// Block reconciliation mode annotation set to independent mode from being removed from an existing JobSet.
+	if controllers.ShouldSkipSuspendReconciliation(oldJs) && !controllers.ShouldSkipSuspendReconciliation(newJs) {
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations"), jobset.ReconciliationModeAnnotation, fmt.Sprintf("set to %s cannot be removed from an existing JobSet. It must be done at JobSet creation", jobset.ReconciliationModeIndependent)))
+	}
+
 	return nil, errs.ToAggregate()
 }
 

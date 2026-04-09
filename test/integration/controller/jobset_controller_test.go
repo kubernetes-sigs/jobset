@@ -1497,6 +1497,44 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("jobset created with independent reconciliation mode keeps jobs unsuspended", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				wrapper := testJobSet(ns).SetAnnotations(map[string]string{jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent})
+				wrapper.Obj().Spec.Suspend = nil // simulating webhook defaulting behavior
+
+				for i := range wrapper.Obj().Spec.ReplicatedJobs {
+					wrapper.Obj().Spec.ReplicatedJobs[i].Template.Spec.Suspend = ptr.To(false)
+				}
+				return wrapper
+			},
+			steps: []*step{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are unsuspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("jobset created with independent reconciliation mode keeps jobs suspended", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				wrapper := testJobSet(ns).SetAnnotations(map[string]string{jobset.ReconciliationModeAnnotation: jobset.ReconciliationModeIndependent})
+				wrapper.Obj().Spec.Suspend = nil // simulating webhook defaulting behavior
+
+				for i := range wrapper.Obj().Spec.ReplicatedJobs {
+					wrapper.Obj().Spec.ReplicatedJobs[i].Template.Spec.Suspend = ptr.To(true)
+				}
+				return wrapper
+			},
+			steps: []*step{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
+					},
+				},
+			},
+		}),
 		ginkgo.Entry("service deleted", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns)

@@ -399,6 +399,12 @@ func (j *JobWrapper) Suspend(suspend bool) *JobWrapper {
 	return j
 }
 
+// Suspend sets suspend in the job template spec.
+func (j *JobTemplateWrapper) Suspend(suspend bool) *JobTemplateWrapper {
+	j.Spec.Suspend = ptr.To(suspend)
+	return j
+}
+
 // PodAnnotations merges the given annotations to the existing Pod annotations.
 // Duplicate keys will be overwritten by the new annotations (given in the function
 // parameter).
