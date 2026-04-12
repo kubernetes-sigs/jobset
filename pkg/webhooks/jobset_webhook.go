@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -303,7 +304,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, js.Spec.VolumeClaimPolicies)...)
 	}
 
-	return nil, errors.Join(allErrs...)
+	return nil, invalidError(js.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
@@ -326,7 +327,14 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
 	errs := apivalidation.ValidateImmutableField(newJs.Spec.ReplicatedJobs, oldJs.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
 	errs = append(errs, apivalidation.ValidateImmutableField(newJs.Spec.ManagedBy, oldJs.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
-	return nil, errs.ToAggregate()
+	if len(errs) == 0 {
+		return nil, nil
+	}
+	return nil, apierrors.NewInvalid(
+		schema.GroupKind{Group: "jobset.x-k8s.io", Kind: "JobSet"},
+		newJs.Name,
+		errs,
+	)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
@@ -596,4 +604,38 @@ func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.Replic
 		}
 	}
 	return nil
+}
+
+// toFieldErrorList converts a slice of errors (which may contain a mix of
+// *field.Error and plain errors) into a field.ErrorList. Existing *field.Error
+// values are preserved as-is; plain errors are wrapped as field.InternalError.
+func toFieldErrorList(errs []error) field.ErrorList {
+	var fieldErrs field.ErrorList
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+		var fe *field.Error
+		if errors.As(err, &fe) {
+			fieldErrs = append(fieldErrs, fe)
+		} else {
+			fieldErrs = append(fieldErrs, field.InternalError(nil, err))
+		}
+	}
+	return fieldErrs
+}
+
+// invalidError converts a list of validation errors into an
+// *apierrors.StatusError with HTTP 422 (Unprocessable Entity) and reason
+// "Invalid". Returns nil if there are no errors.
+func invalidError(name string, errs []error) error {
+	fieldErrs := toFieldErrorList(errs)
+	if len(fieldErrs) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(
+		schema.GroupKind{Group: "jobset.x-k8s.io", Kind: "JobSet"},
+		name,
+		fieldErrs,
+	)
 }

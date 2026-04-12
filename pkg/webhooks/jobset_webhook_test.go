@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -3085,7 +3086,16 @@ func TestValidateCreate(t *testing.T) {
 			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.enableRestartJob)
 			_, err := testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
 			if err != nil && tc.want != nil {
-				assert.Contains(t, err.Error(), tc.want.Error())
+				// Verify it's specifically a 422 StatusError
+				var statusErr *apierrors.StatusError
+				require.ErrorAs(t, err, &statusErr, "expected *apierrors.StatusError")
+				assert.Equal(t, int32(422), statusErr.ErrStatus.Code)
+				assert.Equal(t, metav1.StatusReasonInvalid, statusErr.ErrStatus.Reason)
+
+				// Verify all expected error substrings are present
+				for _, wantErr := range strings.Split(tc.want.Error(), "\n") {
+					assert.Contains(t, err.Error(), wantErr)
+				}
 			} else if err != nil && tc.want == nil {
 				t.Errorf("unexpected error: %v", err)
 			} else if err == nil && tc.want != nil {
@@ -3448,9 +3458,20 @@ func TestValidateUpdate(t *testing.T) {
 			newObj := tc.js.DeepCopy()
 			oldObj := tc.oldJs.DeepCopy()
 			_, err := webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
-			// Ignore bad value to keep test cases short and readable.
-			if diff := cmp.Diff(tc.want, err, cmpopts.IgnoreFields(field.Error{}, "BadValue")); diff != "" {
-				t.Errorf("ValidateResources() mismatch (-want +got):\n%s", diff)
+			if err != nil && tc.want != nil {
+				var statusErr *apierrors.StatusError
+				require.ErrorAs(t, err, &statusErr, "expected *apierrors.StatusError")
+				assert.Equal(t, int32(422), statusErr.ErrStatus.Code)
+				assert.Equal(t, metav1.StatusReasonInvalid, statusErr.ErrStatus.Reason)
+
+				for _, cause := range statusErr.ErrStatus.Details.Causes {
+					assert.Contains(t, tc.want.Error(), cause.Field)
+					assert.Contains(t, cause.Message, "field is immutable")
+				}
+			} else if err != nil && tc.want == nil {
+				t.Errorf("unexpected error: %v", err)
+			} else if err == nil && tc.want != nil {
+				t.Errorf("missing expected error: %v", tc.want)
 			}
 		})
 	}
