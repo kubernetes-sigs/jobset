@@ -48,7 +48,8 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 	ginkgo.BeforeEach(func() {
 
 		// Ensure feature gate is off by default for all standard tests
-		_ = features.SetEnable(features.ElasticJobSet, false)
+		err := features.SetEnable(features.ElasticJobSet, false)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 		// Create test namespace before each test.
 		ns = &corev1.Namespace{
@@ -776,11 +777,76 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateJobSet: func(js *jobset.JobSet) {
 				// Turn the feature gate ON just before we hit the update webhook
-				_ = features.SetEnable(features.ElasticJobSet, true)
+				err := features.SetEnable(features.ElasticJobSet, true)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
 				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
 			},
 			updateShouldFail: false,
+		}),
+		ginkgo.Entry("validate updating parallelism and completions FAILS when values are not equal", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("elastic-js-webhook-unequal", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).
+							Parallelism(2).
+							Completions(2).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				err := features.SetEnable(features.ElasticJobSet, true)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](5) // Mismatched values
+			},
+			updateShouldFail:    true,
+			expectedUpdateError: "completions must be equal to parallelism for Elastic Indexed Jobs",
+		}),
+		ginkgo.Entry("validate updating parallelism and completions FAILS for NonIndexed jobs", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("elastic-js-webhook-nonindexed", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.NonIndexedCompletion).
+							Parallelism(2).
+							Completions(2).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				err := features.SetEnable(features.ElasticJobSet, true)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
+			},
+			updateShouldFail:    true,
+			expectedUpdateError: "field is immutable", // Webhook should reject
+		}),
+		ginkgo.Entry("validate updating parallelism and completions FAILS when scaling to < 1", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("elastic-js-webhook-zero", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).
+							Parallelism(2).
+							Completions(2).Obj()).
+						Obj())
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				err := features.SetEnable(features.ElasticJobSet, true)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](0) // Invalid scale
+				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](0)
+			},
+			updateShouldFail:    true,
+			expectedUpdateError: "parallelism must be >= 1",
 		}),
 		ginkgo.Entry("validate updating parallelism and completions FAILS when ElasticJobSet is disabled", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
@@ -795,7 +861,9 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateJobSet: func(js *jobset.JobSet) {
 				// Ensure the feature gate is OFF (testing the default behavior)
-				_ = features.SetEnable(features.ElasticJobSet, false)
+				err := features.SetEnable(features.ElasticJobSet, false)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
 				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
 			},

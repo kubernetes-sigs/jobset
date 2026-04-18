@@ -27,8 +27,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -313,50 +313,58 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 	mungedSpec := newJs.Spec.DeepCopy()
 	var errs field.ErrorList
 
+	// Create a map of old ReplicatedJobs by name for safe lookup
+	oldJobsMap := make(map[string]*jobset.ReplicatedJob)
+	for i := range oldJs.Spec.ReplicatedJobs {
+		rjob := &oldJs.Spec.ReplicatedJobs[i]
+		oldJobsMap[rjob.Name] = rjob
+	}
+
 	// Elastic JobSet Validation
 	if features.Enabled(features.ElasticJobSet) {
 		// Check if the JobSet is in a terminal state (Completed or Failed)
-		isTerminal := false
-		for _, cond := range oldJs.Status.Conditions {
-			if (cond.Type == string(jobset.JobSetCompleted) || cond.Type == string(jobset.JobSetFailed)) && cond.Status == metav1.ConditionTrue {
-				isTerminal = true
-				break
-			}
-		}
+		isTerminal := meta.IsStatusConditionTrue(oldJs.Status.Conditions, string(jobset.JobSetCompleted)) ||
+			meta.IsStatusConditionTrue(oldJs.Status.Conditions, string(jobset.JobSetFailed))
 
 		for index := range newJs.Spec.ReplicatedJobs {
-			// Safe bounds check strictly for Elastic scaling evaluation
-			if index >= len(oldJs.Spec.ReplicatedJobs) {
-				continue
+			newRJob := &newJs.Spec.ReplicatedJobs[index]
+
+			// Safely grab the old replicated job by Name
+			oldRJob, exists := oldJobsMap[newRJob.Name]
+			if !exists {
+				continue // Skip if this is a new job
 			}
 
-			oldRJob := oldJs.Spec.ReplicatedJobs[index]
-			newRJob := newJs.Spec.ReplicatedJobs[index]
 			rJobPath := field.NewPath("spec", "replicatedJobs").Index(index).Child("template", "spec")
 
-			// Check if parallelism and completions have changed
-			parallelismChanged := !ptr.Equal(newRJob.Template.Spec.Parallelism, oldRJob.Template.Spec.Parallelism)
-			completionsChanged := !ptr.Equal(newRJob.Template.Spec.Completions, oldRJob.Template.Spec.Completions)
+			// Only allow elastic scaling for Indexed jobs.
+			isIndexedJob := newRJob.Template.Spec.CompletionMode != nil && *newRJob.Template.Spec.CompletionMode == batchv1.IndexedCompletion
 
-			if parallelismChanged || completionsChanged {
-				if isTerminal {
-					errs = append(errs, field.Forbidden(rJobPath, "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"))
-				} else {
-					if parallelismChanged && newRJob.Template.Spec.Parallelism != nil && *newRJob.Template.Spec.Parallelism < 1 {
-						errs = append(errs, field.Invalid(rJobPath.Child("parallelism"), *newRJob.Template.Spec.Parallelism, "parallelism must be >= 1"))
-					}
-					if completionsChanged && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Completions < 1 {
-						errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be >= 1"))
-					}
-					if newRJob.Template.Spec.Parallelism != nil && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Parallelism != *newRJob.Template.Spec.Completions {
-						errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be equal to parallelism for Elastic Indexed Jobs"))
+			if isIndexedJob {
+				// Check if parallelism and completions have changed
+				parallelismChanged := !ptr.Equal(newRJob.Template.Spec.Parallelism, oldRJob.Template.Spec.Parallelism)
+				completionsChanged := !ptr.Equal(newRJob.Template.Spec.Completions, oldRJob.Template.Spec.Completions)
+
+				if parallelismChanged || completionsChanged {
+					if isTerminal {
+						errs = append(errs, field.Forbidden(rJobPath, "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"))
+					} else {
+						if parallelismChanged && newRJob.Template.Spec.Parallelism != nil && *newRJob.Template.Spec.Parallelism < 1 {
+							errs = append(errs, field.Invalid(rJobPath.Child("parallelism"), *newRJob.Template.Spec.Parallelism, "parallelism must be >= 1"))
+						}
+						if completionsChanged && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Completions < 1 {
+							errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be >= 1"))
+						}
+						if newRJob.Template.Spec.Parallelism != nil && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Parallelism != *newRJob.Template.Spec.Completions {
+							errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be equal to parallelism for Elastic Indexed Jobs"))
+						}
 					}
 				}
-			}
 
-			// Mask parallelism and completions in mungedSpec to bypass the strict immutability check
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Parallelism = oldRJob.Template.Spec.Parallelism
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Completions = oldRJob.Template.Spec.Completions
+				// Mask parallelism and completions in mungedSpec to bypass the strict immutability check
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Parallelism = oldRJob.Template.Spec.Parallelism
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Completions = oldRJob.Template.Spec.Completions
+			}
 		}
 	}
 
@@ -364,14 +372,22 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 	// This is needed for integration with Kueue/DWS.
 	if ptr.Deref(oldJs.Spec.Suspend, false) || ptr.Deref(newJs.Spec.Suspend, false) {
 		for index := range newJs.Spec.ReplicatedJobs {
+			newRJob := &newJs.Spec.ReplicatedJobs[index]
+
+			// Safely grab the old replicated job by Name to prevent panics on length mismatch
+			oldRJob, exists := oldJobsMap[newRJob.Name]
+			if !exists {
+				continue
+			}
+
 			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldRJob.Template.Spec.Template.Annotations
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldRJob.Template.Spec.Template.Labels
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldRJob.Template.Spec.Template.Spec.NodeSelector
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldRJob.Template.Spec.Template.Spec.Tolerations
 
 			// Pod Scheduling Gates can be updated for batch/v1 Job: https://github.com/kubernetes/kubernetes/blob/ceb58a4dbc671b9d0a2de6d73a1616bc0c299863/pkg/apis/batch/validation/validation.go#L662
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldJs.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldRJob.Template.Spec.Template.Spec.SchedulingGates
 		}
 	}
 

@@ -2854,75 +2854,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("dynamic horizontal pod scaling propagates parallelism and completions to child jobs", &testCase{
-			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				return testing.MakeJobSet("elastic-js", ns.Name).
-					SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
-					ReplicatedJob(testing.MakeReplicatedJob("workers").
-						Job(testing.MakeJobTemplate("job", ns.Name).
-							PodSpec(testing.TestPodSpec).
-							CompletionMode(batchv1.IndexedCompletion).
-							Parallelism(2).
-							Completions(2).
-							Obj()).
-						Replicas(1).
-						Obj())
-			},
-			steps: []*step{
-				{
-					// Step 1: Wait for the initial job to be created and verify its parallelism/completions.
-					checkJobSetState: func(js *jobset.JobSet) {
-						gomega.Eventually(func() (bool, error) {
-							var jobList batchv1.JobList
-							if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
-								return false, err
-							}
-							if len(jobList.Items) != 1 {
-								return false, nil
-							}
-							p := ptr.Deref(jobList.Items[0].Spec.Parallelism, 0)
-							c := ptr.Deref(jobList.Items[0].Spec.Completions, 0)
-							return p == 2 && c == 2, nil
-						}, timeout, interval).Should(gomega.BeTrue())
-					},
-				},
-				{
-					// Step 2: Simulate an external scaling operation.
-					jobSetUpdateFn: func(js *jobset.JobSet) {
-						var latestJS jobset.JobSet
-						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js), &latestJS)
-						gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to fetch latest JobSet")
-
-						// Mutating Parallelism and Completions locally and forcing the update to the cluster
-						latestJS.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
-						latestJS.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
-
-						err = k8sClient.Update(ctx, &latestJS)
-						gomega.Expect(err).NotTo(gomega.HaveOccurred(), "API Server rejected the JobSet update")
-
-						// Update the local pointer so the test framework has the correct ResourceVersion
-						*js = latestJS
-					},
-					// Step 3: Verify the controller caught the update and patched the child job in-place.
-					checkJobSetState: func(js *jobset.JobSet) {
-						ginkgo.By("checking child jobs are patched with new parallelism and completions")
-						gomega.Eventually(func() (bool, error) {
-							var jobList batchv1.JobList
-							if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
-								return false, err
-							}
-							if len(jobList.Items) != 1 {
-								return false, nil
-							}
-							p := ptr.Deref(jobList.Items[0].Spec.Parallelism, 0)
-							c := ptr.Deref(jobList.Items[0].Spec.Completions, 0)
-							return p == 4 && c == 4, nil
-						}, timeout, interval).Should(gomega.BeTrue())
-					},
-				},
-			},
-		}),
-	) // end of DescribeTable
+	)
 
 	ginkgo.When("A JobSet is managed by another controller", ginkgo.Ordered, func() {
 		var (
@@ -3152,6 +3084,243 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			}, timeout, interval).Should(gomega.BeTrue())
 		})
 	})
+
+	ginkgo.When("the ElasticJobSet feature gate is enabled", func() {
+
+		ginkgo.BeforeEach(func() {
+			err := features.SetEnable(features.ElasticJobSet, true)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+
+		ginkgo.AfterEach(func() {
+			err := features.SetEnable(features.ElasticJobSet, false)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+
+		ginkgo.DescribeTable("Elastic scaling behavior",
+			func(tc *testCase) {
+				ctx := context.Background()
+				// Create test namespace for each entry.
+				ns := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "jobset-ns-",
+					},
+				}
+				gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+				defer func() {
+					gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+				}()
+
+				// Create JobSet.
+				js := tc.makeJobSet(ns).Obj()
+
+				// Verify jobset created successfully.
+				ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js.Name, js.Namespace))
+				gomega.Eventually(func() error {
+					return k8sClient.Create(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+
+				if !tc.skipCreationCheck {
+					ginkgo.By("checking all jobs were created successfully")
+					gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+				}
+
+				// Perform a series of updates to jobset resources and check resulting jobset state after each update.
+				for _, up := range tc.steps {
+					var jobSet jobset.JobSet
+					gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobSet)).To(gomega.Succeed())
+
+					if up.jobSetUpdateFn != nil {
+						up.jobSetUpdateFn(&jobSet)
+					} else if up.jobUpdateFn != nil {
+						if up.checkJobCreation == nil {
+							gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+						} else {
+							up.checkJobCreation(&jobSet)
+						}
+						// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
+						var jobList batchv1.JobList
+						gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
+						up.jobUpdateFn(&jobList)
+					}
+
+					if up.checkJobSetState != nil {
+						up.checkJobSetState(&jobSet)
+					}
+
+					if up.checkJobSetCondition != nil {
+						up.checkJobSetCondition(ctx, k8sClient, &jobSet, timeout)
+					}
+				}
+			},
+			ginkgo.Entry("dynamic horizontal pod scaling propagates parallelism and completions to child jobs", &testCase{
+				makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+					return testing.MakeJobSet("elastic-js", ns.Name).
+						SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+						ReplicatedJob(testing.MakeReplicatedJob("workers").
+							Job(testing.MakeJobTemplate("job", ns.Name).
+								PodSpec(corev1.PodSpec{
+									RestartPolicy: "Never",
+									Containers: []corev1.Container{
+										{
+											Name:    "test-container",
+											Image:   "busybox:latest",
+											Command: []string{"sleep", "10"},
+										},
+									},
+								}).
+								CompletionMode(batchv1.IndexedCompletion).
+								Parallelism(2).
+								Completions(2).
+								Obj()).
+							Replicas(1).
+							Obj())
+				},
+				steps: []*step{
+					{
+						// Step 1: Wait for the initial job to be created and verify its parallelism/completions.
+						checkJobSetState: func(js *jobset.JobSet) {
+							gomega.Eventually(func() (bool, error) {
+								var jobList batchv1.JobList
+								if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+									return false, err
+								}
+								if len(jobList.Items) != 1 {
+									return false, nil
+								}
+								p := ptr.Deref(jobList.Items[0].Spec.Parallelism, 0)
+								c := ptr.Deref(jobList.Items[0].Spec.Completions, 0)
+								return p == 2 && c == 2, nil
+							}, timeout, interval).Should(gomega.BeTrue())
+						},
+					},
+					{
+						// Step 2: Simulate an external scaling operation.
+						jobSetUpdateFn: func(js *jobset.JobSet) {
+							var latestJS jobset.JobSet
+							err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js), &latestJS)
+							gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to fetch latest JobSet")
+
+							// Mutating Parallelism and Completions locally and forcing the update to the cluster
+							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
+
+							err = k8sClient.Update(ctx, &latestJS)
+							gomega.Expect(err).NotTo(gomega.HaveOccurred(), "API Server rejected the JobSet update")
+
+							// Update the local pointer so the test framework has the correct ResourceVersion
+							*js = latestJS
+						},
+						// Step 3: Verify the controller caught the update and patched the child job in-place.
+						checkJobSetState: func(js *jobset.JobSet) {
+							ginkgo.By("checking child jobs are patched with new parallelism and completions")
+							gomega.Eventually(func() (bool, error) {
+								var jobList batchv1.JobList
+								if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+									return false, err
+								}
+								if len(jobList.Items) != 1 {
+									return false, nil
+								}
+								p := ptr.Deref(jobList.Items[0].Spec.Parallelism, 0)
+								c := ptr.Deref(jobList.Items[0].Spec.Completions, 0)
+								return p == 4 && c == 4, nil
+							}, timeout, interval).Should(gomega.BeTrue())
+						},
+					},
+				},
+			}),
+		)
+	})
+
+	ginkgo.When("the ElasticJobSet feature gate is disabled", func() {
+
+		ginkgo.BeforeEach(func() {
+			// Explicitly turn the feature gate OFF
+			err := features.SetEnable(features.ElasticJobSet, false)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+
+		ginkgo.DescribeTable("Elastic scaling behavior is blocked",
+			func(tc *testCase) {
+				ctx := context.Background()
+				ns := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "jobset-ns-",
+					},
+				}
+				gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+				defer func() {
+					gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+				}()
+
+				js := tc.makeJobSet(ns).Obj()
+
+				ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js.Name, js.Namespace))
+				gomega.Eventually(func() error {
+					return k8sClient.Create(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+
+				if !tc.skipCreationCheck {
+					gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+				}
+
+				for _, up := range tc.steps {
+					var jobSet jobset.JobSet
+					gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobSet)).To(gomega.Succeed())
+
+					if up.jobSetUpdateFn != nil {
+						up.jobSetUpdateFn(&jobSet)
+					}
+				}
+			},
+			ginkgo.Entry("rejects updates to parallelism and completions", &testCase{
+				makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+					return testing.MakeJobSet("elastic-js-disabled", ns.Name).
+						SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+						ReplicatedJob(testing.MakeReplicatedJob("workers").
+							Job(testing.MakeJobTemplate("job", ns.Name).
+								PodSpec(corev1.PodSpec{
+									RestartPolicy: "Never",
+									Containers: []corev1.Container{
+										{
+											Name:    "test-container",
+											Image:   "busybox:latest",
+											Command: []string{"sleep", "10"},
+										},
+									},
+								}).
+								CompletionMode(batchv1.IndexedCompletion).
+								Parallelism(2).
+								Completions(2).
+								Obj()).
+							Replicas(1).
+							Obj())
+				},
+				steps: []*step{
+					{
+						// Attempt an external scaling operation.
+						jobSetUpdateFn: func(js *jobset.JobSet) {
+							var latestJS jobset.JobSet
+							err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js), &latestJS)
+							gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to fetch latest JobSet")
+
+							// Try to mutate Parallelism and Completions
+							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
+
+							err = k8sClient.Update(ctx, &latestJS)
+
+							gomega.Expect(err).To(gomega.HaveOccurred(), "API Server should reject the JobSet update when ElasticJobSet feature gate is disabled")
+						},
+					},
+				},
+			}),
+		)
+	})
+
 }) // end of Describe
 
 func makeAllJobsReady(jl *batchv1.JobList) {

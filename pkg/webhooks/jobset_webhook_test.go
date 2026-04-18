@@ -3461,8 +3461,9 @@ func TestValidateUpdate(t *testing.T) {
 							Replicas: 2,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](2),
-									Completions: ptr.To[int32](2),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
 								},
 							},
 						},
@@ -3478,8 +3479,9 @@ func TestValidateUpdate(t *testing.T) {
 							Replicas: 2,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](8),
-									Completions: ptr.To[int32](8),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](8),
+									Completions:    ptr.To[int32](8),
 								},
 							},
 						},
@@ -3498,7 +3500,8 @@ func TestValidateUpdate(t *testing.T) {
 							Name: "test-jobset-replicated-job-0",
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](2),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
 								},
 							},
 						},
@@ -3513,7 +3516,8 @@ func TestValidateUpdate(t *testing.T) {
 							Name: "test-jobset-replicated-job-0",
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](0),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](0),
 								},
 							},
 						},
@@ -3535,7 +3539,8 @@ func TestValidateUpdate(t *testing.T) {
 							Name: "test-jobset-replicated-job-0",
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Completions: ptr.To[int32](2),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To[int32](2),
 								},
 							},
 						},
@@ -3550,7 +3555,8 @@ func TestValidateUpdate(t *testing.T) {
 							Name: "test-jobset-replicated-job-0",
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Completions: ptr.To[int32](0),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To[int32](0),
 								},
 							},
 						},
@@ -3572,7 +3578,8 @@ func TestValidateUpdate(t *testing.T) {
 							Name: "test-jobset-replicated-job-0",
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](2),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
 								},
 							},
 						},
@@ -3595,7 +3602,8 @@ func TestValidateUpdate(t *testing.T) {
 							Name: "test-jobset-replicated-job-0",
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](4),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](4),
 								},
 							},
 						},
@@ -3617,7 +3625,8 @@ func TestValidateUpdate(t *testing.T) {
 							Name: "test-jobset-replicated-job-0",
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Completions: ptr.To[int32](2),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To[int32](2),
 								},
 							},
 						},
@@ -3640,7 +3649,8 @@ func TestValidateUpdate(t *testing.T) {
 							Name: "test-jobset-replicated-job-0",
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Completions: ptr.To[int32](4),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To[int32](4),
 								},
 							},
 						},
@@ -3663,7 +3673,8 @@ func TestValidateUpdate(t *testing.T) {
 							Replicas: 1,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](2),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
 								},
 							},
 						},
@@ -3679,7 +3690,8 @@ func TestValidateUpdate(t *testing.T) {
 							Replicas: 2, // immutable field modified
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](4), // Valid scale operation
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](4), // Valid scale operation
 								},
 							},
 						},
@@ -3743,8 +3755,9 @@ func TestValidateUpdate(t *testing.T) {
 							Replicas: 2,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](2),
-									Completions: ptr.To[int32](2),
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
 								},
 							},
 						},
@@ -3760,8 +3773,9 @@ func TestValidateUpdate(t *testing.T) {
 							Replicas: 2,
 							Template: batchv1.JobTemplateSpec{
 								Spec: batchv1.JobSpec{
-									Parallelism: ptr.To[int32](4),
-									Completions: ptr.To[int32](5), // mismatch
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](4),
+									Completions:    ptr.To[int32](5), // mismatch
 								},
 							},
 						},
@@ -3770,6 +3784,124 @@ func TestValidateUpdate(t *testing.T) {
 			},
 			want: field.ErrorList{
 				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "completions"), int32(5), "completions must be equal to parallelism for Elastic Indexed Jobs"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "adding a new ReplicatedJob while suspended does not panic and is rejected",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "job-a",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2)}},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "job-a",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2)}},
+						},
+						{
+							Name:     "job-b", // New job added
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2)}},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+		},
+		{
+			name: "reordering ReplicatedJobs evaluates ElasticJobSet scaling correctly by name",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "job-a",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2), Completions: ptr.To[int32](2)}},
+						},
+						{
+							Name:     "job-b",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2), Completions: ptr.To[int32](2)}},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "job-b", // Swapped order
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2), Completions: ptr.To[int32](2)}},
+						},
+						{
+							Name:     "job-a",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](4), Completions: ptr.To[int32](4)}}, // Valid scaling operation
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				// We do not expect elastic scaling errors (e.g. parallelism mismatch)
+				// proving that the webhook correctly mapped Job A to Job A and Job B to Job B.
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "invalid scaling: immutability enforced for NonIndexed jobs even when ElasticJobSet is enabled",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
+									Parallelism:    ptr.To[int32](4), // Attempting to scale a NonIndexed job
+									Completions:    ptr.To[int32](4),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				// Because it's NonIndexed, the webhook doesn't mask the fields,
+				// so the standard immutability check catches it.
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
 			}.ToAggregate(),
 			enableElasticJobSet: true,
 		},
@@ -3791,7 +3923,9 @@ func TestValidateUpdate(t *testing.T) {
 
 				for _, cause := range statusErr.ErrStatus.Details.Causes {
 					assert.Contains(t, tc.want.Error(), cause.Field)
-					assert.Contains(t, cause.Message, "field is immutable")
+					parts := strings.Split(cause.Message, ": ")
+					coreReason := parts[len(parts)-1]
+					assert.Contains(t, tc.want.Error(), coreReason)
 				}
 			} else if err != nil && tc.want == nil {
 				t.Errorf("unexpected error: %v", err)

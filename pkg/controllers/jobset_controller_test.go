@@ -2112,10 +2112,11 @@ func TestSyncJobScaling(t *testing.T) {
 	)
 
 	tests := []struct {
-		name        string
-		jobSet      *jobset.JobSet
-		activeJobs  []*batchv1.Job
-		expectPatch bool
+		name                string
+		jobSet              *jobset.JobSet
+		activeJobs          []*batchv1.Job
+		expectPatch         bool
+		enableElasticJobSet bool
 	}{
 		{
 			name: "jobs in sync, no patch needed",
@@ -2132,7 +2133,8 @@ func TestSyncJobScaling(t *testing.T) {
 					ns:                ns,
 				}).Parallelism(2).Completions(2).Obj(),
 			},
-			expectPatch: false,
+			expectPatch:         false,
+			enableElasticJobSet: true,
 		},
 		{
 			name: "jobs out of sync, patch needed",
@@ -2149,7 +2151,62 @@ func TestSyncJobScaling(t *testing.T) {
 					ns:                ns,
 				}).Parallelism(2).Completions(2).Obj(),
 			},
-			expectPatch: true,
+			expectPatch:         true,
+			enableElasticJobSet: true,
+		},
+		{
+			name: "parallelism is changed, completions kept the same (invalid scaling, no patch)",
+			jobSet: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Parallelism(8).Completions(2).Obj()). // Mismatched desired state
+					Replicas(1).
+					Obj()).Obj(),
+			activeJobs: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-job-0",
+					ns:                ns,
+				}).Parallelism(2).Completions(2).Obj(),
+			},
+			expectPatch:         false,
+			enableElasticJobSet: true,
+		},
+		{
+			name: "parallelism kept the same, completions is changed (invalid scaling, no patch)",
+			jobSet: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Parallelism(2).Completions(8).Obj()). // Mismatched desired state
+					Replicas(1).
+					Obj()).Obj(),
+			activeJobs: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-job-0",
+					ns:                ns,
+				}).Parallelism(2).Completions(2).Obj(),
+			},
+			expectPatch:         false,
+			enableElasticJobSet: true,
+		},
+		{
+			name: "jobs out of sync, but feature gate disabled (no patch)",
+			jobSet: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Parallelism(8).Completions(8).Obj()).
+					Replicas(1).
+					Obj()).Obj(),
+			activeJobs: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					jobName:           "test-job-0",
+					ns:                ns,
+				}).Parallelism(2).Completions(2).Obj(),
+			},
+			expectPatch:         false,
+			enableElasticJobSet: false,
 		},
 	}
 
@@ -2179,7 +2236,8 @@ func TestSyncJobScaling(t *testing.T) {
 				Record: events.NewFakeRecorder(32),
 			}
 
-			features.SetFeatureGateDuringTest(t, features.ElasticJobSet, true)
+			features.SetFeatureGateDuringTest(t, features.ElasticJobSet, tc.enableElasticJobSet)
+
 			err := r.syncJobScaling(ctx, tc.jobSet, tc.activeJobs)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)

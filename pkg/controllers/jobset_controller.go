@@ -831,6 +831,11 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 // syncJobScaling applies in-place updates to the parallelism and completions of existing active child jobs
 // to match the desired state in the JobSet template (Elastic Indexed Jobs).
 func (r *JobSetReconciler) syncJobScaling(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job) error {
+
+	if !features.Enabled(features.ElasticJobSet) {
+		return nil
+	}
+
 	log := ctrl.LoggerFrom(ctx)
 	var finalErrs []error
 
@@ -859,15 +864,7 @@ func (r *JobSetReconciler) syncJobScaling(ctx context.Context, js *jobset.JobSet
 			continue
 		}
 
-		needsPatch := false
-		if !ptr.Equal(job.Spec.Parallelism, desired.parallelism) {
-			needsPatch = true
-		}
-		if !ptr.Equal(job.Spec.Completions, desired.completions) {
-			needsPatch = true
-		}
-
-		if needsPatch {
+		if jobScalingNeedsPatch(job, desired.parallelism, desired.completions) {
 			patch := client.MergeFrom(job.DeepCopy())
 			job.Spec.Parallelism = desired.parallelism
 			job.Spec.Completions = desired.completions
@@ -884,6 +881,23 @@ func (r *JobSetReconciler) syncJobScaling(ctx context.Context, js *jobset.JobSet
 	}
 
 	return errors.Join(finalErrs...)
+}
+
+// jobScalingNeedsPatch evaluates whether a job's parallelism or completions
+// are out of sync with the desired state. It also guarantees we only trigger
+// a patch if the desired state is valid for Elastic Indexed Jobs (P == C).
+func jobScalingNeedsPatch(job *batchv1.Job, desiredParallelism, desiredCompletions *int32) bool {
+	// Parallelism and Completions should be equal for elastic scaling.
+	// If the desired state is out of sync with itself, it's an invalid configuration.
+	if !ptr.Equal(desiredParallelism, desiredCompletions) {
+		return false
+	}
+
+	// 2. Check if the Job has drifted from the desired state.
+	parallelismChanged := !ptr.Equal(job.Spec.Parallelism, desiredParallelism)
+	completionsChanged := !ptr.Equal(job.Spec.Completions, desiredCompletions)
+
+	return parallelismChanged || completionsChanged
 }
 
 // executeSuccessPolicy checks the completed jobs against the jobset success policy
