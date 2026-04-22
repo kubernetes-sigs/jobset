@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -304,6 +305,9 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, js.Spec.VolumeClaimPolicies)...)
 	}
 
+	// Validate each ReplicatedJob's Job template via dry-run creation.
+	allErrs = append(allErrs, j.validateJobTemplates(ctx, js)...)
+
 	return nil, invalidError(js.Name, allErrs)
 }
 
@@ -340,6 +344,38 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateDelete(ctx context.Context, js *jobset.JobSet) (admission.Warnings, error) {
 	return nil, nil
+}
+
+// validateJobTemplates performs a server-side dry-run creation of a Job for
+// each ReplicatedJob, surfacing Pod/Job spec validation errors at admission
+// time rather than deferring them to Job creation.
+func (j *jobSetWebhook) validateJobTemplates(ctx context.Context, js *jobset.JobSet) []error {
+	var allErrs []error
+	for rJobIdx, rJob := range js.Spec.ReplicatedJobs {
+		fieldPath := field.NewPath("spec", "replicatedJobs").Index(rJobIdx).Child("template")
+		job := &batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      placement.GenJobName(js.Name, rJob.Name, 0),
+				Namespace: js.Namespace,
+			},
+			Spec: *rJob.Template.Spec.DeepCopy(),
+		}
+		if err := j.client.Create(ctx, job, client.DryRunAll); err != nil {
+			var statusErr *apierrors.StatusError
+			if errors.As(err, &statusErr) && statusErr.Status().Details != nil {
+				for _, cause := range statusErr.Status().Details.Causes {
+					allErrs = append(allErrs, field.Invalid(
+						fieldPath.Child(cause.Field),
+						"",
+						cause.Message,
+					))
+				}
+			} else {
+				allErrs = append(allErrs, field.Invalid(fieldPath, nil, err.Error()))
+			}
+		}
+	}
+	return allErrs
 }
 
 // Failure policy constants.
