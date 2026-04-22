@@ -1,6 +1,6 @@
 module sigs.k8s.io/jobset/hack/tools/yaml-processor
 
-go 1.25.0
+go 1.26.0
 
 tool sigs.k8s.io/kueue/hack/tools/yaml-processor
 
