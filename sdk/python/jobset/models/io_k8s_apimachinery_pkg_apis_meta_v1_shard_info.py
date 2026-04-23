@@ -18,18 +18,16 @@ import re  # noqa: F401
 import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List
 from typing import Optional, Set
 from typing_extensions import Self
 
-class IoK8sApiCoreV1WorkloadReference(BaseModel):
+class IoK8sApimachineryPkgApisMetaV1ShardInfo(BaseModel):
     """
-    WorkloadReference identifies the Workload object and PodGroup membership that a Pod belongs to. The scheduler uses this information to apply workload-aware scheduling semantics.
+    ShardInfo describes the shard selector that was applied to produce a list response. Its presence on a list response indicates the list is a filtered subset.
     """ # noqa: E501
-    name: StrictStr = Field(description="Name defines the name of the Workload object this Pod belongs to. Workload must be in the same namespace as the Pod. If it doesn't match any existing Workload, the Pod will remain unschedulable until a Workload object is created and observed by the kube-scheduler. It must be a DNS subdomain.")
-    pod_group: StrictStr = Field(description="PodGroup is the name of the PodGroup within the Workload that this Pod belongs to. If it doesn't match any existing PodGroup within the Workload, the Pod will remain unschedulable until the Workload object is recreated and observed by the kube-scheduler. It must be a DNS label.", alias="podGroup")
-    pod_group_replica_key: Optional[StrictStr] = Field(default=None, description="PodGroupReplicaKey specifies the replica key of the PodGroup to which this Pod belongs. It is used to distinguish pods belonging to different replicas of the same pod group. The pod group policy is applied separately to each replica. When set, it must be a DNS label.", alias="podGroupReplicaKey")
-    __properties: ClassVar[List[str]] = ["name", "podGroup", "podGroupReplicaKey"]
+    selector: StrictStr = Field(description="selector is the shard selector string from the request, echoed back so clients can verify which shard they received and merge responses from multiple shards.")
+    __properties: ClassVar[List[str]] = ["selector"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -49,7 +47,7 @@ class IoK8sApiCoreV1WorkloadReference(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1WorkloadReference from a JSON string"""
+        """Create an instance of IoK8sApimachineryPkgApisMetaV1ShardInfo from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -74,7 +72,7 @@ class IoK8sApiCoreV1WorkloadReference(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1WorkloadReference from a dict"""
+        """Create an instance of IoK8sApimachineryPkgApisMetaV1ShardInfo from a dict"""
         if obj is None:
             return None
 
@@ -82,9 +80,7 @@ class IoK8sApiCoreV1WorkloadReference(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "podGroup": obj.get("podGroup"),
-            "podGroupReplicaKey": obj.get("podGroupReplicaKey")
+            "selector": obj.get("selector")
         })
         return _obj
 

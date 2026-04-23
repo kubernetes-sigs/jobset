@@ -38,7 +38,9 @@ class TestIoK8sApimachineryPkgApisMetaV1ListMeta(unittest.TestCase):
                 var_continue = '',
                 remaining_item_count = 56,
                 resource_version = '',
-                self_link = ''
+                self_link = '',
+                shard_info = jobset.models.io/k8s/apimachinery/pkg/apis/meta/v1/shard_info.io.k8s.apimachinery.pkg.apis.meta.v1.ShardInfo(
+                    selector = '', )
             )
         else:
             return IoK8sApimachineryPkgApisMetaV1ListMeta(
