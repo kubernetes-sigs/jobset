@@ -205,7 +205,9 @@
           "x-kubernetes-list-map-keys": [
             "name"
           ],
-          "x-kubernetes-list-type": "map"
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "name",
+          "x-kubernetes-patch-strategy": "merge"
         },
         "startupPolicy": {
           "description": "startupPolicy configures in what order jobs must be started Deprecated: StartupPolicy is deprecated, please use the DependsOn API.",
@@ -249,7 +251,9 @@
           "x-kubernetes-list-map-keys": [
             "type"
           ],
-          "x-kubernetes-list-type": "map"
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
         },
         "currentInPlaceRestartAttempt": {
           "description": "currentInPlaceRestartAttempt tracks the current in-place restart attempt of the JobSet. It is read by the agent. If the in-place restart attempt of the Pod is equal to currentInPlaceRestartAttempt, the agent should lift its barrier to allow the worker container to start running.",
@@ -271,7 +275,9 @@
           "x-kubernetes-list-map-keys": [
             "name"
           ],
-          "x-kubernetes-list-type": "map"
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "name",
+          "x-kubernetes-patch-strategy": "merge"
         },
         "restarts": {
           "description": "restarts tracks the number of times the JobSet has been globally restarted. That is, restarts is the number of times the restart action RestartJobSet or RestartJobSetAndIgnoreMaxRestarts have been executed and led to the recreation of all Jobs.",
@@ -324,7 +330,9 @@
           "x-kubernetes-list-map-keys": [
             "name"
           ],
-          "x-kubernetes-list-type": "map"
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "name",
+          "x-kubernetes-patch-strategy": "merge"
         },
         "groupName": {
           "description": "groupName defines the name of the group this ReplicatedJob belongs to. Defaults to \"default\"",
