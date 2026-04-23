@@ -2,6 +2,7 @@
 
 [![GoReport Widget]][GoReport Status]
 [![Latest Release](https://img.shields.io/github/v/release/kubernetes-sigs/jobset?include_prereleases)](https://github.com/kubernetes-sigs/jobset/releases/latest)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kubernetes-sigs/jobset)
 
 [GoReport Widget]: https://goreportcard.com/badge/github.com/kubernetes-sigs/jobset
 [GoReport Status]: https://goreportcard.com/report/github.com/kubernetes-sigs/jobset
