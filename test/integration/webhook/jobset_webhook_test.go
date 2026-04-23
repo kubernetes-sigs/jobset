@@ -753,5 +753,29 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			jobSetCreationShouldFail: true,
 		}),
+		ginkgo.Entry("invalid Job template spec (missing volumeMount mountPath) should be rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("invalid-job-template", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: corev1.RestartPolicyOnFailure,
+								Containers: []corev1.Container{
+									{
+										Name:  "test-container",
+										Image: "busybox:latest",
+										VolumeMounts: []corev1.VolumeMount{
+											{
+												Name: "data",
+											},
+										},
+									},
+								},
+							}).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
 	) // end of DescribeTable
 }) // end of Describe
