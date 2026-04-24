@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/go-logr/logr"
 	"k8s.io/utils/clock"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -441,6 +442,22 @@ func updateReplicatedJobsStatuses(js *jobset.JobSet, statuses []jobset.Replicate
 	updateStatusOpts.shouldUpdate = true
 }
 
+// validateAndGetReplicatedJobName validates that a job has the required ReplicatedJobName label
+// and that it corresponds to a valid ReplicatedJob in the JobSet.
+// Returns the replicatedJobName and a boolean indicating if validation passed.
+func validateAndGetReplicatedJobName(log logr.Logger, job *batchv1.Job, replicatedJobsReady map[string]map[string]int32) (string, bool) {
+	if job.Labels == nil || job.Labels[jobset.ReplicatedJobNameKey] == "" {
+		log.Error(fmt.Errorf("job %s missing ReplicatedJobName label", job.Name), "can't update status")
+		return "", false
+	}
+	replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
+	if replicatedJobsReady[replicatedJobName] == nil {
+		log.Error(fmt.Errorf("job %s has ReplicatedJobName %s that is not part of JobSet", job.Name, replicatedJobName), "can't update status", "job", job.Name, "replicatedJobName", replicatedJobName)
+		return "", false
+	}
+	return replicatedJobName, true
+}
+
 // calculateReplicatedJobStatuses uses the JobSet's child jobs to update the statuses
 // of each of its replicatedJobs.
 func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, js *jobset.JobSet, jobs *childJobs) []jobset.ReplicatedJobStatus {
@@ -460,18 +477,12 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 
 	// Calculate jobsReady for each Replicated Job
 	for _, job := range jobs.active {
-		if job.Labels == nil || job.Labels[jobset.ReplicatedJobNameKey] == "" {
-			log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label, can't update status", job.Name))
-			continue
-		}
-		replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
-		if replicatedJobsReady[replicatedJobName] == nil {
-			log.Error(nil, fmt.Sprintf("job %s has ReplicatedJobName %s that is not part of JobSet", job.Name, replicatedJobName))
+		replicatedJobName, ok := validateAndGetReplicatedJobName(log, job, replicatedJobsReady)
+		if !ok {
 			continue
 		}
 		ready := ptr.Deref(job.Status.Ready, 0)
-		// parallelism is always set as it is otherwise defaulted by k8s to 1
-		podsCount := *(job.Spec.Parallelism)
+		podsCount := ptr.Deref(job.Spec.Parallelism, 1)
 		if job.Spec.Completions != nil && *job.Spec.Completions < podsCount {
 			podsCount = *job.Spec.Completions
 		}
@@ -488,13 +499,8 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 
 	// Calculate succeededJobs
 	for _, job := range jobs.successful {
-		if job.Labels == nil || job.Labels[jobset.ReplicatedJobNameKey] == "" {
-			log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label, can't update status", job.Name))
-			continue
-		}
-		replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
-		if replicatedJobsReady[replicatedJobName] == nil {
-			log.Error(nil, fmt.Sprintf("job %s has ReplicatedJobName %s that is not part of JobSet", job.Name, replicatedJobName))
+		replicatedJobName, ok := validateAndGetReplicatedJobName(log, job, replicatedJobsReady)
+		if !ok {
 			continue
 		}
 		replicatedJobsReady[replicatedJobName]["succeeded"]++
@@ -502,13 +508,8 @@ func (r *JobSetReconciler) calculateReplicatedJobStatuses(ctx context.Context, j
 
 	// Calculate failedJobs
 	for _, job := range jobs.failed {
-		if job.Labels == nil || job.Labels[jobset.ReplicatedJobNameKey] == "" {
-			log.Error(nil, fmt.Sprintf("job %s missing ReplicatedJobName label, can't update status", job.Name))
-			continue
-		}
-		replicatedJobName := job.Labels[jobset.ReplicatedJobNameKey]
-		if replicatedJobsReady[replicatedJobName] == nil {
-			log.Error(nil, fmt.Sprintf("job %s has ReplicatedJobName %s that is not part of JobSet", job.Name, replicatedJobName))
+		replicatedJobName, ok := validateAndGetReplicatedJobName(log, job, replicatedJobsReady)
+		if !ok {
 			continue
 		}
 		replicatedJobsReady[replicatedJobName]["failed"]++
