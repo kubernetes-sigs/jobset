@@ -7,6 +7,7 @@ export NAMESPACE="jobset-system"
 export JOBSET_E2E_TESTS_DUMP_NAMESPACE=true
 # E2E config folder to use (defaults to "default")
 export E2E_TARGET_FOLDER="${E2E_TARGET_FOLDER:-default}"
+export E2E_TEST_PATH="${E2E_TEST_PATH:-./test/e2e/...}"
 
 # Use a temporary KUBECONFIG so that the script does not mess with the current user's kubeconfig.
 KUBECONFIG=""
@@ -52,4 +53,4 @@ trap cleanup EXIT
 startup
 kind_load
 jobset_deploy
-$GINKGO --junit-report=junit.xml --output-dir=$ARTIFACTS -v ./test/e2e/...
+$GINKGO --junit-report=junit.xml --output-dir=$ARTIFACTS -v $E2E_TEST_PATH
