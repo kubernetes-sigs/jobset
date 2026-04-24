@@ -46,6 +46,13 @@ const (
 	// recover from failures (i.e., failed Jobs) by recreating only the failed Job instead of all Jobs
 	// as in `RestartJobSet`.
 	RestartJob featuregate.Feature = "RestartJob"
+
+	// owner: @aniket2405
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/463-ElasticJobsets/README.md
+	//
+	// ElasticJobSet enables the mutation of parallelism and completions for ReplicatedJobs
+	// to support dynamic horizontal pod-level scaling.
+	ElasticJobSet featuregate.Feature = "ElasticJobSet"
 )
 
 func init() {
@@ -64,6 +71,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	TLSOptions: {Default: true, PreRelease: featuregate.Beta},
 
 	RestartJob: {Default: false, PreRelease: featuregate.Alpha},
+
+	ElasticJobSet: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {

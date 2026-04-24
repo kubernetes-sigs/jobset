@@ -212,6 +212,14 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		}
 	}
 
+	// Opportunistically patch existing active jobs for pod-level scaling
+	if features.Enabled(features.ElasticJobSet) {
+		if err := r.syncJobScaling(ctx, js, ownedJobs.active); err != nil {
+			log.Error(err, "syncing job scaling")
+			return ctrl.Result{}, err
+		}
+	}
+
 	// If job has not failed or succeeded, reconcile the state of the replicatedJobs.
 	if err := r.reconcileReplicatedJobs(ctx, js, ownedJobs, rjobStatuses, updateStatusOpts); err != nil {
 		log.Error(err, "creating jobs")
@@ -818,6 +826,78 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 		log.V(2).Info("successfully created headless service", "service", klog.KObj(&headlessSvc))
 	}
 	return nil
+}
+
+// syncJobScaling applies in-place updates to the parallelism and completions of existing active child jobs
+// to match the desired state in the JobSet template (Elastic Indexed Jobs).
+func (r *JobSetReconciler) syncJobScaling(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job) error {
+
+	if !features.Enabled(features.ElasticJobSet) {
+		return nil
+	}
+
+	log := ctrl.LoggerFrom(ctx)
+	var finalErrs []error
+
+	// Lookup map for the desired scaling configurations
+	type scalingConfig struct {
+		parallelism *int32
+		completions *int32
+	}
+	desiredScaling := make(map[string]scalingConfig)
+	for _, rjob := range js.Spec.ReplicatedJobs {
+		desiredScaling[rjob.Name] = scalingConfig{
+			parallelism: rjob.Template.Spec.Parallelism,
+			completions: rjob.Template.Spec.Completions,
+		}
+	}
+
+	// Iterate through active jobs and patch them if their scaling configuration is out of sync
+	for _, job := range activeJobs {
+		rjobName, ok := job.Labels[jobset.ReplicatedJobNameKey]
+		if !ok {
+			continue // Skip if label is missing
+		}
+
+		desired, exists := desiredScaling[rjobName]
+		if !exists {
+			continue
+		}
+
+		if jobScalingNeedsPatch(job, desired.parallelism, desired.completions) {
+			patch := client.MergeFrom(job.DeepCopy())
+			job.Spec.Parallelism = desired.parallelism
+			job.Spec.Completions = desired.completions
+
+			log.V(2).Info("Patching child Job for horizontal pod scaling",
+				"job", klog.KObj(job),
+				"parallelism", ptr.Deref(desired.parallelism, 0),
+				"completions", ptr.Deref(desired.completions, 0))
+
+			if err := r.Patch(ctx, job, patch); err != nil {
+				finalErrs = append(finalErrs, fmt.Errorf("failed to patch job %q for scaling: %w", job.Name, err))
+			}
+		}
+	}
+
+	return errors.Join(finalErrs...)
+}
+
+// jobScalingNeedsPatch evaluates whether a job's parallelism or completions
+// are out of sync with the desired state. It also guarantees we only trigger
+// a patch if the desired state is valid for Elastic Indexed Jobs (P == C).
+func jobScalingNeedsPatch(job *batchv1.Job, desiredParallelism, desiredCompletions *int32) bool {
+	// Parallelism and Completions should be equal for elastic scaling.
+	// If the desired state is out of sync with itself, it's an invalid configuration.
+	if !ptr.Equal(desiredParallelism, desiredCompletions) {
+		return false
+	}
+
+	// 2. Check if the Job has drifted from the desired state.
+	parallelismChanged := !ptr.Equal(job.Spec.Parallelism, desiredParallelism)
+	completionsChanged := !ptr.Equal(job.Spec.Completions, desiredCompletions)
+
+	return parallelismChanged || completionsChanged
 }
 
 // executeSuccessPolicy checks the completed jobs against the jobset success policy
