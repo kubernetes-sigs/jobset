@@ -23,7 +23,7 @@ fullnameOverride: ""
 commonLabels: {}
 image:
   # -- Image repository.
-  repository: us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset
+  repository: registry.k8s.io/jobset/jobset
   # -- Image pull policy.
   pullPolicy: Always
   # -- Image pull secrets for private image registry.

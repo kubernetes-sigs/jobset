@@ -23,7 +23,7 @@ function cleanup {
         $KIND delete cluster --name $KIND_CLUSTER_NAME || { echo "You need to run make kind-image-build before this script"; exit -1; }
         rm "$KUBECONFIG"
     fi
-    (cd config/components/manager && $KUSTOMIZE edit set image controller=us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset:main)
+    (cd config/components/manager && $KUSTOMIZE edit set image controller=registry.k8s.io/jobset/jobset:main)
 }
 function startup {
     if [ $USE_EXISTING_CLUSTER == 'false' ] 

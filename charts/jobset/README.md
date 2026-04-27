@@ -70,7 +70,7 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | nameOverride | string | `""` | String to partially override release name. |
 | fullnameOverride | string | `""` | String to fully override release name. |
 | commonLabels | object | `{}` | Common labels to add to the jobset resources. |
-| image.repository | string | `"us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset"` | Image repository. |
+| image.repository | string | `"registry.k8s.io/jobset/jobset"` | Image repository. |
 | image.pullPolicy | string | `"Always"` | Image pull policy. |
 | image.pullSecrets | list | `[]` | Image pull secrets for private image registry. |
 | image.tag | string | `"main"` |  |
