@@ -306,6 +306,7 @@ clean-artifacts:
 
 .PHONY: artifacts
 artifacts: clean-artifacts kustomize helm yq helm-chart-package ## Generate release artifacts.
+	cd config/components/manager && $(KUSTOMIZE) edit set image controller=${IMAGE_TAG}
 	$(KUSTOMIZE) build config/default -o artifacts/manifests.yaml
 	$(KUSTOMIZE) build config/prometheus -o artifacts/prometheus.yaml
 	@$(call clean-manifests)
