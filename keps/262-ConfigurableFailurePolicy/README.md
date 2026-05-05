@@ -666,6 +666,12 @@ Status
 ```go
 // JobSetStatus defines the observed state of JobSet
 type JobSetStatus struct {
+	// conditions track status
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
 	// restarts tracks the number of times the JobSet has been globally restarted.
 	// That is, restarts is the number of times the restart action RestartJobSet or RestartJobSetAndIgnoreMaxRestarts have been executed and led to the recreation of all Jobs.
 	// +optional
@@ -676,6 +682,8 @@ type JobSetStatus struct {
 	// +optional
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 }
+
+The `RestartingJobSet` condition in `jobSet.status.conditions` tracks the in-progress state of a global restart (recreate-all-jobs). It transitions to `True` with reason `FailurePolicy_{RuleName}` or `DefaultFailurePolicy` when a global restart is triggered (i.e., action `RestartJobSet` or `RestartJobSetAndIgnoreMaxRestarts`) and transitions to `False` with reason `JobsReady` once all recreated jobs are ready or `JobSetCompleted`/`JobSetFailed`/`JobSetSuspended` if the JobSet finishes or is suspended during the restart.
 
 // ReplicatedJobStatus defines the observed ReplicatedJobs Readiness.
 type ReplicatedJobStatus struct {
@@ -778,7 +786,6 @@ Observability:
 
 - `jobSet.status.restarts`, `jobSet.status.restartsCountTowardsMax` and `job.labels['jobset.sigs.k8s.io/restart-attempt']` track only recreate-all-jobs restarts
 - `jobSet.status.replicatedJobsStatus[].jobRestarts`, `jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax` and `job.labels['jobset.sigs.k8s.io/job-restart-attempt']` track only recreate-single-job restarts
-- `RestartingJobSet` condition in `jobSet.status.conditions` tracks the in-progress state of a global restart (recreate-all-jobs). It transitions to `True` with reason `FailurePolicy_{RuleName}` or `DefaultFailurePolicy` when a global restart is triggered (i.e., action `RestartJobSet` or `RestartJobSetAndIgnoreMaxRestarts`) and transitions to `False` with reason `JobsReady` once all recreated jobs are ready or `JobSetCompleted`/`JobSetFailed`/`JobSetSuspended` if the JobSet finishes or is suspended during the restart.
 
 Future changes:
 
