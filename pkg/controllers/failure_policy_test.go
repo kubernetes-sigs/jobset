@@ -491,7 +491,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 					RestartsCountTowardsMax: 1,
 				}).
 				Obj(),
-			matchingFailedJob:   matchingFailedJob,
+			matchingFailedJob: matchingFailedJob,
 			rule: &jobset.FailurePolicyRule{
 				Name:   "Rule1",
 				Action: jobset.RestartJobSet,
