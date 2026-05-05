@@ -85,6 +85,18 @@ const (
 	// Event reason and messages related to JobSet restarts.
 	JobSetRestartReason = "Restarting"
 
+	// Condition reasons related to JobSet restarts.
+	RestartingJobSetReasonDefaultFailurePolicy = "DefaultFailurePolicy"
+	RestartingJobSetReasonFailurePolicyFormat  = "FailurePolicy_%s"
+	RestartingJobSetReasonJobsReady            = "JobsReady"
+	RestartingJobSetReasonJobSetFailed         = "JobSetFailed"
+	RestartingJobSetReasonJobSetCompleted      = "JobSetCompleted"
+	RestartingJobSetReasonJobSetSuspended      = "JobSetSuspended"
+
+	// Condition messages related to JobSet restarts.
+	RestartingJobSetReasonJobsReadyMessage    = "all jobs are ready"
+	RestartingJobSetReasonJobSetFailedMessage = "jobset failed"
+
 	// Event reason and messages related to suspending a JobSet.
 	JobSetSuspendedReason  = "SuspendedJobs"
 	JobSetSuspendedMessage = "jobset is suspended"

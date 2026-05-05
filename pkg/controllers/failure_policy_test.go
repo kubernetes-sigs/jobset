@@ -439,6 +439,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 		enableRestartJob     bool
 		jobSet               *jobset.JobSet
 		matchingFailedJob    *batchv1.Job
+		rule                 *jobset.FailurePolicyRule
 		failurePolicyAction  jobset.FailurePolicyAction
 		expectedJobSetStatus jobset.JobSetStatus
 	}{
@@ -472,6 +473,40 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 2,
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetRestarting),
+						Status: metav1.ConditionTrue,
+						Reason: constants.RestartingJobSetReasonDefaultFailurePolicy,
+					},
+				},
+			},
+		},
+		{
+			name:             "RestartJobSet when restarts < maxRestarts with matching rule sets FailurePolicy_{RuleName} reason",
+			enableRestartJob: true,
+			jobSet: testutils.MakeJobSet("test-js", "default").FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                1,
+					RestartsCountTowardsMax: 1,
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			rule: &jobset.FailurePolicyRule{
+				Name:   "Rule1",
+				Action: jobset.RestartJobSet,
+			},
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                2,
+				RestartsCountTowardsMax: 2,
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetRestarting),
+						Status: metav1.ConditionTrue,
+						Reason: "FailurePolicy_Rule1",
+					},
+				},
 			},
 		},
 		{
@@ -514,6 +549,13 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 1, // not incremented
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetRestarting),
+						Status: metav1.ConditionTrue,
+						Reason: constants.RestartingJobSetReasonDefaultFailurePolicy,
+					},
+				},
 			},
 		},
 		{
@@ -667,7 +709,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.enableRestartJob)
 			updateStatusOpts := &statusUpdateOpts{}
 			jobSetCopy := tc.jobSet.DeepCopy()
-			err := applyFailurePolicyRuleAction(context.TODO(), jobSetCopy, tc.matchingFailedJob, updateStatusOpts, tc.failurePolicyAction)
+			err := applyFailurePolicyRuleAction(context.TODO(), jobSetCopy, tc.matchingFailedJob, tc.rule, updateStatusOpts, tc.failurePolicyAction)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

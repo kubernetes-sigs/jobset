@@ -296,3 +296,21 @@ func removeJobSetFinalizer(js *jobset.JobSet, finalizer string) {
 		}
 	}
 }
+
+func JobSetRestarting(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, status metav1.ConditionStatus, reason string, timeout time.Duration) {
+	ginkgo.By(fmt.Sprintf("checking jobset status is restarting: %v (reason: %s)", status, reason))
+	gomega.Eventually(checkJobSetRestartingCondition, timeout, interval).WithArguments(ctx, k8sClient, js, status, reason).Should(gomega.Equal(true))
+}
+
+func checkJobSetRestartingCondition(ctx context.Context, k8sClient client.Client, js *jobset.JobSet, status metav1.ConditionStatus, reason string) (bool, error) {
+	var fetchedJS jobset.JobSet
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: js.Namespace, Name: js.Name}, &fetchedJS); err != nil {
+		return false, err
+	}
+	for _, c := range fetchedJS.Status.Conditions {
+		if c.Type == string(jobset.JobSetRestarting) && c.Status == status && c.Reason == reason {
+			return true, nil
+		}
+	}
+	return false, nil
+}

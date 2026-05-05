@@ -1179,12 +1179,55 @@ func TestUpdateConditions(t *testing.T) {
 			opts:           makeCompletedConditionsOpts(),
 			expectedUpdate: false,
 		},
+		{
+			name: "existing conditions, update reason/message but keep status same",
+			js: testutils.MakeJobSet(jobSetName, ns).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					Obj()).
+				Conditions([]metav1.Condition{
+					{
+						Type:    string(jobset.JobSetRestarting),
+						Reason:  constants.RestartingJobSetReasonDefaultFailurePolicy,
+						Message: "old message",
+						Status:  metav1.ConditionTrue,
+					},
+				}).Obj(),
+			opts: &conditionOpts{
+				condition: &metav1.Condition{
+					Type:    string(jobset.JobSetRestarting),
+					Reason:  "NewReason",
+					Message: "new message",
+					Status:  metav1.ConditionTrue,
+				},
+			},
+			expectedUpdate: true,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			var oldTime *metav1.Time
+			var oldStatus *metav1.ConditionStatus
+			for _, c := range tc.js.Status.Conditions {
+				if tc.opts.condition != nil && c.Type == tc.opts.condition.Type {
+					oldTime = &c.LastTransitionTime
+					status := c.Status
+					oldStatus = &status
+				}
+			}
 			gotUpdate := updateCondition(tc.js, tc.opts)
 			if gotUpdate != tc.expectedUpdate {
 				t.Errorf("updateCondition return mismatch (want: %v, got %v)", tc.expectedUpdate, gotUpdate)
+			}
+			if gotUpdate && tc.opts.condition != nil && oldTime != nil && oldStatus != nil {
+				for _, c := range tc.js.Status.Conditions {
+					if c.Type == tc.opts.condition.Type {
+						if *oldStatus == c.Status && c.LastTransitionTime != *oldTime {
+							t.Errorf("LastTransitionTime changed when status did not change")
+						}
+					}
+				}
 			}
 		})
 	}

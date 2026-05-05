@@ -182,6 +182,10 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		return ctrl.Result{}, err
 	}
 
+	if !jobSetSuspended(js) && allJobsReady(js, rjobStatuses) {
+		setRestartingConditionFalse(js, constants.RestartingJobSetReasonJobsReady, constants.RestartingJobSetReasonJobsReadyMessage, updateStatusOpts)
+	}
+
 	// If any jobs have failed, execute the JobSet failure policy (if any).
 	if len(ownedJobs.failed) > 0 {
 		if err := executeFailurePolicy(ctx, js, ownedJobs, updateStatusOpts); err != nil {
@@ -1131,6 +1135,18 @@ func jobSetFinished(js *jobset.JobSet) bool {
 	return false
 }
 
+func allJobsReady(js *jobset.JobSet, rjobStatuses []jobset.ReplicatedJobStatus) bool {
+	totalReplicas := 0
+	readyReplicas := 0
+	for _, rjSpec := range js.Spec.ReplicatedJobs {
+		totalReplicas += int(rjSpec.Replicas)
+	}
+	for _, rjStatus := range rjobStatuses {
+		readyReplicas += int(rjStatus.Ready + rjStatus.Succeeded)
+	}
+	return totalReplicas == readyReplicas
+}
+
 func jobSetMarkedForDeletion(js *jobset.JobSet) bool {
 	return js.DeletionTimestamp != nil
 }
@@ -1226,9 +1242,12 @@ func updateCondition(js *jobset.JobSet, opts *conditionOpts) bool {
 			if newCond.Status != currCond.Status {
 				js.Status.Conditions[i] = newCond
 				shouldUpdate = true
+			} else if newCond.Reason != currCond.Reason || newCond.Message != currCond.Message {
+				newCond.LastTransitionTime = currCond.LastTransitionTime
+				js.Status.Conditions[i] = newCond
+				shouldUpdate = true
 			}
 
-			// If both are true or both are false, this is a duplicate condition, do nothing.
 			found = true
 		} else {
 			// If conditions are of different types, only perform an update if they are both true
@@ -1254,6 +1273,7 @@ func updateCondition(js *jobset.JobSet, opts *conditionOpts) bool {
 // setJobSetCompletedCondition sets a condition and terminal state on the JobSet status indicating it has completed.
 func setJobSetCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeCompletedConditionsOpts(), updateStatusOpts)
+	setRestartingConditionFalse(js, constants.RestartingJobSetReasonJobSetCompleted, constants.AllJobsCompletedMessage, updateStatusOpts)
 	js.Status.TerminalState = string(jobset.JobSetCompleted)
 	// Update the metrics
 	metrics.JobSetCompleted(js.Name, js.Namespace)
@@ -1262,12 +1282,26 @@ func setJobSetCompletedCondition(js *jobset.JobSet, updateStatusOpts *statusUpda
 // setJobSetSuspendedCondition sets a condition on the JobSet status indicating it is currently suspended.
 func setJobSetSuspendedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeSuspendedConditionOpts(), updateStatusOpts)
+	setRestartingConditionFalse(js, constants.RestartingJobSetReasonJobSetSuspended, constants.JobSetSuspendedMessage, updateStatusOpts)
 }
 
 // setJobSetResumedCondition sets a condition on the JobSet status indicating it has been resumed.
 // This updates the "suspended" condition type from "true" to "false."
 func setJobSetResumedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
 	setCondition(js, makeResumedConditionOpts(), updateStatusOpts)
+}
+
+func setRestartingConditionFalse(js *jobset.JobSet, reason, message string, updateStatusOpts *statusUpdateOpts) {
+	condOpts := &conditionOpts{
+		eventType: corev1.EventTypeNormal,
+		condition: &metav1.Condition{
+			Type:    string(jobset.JobSetRestarting),
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		},
+	}
+	setCondition(js, condOpts, updateStatusOpts)
 }
 
 // completedConditionsOpts contains the options we use to generate the JobSet completed condition.

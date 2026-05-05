@@ -750,6 +750,45 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
+		ginkgo.Entry("jobset restarting condition transitions", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Name:                "Rule1",
+								Action:              jobset.RestartJobSet,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: func(ctx context.Context, c client.Client, js *jobset.JobSet, timeout time.Duration) {
+						testutil.JobSetActive(ctx, c, js, timeout)
+						testutil.JobSetRestarting(ctx, c, js, metav1.ConditionTrue, "FailurePolicy_Rule1", timeout)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyAllJobs(jobList)
+					},
+					checkJobSetCondition: func(ctx context.Context, c client.Client, js *jobset.JobSet, timeout time.Duration) {
+						testutil.JobSetRestarting(ctx, c, js, metav1.ConditionFalse, "JobsReady", timeout)
+					},
+				},
+			},
+		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action (with RestartJob feature gate).", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
@@ -3461,6 +3500,12 @@ func readyJob(job *batchv1.Job) {
 		Active: *job.Spec.Parallelism,
 		Ready:  job.Spec.Parallelism,
 	})
+}
+
+func readyAllJobs(jobList *batchv1.JobList) {
+	for i := range jobList.Items {
+		readyJob(&jobList.Items[i])
+	}
 }
 
 // removeForegroundDeletionFinalizers will continually fetch the child jobs for a
