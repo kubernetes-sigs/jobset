@@ -138,8 +138,7 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicy(ref common.ReferenceCallbac
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicyRule"),
+										Ref: ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.FailurePolicyRule"),
 									},
 								},
 							},
@@ -183,9 +182,8 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref common.ReferenceCal
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
+										Type:   []string{"string"},
+										Format: "",
 									},
 								},
 							},
@@ -198,9 +196,8 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref common.ReferenceCal
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
+										Type:   []string{"string"},
+										Format: "",
 									},
 								},
 							},
@@ -218,9 +215,8 @@ func schema_jobset_api_jobset_v1alpha2_FailurePolicyRule(ref common.ReferenceCal
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
+										Type:   []string{"string"},
+										Format: "",
 									},
 								},
 							},
@@ -316,8 +312,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetList(ref common.ReferenceCallback) 
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSet"),
+										Ref: ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.JobSet"),
 									},
 								},
 							},
@@ -356,8 +351,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob"),
+										Ref: ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJob"),
 									},
 								},
 							},
@@ -426,8 +420,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeClaimPolicy"),
+										Ref: ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.VolumeClaimPolicy"),
 									},
 								},
 							},
@@ -465,8 +458,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+										Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
 									},
 								},
 							},
@@ -511,8 +503,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJobStatus"),
+										Ref: ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJobStatus"),
 									},
 								},
 							},
@@ -625,8 +616,7 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJob(ref common.ReferenceCallbac
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.DependsOn"),
+										Ref: ref("sigs.k8s.io/jobset/api/jobset/v1alpha2.DependsOn"),
 									},
 								},
 							},
@@ -708,9 +698,8 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref common.ReferenceC
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: 0,
-										Type:    []string{"integer"},
-										Format:  "int32",
+										Type:   []string{"integer"},
+										Format: "int32",
 									},
 								},
 							},
@@ -728,9 +717,8 @@ func schema_jobset_api_jobset_v1alpha2_ReplicatedJobStatus(ref common.ReferenceC
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: 0,
-										Type:    []string{"integer"},
-										Format:  "int32",
+										Type:   []string{"integer"},
+										Format: "int32",
 									},
 								},
 							},
@@ -790,9 +778,8 @@ func schema_jobset_api_jobset_v1alpha2_SuccessPolicy(ref common.ReferenceCallbac
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
+										Type:   []string{"string"},
+										Format: "",
 									},
 								},
 							},
@@ -824,8 +811,7 @@ func schema_jobset_api_jobset_v1alpha2_VolumeClaimPolicy(ref common.ReferenceCal
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("k8s.io/api/core/v1.PersistentVolumeClaim"),
+										Ref: ref("k8s.io/api/core/v1.PersistentVolumeClaim"),
 									},
 								},
 							},
