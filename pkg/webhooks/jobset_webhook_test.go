@@ -3064,6 +3064,124 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
+	// Helper that builds a JobSet with one ReplicatedJob and the supplied
+	// JobSet-level and ReplicatedJob-template-level annotations.
+	jsWithAnnotations := func(name string, jsAnn, rjAnn map[string]string) *jobset.JobSet {
+		return &jobset.JobSet{
+			TypeMeta:   metav1.TypeMeta{Kind: "JobSet", APIVersion: "jobset.x-k8s.io/v1alpha2"},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Annotations: jsAnn},
+			Spec: jobset.JobSetSpec{
+				ReplicatedJobs: []jobset.ReplicatedJob{
+					{
+						Name:      "rjob",
+						GroupName: "default",
+						Replicas:  1,
+						Template: batchv1.JobTemplateSpec{
+							ObjectMeta: metav1.ObjectMeta{Annotations: rjAnn},
+							Spec: batchv1.JobSpec{
+								Template: validPodTemplateSpec,
+							},
+						},
+					},
+				},
+				SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+			},
+		}
+	}
+
+	exclusiveTopologyLabelKeyTests := []validationTestCase{
+		{
+			name: "exclusive-topology-label-key valid on JobSet",
+			js: jsWithAnnotations("js", map[string]string{
+				jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+				jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+			}, nil),
+			want: nil,
+		},
+		{
+			name: "exclusive-topology-label-key valid on ReplicatedJob template",
+			js: jsWithAnnotations("js", nil, map[string]string{
+				jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+				jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+			}),
+			want: nil,
+		},
+		{
+			name: "exclusive-topology-label-key without exclusive-topology on JobSet rejected",
+			js: jsWithAnnotations("js", map[string]string{
+				jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+			}, nil),
+			want: errors.Join(fmt.Errorf(
+				"%s annotation %q is set on JobSet, but %q is not also set on the same scope",
+				jobset.ExclusiveTopologyLabelKey, "ray.io/gpu-domain", jobset.ExclusiveKey)),
+		},
+		{
+			name: "exclusive-topology-label-key with node-selector strategy on JobSet rejected",
+			js: jsWithAnnotations("js", map[string]string{
+				jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+				jobset.NodeSelectorStrategyKey:   "",
+				jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+			}, nil),
+			want: errors.Join(fmt.Errorf(
+				"%s annotation cannot be used together with %q on JobSet",
+				jobset.ExclusiveTopologyLabelKey, jobset.NodeSelectorStrategyKey)),
+		},
+		{
+			name: "exclusive-topology-label-key empty value rejected",
+			js: jsWithAnnotations("js", map[string]string{
+				jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+				jobset.ExclusiveTopologyLabelKey: "",
+			}, nil),
+			want: errors.Join(fmt.Errorf(
+				"%s annotation on JobSet must not be empty",
+				jobset.ExclusiveTopologyLabelKey)),
+		},
+		{
+			name: "exclusive-topology-label-key whitespace-padded value rejected",
+			js: jsWithAnnotations("js", map[string]string{
+				jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+				jobset.ExclusiveTopologyLabelKey: " ray.io/gpu-domain ",
+			}, nil),
+			want: errors.Join(fmt.Errorf(
+				"%s annotation on JobSet must not contain leading or trailing whitespace: %q",
+				jobset.ExclusiveTopologyLabelKey, " ray.io/gpu-domain ")),
+		},
+		{
+			name: "exclusive-topology-label-key invalid key syntax rejected",
+			js: jsWithAnnotations("js", map[string]string{
+				jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+				jobset.ExclusiveTopologyLabelKey: "Not A Valid Key",
+			}, nil),
+			// We don't pin the exact validation message; the runner asserts that
+			// each substring in want.Error() appears in the actual error.
+			want: errors.Join(fmt.Errorf(
+				"%s annotation value %q on JobSet is not a valid Kubernetes label key",
+				jobset.ExclusiveTopologyLabelKey, "Not A Valid Key")),
+		},
+		{
+			name: "exclusive-topology-label-key on ReplicatedJob without exclusive-topology rejected",
+			js: jsWithAnnotations("js", nil, map[string]string{
+				jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+			}),
+			want: errors.Join(fmt.Errorf(
+				"%s annotation %q is set on ReplicatedJob %q, but %q is not also set on the same scope",
+				jobset.ExclusiveTopologyLabelKey, "ray.io/gpu-domain", "rjob", jobset.ExclusiveKey)),
+		},
+		{
+			name: "exclusive-topology-label-key cross-scope: JobSet has node-selector strategy, ReplicatedJob has label-key",
+			js: jsWithAnnotations("js", map[string]string{
+				jobset.ExclusiveKey:            "topology.kubernetes.io/zone",
+				jobset.NodeSelectorStrategyKey: "true",
+			}, map[string]string{
+				jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+				jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+			}),
+			want: errors.Join(fmt.Errorf(
+				"%s and %s are set on different scopes for ReplicatedJob %q",
+				jobset.ExclusiveTopologyLabelKey, jobset.NodeSelectorStrategyKey, "rjob")),
+		},
+	}
+
 	testGroups := [][]validationTestCase{
 		uncategorizedTests,
 		jobsetControllerNameTests,
@@ -3071,6 +3189,7 @@ func TestValidateCreate(t *testing.T) {
 		dependsOnTests,
 		volumeClaimPolicyTests,
 		inPlaceRestartTests,
+		exclusiveTopologyLabelKeyTests,
 	}
 	var testCases []validationTestCase
 	for _, testGroup := range testGroups {
@@ -3904,6 +4023,49 @@ func TestValidateUpdate(t *testing.T) {
 				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
 			}.ToAggregate(),
 			enableElasticJobSet: true,
+		},
+		{
+			// Annotations are mutable on JobSets. A user can post a valid JobSet
+			// then add an invalid exclusive-topology-label-key pairing via
+			// kubectl annotate. The new validator must catch this on update.
+			name: "update adds exclusive-topology-label-key without exclusive-topology, rejected",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec:       jobset.JobSetSpec{ReplicatedJobs: validReplicatedJobs},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+					},
+				},
+				Spec: jobset.JobSetSpec{ReplicatedJobs: validReplicatedJobs},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("metadata", "annotations"), jobset.ExclusiveTopologyLabelKey,
+					fmt.Sprintf(
+						"%s annotation %q is set on JobSet, but %q is not also set on the same scope",
+						jobset.ExclusiveTopologyLabelKey, "ray.io/gpu-domain", jobset.ExclusiveKey)),
+			}.ToAggregate(),
+		},
+		{
+			name: "update adds valid exclusive-topology + exclusive-topology-label-key pairing, accepted",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec:       jobset.JobSetSpec{ReplicatedJobs: validReplicatedJobs},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+						jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+					},
+				},
+				Spec: jobset.JobSetSpec{ReplicatedJobs: validReplicatedJobs},
+			},
+			want: nil,
 		},
 	}
 

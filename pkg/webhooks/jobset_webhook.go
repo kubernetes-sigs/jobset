@@ -305,7 +305,94 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, js.Spec.VolumeClaimPolicies)...)
 	}
 
+	// Validate the exclusive-topology-label-key annotation, if set at the JobSet
+	// level or on any ReplicatedJob template.
+	allErrs = append(allErrs, validateExclusiveTopologyLabelKeyAnnotations(js)...)
+
 	return nil, invalidError(js.Name, allErrs)
+}
+
+// validateExclusiveTopologyLabelKeyAnnotations enforces that the alpha
+// "exclusive-topology-label-key" annotation is only set in valid combinations.
+//
+// Per-scope checks (JobSet and each ReplicatedJob template) reject:
+//   - the annotation set without exclusive-topology on the same scope,
+//   - the annotation set together with node-selector strategy on the same scope,
+//   - an empty value, whitespace-padded value, or a value that fails
+//     validation.IsQualifiedName.
+//
+// A cross-scope check rejects splitting the new annotation and
+// node-selector strategy across JobSet and ReplicatedJob template scopes,
+// because the controller propagates both onto the pod and the pod mutating
+// webhook then short-circuits on node-selector strategy before publishing
+// the label.
+func validateExclusiveTopologyLabelKeyAnnotations(js *jobset.JobSet) []error {
+	var errs []error
+	check := func(scope string, annotations map[string]string) {
+		v, ok := annotations[jobset.ExclusiveTopologyLabelKey]
+		if !ok {
+			return
+		}
+		if _, hasExclusive := annotations[jobset.ExclusiveKey]; !hasExclusive {
+			errs = append(errs, fmt.Errorf(
+				"%s annotation %q is set on %s, but %q is not also set on the same scope",
+				jobset.ExclusiveTopologyLabelKey, v, scope, jobset.ExclusiveKey))
+		}
+		if _, hasNodeSelector := annotations[jobset.NodeSelectorStrategyKey]; hasNodeSelector {
+			errs = append(errs, fmt.Errorf(
+				"%s annotation cannot be used together with %q on %s",
+				jobset.ExclusiveTopologyLabelKey, jobset.NodeSelectorStrategyKey, scope))
+		}
+		if v == "" {
+			errs = append(errs, fmt.Errorf(
+				"%s annotation on %s must not be empty",
+				jobset.ExclusiveTopologyLabelKey, scope))
+			return
+		}
+		if strings.TrimSpace(v) != v {
+			errs = append(errs, fmt.Errorf(
+				"%s annotation on %s must not contain leading or trailing whitespace: %q",
+				jobset.ExclusiveTopologyLabelKey, scope, v))
+		}
+		for _, msg := range validation.IsQualifiedName(v) {
+			errs = append(errs, fmt.Errorf(
+				"%s annotation value %q on %s is not a valid Kubernetes label key: %s",
+				jobset.ExclusiveTopologyLabelKey, v, scope, msg))
+		}
+	}
+	check("JobSet", js.Annotations)
+	for i := range js.Spec.ReplicatedJobs {
+		rjob := &js.Spec.ReplicatedJobs[i]
+		check(fmt.Sprintf("ReplicatedJob %q", rjob.Name), rjob.Template.Annotations)
+	}
+
+	// Cross-scope check: ExclusiveTopologyLabelKey and NodeSelectorStrategyKey
+	// target different placement strategies and are mutually exclusive. The
+	// per-scope check above catches the case where both are set on the same
+	// scope; this loop catches the cross-scope split. The runtime failure
+	// mode is silent: labelAndAnnotateObject merges JobSet- and
+	// ReplicatedJob-level annotations onto the pod, and the pod webhook
+	// then bails on NodeSelectorStrategyKey before publishing the label.
+	for i := range js.Spec.ReplicatedJobs {
+		rjob := &js.Spec.ReplicatedJobs[i]
+		_, jsHasETLK := js.Annotations[jobset.ExclusiveTopologyLabelKey]
+		_, rjHasETLK := rjob.Template.Annotations[jobset.ExclusiveTopologyLabelKey]
+		_, jsHasNSS := js.Annotations[jobset.NodeSelectorStrategyKey]
+		_, rjHasNSS := rjob.Template.Annotations[jobset.NodeSelectorStrategyKey]
+		if (jsHasETLK || rjHasETLK) && (jsHasNSS || rjHasNSS) {
+			sameScopeJS := jsHasETLK && jsHasNSS
+			sameScopeRJ := rjHasETLK && rjHasNSS
+			if !sameScopeJS && !sameScopeRJ {
+				errs = append(errs, fmt.Errorf(
+					"%s and %s are set on different scopes for ReplicatedJob %q "+
+						"(JobSet vs. ReplicatedJob template); they are mutually exclusive",
+					jobset.ExclusiveTopologyLabelKey,
+					jobset.NodeSelectorStrategyKey,
+					rjob.Name))
+			}
+		}
+	}
+	return errs
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
@@ -394,6 +481,13 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJs.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))...)
 	errs = append(errs, apivalidation.ValidateImmutableField(newJs.Spec.ManagedBy, oldJs.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
+
+	// Validate the exclusive-topology-label-key annotation, if set. We check on
+	// every update because annotations are mutable and a user could otherwise add
+	// an invalid pairing after creation.
+	for _, err := range validateExclusiveTopologyLabelKeyAnnotations(newJs) {
+		errs = append(errs, field.Invalid(field.NewPath("metadata", "annotations"), jobset.ExclusiveTopologyLabelKey, err.Error()))
+	}
 
 	if len(errs) == 0 {
 		return nil, nil

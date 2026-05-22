@@ -566,6 +566,62 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			jobSetCreationShouldFail: true,
 		}),
+		ginkgo.Entry("exclusive-topology-label-key annotation set together with exclusive-topology is accepted", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("etl-key-valid", ns.Name).
+					SetAnnotations(map[string]string{
+						jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+						jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: false,
+		}),
+		ginkgo.Entry("exclusive-topology-label-key annotation without exclusive-topology is rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("etl-key-without-et", ns.Name).
+					SetAnnotations(map[string]string{
+						jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("exclusive-topology-label-key annotation with node-selector strategy is rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("etl-key-with-ns-strategy", ns.Name).
+					SetAnnotations(map[string]string{
+						jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+						jobset.NodeSelectorStrategyKey:   "true",
+						jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("exclusive-topology-label-key annotation with invalid key syntax is rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("etl-key-invalid-syntax", ns.Name).
+					SetAnnotations(map[string]string{
+						jobset.ExclusiveKey:              "topology.kubernetes.io/zone",
+						jobset.ExclusiveTopologyLabelKey: "Not A Valid Key",
+					}).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
 		ginkgo.Entry("VolumeClaimPolicies defaults are applied when empty", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("volume-claim-policies", ns.Name).
