@@ -1,0 +1,37 @@
+title: Publish resolved exclusive-topology value as a pod label
+kep-number: NNNN  # assigned by maintainers
+authors:
+  - "@abatilo"
+status: provisional
+creation-date: 2026-05-13
+reviewers:
+  - TBD
+approvers:
+  - TBD
+
+see-also:
+  - "NA"
+replaces:
+  - "NA"
+
+# The target maturity stage in the current dev cycle for this KEP.
+stage: alpha
+
+# The most recent milestone for which work toward delivery of this KEP has been
+# done. This can be the current (upcoming) milestone, if it is being actively
+# worked on.
+latest-milestone: "v0.13.0"
+
+# The milestone at which this feature was, or is targeted to be, at each stage.
+milestone:
+  alpha: "v0.13.0"
+
+# This KEP intentionally does not introduce a feature gate. The new annotation
+# `alpha.jobset.sigs.k8s.io/exclusive-topology-label-key` is opt-in and only
+# takes effect for workloads that have also opted into the existing
+# `alpha.jobset.sigs.k8s.io/exclusive-topology` annotation. With both keys
+# absent the controller code path runs identically to today. Operators disable
+# the feature for a JobSet by removing the annotation; there is no cluster-wide
+# enable/disable knob.
+feature-gates: []
+disable-supported: false
