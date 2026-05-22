@@ -406,6 +406,309 @@ func TestDefault(t *testing.T) {
 			wantPod: nil,
 			wantErr: apierrors.NewNotFound(schema.GroupResource{Group: "", Resource: "nodes"}, "node-a"),
 		},
+		{
+			name: "follower pod with exclusive-topology-label-key annotation, publishes label",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-1-follower",
+					Namespace: "default",
+					Labels: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+					},
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":                        "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology":           "topology.kubernetes.io/zone",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology-label-key": "ray.io/gpu-domain",
+						"batch.kubernetes.io/job-completion-index":              "1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+				Spec: corev1.PodSpec{
+					Priority: ptr.To(int32(100)),
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "js-rjob-0-0-leader",
+						Namespace: "default",
+						Labels: map[string]string{
+							"jobset.sigs.k8s.io/jobset-name":        "js",
+							"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+							"jobset.sigs.k8s.io/job-index":          "0",
+						},
+						Annotations: map[string]string{
+							"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+							"batch.kubernetes.io/job-completion-index":    "0",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+						},
+					},
+					Spec: corev1.PodSpec{NodeName: "node-a"},
+				},
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "node-a",
+						Labels: map[string]string{"topology.kubernetes.io/zone": "zone-a"},
+					},
+				},
+			},
+			wantPod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-1-follower",
+					Namespace: "default",
+					Labels: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+						"jobset.sigs.k8s.io/priority":           "100",
+						"ray.io/gpu-domain":                     "zone-a",
+					},
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":                        "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology":           "topology.kubernetes.io/zone",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology-label-key": "ray.io/gpu-domain",
+						"batch.kubernetes.io/job-completion-index":              "1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+				Spec: corev1.PodSpec{
+					Priority:     ptr.To(int32(100)),
+					NodeSelector: map[string]string{"topology.kubernetes.io/zone": "zone-a"},
+				},
+			},
+		},
+		{
+			name: "follower pod with exclusive-topology-label-key, existing label same value",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-1-follower",
+					Namespace: "default",
+					Labels: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+						"ray.io/gpu-domain":                     "zone-a", // already correct
+					},
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":                        "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology":           "topology.kubernetes.io/zone",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology-label-key": "ray.io/gpu-domain",
+						"batch.kubernetes.io/job-completion-index":              "1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+				Spec: corev1.PodSpec{
+					Priority: ptr.To(int32(100)),
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "js-rjob-0-0-leader",
+						Namespace: "default",
+						Labels: map[string]string{
+							"jobset.sigs.k8s.io/jobset-name":        "js",
+							"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+							"jobset.sigs.k8s.io/job-index":          "0",
+						},
+						Annotations: map[string]string{
+							"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+							"batch.kubernetes.io/job-completion-index":    "0",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+						},
+					},
+					Spec: corev1.PodSpec{NodeName: "node-a"},
+				},
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "node-a",
+						Labels: map[string]string{"topology.kubernetes.io/zone": "zone-a"},
+					},
+				},
+			},
+			wantPod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-1-follower",
+					Namespace: "default",
+					Labels: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+						"jobset.sigs.k8s.io/priority":           "100",
+						"ray.io/gpu-domain":                     "zone-a",
+					},
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":                        "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology":           "topology.kubernetes.io/zone",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology-label-key": "ray.io/gpu-domain",
+						"batch.kubernetes.io/job-completion-index":              "1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+				Spec: corev1.PodSpec{
+					Priority:     ptr.To(int32(100)),
+					NodeSelector: map[string]string{"topology.kubernetes.io/zone": "zone-a"},
+				},
+			},
+		},
+		{
+			name: "follower pod with exclusive-topology-label-key, existing label different value, rejected",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-1-follower",
+					Namespace: "default",
+					Labels: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+						"ray.io/gpu-domain":                     "wrong-zone",
+					},
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":                        "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology":           "topology.kubernetes.io/zone",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology-label-key": "ray.io/gpu-domain",
+						"batch.kubernetes.io/job-completion-index":              "1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+				Spec: corev1.PodSpec{
+					Priority: ptr.To(int32(100)),
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "js-rjob-0-0-leader",
+						Namespace: "default",
+						Labels: map[string]string{
+							"jobset.sigs.k8s.io/jobset-name":        "js",
+							"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+							"jobset.sigs.k8s.io/job-index":          "0",
+						},
+						Annotations: map[string]string{
+							"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+							"batch.kubernetes.io/job-completion-index":    "0",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+						},
+					},
+					Spec: corev1.PodSpec{NodeName: "node-a"},
+				},
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "node-a",
+						Labels: map[string]string{"topology.kubernetes.io/zone": "zone-a"},
+					},
+				},
+			},
+			wantPod: nil,
+			wantErr: fmt.Errorf(`cannot set pod label "ray.io/gpu-domain": already has a different value`),
+		},
+		{
+			name: "leader pod with exclusive-topology-label-key, leader is not labeled",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-0-leader",
+					Namespace: "default",
+					Labels: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+						"jobset.sigs.k8s.io/job-key":            "job-key-1",
+					},
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":                        "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology":           "topology.kubernetes.io/zone",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology-label-key": "ray.io/gpu-domain",
+						"batch.kubernetes.io/job-completion-index":              "0",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+			},
+			wantPod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js-rjob-0-0-leader",
+					Namespace: "default",
+					Labels: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":        "js",
+						"jobset.sigs.k8s.io/replicatedjob-name": "rjob",
+						"jobset.sigs.k8s.io/job-index":          "0",
+						"jobset.sigs.k8s.io/job-key":            "job-key-1",
+					},
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name":                        "js",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology":           "topology.kubernetes.io/zone",
+						"alpha.jobset.sigs.k8s.io/exclusive-topology-label-key": "ray.io/gpu-domain",
+						"batch.kubernetes.io/job-completion-index":              "0",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{UID: types.UID("job-uid-1"), Kind: "Job", Controller: ptr.To(true)},
+					},
+				},
+				Spec: corev1.PodSpec{
+					Affinity: &corev1.Affinity{
+						PodAffinity: &corev1.PodAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+								{
+									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+										{
+											Key:      "jobset.sigs.k8s.io/job-key",
+											Operator: metav1.LabelSelectorOpIn,
+											Values:   []string{"job-key-1"},
+										},
+									}},
+									TopologyKey:       "topology.kubernetes.io/zone",
+									NamespaceSelector: &metav1.LabelSelector{},
+								},
+							},
+						},
+						PodAntiAffinity: &corev1.PodAntiAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+								{
+									LabelSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+										{
+											Key:      "jobset.sigs.k8s.io/job-key",
+											Operator: metav1.LabelSelectorOpExists,
+										},
+										{
+											Key:      "jobset.sigs.k8s.io/job-key",
+											Operator: metav1.LabelSelectorOpNotIn,
+											Values:   []string{"job-key-1"},
+										},
+										{
+											Key:      "jobset.sigs.k8s.io/priority",
+											Operator: metav1.LabelSelectorOpIn,
+											Values:   []string{""},
+										},
+									}},
+									TopologyKey:       "topology.kubernetes.io/zone",
+									NamespaceSelector: &metav1.LabelSelector{},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	scheme := runtime.NewScheme()
@@ -425,9 +728,22 @@ func TestDefault(t *testing.T) {
 			podCopy := tc.pod.DeepCopy()
 			err := p.Default(context.Background(), podCopy)
 
-			if diff := cmp.Diff(tc.wantErr, err); diff != "" {
-				fmt.Printf("%+v", err)
-				t.Errorf("error mismatch (-want +got):\n%s", diff)
+			// Compare error messages by string rather than cmp.Diff: this test
+			// has both typed apierrors values and ad-hoc fmt.Errorf values, and
+			// cmp.Diff panics on the unexported errorString field of the
+			// latter. The .Error() string is what users see and is sufficient
+			// for these assertions; this matches the pattern used by the
+			// JobSet ValidateCreate test runner in this package.
+			gotErrStr := ""
+			if err != nil {
+				gotErrStr = err.Error()
+			}
+			wantErrStr := ""
+			if tc.wantErr != nil {
+				wantErrStr = tc.wantErr.Error()
+			}
+			if gotErrStr != wantErrStr {
+				t.Errorf("error mismatch:\n  want: %q\n  got:  %q", wantErrStr, gotErrStr)
 			}
 
 			if tc.wantPod == nil {

@@ -174,6 +174,33 @@ func (p *podWebhook) setNodeSelector(ctx context.Context, pod *corev1.Pod) error
 	}
 	log.V(2).Info(fmt.Sprintf("setting nodeSelector %s: %s to follow leader pod %s", topologyKey, topologyValue, leaderPod.Name))
 	pod.Spec.NodeSelector[topologyKey] = topologyValue
+
+	// If the user opted in, publish the resolved topology value onto the pod as a
+	// label under their chosen key, so the container can read it via the Downward API.
+	if outKey, ok := pod.Annotations[jobset.ExclusiveTopologyLabelKey]; ok && outKey != "" {
+		log.V(2).Info(fmt.Sprintf("setting label %s: %s to follow leader pod %s", outKey, topologyValue, leaderPod.Name))
+		if err := setExclusiveTopologyLabel(pod, outKey, topologyValue); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// setExclusiveTopologyLabel writes the resolved topology value onto the pod as a
+// label under the user-selected key. Returns an error if the label already
+// exists on the pod with a different value (caller surfaces this as an
+// admission rejection).
+//
+// The conflict error deliberately does not name the existing value so the
+// rejection cannot be used as an oracle for node label values.
+func setExclusiveTopologyLabel(pod *corev1.Pod, key, value string) error {
+	if pod.Labels == nil {
+		pod.Labels = map[string]string{}
+	}
+	if existing, has := pod.Labels[key]; has && existing != value {
+		return fmt.Errorf("cannot set pod label %q: already has a different value", key)
+	}
+	pod.Labels[key] = value
 	return nil
 }
 
