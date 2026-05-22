@@ -71,102 +71,21 @@ Before you begin, ensure you have the following set up in your GKE cluster:
 
 3.  **Configure Kueue:**
 
-    Create the necessary Kueue and Kubernetes resources to manage the TPU workloads. This includes defining a `ResourceFlavor` for the TPUs and setting up queues.
+    Create the necessary Kueue and Kubernetes resources to manage the TPU workloads. This includes defining a `ResourceFlavor` for the TPUs and setting up queues. For more details on these configurations, see the [Kueue and GKE integration documentation](https://docs.cloud.google.com/kubernetes-engine/docs/tutorials/tpu-multislice-kueue).
 
-    ```yaml
-    # kueue-config.yaml
-    apiVersion: kueue.x-k8s.io/v1beta1
-    kind: ResourceFlavor
-    metadata:
-      name: v6e-4x4
-    spec:
-      nodeLabels:
-        cloud.google.com/gke-tpu-accelerator: tpu-v6e-slice
-        cloud.google.com/gke-tpu-topology: 4x4
-    ---
-    apiVersion: kueue.x-k8s.io/v1beta1
-    kind: ClusterQueue
-    metadata:
-      name: multislice-cluster-queue
-    spec:
-      namespaceSelector: {}
-      queueingStrategy: BestEffortFIFO
-      resourceGroups:
-      - coveredResources: ["google.com/tpu"]
-        flavors:
-        - name: "v6e-4x4"
-          resources:
-          - name: "google.com/tpu"
-            nominalQuota: "32" # 2 slices * 16 chips/slice = 32
-    ---
-    apiVersion: kueue.x-k8s.io/v1beta1
-    kind: LocalQueue
-    metadata:
-      namespace: default # Or the namespace where you will run your JobSet
-      name: multislice-queue
-    spec:
-      clusterQueue: multislice-cluster-queue
-    ```
-    
+    {{< include "examples/tpu-multislice/kueue-config.yaml" "yaml" >}}
+
     Apply the configurations:
 
     ```bash
     kubectl apply -f kueue-config.yaml
     ```
 
-### Example JobSet
+    ### Example JobSet
 
-The following example runs a distributed JAX workload across **2 slices** of **TPU Trillium (v6e)**. It demonstrates how to integrate with Kueue's WorkloadPriorityClass and configure the specialized networking required for v6e machines.
+    The following example runs a distributed JAX workload across **2 slices** of **TPU Trillium (v6e)**. It demonstrates how to integrate with Kueue's WorkloadPriorityClass and configure the specialized networking required for v6e machines. For the latest configuration options, refer to the [GKE TPU Multislice tutorial](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/tpu-multislice).
 
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: v6e-multislice
-  labels:
-    # Kueue integration: Routes the workload to a specific LocalQueue
-    kueue.x-k8s.io/queue-name: multislice-queue
-  annotations:
-    # Ensures 1:1 mapping between child Jobs and physical TPU Node Pools
-    alpha.jobset.sigs.k8s.io/exclusive-topology: cloud.google.com/gke-nodepool
-spec:
-  failurePolicy:
-    # Synchronous JAX training requires JobSet to restart if any node fails
-    maxRestarts: 4
-  replicatedJobs:
-    - name: slice
-      # Provision 2 independent TPU v6e slices (multislice)
-      replicas: 2
-      template:
-        spec:
-          # A 4x4 v6e slice has 16 chips. With 4 chips per node, we need 4 nodes per slice.
-          parallelism: 4
-          completions: 4
-          backoffLimit: 0
-          template:
-            spec:
-              hostNetwork: true
-              dnsPolicy: ClusterFirstWithHostNet
-              nodeSelector:
-                cloud.google.com/gke-tpu-accelerator: tpu-v6e-slice
-                cloud.google.com/gke-tpu-topology: 4x4
-              containers:
-                - name: jax-tpu
-                  image: us-docker.pkg.dev/cloud-tpu-images/jax-ai-image/tpu:latest
-                  securityContext:
-                    privileged: true
-                  command:
-                    - bash
-                    - -c
-                    - |
-                      python3 -c 'import jax; print("Global device count:", jax.device_count())'
-                      sleep 60
-                  resources:
-                    limits:
-                      google.com/tpu: 4 # 4 Trillium chips per node
-```
-
-### Visualizing the Scheduling
+    {{< include "examples/tpu-multislice/v6e-jax-workload.yaml" "yaml" >}}
 
 If you create a JobSet with `replicas: 2` (2 Slices) and `parallelism: 4` (4 Nodes per Slice), JobSet creates two child Jobs:
 
@@ -215,6 +134,4 @@ The log output `Global device count: 32` confirms that the application sees all 
 
 For more detailed information and official tutorials on TPU Multislice and Kueue integration, please refer to the following resources:
 
-*   **[Deploy TPU Multislices in GKE](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/tpu-multislice)**: Official Google Cloud documentation on TPU Multislice architecture and manual deployment.
-*   **[Orchestrate TPU Multislice workloads using JobSet and Kueue](https://docs.cloud.google.com/kubernetes-engine/docs/tutorials/tpu-multislice-kueue)**: A comprehensive GKE tutorial on setting up queueing and admission for TPUs.
 *   **[Run a Kueue scheduled JobSet](https://kueue.sigs.k8s.io/docs/tasks/run/jobsets/#example-jobset)**: Official Kueue documentation detailing queue selection and resource configuration for JobSets.
