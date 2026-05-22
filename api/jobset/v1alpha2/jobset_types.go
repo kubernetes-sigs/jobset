@@ -51,8 +51,20 @@ const (
 	// ensure exclusive job placement per topology, instead of injecting pod affinity/anti-affinites for this.
 	// The user must add the JobSet name node label to the desired topologies separately.
 	NodeSelectorStrategyKey string = "alpha.jobset.sigs.k8s.io/node-selector"
-	NamespacedJobKey        string = "alpha.jobset.sigs.k8s.io/namespaced-job"
-	NoScheduleTaintKey      string = "alpha.jobset.sigs.k8s.io/no-schedule"
+	// ExclusiveTopologyLabelKey is an annotation that can be set on the JobSet or on a
+	// ReplicatedJob template. When set alongside ExclusiveKey, the JobSet pod mutating
+	// webhook copies the resolved exclusive-topology value (read from the leader pod's
+	// Node label identified by ExclusiveKey) onto follower pods under this label key,
+	// so the container can read it via the Downward API
+	// (e.g. fieldRef: metadata.labels['ray.io/gpu-domain']).
+	//
+	// Applies only to follower pods (job completion index != 0). Leader pods are not
+	// labeled because the topology value is not knowable at pod-create admission time.
+	// Requires alpha.jobset.sigs.k8s.io/exclusive-topology on the same scope.
+	// Incompatible with alpha.jobset.sigs.k8s.io/node-selector.
+	ExclusiveTopologyLabelKey string = "alpha.jobset.sigs.k8s.io/exclusive-topology-label-key"
+	NamespacedJobKey          string = "alpha.jobset.sigs.k8s.io/namespaced-job"
+	NoScheduleTaintKey        string = "alpha.jobset.sigs.k8s.io/no-schedule"
 
 	// JobSetControllerName is the reserved value for the managedBy field for the built-in
 	// JobSet controller.
