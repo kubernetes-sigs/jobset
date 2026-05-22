@@ -567,6 +567,73 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
+			name:              "exclusive placement with topology label key annotation propagation for entire JobSet",
+			restartJobEnabled: true,
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(map[string]string{
+					jobset.ExclusiveKey:              topologyDomain,
+					jobset.ExclusiveTopologyLabelKey: "ray.io/gpu-domain",
+				}).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Replicas(1).
+					GroupName("default").
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:                jobSetName,
+					replicatedJobName:         replicatedJobName + "-A",
+					groupName:                 "default",
+					jobName:                   "test-jobset-replicated-job-A-0",
+					ns:                        ns,
+					replicas:                  1,
+					jobIdx:                    0,
+					topology:                  topologyDomain,
+					exclusiveTopologyLabelKey: "ray.io/gpu-domain"}).
+					Suspend(false).Obj(),
+			},
+		},
+		{
+			// The ReplicatedJob template sets a different value for
+			// ExclusiveTopologyLabelKey than the JobSet. The propagation block
+			// in labelAndAnnotateObject runs the JobSet block first and the
+			// ReplicatedJob block second; this case asserts the
+			// ReplicatedJob-level value wins on the child Job/pod template.
+			name:              "exclusive placement with topology label key annotation propagation, ReplicatedJob template overrides JobSet",
+			restartJobEnabled: true,
+			js: testutils.MakeJobSet(jobSetName, ns).
+				SetAnnotations(map[string]string{
+					jobset.ExclusiveKey:              topologyDomain,
+					jobset.ExclusiveTopologyLabelKey: "js.example.com/topology",
+				}).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName + "-A").
+					Job(testutils.MakeJobTemplate(jobName, ns).
+						SetAnnotations(map[string]string{
+							jobset.ExclusiveKey:              topologyDomain,
+							jobset.ExclusiveTopologyLabelKey: "rj.example.com/topology",
+						}).Obj()).
+					Replicas(1).
+					GroupName("default").
+					Obj()).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:                jobSetName,
+					replicatedJobName:         replicatedJobName + "-A",
+					groupName:                 "default",
+					jobName:                   "test-jobset-replicated-job-A-0",
+					ns:                        ns,
+					replicas:                  1,
+					jobIdx:                    0,
+					topology:                  topologyDomain,
+					exclusiveTopologyLabelKey: "rj.example.com/topology"}).
+					Suspend(false).Obj(),
+			},
+		},
+		{
 			name:              "exclusive placement using nodeSelectorStrategy for entire JobSet",
 			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
@@ -1663,6 +1730,10 @@ type makeJobArgs struct {
 	omitJobRestartAttempt bool
 	topology              string
 	nodeSelectorStrategy  bool
+	// exclusiveTopologyLabelKey is the value of the
+	// alpha.jobset.sigs.k8s.io/exclusive-topology-label-key annotation that we
+	// expect to be propagated onto the child Job/pod template, or "" if absent.
+	exclusiveTopologyLabelKey string
 }
 
 // Helper function to create a Job for unit testing.
@@ -1697,6 +1768,10 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		// Exclusive placement topology domain must be set in order to use the node selector strategy.
 		if args.nodeSelectorStrategy {
 			annotations[jobset.NodeSelectorStrategyKey] = "true"
+		}
+		// Optional opt-in: publish the resolved topology value as a pod label.
+		if args.exclusiveTopologyLabelKey != "" {
+			annotations[jobset.ExclusiveTopologyLabelKey] = args.exclusiveTopologyLabelKey
 		}
 	}
 	jobWrapper := testutils.MakeJob(args.jobName, args.ns).

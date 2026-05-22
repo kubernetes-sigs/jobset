@@ -1003,7 +1003,7 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 // labelAndAnnotateObjects adds standard JobSet related labels and annotations a k8s object.
 // In practice it is used to label and annotate child Jobs and pods.
 // The same set of labels are also as added as annotations for simplicity's sake.
-// The two exceptions to this are:
+// The exceptions to this are:
 //  1. "alpha.jobset.sigs.k8s.io/exclusive-topology" which is
 //     a JobSet annoation optionally added by the user, so we only add it as an annotation
 //     to child Jobs and pods if it is defined, and do not add it as a label.
@@ -1011,6 +1011,11 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 //     annotation applied by the user to indicate they are using the
 //     nodeSelector exclusive placement strategy, where they have manually
 //     labelled the nodes ahead of time with hack/label_nodes/label_nodes.py
+//  3. "alpha.jobset.sigs.k8s.io/exclusive-topology-label-key" which is
+//     an optional annotation that, when set alongside exclusive-topology, causes the
+//     pod mutating webhook to publish the resolved topology value onto follower pods
+//     under the user-supplied label key. Like the other exclusive-placement annotations,
+//     we only propagate it as an annotation, not a label.
 func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) {
 	jobName := placement.GenJobName(js.Name, rjob.Name, jobIdx)
 
@@ -1064,6 +1069,10 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 		if value, ok := js.Annotations[jobset.NodeSelectorStrategyKey]; ok {
 			annotations[jobset.NodeSelectorStrategyKey] = value
 		}
+		// Check if the user opted in to publishing the resolved topology value as a pod label.
+		if value, ok := js.Annotations[jobset.ExclusiveTopologyLabelKey]; ok {
+			annotations[jobset.ExclusiveTopologyLabelKey] = value
+		}
 	}
 	// Check for ReplicatedJob level exclusive placement.
 	if topologyDomain, exists := rjob.Template.Annotations[jobset.ExclusiveKey]; exists {
@@ -1071,6 +1080,10 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 		// Check if we are using nodeSelectorStrategy implementation of exclusive placement at the ReplicatedJob level.
 		if value, ok := rjob.Template.Annotations[jobset.NodeSelectorStrategyKey]; ok {
 			annotations[jobset.NodeSelectorStrategyKey] = value
+		}
+		// Check if the user opted in to publishing the resolved topology value as a pod label.
+		if value, ok := rjob.Template.Annotations[jobset.ExclusiveTopologyLabelKey]; ok {
+			annotations[jobset.ExclusiveTopologyLabelKey] = value
 		}
 	}
 
