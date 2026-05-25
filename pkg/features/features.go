@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// owner: @giuseppett
+	// owner: @GiuseppeTT
 	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/467-InPlaceRestart/README.md
 	//
 	// Enables in-place restart, allowing JobSet workloads to restart much faster by restarting
@@ -38,6 +38,21 @@ const (
 	//
 	// Enables TLSOptions for TLSMinVersion and CipherSuites for JobSet servers.
 	TLSOptions featuregate.Feature = "TLSOptions"
+
+	// owner: @GiuseppeTT
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/262-ConfigurableFailurePolicy/README.md
+	//
+	// Enables the restart actions `RestartJob` and `RestartJobAndIgnoreMaxRestarts`, allowing JobSet to
+	// recover from failures (i.e., failed Jobs) by recreating only the failed Job instead of all Jobs
+	// as in `RestartJobSet`.
+	RestartJob featuregate.Feature = "RestartJob"
+
+	// owner: @aniket2405
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/463-ElasticJobsets/README.md
+	//
+	// ElasticJobSet enables the mutation of parallelism and completions for ReplicatedJobs
+	// to support dynamic horizontal pod-level scaling.
+	ElasticJobSet featuregate.Feature = "ElasticJobSet"
 )
 
 func init() {
@@ -54,6 +69,10 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	InPlaceRestart: {Default: false, PreRelease: featuregate.Alpha},
 
 	TLSOptions: {Default: true, PreRelease: featuregate.Beta},
+
+	RestartJob: {Default: false, PreRelease: featuregate.Alpha},
+
+	ElasticJobSet: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {

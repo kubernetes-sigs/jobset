@@ -108,22 +108,14 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	// Set up JobSet webhook and indexes.
+	// Set up JobSet and pod webhook indexes.
 	err = controllers.SetupJobSetIndexes(ctx, mgr.GetFieldIndexer())
 	Expect(err).NotTo(HaveOccurred())
 
-	jobSetWebhook, err := webhooks.NewJobSetWebhook(mgr.GetClient())
-	Expect(err).NotTo(HaveOccurred())
-
-	err = jobSetWebhook.SetupWebhookWithManager(mgr)
-	Expect(err).NotTo(HaveOccurred())
-
-	// Set up pod webhook and indexes.
-	podWebhook := webhooks.NewPodWebhook(mgr.GetClient())
 	err = controllers.SetupPodIndexes(ctx, mgr.GetFieldIndexer())
 	Expect(err).NotTo(HaveOccurred())
 
-	err = podWebhook.SetupWebhookWithManager(mgr)
+	err = webhooks.Setup(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:webhook

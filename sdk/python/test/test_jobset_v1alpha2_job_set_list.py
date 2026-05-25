@@ -168,6 +168,12 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                                     active = 56, 
                                     failed = 56, 
+                                    job_restarts = [
+                                        56
+                                        ], 
+                                    job_restarts_count_towards_max = [
+                                        56
+                                        ], 
                                     name = '', 
                                     ready = 56, 
                                     succeeded = 56, 
@@ -182,7 +188,9 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                     continue = '', 
                     remaining_item_count = 56, 
                     resource_version = '', 
-                    self_link = '', )
+                    self_link = '', 
+                    shard_info = jobset.models.io/k8s/apimachinery/pkg/apis/meta/v1/shard_info.io.k8s.apimachinery.pkg.apis.meta.v1.ShardInfo(
+                        selector = '', ), )
             )
         else:
             return JobsetV1alpha2JobSetList(
@@ -318,6 +326,12 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                                     active = 56, 
                                     failed = 56, 
+                                    job_restarts = [
+                                        56
+                                        ], 
+                                    job_restarts_count_towards_max = [
+                                        56
+                                        ], 
                                     name = '', 
                                     ready = 56, 
                                     succeeded = 56, 

@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -800,10 +801,7 @@ func TestJobSetDefaulting(t *testing.T) {
 	}
 
 	fakeClient := fake.NewFakeClient()
-	webhook, err := NewJobSetWebhook(fakeClient)
-	if err != nil {
-		t.Fatalf("error creating jobset webhook: %v", err)
-	}
+	webhook := &jobSetWebhook{client: fakeClient}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := tc.js.DeepCopyObject()
@@ -820,6 +818,7 @@ func TestJobSetDefaulting(t *testing.T) {
 type validationTestCase struct {
 	name                 string
 	enableInPlaceRestart bool
+	enableRestartJob     bool
 	js                   *jobset.JobSet
 	want                 error
 	existingObjs         []runtime.Object // objects to pre-populate in the fake client
@@ -1751,6 +1750,146 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: fmt.Errorf("spec will lead to invalid label value"),
+		},
+		{
+			name:             "jobset failure policy rule has RestartJob action and a replicated job with replicas > 1024",
+			enableRestartJob: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1025,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action: jobset.RestartJob,
+								Name:   "restartJobRule",
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 1024"),
+			),
+		},
+		{
+			name:             "jobset failure policy rule has RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 1024",
+			enableRestartJob: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1025,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action: jobset.RestartJobAndIgnoreMaxRestarts,
+								Name:   "restartJobAndIgnoreMaxRestartsRule",
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > 1024"),
+			),
+		},
+		{
+			name:             "jobset failure policy rule has RestartJob action and RestartJob feature gate is disabled",
+			enableRestartJob: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action: jobset.RestartJob,
+								Name:   "restartJobRule",
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when RestartJob feature gate is disabled"),
+			),
+		},
+		{
+			name:             "jobset failure policy rule has RestartJobAndIgnoreMaxRestarts action and RestartJob feature gate is disabled",
+			enableRestartJob: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					FailurePolicy: &jobset.FailurePolicy{
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action: jobset.RestartJobAndIgnoreMaxRestarts,
+								Name:   "restartJobAndIgnoreMaxRestartsRule",
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when RestartJob feature gate is disabled"),
+			),
 		},
 	}
 
@@ -2942,14 +3081,21 @@ func TestValidateCreate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a new client with existing objects if provided
 			testClient := fake.NewFakeClient(tc.existingObjs...)
-			testWebhook, err := NewJobSetWebhook(testClient)
-			if err != nil {
-				t.Fatalf("error creating jobset webhook: %v", err)
-			}
+			testWebhook := &jobSetWebhook{client: testClient}
 			features.SetFeatureGateDuringTest(t, features.InPlaceRestart, tc.enableInPlaceRestart)
-			_, err = testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
+			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.enableRestartJob)
+			_, err := testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
 			if err != nil && tc.want != nil {
-				assert.Contains(t, err.Error(), tc.want.Error())
+				// Verify it's specifically a 422 StatusError
+				var statusErr *apierrors.StatusError
+				require.ErrorAs(t, err, &statusErr, "expected *apierrors.StatusError")
+				assert.Equal(t, int32(422), statusErr.ErrStatus.Code)
+				assert.Equal(t, metav1.StatusReasonInvalid, statusErr.ErrStatus.Reason)
+
+				// Verify all expected error substrings are present
+				for _, wantErr := range strings.Split(tc.want.Error(), "\n") {
+					assert.Contains(t, err.Error(), wantErr)
+				}
 			} else if err != nil && tc.want == nil {
 				t.Errorf("unexpected error: %v", err)
 			} else if err == nil && tc.want != nil {
@@ -2984,10 +3130,11 @@ func TestValidateUpdate(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name  string
-		oldJs *jobset.JobSet
-		js    *jobset.JobSet
-		want  error
+		name                string
+		oldJs               *jobset.JobSet
+		js                  *jobset.JobSet
+		want                error
+		enableElasticJobSet bool
 	}{
 		{
 			name: "update suspend",
@@ -3303,19 +3450,487 @@ func TestValidateUpdate(t *testing.T) {
 				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
 			}.ToAggregate(),
 		},
+		{
+			name: "valid scaling of parallelism and completions",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](8),
+									Completions:    ptr.To[int32](8),
+								},
+							},
+						},
+					},
+				},
+			},
+			enableElasticJobSet: true,
+		},
+		{
+			name: "invalid scaling of parallelism to < 1",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](0),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "parallelism"), int32(0), "parallelism must be >= 1"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "invalid scaling of completions to < 1",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To[int32](0),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "completions"), int32(0), "completions must be >= 1"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "cannot scale parallelism if JobSet is Completed",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+				Status: jobset.JobSetStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(jobset.JobSetCompleted),
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](4),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Forbidden(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec"), "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "cannot scale completions if JobSet is Failed",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+				Status: jobset.JobSetStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(jobset.JobSetFailed),
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name: "test-jobset-replicated-job-0",
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To[int32](4),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Forbidden(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec"), "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "immutability still enforced for other fields during valid scale",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2, // immutable field modified
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](4), // Valid scale operation
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "invalid scaling of parallelism and completions when feature gate is disabled",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Completions: ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](8),
+									Completions: ptr.To[int32](8),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+			enableElasticJobSet: false, // Feature gate disabled
+		},
+		{
+			name: "invalid scaling: parallelism and completions must be equal",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](4),
+									Completions:    ptr.To[int32](5), // mismatch
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "completions"), int32(5), "completions must be equal to parallelism for Elastic Indexed Jobs"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "adding a new ReplicatedJob while suspended does not panic and is rejected",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "job-a",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2)}},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "job-a",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2)}},
+						},
+						{
+							Name:     "job-b", // New job added
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2)}},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+		},
+		{
+			name: "reordering ReplicatedJobs evaluates ElasticJobSet scaling correctly by name",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "job-a",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2), Completions: ptr.To[int32](2)}},
+						},
+						{
+							Name:     "job-b",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2), Completions: ptr.To[int32](2)}},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "job-b", // Swapped order
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](2), Completions: ptr.To[int32](2)}},
+						},
+						{
+							Name:     "job-a",
+							Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](4), Completions: ptr.To[int32](4)}}, // Valid scaling operation
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				// We do not expect elastic scaling errors (e.g. parallelism mismatch)
+				// proving that the webhook correctly mapped Job A to Job A and Job B to Job B.
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "invalid scaling: immutability enforced for NonIndexed jobs even when ElasticJobSet is enabled",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.NonIndexedCompletion),
+									Parallelism:    ptr.To[int32](4), // Attempting to scale a NonIndexed job
+									Completions:    ptr.To[int32](4),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				// Because it's NonIndexed, the webhook doesn't mask the fields,
+				// so the standard immutability check catches it.
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClient := fake.NewFakeClient()
-			webhook, err := NewJobSetWebhook(fakeClient)
-			assert.Nil(t, err)
+			webhook := &jobSetWebhook{client: fakeClient}
+			features.SetFeatureGateDuringTest(t, features.ElasticJobSet, tc.enableElasticJobSet)
 			newObj := tc.js.DeepCopy()
 			oldObj := tc.oldJs.DeepCopy()
-			_, err = webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
-			// Ignore bad value to keep test cases short and readable.
-			if diff := cmp.Diff(tc.want, err, cmpopts.IgnoreFields(field.Error{}, "BadValue")); diff != "" {
-				t.Errorf("ValidateResources() mismatch (-want +got):\n%s", diff)
+			_, err := webhook.ValidateUpdate(context.TODO(), oldObj, newObj)
+			if err != nil && tc.want != nil {
+				var statusErr *apierrors.StatusError
+				require.ErrorAs(t, err, &statusErr, "expected *apierrors.StatusError")
+				assert.Equal(t, int32(422), statusErr.ErrStatus.Code)
+				assert.Equal(t, metav1.StatusReasonInvalid, statusErr.ErrStatus.Reason)
+
+				for _, cause := range statusErr.ErrStatus.Details.Causes {
+					assert.Contains(t, tc.want.Error(), cause.Field)
+					parts := strings.Split(cause.Message, ": ")
+					coreReason := parts[len(parts)-1]
+					assert.Contains(t, tc.want.Error(), coreReason)
+				}
+			} else if err != nil && tc.want == nil {
+				t.Errorf("unexpected error: %v", err)
+			} else if err == nil && tc.want != nil {
+				t.Errorf("missing expected error: %v", tc.want)
 			}
 		})
 	}

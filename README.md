@@ -2,6 +2,7 @@
 
 [![GoReport Widget]][GoReport Status]
 [![Latest Release](https://img.shields.io/github/v/release/kubernetes-sigs/jobset?include_prereleases)](https://github.com/kubernetes-sigs/jobset/releases/latest)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kubernetes-sigs/jobset)
 
 [GoReport Widget]: https://goreportcard.com/badge/github.com/kubernetes-sigs/jobset
 [GoReport Status]: https://goreportcard.com/report/github.com/kubernetes-sigs/jobset
@@ -57,7 +58,7 @@ efficiently and improve ML training goodput.
 To install the latest release of JobSet in your cluster, run the following command:
 
 ```shell
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.11.1/manifests.yaml
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.12.0/manifests.yaml
 ```
 
 The controller runs in the `jobset-system` namespace.

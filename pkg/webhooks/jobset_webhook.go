@@ -27,7 +27,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -67,6 +69,14 @@ const (
 	// Error message returned by JobSet validation if the network subdomain
 	// will be longer than 63 characters.
 	subdomainTooLongErrMsg = ".spec.network.subdomain is too long, must be less than 63 characters"
+
+	// maxReplicasPerReplicatedJob limits the number of replicas when using the RestartJob action.
+	// The limit is based on the 1024 MaxItems of the JobRestarts field in ReplicatedJobStatus.
+	// See api/jobset/v1alpha2/jobset_types.go for more details.
+	maxReplicasPerReplicatedJob = 1024
+
+	// Default rule name for FailurePolicy
+	defaultRuleNameFmt = "failurePolicyRule%v"
 )
 
 // validOnJobFailureReasons stores supported values of the reason field of the condition of
@@ -82,23 +92,20 @@ var validOnJobFailureReasons = []string{
 
 //+kubebuilder:webhook:path=/mutate-jobset-x-k8s-io-v1alpha2-jobset,mutating=true,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create,versions=v1alpha2,name=mjobset.kb.io,admissionReviewVersions=v1
 
-// jobSetWebhook for defaulting and admission.
+// jobSetWebhook for defaulting and admission of JobSet.
 type jobSetWebhook struct {
 	client client.Client
 }
 
-func NewJobSetWebhook(mgrClient client.Client) (*jobSetWebhook, error) {
-	return &jobSetWebhook{client: mgrClient}, nil
-}
+var _ admission.Defaulter[*jobset.JobSet] = (*jobSetWebhook)(nil)
+var _ admission.Validator[*jobset.JobSet] = (*jobSetWebhook)(nil)
 
-func (j *jobSetWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func setupWebhookForJobSet(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, &jobset.JobSet{}).
-		WithDefaulter(j).
-		WithValidator(j).
+		WithDefaulter(&jobSetWebhook{client: mgr.GetClient()}).
+		WithValidator(&jobSetWebhook{client: mgr.GetClient()}).
 		Complete()
 }
-
-const defaultRuleNameFmt = "failurePolicyRule%v"
 
 // Default performs defaulting of jobset values as defined in the JobSet API.
 func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
@@ -283,7 +290,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 
 	// Validate failure policy
 	if js.Spec.FailurePolicy != nil {
-		failurePolicyErrors := validateFailurePolicy(js.Spec.FailurePolicy, rJobNames)
+		failurePolicyErrors := validateFailurePolicy(js, rJobNames)
 		allErrs = append(allErrs, failurePolicyErrors...)
 	}
 
@@ -298,36 +305,109 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, js.Spec.VolumeClaimPolicies)...)
 	}
 
-	return nil, errors.Join(allErrs...)
+	return nil, invalidError(js.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJS, js *jobset.JobSet) (admission.Warnings, error) {
-	mungedSpec := js.Spec.DeepCopy()
+func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset.JobSet) (admission.Warnings, error) {
+	mungedSpec := newJs.Spec.DeepCopy()
+	var errs field.ErrorList
+
+	// Create a map of old ReplicatedJobs by name for safe lookup
+	oldJobsMap := make(map[string]*jobset.ReplicatedJob)
+	for i := range oldJs.Spec.ReplicatedJobs {
+		rjob := &oldJs.Spec.ReplicatedJobs[i]
+		oldJobsMap[rjob.Name] = rjob
+	}
+
+	// Elastic JobSet Validation
+	if features.Enabled(features.ElasticJobSet) {
+		// Check if the JobSet is in a terminal state (Completed or Failed)
+		isTerminal := meta.IsStatusConditionTrue(oldJs.Status.Conditions, string(jobset.JobSetCompleted)) ||
+			meta.IsStatusConditionTrue(oldJs.Status.Conditions, string(jobset.JobSetFailed))
+
+		for index := range newJs.Spec.ReplicatedJobs {
+			newRJob := &newJs.Spec.ReplicatedJobs[index]
+
+			// Safely grab the old replicated job by Name
+			oldRJob, exists := oldJobsMap[newRJob.Name]
+			if !exists {
+				continue // Skip if this is a new job
+			}
+
+			rJobPath := field.NewPath("spec", "replicatedJobs").Index(index).Child("template", "spec")
+
+			// Only allow elastic scaling for Indexed jobs.
+			isIndexedJob := newRJob.Template.Spec.CompletionMode != nil && *newRJob.Template.Spec.CompletionMode == batchv1.IndexedCompletion
+
+			if isIndexedJob {
+				// Check if parallelism and completions have changed
+				parallelismChanged := !ptr.Equal(newRJob.Template.Spec.Parallelism, oldRJob.Template.Spec.Parallelism)
+				completionsChanged := !ptr.Equal(newRJob.Template.Spec.Completions, oldRJob.Template.Spec.Completions)
+
+				if parallelismChanged || completionsChanged {
+					if isTerminal {
+						errs = append(errs, field.Forbidden(rJobPath, "Cannot mutate parallelism or completions when JobSet is in a terminal state (Completed or Failed)"))
+					} else {
+						if parallelismChanged && newRJob.Template.Spec.Parallelism != nil && *newRJob.Template.Spec.Parallelism < 1 {
+							errs = append(errs, field.Invalid(rJobPath.Child("parallelism"), *newRJob.Template.Spec.Parallelism, "parallelism must be >= 1"))
+						}
+						if completionsChanged && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Completions < 1 {
+							errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be >= 1"))
+						}
+						if newRJob.Template.Spec.Parallelism != nil && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Parallelism != *newRJob.Template.Spec.Completions {
+							errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be equal to parallelism for Elastic Indexed Jobs"))
+						}
+					}
+				}
+
+				// Mask parallelism and completions in mungedSpec to bypass the strict immutability check
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Parallelism = oldRJob.Template.Spec.Parallelism
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Completions = oldRJob.Template.Spec.Completions
+			}
+		}
+	}
 
 	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
 	// This is needed for integration with Kueue/DWS.
-	if ptr.Deref(oldJS.Spec.Suspend, false) || ptr.Deref(js.Spec.Suspend, false) {
-		for index := range js.Spec.ReplicatedJobs {
+	if ptr.Deref(oldJs.Spec.Suspend, false) || ptr.Deref(newJs.Spec.Suspend, false) {
+		for index := range newJs.Spec.ReplicatedJobs {
+			newRJob := &newJs.Spec.ReplicatedJobs[index]
+
+			// Safely grab the old replicated job by Name to prevent panics on length mismatch
+			oldRJob, exists := oldJobsMap[newRJob.Name]
+			if !exists {
+				continue
+			}
+
 			// Pod values which must be mutable for Kueue are defined here: https://github.com/kubernetes-sigs/kueue/blob/a50d395c36a2cb3965be5232162cf1fded1bdb08/apis/kueue/v1beta1/workload_types.go#L256-L260
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Annotations
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Labels
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Annotations = oldRJob.Template.Spec.Template.Annotations
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Labels = oldRJob.Template.Spec.Template.Labels
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.NodeSelector = oldRJob.Template.Spec.Template.Spec.NodeSelector
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Tolerations = oldRJob.Template.Spec.Template.Spec.Tolerations
 
 			// Pod Scheduling Gates can be updated for batch/v1 Job: https://github.com/kubernetes/kubernetes/blob/ceb58a4dbc671b9d0a2de6d73a1616bc0c299863/pkg/apis/batch/validation/validation.go#L662
-			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldJS.Spec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates
+			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldRJob.Template.Spec.Template.Spec.SchedulingGates
 		}
 	}
 
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
-	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJS.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ManagedBy, oldJS.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
-	return nil, errs.ToAggregate()
+	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJs.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))...)
+	errs = append(errs, apivalidation.ValidateImmutableField(newJs.Spec.ManagedBy, oldJs.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
+
+	if len(errs) == 0 {
+		return nil, nil
+	}
+
+	return nil, apierrors.NewInvalid(
+		schema.GroupKind{Group: "jobset.x-k8s.io", Kind: "JobSet"},
+		newJs.Name,
+		errs,
+	)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (j *jobSetWebhook) ValidateDelete(ctx context.Context, obj *jobset.JobSet) (admission.Warnings, error) {
+func (j *jobSetWebhook) ValidateDelete(ctx context.Context, js *jobset.JobSet) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -342,10 +422,32 @@ const (
 var ruleNameRegexp = regexp.MustCompile(ruleNameFmt)
 
 // validateFailurePolicy performs validation for jobset failure policies and returns all errors detected.
-func validateFailurePolicy(failurePolicy *jobset.FailurePolicy, rJobNames sets.Set[string]) []error {
+func validateFailurePolicy(js *jobset.JobSet, rJobNames sets.Set[string]) []error {
 	var allErrs []error
+	failurePolicy := js.Spec.FailurePolicy
 	if failurePolicy == nil {
 		return allErrs
+	}
+
+	// Check if any rule has RestartJob action and validate that no replicated job has replicas > maxReplicasPerReplicatedJob.
+	hasRestartJob := false
+	for _, rule := range failurePolicy.Rules {
+		if rule.Action == jobset.RestartJob || rule.Action == jobset.RestartJobAndIgnoreMaxRestarts {
+			hasRestartJob = true
+			break
+		}
+	}
+	if hasRestartJob {
+		if !features.Enabled(features.RestartJob) {
+			allErrs = append(allErrs, fmt.Errorf("RestartJob and RestartJobAndIgnoreMaxRestarts failure policy actions are not allowed when RestartJob feature gate is disabled"))
+			return allErrs // early return for critical error (missing feature gate)
+		}
+		for _, rJob := range js.Spec.ReplicatedJobs {
+			if rJob.Replicas > maxReplicasPerReplicatedJob {
+				allErrs = append(allErrs, fmt.Errorf("JobSet cannot have a failure policy rule with RestartJob or RestartJobAndIgnoreMaxRestarts action and a replicated job with replicas > %d", maxReplicasPerReplicatedJob))
+				break
+			}
+		}
 	}
 
 	// ruleNameToRulesWithName is used to verify that rule names are unique
@@ -571,4 +673,38 @@ func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.Replic
 		}
 	}
 	return nil
+}
+
+// toFieldErrorList converts a slice of errors (which may contain a mix of
+// *field.Error and plain errors) into a field.ErrorList. Existing *field.Error
+// values are preserved as-is; plain errors are wrapped as field.InternalError.
+func toFieldErrorList(errs []error) field.ErrorList {
+	var fieldErrs field.ErrorList
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+		var fe *field.Error
+		if errors.As(err, &fe) {
+			fieldErrs = append(fieldErrs, fe)
+		} else {
+			fieldErrs = append(fieldErrs, field.InternalError(nil, err))
+		}
+	}
+	return fieldErrs
+}
+
+// invalidError converts a list of validation errors into an
+// *apierrors.StatusError with HTTP 422 (Unprocessable Entity) and reason
+// "Invalid". Returns nil if there are no errors.
+func invalidError(name string, errs []error) error {
+	fieldErrs := toFieldErrorList(errs)
+	if len(fieldErrs) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(
+		schema.GroupKind{Group: "jobset.x-k8s.io", Kind: "JobSet"},
+		name,
+		fieldErrs,
+	)
 }

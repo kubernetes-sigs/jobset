@@ -40,6 +40,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	"sigs.k8s.io/jobset/pkg/features"
 	"sigs.k8s.io/jobset/pkg/util/testing"
 	testutil "sigs.k8s.io/jobset/test/util"
 )
@@ -715,7 +716,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action.", &testCase{
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action (without RestartJob feature gate).", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -743,6 +744,152 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetRestarts(js, 1)
 						matchJobSetRestartsCountTowardsMax(js, 1)
+						matchJobRestarts(js, nil)
+						matchJobRestartsCountTowardsMax(js, nil)
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("jobset restarting condition transitions", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Name:                "Rule1",
+								Action:              jobset.RestartJobSet,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: func(ctx context.Context, c client.Client, js *jobset.JobSet, timeout time.Duration) {
+						testutil.JobSetActive(ctx, c, js, timeout)
+						testutil.JobSetRestarting(ctx, c, js, metav1.ConditionTrue, "FailurePolicy_Rule1", timeout)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						readyAllJobs(jobList)
+					},
+					checkJobSetCondition: func(ctx context.Context, c client.Client, js *jobset.JobSet, timeout time.Duration) {
+						testutil.JobSetRestarting(ctx, c, js, metav1.ConditionFalse, "JobsReady", timeout)
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action (with RestartJob feature gate).", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJobSet,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 1)
+						matchJobRestarts(js, nil)
+						matchJobRestartsCountTowardsMax(js, nil)
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJob failure policy action.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJob,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 0)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+						matchJobRestarts(js, []int32{1})
+						matchJobRestartsCountTowardsMax(js, []int32{1})
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobAndIgnoreMaxRestarts failure policy action.", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJobAndIgnoreMaxRestarts,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 0)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+						matchJobRestarts(js, []int32{1})
+						matchJobRestartsCountTowardsMax(js, nil)
 					},
 				},
 			},
@@ -856,7 +1003,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action.", &testCase{
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action (without RestartJob feature gate).", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
@@ -922,6 +1069,88 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					checkJobSetState: func(js *jobset.JobSet) {
 						matchJobSetRestarts(js, 3)
 						matchJobSetRestartsCountTowardsMax(js, 0)
+						matchJobRestarts(js, nil)
+						matchJobRestartsCountTowardsMax(js, nil)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action (with RestartJob feature gate).", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
+				return testJobSet(ns).
+					FailurePolicy(&jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Action:              jobset.RestartJobSetAndIgnoreMaxRestarts,
+								OnJobFailureReasons: []string{batchv1.JobReasonPodFailurePolicy},
+							},
+							{
+								Action:              jobset.FailJobSet,
+								OnJobFailureReasons: []string{},
+							},
+						},
+					})
+			},
+			steps: []*step{
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 1)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 2)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// For a restart, all jobs will be deleted and recreated, so we expect a
+						// foreground deletion finalizer for every job.
+						removeForegroundDeletionFinalizers(js, testutil.NumExpectedJobs(js))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						failJobWithOptions(&jobList.Items[0], &failJobOptions{reason: ptr.To(batchv1.JobReasonPodFailurePolicy)})
+					},
+					checkJobSetCondition: testutil.JobSetActive,
+				},
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetRestarts(js, 3)
+						matchJobSetRestartsCountTowardsMax(js, 0)
+						matchJobRestarts(js, nil)
+						matchJobRestartsCountTowardsMax(js, nil)
 					},
 				},
 				{
@@ -1232,6 +1461,12 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
 					},
 					checkJobSetCondition: testutil.JobSetSuspended,
+				},
+				{
+					// K8s 1.36+ requires the Suspended condition to be set on Jobs
+					// before pod template fields can be modified (MutableSchedulingDirectivesForSuspendedJobs).
+					// Simulate kube-controller-manager Job controller behavior since envtest doesn't run it.
+					jobUpdateFn: setJobsSuspendedCondition,
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
@@ -2664,7 +2899,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-	) // end of DescribeTable
+	)
 
 	ginkgo.When("A JobSet is managed by another controller", ginkgo.Ordered, func() {
 		var (
@@ -2894,6 +3129,243 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			}, timeout, interval).Should(gomega.BeTrue())
 		})
 	})
+
+	ginkgo.When("the ElasticJobSet feature gate is enabled", func() {
+
+		ginkgo.BeforeEach(func() {
+			err := features.SetEnable(features.ElasticJobSet, true)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+
+		ginkgo.AfterEach(func() {
+			err := features.SetEnable(features.ElasticJobSet, false)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+
+		ginkgo.DescribeTable("Elastic scaling behavior",
+			func(tc *testCase) {
+				ctx := context.Background()
+				// Create test namespace for each entry.
+				ns := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "jobset-ns-",
+					},
+				}
+				gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+				defer func() {
+					gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+				}()
+
+				// Create JobSet.
+				js := tc.makeJobSet(ns).Obj()
+
+				// Verify jobset created successfully.
+				ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js.Name, js.Namespace))
+				gomega.Eventually(func() error {
+					return k8sClient.Create(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+
+				if !tc.skipCreationCheck {
+					ginkgo.By("checking all jobs were created successfully")
+					gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+				}
+
+				// Perform a series of updates to jobset resources and check resulting jobset state after each update.
+				for _, up := range tc.steps {
+					var jobSet jobset.JobSet
+					gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobSet)).To(gomega.Succeed())
+
+					if up.jobSetUpdateFn != nil {
+						up.jobSetUpdateFn(&jobSet)
+					} else if up.jobUpdateFn != nil {
+						if up.checkJobCreation == nil {
+							gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+						} else {
+							up.checkJobCreation(&jobSet)
+						}
+						// Fetch updated job objects so we always have the latest resource versions to perform mutations on.
+						var jobList batchv1.JobList
+						gomega.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace))).Should(gomega.Succeed())
+						up.jobUpdateFn(&jobList)
+					}
+
+					if up.checkJobSetState != nil {
+						up.checkJobSetState(&jobSet)
+					}
+
+					if up.checkJobSetCondition != nil {
+						up.checkJobSetCondition(ctx, k8sClient, &jobSet, timeout)
+					}
+				}
+			},
+			ginkgo.Entry("dynamic horizontal pod scaling propagates parallelism and completions to child jobs", &testCase{
+				makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+					return testing.MakeJobSet("elastic-js", ns.Name).
+						SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+						ReplicatedJob(testing.MakeReplicatedJob("workers").
+							Job(testing.MakeJobTemplate("job", ns.Name).
+								PodSpec(corev1.PodSpec{
+									RestartPolicy: "Never",
+									Containers: []corev1.Container{
+										{
+											Name:    "test-container",
+											Image:   "busybox:latest",
+											Command: []string{"sleep", "10"},
+										},
+									},
+								}).
+								CompletionMode(batchv1.IndexedCompletion).
+								Parallelism(2).
+								Completions(2).
+								Obj()).
+							Replicas(1).
+							Obj())
+				},
+				steps: []*step{
+					{
+						// Step 1: Wait for the initial job to be created and verify its parallelism/completions.
+						checkJobSetState: func(js *jobset.JobSet) {
+							gomega.Eventually(func() (bool, error) {
+								var jobList batchv1.JobList
+								if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+									return false, err
+								}
+								if len(jobList.Items) != 1 {
+									return false, nil
+								}
+								p := ptr.Deref(jobList.Items[0].Spec.Parallelism, 0)
+								c := ptr.Deref(jobList.Items[0].Spec.Completions, 0)
+								return p == 2 && c == 2, nil
+							}, timeout, interval).Should(gomega.BeTrue())
+						},
+					},
+					{
+						// Step 2: Simulate an external scaling operation.
+						jobSetUpdateFn: func(js *jobset.JobSet) {
+							var latestJS jobset.JobSet
+							err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js), &latestJS)
+							gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to fetch latest JobSet")
+
+							// Mutating Parallelism and Completions locally and forcing the update to the cluster
+							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
+
+							err = k8sClient.Update(ctx, &latestJS)
+							gomega.Expect(err).NotTo(gomega.HaveOccurred(), "API Server rejected the JobSet update")
+
+							// Update the local pointer so the test framework has the correct ResourceVersion
+							*js = latestJS
+						},
+						// Step 3: Verify the controller caught the update and patched the child job in-place.
+						checkJobSetState: func(js *jobset.JobSet) {
+							ginkgo.By("checking child jobs are patched with new parallelism and completions")
+							gomega.Eventually(func() (bool, error) {
+								var jobList batchv1.JobList
+								if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+									return false, err
+								}
+								if len(jobList.Items) != 1 {
+									return false, nil
+								}
+								p := ptr.Deref(jobList.Items[0].Spec.Parallelism, 0)
+								c := ptr.Deref(jobList.Items[0].Spec.Completions, 0)
+								return p == 4 && c == 4, nil
+							}, timeout, interval).Should(gomega.BeTrue())
+						},
+					},
+				},
+			}),
+		)
+	})
+
+	ginkgo.When("the ElasticJobSet feature gate is disabled", func() {
+
+		ginkgo.BeforeEach(func() {
+			// Explicitly turn the feature gate OFF
+			err := features.SetEnable(features.ElasticJobSet, false)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+
+		ginkgo.DescribeTable("Elastic scaling behavior is blocked",
+			func(tc *testCase) {
+				ctx := context.Background()
+				ns := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "jobset-ns-",
+					},
+				}
+				gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+
+				defer func() {
+					gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+				}()
+
+				js := tc.makeJobSet(ns).Obj()
+
+				ginkgo.By(fmt.Sprintf("creating jobSet %s/%s", js.Name, js.Namespace))
+				gomega.Eventually(func() error {
+					return k8sClient.Create(ctx, js)
+				}, timeout, interval).Should(gomega.Succeed())
+
+				if !tc.skipCreationCheck {
+					gomega.Eventually(testutil.NumJobs, timeout, interval).WithArguments(ctx, k8sClient, js).Should(gomega.Equal(testutil.NumExpectedJobs(js)))
+				}
+
+				for _, up := range tc.steps {
+					var jobSet jobset.JobSet
+					gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &jobSet)).To(gomega.Succeed())
+
+					if up.jobSetUpdateFn != nil {
+						up.jobSetUpdateFn(&jobSet)
+					}
+				}
+			},
+			ginkgo.Entry("rejects updates to parallelism and completions", &testCase{
+				makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+					return testing.MakeJobSet("elastic-js-disabled", ns.Name).
+						SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll, TargetReplicatedJobs: []string{}}).
+						ReplicatedJob(testing.MakeReplicatedJob("workers").
+							Job(testing.MakeJobTemplate("job", ns.Name).
+								PodSpec(corev1.PodSpec{
+									RestartPolicy: "Never",
+									Containers: []corev1.Container{
+										{
+											Name:    "test-container",
+											Image:   "busybox:latest",
+											Command: []string{"sleep", "10"},
+										},
+									},
+								}).
+								CompletionMode(batchv1.IndexedCompletion).
+								Parallelism(2).
+								Completions(2).
+								Obj()).
+							Replicas(1).
+							Obj())
+				},
+				steps: []*step{
+					{
+						// Attempt an external scaling operation.
+						jobSetUpdateFn: func(js *jobset.JobSet) {
+							var latestJS jobset.JobSet
+							err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js), &latestJS)
+							gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to fetch latest JobSet")
+
+							// Try to mutate Parallelism and Completions
+							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
+
+							err = k8sClient.Update(ctx, &latestJS)
+
+							gomega.Expect(err).To(gomega.HaveOccurred(), "API Server should reject the JobSet update when ElasticJobSet feature gate is disabled")
+						},
+					},
+				},
+			}),
+		)
+	})
+
 }) // end of Describe
 
 func makeAllJobsReady(jl *batchv1.JobList) {
@@ -2964,6 +3436,20 @@ func numExpectedServices(js *jobset.JobSet) int {
 	return expected
 }
 
+func setJobsSuspendedCondition(jobList *batchv1.JobList) {
+	ginkgo.By("setting Suspended condition on all jobs")
+	for _, job := range jobList.Items {
+		updateJobStatus(&job, batchv1.JobStatus{
+			Conditions: []batchv1.JobCondition{
+				{
+					Type:   batchv1.JobSuspended,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		})
+	}
+}
+
 func completeAllJobs(jobList *batchv1.JobList) {
 	ginkgo.By("completing all jobs")
 	for _, job := range jobList.Items {
@@ -3014,6 +3500,12 @@ func readyJob(job *batchv1.Job) {
 		Active: *job.Spec.Parallelism,
 		Ready:  job.Spec.Parallelism,
 	})
+}
+
+func readyAllJobs(jobList *batchv1.JobList) {
+	for i := range jobList.Items {
+		readyJob(&jobList.Items[i])
+	}
 }
 
 // removeForegroundDeletionFinalizers will continually fetch the child jobs for a
@@ -3335,8 +3827,6 @@ func matchJobSetRestarts(js *jobset.JobSet, expectedCount int32) {
 	}, timeout, interval).Should(gomega.BeComparableTo(expectedCount))
 }
 
-// matchJobSetRestartsCountTowardsMax checks that the supplied jobset js has expectedCount
-// as the value of js.Status.RestartsCountTowardsMax.
 func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedCount int32) {
 	gomega.Eventually(func() (int32, error) {
 		newJs := jobset.JobSet{}
@@ -3345,6 +3835,40 @@ func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedCount int32) 
 		}
 
 		return newJs.Status.RestartsCountTowardsMax, nil
+	}, timeout, interval).Should(gomega.Equal(expectedCount))
+}
+
+// matchJobRestarts checks that the supplied jobset js has expectedCount
+// as the value of js.Status.ReplicatedJobsStatus[<where Name == replicatedJobName>].JobRestarts.
+func matchJobRestarts(js *jobset.JobSet, expectedCount []int32) {
+	gomega.Eventually(func() ([]int32, error) {
+		newJs := jobset.JobSet{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
+			return nil, err
+		}
+		for _, rjs := range newJs.Status.ReplicatedJobsStatus {
+			if rjs.Name == "replicated-job-a" {
+				return rjs.JobRestarts, nil
+			}
+		}
+		return nil, nil
+	}, timeout, interval).Should(gomega.Equal(expectedCount))
+}
+
+// matchJobRestartsCountTowardsMax checks that the supplied jobset js has expectedCount
+// as the value of js.Status.ReplicatedJobsStatus[<where Name == replicatedJobName>].JobRestartsCountTowardsMax.
+func matchJobRestartsCountTowardsMax(js *jobset.JobSet, expectedCount []int32) {
+	gomega.Eventually(func() ([]int32, error) {
+		newJs := jobset.JobSet{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
+			return nil, err
+		}
+		for _, rjs := range newJs.Status.ReplicatedJobsStatus {
+			if rjs.Name == "replicated-job-a" {
+				return rjs.JobRestartsCountTowardsMax, nil
+			}
+		}
+		return nil, nil
 	}, timeout, interval).Should(gomega.Equal(expectedCount))
 }
 

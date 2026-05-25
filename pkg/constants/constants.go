@@ -28,9 +28,15 @@ const (
 	// by the associated JobSet quickly.
 	PodsIndexByJobSetKey = "podsIndexByJobSet"
 
-	// RestartsKey is an annotation and label key which defines the restart attempt number
-	// the JobSet is currently on.
+	// RestartsKey is an annotation and label key which defines the global restart attempt number
+	// the Job is currently on.
+	// It should match `jobSet.spec.restarts`
 	RestartsKey = "jobset.sigs.k8s.io/restart-attempt"
+
+	// JobRestartAttemptKey is an annotation and label key which defines the individual restart attempt number
+	// the Job is currently on.
+	// That is, it should match `jobSet.spec.replicatedJobs[replicatedJobName].jobRestarts[jobIndex]`
+	JobRestartAttemptKey = "jobset.sigs.k8s.io/job-restart-attempt"
 
 	// PriorityKey is a label key to record the pod priority. This is needed to enforce exclusive placement
 	// only among jobs within the same priority.
@@ -79,6 +85,18 @@ const (
 	// Event reason and messages related to JobSet restarts.
 	JobSetRestartReason = "Restarting"
 
+	// Condition reasons related to JobSet restarts.
+	RestartingJobSetReasonDefaultFailurePolicy = "DefaultFailurePolicy"
+	RestartingJobSetReasonFailurePolicyFormat  = "FailurePolicy_%s"
+	RestartingJobSetReasonJobsReady            = "JobsReady"
+	RestartingJobSetReasonJobSetFailed         = "JobSetFailed"
+	RestartingJobSetReasonJobSetCompleted      = "JobSetCompleted"
+	RestartingJobSetReasonJobSetSuspended      = "JobSetSuspended"
+
+	// Condition messages related to JobSet restarts.
+	RestartingJobSetReasonJobsReadyMessage    = "all jobs are ready"
+	RestartingJobSetReasonJobSetFailedMessage = "jobset failed"
+
 	// Event reason and messages related to suspending a JobSet.
 	JobSetSuspendedReason  = "SuspendedJobs"
 	JobSetSuspendedMessage = "jobset is suspended"
@@ -102,4 +120,12 @@ const (
 	// Event reason used when a PVC creation fails.
 	// The event uses the error(s) as the message.
 	PVCCreationFailedReason = "PVCCreationFailed"
+
+	// Event reason and message related to applying the RestartJob failure policy action.
+	RestartJobActionReason  = "RestartJobFailurePolicyAction"
+	RestartJobActionMessage = "applying RestartJob failure policy action"
+
+	// Event reason and message related to applying the RestartJobAndIgnoreMaxRestarts failure policy action.
+	RestartJobAndIgnoreMaxRestartsActionReason  = "RestartJobAndIgnoreMaxRestartsFailurePolicyAction"
+	RestartJobAndIgnoreMaxRestartsActionMessage = "applying RestartJobAndIgnoreMaxRestarts failure policy action"
 )

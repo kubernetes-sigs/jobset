@@ -361,6 +361,8 @@ class TestIoK8sApiCoreV1PodTemplateSpec(unittest.TestCase):
                         jobset.models.io/k8s/api/core/v1/pod_scheduling_gate.io.k8s.api.core.v1.PodSchedulingGate(
                             name = '', )
                         ], 
+                    scheduling_group = jobset.models.io/k8s/api/core/v1/pod_scheduling_group.io.k8s.api.core.v1.PodSchedulingGroup(
+                        pod_group_name = '', ), 
                     security_context = jobset.models.io/k8s/api/core/v1/pod_security_context.io.k8s.api.core.v1.PodSecurityContext(
                         fs_group = 56, 
                         fs_group_change_policy = '', 
@@ -653,11 +655,7 @@ class TestIoK8sApiCoreV1PodTemplateSpec(unittest.TestCase):
                                 storage_policy_id = '', 
                                 storage_policy_name = '', 
                                 volume_path = '', ), )
-                        ], 
-                    workload_ref = jobset.models.io/k8s/api/core/v1/workload_reference.io.k8s.api.core.v1.WorkloadReference(
-                        name = '', 
-                        pod_group = '', 
-                        pod_group_replica_key = '', ), )
+                        ], )
             )
         else:
             return IoK8sApiCoreV1PodTemplateSpec(

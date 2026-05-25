@@ -258,6 +258,12 @@ class TestJobsetV1alpha2JobSet(unittest.TestCase):
                         jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
                             active = 56, 
                             failed = 56, 
+                            job_restarts = [
+                                56
+                                ], 
+                            job_restarts_count_towards_max = [
+                                56
+                                ], 
                             name = '', 
                             ready = 56, 
                             succeeded = 56, 
