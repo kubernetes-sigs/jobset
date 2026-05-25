@@ -38,8 +38,67 @@ spec:
                     - bash
                     - -c
                     - |
-                      python3 -c 'import jax; print("Global device count:", jax.device_count())'
-                      sleep 60
+                      set -e
+                      cat <<'EOF' > distributed_train.py
+                      import os
+                      import jax
+                      import jax.numpy as jnp
+                      import numpy as np
+                      from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
+
+                      # 1. Initialize distributed JAX cluster across all slices
+                      jax.distributed.initialize()
+
+                      process_id = jax.process_index()
+                      num_processes = jax.process_count()             # Total TPU hosts (e.g., 8)
+                      local_device_count = jax.local_device_count()   # Chips per host (e.g., 4)
+                      global_device_count = jax.device_count()        # Total chips across all hosts (e.g., 32)
+
+                      nodes_per_slice = int(os.environ.get("JOBSET_REPLICATEDJOB_PARALLELISM", 4))
+                      devices_per_slice = local_device_count * nodes_per_slice
+                      num_slices = global_device_count // devices_per_slice
+
+                      if process_id == 0:
+                          print(f"=== Multislice JAX Cluster Initialized ===")
+                          print(f"Total Processes (Nodes): {num_processes}")
+                          print(f"Total Global TPU Devices: {global_device_count}")
+                          print(f"Calculated Slices: {num_slices}, Devices per Slice: {devices_per_slice}")
+
+                      print(f"[Process {process_id}] Local Devices: {jax.local_devices()}")
+
+                      # 2. Define a Device Mesh across all slices
+                      global_devices = jax.devices()
+                      devices_2d = np.array(global_devices).reshape(num_slices, devices_per_slice)
+                      mesh = Mesh(devices_2d, ('slice', 'tpu_in_slice'))
+
+                      # 3. Create a large sharded matrix (distributed training simulation)
+                      sharding = NamedSharding(mesh, P(('slice', 'tpu_in_slice'), None))
+
+                      x = jnp.ones((8192, 8192), dtype=jnp.float32)
+                      x_sharded = jax.device_put(x, sharding)
+
+                      # 4. Perform parallel computation with JIT compilation
+                      # Multiplying two 8192x8192 all-ones matrices together.
+                      # The dot product of each row and column scales every single element in the
+                      # resulting matrix 'y' from 1.0 to exactly 8192.0.
+                      y = jax.jit(lambda a: a @ a)(x_sharded)
+
+                      # Block until calculation is done to ensure correct execution
+                      y.block_until_ready()
+                      print(f"[Process {process_id}] MatMul calculation succeeded. Output shape: {y.shape}")
+
+                      # Summing up all elements in the sharded matrix 'y'.
+                      # Since matrix 'y' has 8192x8192 elements and each element equals 8192.0,
+                      # the predictable theoretical global constant will be 8192 * 8192 * 8192 = 8192^3.
+                      # Note: This jnp.sum() must run outside any conditional blocks to trigger a synchronous
+                      # collective Reduce-Sum operation across all nodes and slices to prevent deadlocks.
+                      matrix_sum = jnp.sum(y)
+                      print(f"Global matrix sum result: {matrix_sum}")
+                      EOF
+
+                      # Execute the proper training script
+                      python3 distributed_train.py
+                      sleep 10
                   resources:
                     limits:
                       google.com/tpu: 4 # 4 Trillium chips per node

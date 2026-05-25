@@ -35,11 +35,14 @@ When a Multislice JobSet is submitted, the JobSet controller actively manages th
 
 Before you begin, ensure you have the following set up in your GKE cluster:
 
-1.  **Install JobSet and Kueue:**
+1. **Create a GKE cluster in a v6e TPU–supported location:**
+    Ensure you have [created a GKE cluster](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/tpus#create-cluster) in a location that supports v6e (Trillium) TPUs. Check the [TPU regions and zones](https://docs.cloud.google.com/compute/docs/regions-zones/tpu-regions-zones#view-using-table) to confirm availability.
+
+2.  **Install JobSet and Kueue:**
     Make sure both the [JobSet](https://jobset.sigs.k8s.io/docs/installation) and [Kueue](https://kueue.sigs.k8s.io/docs/installation) controllers are installed.
 
-2.  **Create TPU Node Pools:**
-    For this example multislice workload, you need at least two separate TPU node pools, one for each slice. This allows JobSet's exclusive placement to assign each `ReplicatedJob` (representing a slice) to its own dedicated node pool.
+3.  **Create TPU Node Pools:**
+    For this example multislice workload, you need at least two separate TPU node pools, one for each slice. This allows JobSet's exclusive placement to assign each `ReplicatedJob` (representing a slice) to its own dedicated node pool. This will acquire 32 TPU chips in total.
 
     Replace the placeholders and run the following commands to create two `ct6e-standard-4t` node pools with a `4x4` topology:
     
@@ -48,7 +51,7 @@ Before you begin, ensure you have the following set up in your GKE cluster:
     export PROJECT_ID=my-project-id            # Replace with your Google Cloud Project ID
     export CLUSTER_NAME=my-tpu-cluster         # Replace with your GKE cluster name
     export CONTROL_PLANE_LOCATION=us-central1  # Replace with your GKE control plane region
-    export NODE_LOCATION=us-central1-a         # Replace with the zone for TPU creation
+    export NODE_LOCATION=us-central1-b         # Replace with the zone for TPU creation
 
     # Create the first node pool
     gcloud container node-pools create tpu-slice-a \
@@ -69,11 +72,9 @@ Before you begin, ensure you have the following set up in your GKE cluster:
         --project=$PROJECT_ID
     ```
 
-3.  **Configure Kueue:**
-
+4.  **Configure Kueue:**
     Create the necessary Kueue and Kubernetes resources to manage the TPU workloads. This includes defining a `ResourceFlavor` for the TPUs and setting up queues. For more details on these configurations, see the [Kueue and GKE integration documentation](https://docs.cloud.google.com/kubernetes-engine/docs/tutorials/tpu-multislice-kueue).
-
-    {{< include "examples/tpu-multislice/kueue-config.yaml" "yaml" >}}
+{{< include file="/examples/tpu-multislice/kueue-config.yaml" lang="yaml" >}}
 
     Apply the configurations:
 
@@ -81,11 +82,11 @@ Before you begin, ensure you have the following set up in your GKE cluster:
     kubectl apply -f kueue-config.yaml
     ```
 
-    ### Example JobSet
+### Example JobSet
 
-    The following example runs a distributed JAX workload across **2 slices** of **TPU Trillium (v6e)**. It demonstrates how to integrate with Kueue's WorkloadPriorityClass and configure the specialized networking required for v6e machines. For the latest configuration options, refer to the [GKE TPU Multislice tutorial](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/tpu-multislice).
+The following example runs a distributed JAX workload across **2 slices** of **TPU Trillium (v6e)**. It demonstrates how to integrate with Kueue's WorkloadPriorityClass and configure the specialized networking required for v6e machines. For the latest configuration options, refer to the [GKE TPU Multislice tutorial](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/tpu-multislice).
 
-    {{< include "examples/tpu-multislice/v6e-jax-workload.yaml" "yaml" >}}
+{{< include file="/examples/tpu-multislice/v6e-jax-workload.yaml" lang="yaml" >}}
 
 If you create a JobSet with `replicas: 2` (2 Slices) and `parallelism: 4` (4 Nodes per Slice), JobSet creates two child Jobs:
 
@@ -124,11 +125,20 @@ The output demonstrates JobSet's Leader/Follower scheduling mechanism for `exclu
 With the pods correctly scheduled, the final step is to verify that the JAX application can communicate across both slices and utilize all available TPU chips. By inspecting the logs of any pod, you can confirm that the multislice setup is working:
 
 ```bash
-$ kubectl logs pod/v6e-multislice-slice-0-0-sk2b6
-Global device count: 32
+$ kubectl logs job/v6e-multislice-slice-0 --all-pods
+[pod/v6e-multislice-slice-0-2-rnp55/jax-tpu] === Multislice JAX Cluster Initialized ===
+[pod/v6e-multislice-slice-0-2-rnp55/jax-tpu] Total Processes (Slices/Nodes): 8
+[pod/v6e-multislice-slice-0-2-rnp55/jax-tpu] Total Global TPU Devices: 32
+[pod/v6e-multislice-slice-0-2-rnp55/jax-tpu] Calculated Slices: 2, Devices per Slice: 16
+[pod/v6e-multislice-slice-0-2-rnp55/jax-tpu] [Process 0] Local Devices: [MegaScalePjRtDevice(wrapped=TpuDevice(id=0, process_index=0, coords=(0,0,0), core_on_chip=0), slice_id=0), MegaScalePjRtDevice(wrapped=TpuDevice(id=1, process_index=0, coords=(1,0,0), core_on_chip=0), slice_id=0), MegaScalePjRtDevice(wrapped=TpuDevice(id=4, process_index=0, coords=(0,1,0), core_on_chip=0), slice_id=0), MegaScalePjRtDevice(wrapped=TpuDevice(id=5, process_index=0, coords=(1,1,0), core_on_chip=0), slice_id=0)]
+[pod/v6e-multislice-slice-0-2-rnp55/jax-tpu] [Process 0] MatMul calculation succeeded. Output shape: (8192, 8192)
+[pod/v6e-multislice-slice-0-2-rnp55/jax-tpu] Global matrix sum result: 549755813888.0
+...
 ```
 
-The log output `Global device count: 32` confirms that the application sees all 32 chips (2 slices × 16 chips/slice). This demonstrates that JobSet has successfully orchestrated a multislice workload, enabling communication across the DCN and presenting a unified accelerator environment to the training job.
+The log output `Total Global TPU Devices: 32` confirms the application sees all 32 chips (2 slices × 16 chips per slice). The final global matrix sum, `549755813888.0`, provides a numeric validation that all 32 sharded chips are actively computing and communicating.
+
+This demonstrates that JobSet has successfully orchestrated a multislice workload, enabling communication across the DCN and presenting a unified accelerator environment to the training job.
 
 ## Further Reading
 
