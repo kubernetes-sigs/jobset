@@ -2,6 +2,15 @@
 
 JobSet is a Kubernetes-native API for managing groups of Kubernetes Jobs as a unit, designed for distributed AI/ML training workloads (PyTorch, Jax, TensorFlow) and HPC applications (MPI). It is a Kubernetes SIG (Special Interest Group) project maintained under kubernetes-sigs.
 
+## AI Contribution Policy
+
+JobSet follows the [Kubernetes AI Tool Usage Policy](https://www.kubernetes.dev/docs/guide/pull-requests/#ai-guidance). Key rules:
+
+- **Disclose AI usage** in pull requests, and include that disclosure in `#### Special notes for your reviewer:` in `.github/PULL_REQUEST_TEMPLATE.md`.
+- **Disclose AI usage** when commenting or filing issues.
+- **No AI authorship markers.** Do not add AI co-author lines, `assisted-by`, `co-developed`, or similar commit trailers.
+- **Follow project commit-message rules.** Commit messages must not include `@mentions` or issue-closing text like `Fixes #123` / `Closes #123`; keep issue linkage in the PR template instead.
+
 ## Agent Behavior Policy
 
 AI agents should:
@@ -247,6 +256,8 @@ JobSet uses multiple code generators (all invoked via `make generate`):
 - Follow the [Kubernetes commit message convention](https://www.kubernetes.dev/docs/guide/pull-requests/#commit-message-guidelines):
   short imperative subject, blank line, then body explaining the "why"
 - Include rationale ("why") in commit messages and PR descriptions, not just "what"
+- Do not include `@mentions` in commit messages
+- Do not include issue-closing text (for example `Fixes #123`) in commit messages
 - Only modify files relevant to the task; keep diffs minimal
 - Do not push secrets or modify git config
 - Always run `make generate` after modifying the source code
