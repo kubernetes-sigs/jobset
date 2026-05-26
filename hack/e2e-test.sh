@@ -7,6 +7,7 @@ export NAMESPACE="jobset-system"
 export JOBSET_E2E_TESTS_DUMP_NAMESPACE=true
 # E2E config folder to use (defaults to "default")
 export E2E_TARGET_FOLDER="${E2E_TARGET_FOLDER:-default}"
+K8S_VERSION="${E2E_KIND_VERSION##*:}"
 
 # Use a temporary KUBECONFIG so that the script does not mess with the current user's kubeconfig.
 KUBECONFIG=""
@@ -25,6 +26,14 @@ function cleanup {
     fi
     (cd config/components/manager && $KUSTOMIZE edit set image controller=us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset:main)
 }
+
+function build_node_image {
+
+    if [ $USE_EXISTING_CLUSTER == 'false' ] 
+    then
+	   $KIND build node-image $K8S_VERSION --image jobset/kind-node:${K8S_VERSION}
+    fi
+}
 function startup {
     if [ $USE_EXISTING_CLUSTER == 'false' ] 
     then
@@ -34,7 +43,7 @@ function startup {
             exit 1
         fi
         export KUBECONFIG
-        $KIND create cluster --name $KIND_CLUSTER_NAME --image $E2E_KIND_VERSION --wait 1m
+        $KIND create cluster --name $KIND_CLUSTER_NAME --image jobset/kind-node:${K8S_VERSION}  --wait 1m
         kubectl get nodes > $ARTIFACTS/kind-nodes.log || true
         kubectl describe pods -n kube-system > $ARTIFACTS/kube-system-pods.log || true
     fi
@@ -49,6 +58,7 @@ function jobset_deploy {
     kubectl apply --server-side -k test/e2e/config/$E2E_TARGET_FOLDER
 }
 trap cleanup EXIT
+build_node_image
 startup
 kind_load
 jobset_deploy
