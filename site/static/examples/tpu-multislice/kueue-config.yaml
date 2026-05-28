@@ -1,0 +1,31 @@
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: v6e-4x4
+spec:
+  nodeLabels:
+    cloud.google.com/gke-tpu-accelerator: tpu-v6e-slice
+    cloud.google.com/gke-tpu-topology: 4x4
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: multislice-cluster-queue
+spec:
+  namespaceSelector: {}
+  queueingStrategy: BestEffortFIFO
+  resourceGroups:
+  - coveredResources: ["google.com/tpu"]
+    flavors:
+    - name: "v6e-4x4"
+      resources:
+      - name: "google.com/tpu"
+        nominalQuota: "32" # 2 slices * 16 chips/slice = 32
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  namespace: default # Or the namespace where you will run your JobSet
+  name: multislice-queue
+spec:
+  clusterQueue: multislice-cluster-queue
