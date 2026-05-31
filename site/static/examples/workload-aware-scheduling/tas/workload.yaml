@@ -1,0 +1,14 @@
+apiVersion: scheduling.k8s.io/v1alpha2
+kind: Workload
+metadata:
+  name: js-abc
+spec:
+  controllerRef:
+    apiGroup: jobset.x-k8s.io
+    kind: JobSet
+    name: js
+  podGroupTemplates:
+  - name: workers
+    schedulingPolicy:
+      gang:
+        minCount: 4
