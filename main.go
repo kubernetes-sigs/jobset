@@ -186,6 +186,15 @@ func main() {
 		KeyName:        options.Metrics.KeyName,
 	}
 	options.Metrics = metricsServerOptions
+
+	ctx := ctrl.SetupSignalHandler()
+	if cfg.InternalCertManagement != nil && *cfg.InternalCertManagement.Enable {
+		if err = cert.BootstrapCerts(ctx, kubeConfig, cfg); err != nil {
+			setupLog.Error(err, "Unable to bootstrap cert rotation")
+			os.Exit(1)
+		}
+	}
+
 	mgr, err := ctrl.NewManager(kubeConfig, options)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -201,8 +210,6 @@ func main() {
 	} else {
 		close(certsReady)
 	}
-
-	ctx := ctrl.SetupSignalHandler()
 	if err := controllers.SetupJobSetIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
 		setupLog.Error(err, "unable to setup jobset reconciler indexes")
 		os.Exit(1)
@@ -212,11 +219,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Cert won't be ready until manager starts, so start a goroutine here which
-	// will block until the cert is ready before setting up the controllers.
-	// Controllers who register after manager starts will start directly.
-	go setupControllers(mgr, certsReady)
-
+	setupControllers(mgr)
 	setupHealthzAndReadyzCheck(mgr, certsReady)
 
 	setupLog.Info("starting manager")
@@ -226,13 +229,7 @@ func main() {
 	}
 }
 
-func setupControllers(mgr ctrl.Manager, certsReady chan struct{}) {
-	// The controllers won't work until the webhooks are operating,
-	// and the webhook won't work until the certs are all in places.
-	setupLog.Info("waiting for the cert generation to complete")
-	<-certsReady
-	setupLog.Info("certs ready")
-
+func setupControllers(mgr ctrl.Manager) {
 	// Set up JobSet controller.
 	jobSetController := controllers.NewJobSetReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorder("jobset"))
 	if err := jobSetController.SetupWithManager(mgr); err != nil {
