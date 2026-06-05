@@ -1,0 +1,27 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: js
+spec:
+  failurePolicy:
+    maxRestarts: 10
+  replicatedJobs:
+  - name: rj
+    replicas: 2
+    template:
+      spec:
+        completions: 2
+        parallelism: 2
+        backoffLimit: 0
+        template:
+          spec:
+            terminationGracePeriodSeconds: 0
+            schedulingGroup:
+              podGroupName: js-abc-workers-def
+            containers:
+            - name: worker
+              image: busybox
+              command: ["sleep", "infinity"]
+              resources:
+                requests:
+                  cpu: "500m"

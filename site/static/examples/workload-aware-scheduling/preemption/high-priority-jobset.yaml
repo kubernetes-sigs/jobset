@@ -1,0 +1,60 @@
+---
+apiVersion: scheduling.k8s.io/v1alpha2
+kind: Workload
+metadata:
+  name: hp-abc
+spec:
+  controllerRef:
+    apiGroup: jobset.x-k8s.io
+    kind: JobSet
+    name: hp-js
+  podGroupTemplates:
+  - name: workers
+    schedulingPolicy:
+      gang:
+        minCount: 4
+---
+apiVersion: scheduling.k8s.io/v1alpha2
+kind: PodGroup
+metadata:
+  name: hp-abc-workers-def
+  namespace: default
+spec:
+  podGroupTemplateRef:
+    workload:
+      workloadName: hp-abc
+      podGroupTemplateName: workers
+  priorityClassName: high-priority
+  disruptionMode: PodGroup
+  schedulingPolicy:
+    gang:
+      minCount: 4
+---
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: hp-js
+spec:
+  replicatedJobs:
+  - name: rj
+    replicas: 2
+    template:
+      spec:
+        completions: 2
+        parallelism: 2
+        backoffLimit: 10
+        template:
+          spec:
+            terminationGracePeriodSeconds: 0
+            priorityClassName: high-priority
+            schedulingGroup:
+              podGroupName: hp-abc-workers-def
+            containers:
+            - name: worker
+              image: busybox
+              command: ["sleep", "infinity"]
+              # Pick resource requests appropriate for your cluster and workload.
+              # These values are just an example.
+              resources:
+                requests:
+                  cpu: "3"

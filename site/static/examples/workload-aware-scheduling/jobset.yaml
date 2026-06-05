@@ -1,0 +1,27 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: js
+spec:
+  replicatedJobs:
+  - name: rj
+    replicas: 3
+    template:
+      spec:
+        completions: 2
+        parallelism: 2
+        backoffLimit: 0
+        template:
+          spec:
+            terminationGracePeriodSeconds: 0
+            schedulingGroup:
+              podGroupName: js-abc-workers-def
+            containers:
+            - name: worker
+              image: busybox
+              command: ["/bin/sh", "-c", "sleep infinity"]
+              # Pick resource requests appropriate for your cluster and workload.
+              # These values are just an example.
+              resources:
+                requests:
+                  cpu: "4"

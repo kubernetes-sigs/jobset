@@ -1,0 +1,13 @@
+apiVersion: scheduling.k8s.io/v1alpha2
+kind: PodGroup
+metadata:
+  name: js-abc-workers-def
+  namespace: default
+spec:
+  podGroupTemplateRef:
+    workload:
+      workloadName: js-abc
+      podGroupTemplateName: workers
+  schedulingPolicy:
+    gang:
+      minCount: 6
