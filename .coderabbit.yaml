@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - ".github/copilot-instructions.md"
+      - "AGENTS.md"
+
+reviews:
+  request_changes_workflow: false
+
+  path_filters:
+    - "!client-go/**"
+    - "!**/*_generated*.go"
+    - "!**/zz_generated.*.go"
+    - "!**/openapi_generated.go"
+    - "!vendor/**"
+    - "!hack/python-sdk/**"
+
+  path_instructions:
+    - path: "api/jobset/v1alpha2/**/*.go"
+      instructions: |
+        Focus on Kubernetes CRD API conventions, kubebuilder validation markers,
+        and backwards compatibility. Ensure optional fields use pointer types
+        and carry `+optional` markers with clear godoc comments. Flag any
+        breaking changes (field removal, renames, type changes) and verify
+        CEL validation rules (`+kubebuilder:validation:XValidation`) are
+        preferred over webhook-only validation.
+
+    - path: "pkg/controllers/**/*.go"
+      instructions: |
+        Review reconciliation logic for correctness, idempotency, and proper
+        error handling. Ensure status updates use the status subresource.
+        Verify that new controller behavior has corresponding unit and
+        integration tests.
+
+    - path: "pkg/webhooks/**/*.go"
+      instructions: |
+        Check that validating webhooks reject invalid input with clear error
+        messages and that mutating webhooks set safe defaults. Ensure webhook
+        changes are reflected in `config/components/webhook/`.
+
+    - path: "pkg/constants/**/*.go"
+      instructions: |
+        Ensure no duplicate annotation, label, or environment variable keys.
+        Verify new constants follow the existing naming conventions.
+
+    - path: "test/integration/**/*.go"
+      instructions: |
+        Verify tests use envtest and follow the existing table-driven test
+        patterns with Ginkgo/Gomega. Ensure new test cases cover both
+        positive and negative scenarios.
+
+    - path: "test/e2e/**/*.go"
+      instructions: |
+        Verify E2E tests are self-contained and clean up resources. Tests
+        should use Ginkgo/Gomega and follow the existing patterns in the
+        suite.
+
+    - path: "charts/**"
+      instructions: |
+        Verify Helm template correctness and that values.yaml defaults are
+        consistent with the kustomize manifests in `config/`.
+
+    - path: "site/**/*.md"
+      instructions: |
+        Focus on technical accuracy, clarity, and markdown formatting. Verify
+        that code snippets and configuration examples match current CRD
+        definitions.
+
+    - path: "{api,cmd,pkg}/**/*_test.go"
+      instructions: |
+        Ensure tests use `testify/assert` for non-fatal and `testify/require`
+        for fatal assertions. Prefer table-driven tests for multiple
+        scenarios.
+
+  auto_review:
+    labels:
+      - "!needs-ok-to-test"
+      - "!do-not-merge/work-in-progress"
+      - "!cncf-cla: no"
