@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package e2e
+package customconfigs
 
 import (
 	"context"
@@ -25,27 +25,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	configv1alpha1 "sigs.k8s.io/jobset/api/config/v1alpha1"
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/test/util"
-	//+kubebuilder:scaffold:imports
 )
 
 const (
 	timeout  = 10 * time.Minute
 	interval = time.Millisecond * 250
-
-	fieldManagerName = client.FieldOwner("e2e-test")
 )
 
 var (
-	k8sClient client.Client
-	ctx       context.Context
+	k8sClient  client.Client
+	ctx        context.Context
+	defaultCfg *configv1alpha1.Configuration
 )
 
 func TestAPIs(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t,
-		"End To End Suite",
+		"Custom Configs End To End Suite",
 	)
 }
 
@@ -65,4 +64,11 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(k8sClient).NotTo(gomega.BeNil())
 
 	util.JobSetReadyForTesting(ctx, k8sClient)
+	defaultCfg = util.GetJobSetConfiguration(ctx, k8sClient)
+})
+
+var _ = ginkgo.AfterSuite(func() {
+	if defaultCfg != nil {
+		util.UpdateJobSetConfigurationAndRestart(ctx, k8sClient, defaultCfg, func(cfg *configv1alpha1.Configuration) {})
+	}
 })
