@@ -1,0 +1,25 @@
+title: KEP-969: Workload-Aware Scheduling Integration
+kep-number: 969
+authors:
+  - "@kehannon"
+status: provisional
+creation-date: 2026-06-28
+reviewers:
+  - TBD
+approvers:
+  - TBD
+
+replaces: "NA"
+
+see-also:
+  - "https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/6089-was-controller-apis"
+
+stage: alpha
+
+latest-milestone: "v0.12.0"
+
+milestone:
+  alpha: "v0.12.0"
+
+feature-gates:
+  - name: WorkloadAwareScheduling
