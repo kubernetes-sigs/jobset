@@ -158,7 +158,7 @@ VERSION={{< param "version" >}}
 kubectl delete -f https://github.com/kubernetes-sigs/jobset/releases/download/$VERSION/manifests.yaml
 ```
 
-To uninstall a released version of Kueue from your cluster by Helm, run the following command:
+To uninstall a released version of JobSet from your cluster by Helm, run the following command:
 
 ```shell
 helm uninstall jobset --namespace jobset-system
@@ -290,4 +290,3 @@ Next, in the file ``jobset/config/default/kustomization.yaml`` replace ``../comp
 ``../components/certmanager`` then uncomment all the lines beginning with ``[CERTMANAGER]``.
 
 Finally, apply these configurations to your cluster with ``kubectl apply --server-side -k config/default``.
-
