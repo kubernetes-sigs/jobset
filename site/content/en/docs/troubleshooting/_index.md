@@ -36,7 +36,7 @@ Inspect the logs to look for one of the following issues:
 **Cause**: In older versions of JobSet (older than v0.2.1) if the indexes could not be built for some reason, the JobSet controller would log the error and launch anyway. This resulted in confusing behavior later when trying to create JobSets, where the controller would encounter this "index not found" error and not be able to create any jobs. This bug was fixed
 in v0.2.1 so the JobSet controller now fails fast and exits with an error if indexes cannot be built.
 
-**Solution**: Uninstall JobSet and re-install using the latest release (or at minimum, JobSet v0.2.1). See [installation guide](/docs/setup/install.md) for the commands to do this.
+**Solution**: Uninstall JobSet and re-install using the latest release (or at minimum, JobSet v0.2.1). See the [installation guide](/docs/installation/) for the commands to do this.
 
 2. Validation error creating Jobs and/or Services, indicating the Job/Service name is invalid.
 
@@ -58,7 +58,7 @@ Look at the JobSet controller logs and you'll probably see an error like this:
 
 **Cause**: This could be due to a known bug in an older version of JobSet, or a known bug in an older version of Kueue. JobSet and Kueue integration requires JobSet v0.2.3+ and Kueue v0.4.1+.
 
-**Solution**: If you're using JobSet version less than v0.2.3, uninstall and re-install using a versoin >= v0.2.3 (see the JobSet [installation guide](https://jobset.sigs.k8s.io/docs/installation/) for the commands to do this). If you're using a Kueue version less than v0.4.1, uninstall and re-install using a v0.4.1 (see the Kueue [installation guide](https://kueue.sigs.k8s.io/docs/installation/) for the commands to do this).
+**Solution**: If you're using JobSet version less than v0.2.3, uninstall and re-install using a version >= v0.2.3 (see the JobSet [installation guide](https://jobset.sigs.k8s.io/docs/installation/) for the commands to do this). If you're using a Kueue version less than v0.4.1, uninstall and re-install using a v0.4.1 (see the Kueue [installation guide](https://kueue.sigs.k8s.io/docs/installation/) for the commands to do this).
 
 ## 4. Troubleshooting network communication between different Pods
 
