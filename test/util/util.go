@@ -42,6 +42,7 @@ import (
 	configv1alpha1 "sigs.k8s.io/jobset/api/config/v1alpha1"
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/constants"
+	testingutil "sigs.k8s.io/jobset/pkg/util/testing"
 )
 
 const (
@@ -365,6 +366,46 @@ func JobSetReadyForTesting(ctx context.Context, k8sClient client.Client) {
 		))
 		return nil
 	}, timeout, interval).Should(gomega.Succeed())
+
+	// The Deployment being Available doesn't guarantee that the webhook
+	// Service's endpoints have propagated to kube-proxy yet. Without this
+	// check, the very first request relying on the webhooks (e.g. the first
+	// JobSet creation in the suite) can intermittently fail with a
+	// "connection refused" error against the webhook Service ClusterIP.
+	waitForWebhookEndpointsReady(ctx, k8sClient, deploymentKey)
+
+	// Even after the EndpointSlice for the webhook Service reports the pod as
+	// ready, kube-proxy on the node making the request may not have finished
+	// programming the corresponding iptables/ipvs rules yet, since that
+	// propagation happens asynchronously and is not reflected in any object
+	// we can observe through the API server. To guard against this, actively
+	// probe the webhook by issuing dry-run requests that must go through it
+	// until one succeeds.
+	waitForWebhookReachable(ctx, k8sClient)
+}
+
+// waitForWebhookReachable performs dry-run requests that are routed through
+// the JobSet webhooks until one succeeds, to make sure the webhook Service is
+// actually reachable from the client before tests start relying on it.
+func waitForWebhookReachable(ctx context.Context, k8sClient client.Client) {
+	ginkgo.By("waiting for jobset webhooks to be reachable")
+	probe := testJobSet()
+	gomega.Eventually(func(g gomega.Gomega) error {
+		return k8sClient.Create(ctx, probe.DeepCopy(), client.DryRunAll)
+	}, timeout, interval).Should(gomega.Succeed())
+}
+
+// testJobSet returns a minimal, valid JobSet used only to probe whether the
+// webhooks are reachable via dry-run creation requests.
+func testJobSet() *jobset.JobSet {
+	return testingutil.MakeJobSet("webhook-probe", metav1.NamespaceDefault).
+		ReplicatedJob(testingutil.MakeReplicatedJob("probe").
+			Job(testingutil.MakeJobTemplate("probe", metav1.NamespaceDefault).
+				PodSpec(testingutil.TestPodSpec).
+				Obj()).
+			Replicas(1).
+			Obj()).
+		Obj()
 }
 
 func GetJobSetConfiguration(ctx context.Context, k8sClient client.Client) *configv1alpha1.Configuration {
@@ -410,6 +451,7 @@ func RestartJobSetController(ctx context.Context, k8sClient client.Client) {
 	})
 	waitForDeploymentAvailability(ctx, k8sClient, deploymentKey)
 	waitForWebhookEndpointsReady(ctx, k8sClient, deploymentKey)
+	waitForWebhookReachable(ctx, k8sClient)
 }
 
 func updateDeploymentAndWaitForProgressing(ctx context.Context, k8sClient client.Client, key types.NamespacedName, applyChanges func(deployment *appsv1.Deployment)) {
