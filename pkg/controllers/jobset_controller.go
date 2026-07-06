@@ -1152,7 +1152,7 @@ func jobSetMarkedForDeletion(js *jobset.JobSet) bool {
 }
 
 func dnsHostnamesEnabled(js *jobset.JobSet) bool {
-	return js.Spec.Network.EnableDNSHostnames != nil && *js.Spec.Network.EnableDNSHostnames
+	return js.Spec.Network != nil && js.Spec.Network.EnableDNSHostnames != nil && *js.Spec.Network.EnableDNSHostnames
 }
 
 func jobSetSuspended(js *jobset.JobSet) bool {

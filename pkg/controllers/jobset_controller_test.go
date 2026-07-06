@@ -1733,6 +1733,14 @@ func TestCreateHeadlessSvcIfNecessary(t *testing.T) {
 			existingService: true,
 		},
 		{
+			name: "jobset created before webhook defaulting should not create headless service",
+			jobSet: func() *jobset.JobSet {
+				js := testutils.MakeJobSet(jobSetName, ns).Obj()
+				js.Spec.Network = nil
+				return js
+			}(),
+		},
+		{
 			name:            "headless service creation fails with unexpected error",
 			jobSet:          testutils.MakeJobSet(jobSetName, ns).EnableDNSHostnames(true).Obj(),
 			existingService: false,
