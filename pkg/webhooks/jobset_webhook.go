@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -165,6 +166,7 @@ func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (admission.Warnings, error) {
 	var allErrs []error
+	jobSetNameForValidation := getJobSetNameForValidation(js)
 
 	// Validate InPlaceRestart feature gate.
 	// The in-place restart API should be used only when the feature gate is enabled.
@@ -233,7 +235,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		}
 		// Check that the generated job names for this replicated job will be DNS 1035 compliant.
 		// Use the largest job index as it will have the longest name.
-		longestJobName := placement.GenJobName(js.Name, rJob.Name, int(rJob.Replicas-1))
+		longestJobName := placement.GenJobName(jobSetNameForValidation, rJob.Name, int(rJob.Replicas-1))
 		for _, errMessage := range validation.IsDNS1035Label(longestJobName) {
 			if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 				errMessage = jobNameTooLongErrorMsg
@@ -246,7 +248,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 			maxJobIndex := strconv.Itoa(int(rJob.Replicas - 1))
 			maxPodIndex := strconv.Itoa(int(*rJob.Template.Spec.Completions - 1))
 			// Add 5 char suffix to the deterministic part of the pod name to validate the full pod name is compliant.
-			longestPodName := placement.GenPodName(js.Name, rJob.Name, maxJobIndex, maxPodIndex) + "-abcde"
+			longestPodName := placement.GenPodName(jobSetNameForValidation, rJob.Name, maxJobIndex, maxPodIndex) + "-abcde"
 			for _, errMessage := range validation.IsDNS1035Label(longestPodName) {
 				if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 					errMessage = podNameTooLongErrorMsg
@@ -297,12 +299,12 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 	// Validate coordinator, if set.
 	if js.Spec.Coordinator != nil {
 		allErrs = append(allErrs, validateCoordinator(js))
-		allErrs = append(allErrs, validateCoordinatorLabelValue(js))
+		allErrs = append(allErrs, validateCoordinatorLabelValue(js, jobSetNameForValidation))
 	}
 
 	// Validate VolumeClaimPolicies, if set.
 	if len(js.Spec.VolumeClaimPolicies) > 0 {
-		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, js.Spec.VolumeClaimPolicies)...)
+		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, jobSetNameForValidation, js.Spec.VolumeClaimPolicies)...)
 	}
 
 	return nil, invalidError(js.Name, allErrs)
@@ -523,8 +525,11 @@ func validateCoordinator(js *jobset.JobSet) error {
 
 // If spec will lead to invalid coordinator label value, return error
 // This usually happens when the JobSet name is too long
-func validateCoordinatorLabelValue(js *jobset.JobSet) error {
-	labelValue := controllers.CoordinatorEndpoint(js)
+func validateCoordinatorLabelValue(js *jobset.JobSet, jobSetName string) error {
+	jsForValidation := js.DeepCopy()
+	jsForValidation.Name = jobSetName
+
+	labelValue := controllers.CoordinatorEndpoint(jsForValidation)
 	errs := validation.IsValidLabelValue(labelValue)
 	if len(errs) > 0 {
 		return fmt.Errorf("spec will lead to invalid label value %q for coordinator label %q (long JobSet / ReplicatedJob / SubDomain name?): %s", labelValue, jobset.CoordinatorKey, strings.Join(errs, ", "))
@@ -533,7 +538,7 @@ func validateCoordinatorLabelValue(js *jobset.JobSet) error {
 }
 
 // validateVolumeClaimPolicies validates the volume claim policies for the JobSet.
-func (j *jobSetWebhook) validateVolumeClaimPolicies(ctx context.Context, js *jobset.JobSet, volumeClaimPolicies []jobset.VolumeClaimPolicy) []error {
+func (j *jobSetWebhook) validateVolumeClaimPolicies(ctx context.Context, js *jobset.JobSet, jobSetName string, volumeClaimPolicies []jobset.VolumeClaimPolicy) []error {
 	var allErrs []error
 	claimNames := sets.New[string]()
 
@@ -558,7 +563,7 @@ func (j *jobSetWebhook) validateVolumeClaimPolicies(ctx context.Context, js *job
 			}
 
 			// Validate PVC name length limits
-			pvcName := controllers.GeneratePVCName(js.Name, template.Name)
+			pvcName := controllers.GeneratePVCName(jobSetName, template.Name)
 			if len(pvcName) > maxVolumeClaimLength {
 				allErrs = append(allErrs, field.Invalid(
 					templateFieldPath.Child("name"),
@@ -673,6 +678,16 @@ func replicatedJobByName(js *jobset.JobSet, replicatedJob string) *jobset.Replic
 		}
 	}
 	return nil
+}
+
+func getJobSetNameForValidation(js *jobset.JobSet) string {
+	if js.Name != "" {
+		return js.Name
+	}
+	if js.GenerateName != "" {
+		return names.SimpleNameGenerator.GenerateName(js.GenerateName)
+	}
+	return ""
 }
 
 // toFieldErrorList converts a slice of errors (which may contain a mix of

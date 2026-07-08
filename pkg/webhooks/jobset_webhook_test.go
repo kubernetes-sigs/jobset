@@ -860,6 +860,96 @@ func TestValidateCreate(t *testing.T) {
 
 	uncategorizedTests := []validationTestCase{
 		{
+			name: "generateName that produces overlong child job names is rejected",
+			js: &jobset.JobSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "JobSet",
+					APIVersion: "jobset.x-k8s.io/v1alpha2",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: strings.Repeat("a", 49) + "-",
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "worker",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAll,
+					},
+				},
+			},
+			want: errors.Join(
+				errors.New(jobNameTooLongErrorMsg),
+			),
+		},
+		{
+			name: "generateName that produces overlong PVC names is rejected",
+			js: &jobset.JobSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "JobSet",
+					APIVersion: "jobset.x-k8s.io/v1alpha2",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: strings.Repeat("a", 49) + "-",
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "worker",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "datasets",
+															MountPath: "/mnt/data",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{
+						Operator: jobset.OperatorAll,
+					},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "datasets",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(
+				errors.New("VolumeClaimPolicies template name is too long"),
+			),
+		},
+		{
 			name: "number of pods exceeds the limit",
 			js: &jobset.JobSet{
 				TypeMeta: metav1.TypeMeta{
@@ -3103,6 +3193,36 @@ func TestValidateCreate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetJobSetNameForValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("name is used directly", func(t *testing.T) {
+		got := getJobSetNameForValidation(&jobset.JobSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "jobset-name",
+			},
+		})
+
+		assert.Equal(t, "jobset-name", got)
+	})
+
+	t.Run("generateName uses apiserver truncation rules", func(t *testing.T) {
+		got := getJobSetNameForValidation(&jobset.JobSet{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: strings.Repeat("a", 60),
+			},
+		})
+
+		assert.Len(t, got, 63)
+		assert.True(t, strings.HasPrefix(got, strings.Repeat("a", 58)))
+	})
+
+	t.Run("empty metadata returns empty name", func(t *testing.T) {
+		got := getJobSetNameForValidation(&jobset.JobSet{})
+		assert.Empty(t, got)
+	})
 }
 
 func TestValidateUpdate(t *testing.T) {
