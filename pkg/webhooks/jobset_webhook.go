@@ -390,6 +390,22 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 
 			// Pod Scheduling Gates can be updated for batch/v1 Job: https://github.com/kubernetes/kubernetes/blob/ceb58a4dbc671b9d0a2de6d73a1616bc0c299863/pkg/apis/batch/validation/validation.go#L662
 			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldRJob.Template.Spec.Template.Spec.SchedulingGates
+
+			// Allow container/initContainer resource requests/limits to be mutated while suspended,
+			// so that integrators (e.g., Kueue/DWS) can right-size Pods before the JobSet is resumed.
+			// Gated behind SuspendedJobResourceMutation since it relies on the Kubernetes
+			// `MutablePodResourcesForSuspendedJobs` feature gate, which is alpha (disabled by
+			// default) as of Kubernetes 1.35.
+			if features.Enabled(features.SuspendedJobResourceMutation) {
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.Containers = mungeContainerResources(
+					newRJob.Template.Spec.Template.Spec.Containers,
+					oldRJob.Template.Spec.Template.Spec.Containers,
+				)
+				mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.InitContainers = mungeContainerResources(
+					newRJob.Template.Spec.Template.Spec.InitContainers,
+					oldRJob.Template.Spec.Template.Spec.InitContainers,
+				)
+			}
 		}
 	}
 
@@ -667,6 +683,32 @@ func hasVolumeMount(volumeMounts []corev1.VolumeMount, volumeMountName string) b
 		}
 	}
 	return false
+}
+
+// mungeContainerResources returns a copy of newContainers where the Resources field
+// (requests/limits) of each container is replaced with the Resources of the container
+// with the same name in oldContainers, if one exists. This allows JobSet to permit
+// mutation of container resource requests/limits while a JobSet is suspended (needed
+// for integration with Kueue/DWS), without bypassing immutability checks for any other
+// container field, such as image or command.
+func mungeContainerResources(newContainers, oldContainers []corev1.Container) []corev1.Container {
+	if len(newContainers) == 0 {
+		return newContainers
+	}
+
+	oldResourcesByName := make(map[string]corev1.ResourceRequirements, len(oldContainers))
+	for _, container := range oldContainers {
+		oldResourcesByName[container.Name] = container.Resources
+	}
+
+	munged := make([]corev1.Container, len(newContainers))
+	copy(munged, newContainers)
+	for i := range munged {
+		if oldResources, exists := oldResourcesByName[munged[i].Name]; exists {
+			munged[i].Resources = oldResources
+		}
+	}
+	return munged
 }
 
 // replicatedJobByName fetches the replicatedJob spec from the JobSet by name.
