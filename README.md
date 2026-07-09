@@ -1,11 +1,7 @@
 # JobSet
 
-[![GoReport Widget]][GoReport Status]
 [![Latest Release](https://img.shields.io/github/v/release/kubernetes-sigs/jobset?include_prereleases)](https://github.com/kubernetes-sigs/jobset/releases/latest)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kubernetes-sigs/jobset)
-
-[GoReport Widget]: https://goreportcard.com/badge/github.com/kubernetes-sigs/jobset
-[GoReport Status]: https://goreportcard.com/report/github.com/kubernetes-sigs/jobset
 
 JobSet is a Kubernetes-native API for managing a group of [k8s Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/) as a unit. It aims to offer a unified API for deploying HPC (e.g., MPI) and AI/ML training workloads (PyTorch, Jax, Tensorflow etc.) on Kubernetes.
 
