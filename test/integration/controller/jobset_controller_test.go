@@ -791,7 +791,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action (with RestartJob feature gate).", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.RestartJob, true)
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
 						MaxRestarts: 1,
@@ -826,7 +826,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJob failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.RestartJob, true)
+
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
 						MaxRestarts: 1,
@@ -861,7 +862,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJobAndIgnoreMaxRestarts failure policy action.", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.RestartJob, true)
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
 						MaxRestarts: 1,
@@ -1084,7 +1085,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSetAndIgnoreMaxRestarts failure policy action (with RestartJob feature gate).", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				gomega.Expect(features.SetEnable(features.RestartJob, true)).To(gomega.Succeed())
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.RestartJob, true)
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
 						MaxRestarts: 1,
@@ -3132,18 +3133,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 	ginkgo.When("the ElasticJobSet feature gate is enabled", func() {
 
-		ginkgo.BeforeEach(func() {
-			err := features.SetEnable(features.ElasticJobSet, true)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.AfterEach(func() {
-			err := features.SetEnable(features.ElasticJobSet, false)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
 		ginkgo.DescribeTable("Elastic scaling behavior",
 			func(tc *testCase) {
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, true)
 				ctx := context.Background()
 				// Create test namespace for each entry.
 				ns := &corev1.Namespace{
@@ -3281,15 +3273,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 
 	ginkgo.When("the ElasticJobSet feature gate is disabled", func() {
 
-		ginkgo.BeforeEach(func() {
-			// Explicitly turn the feature gate OFF
-			err := features.SetEnable(features.ElasticJobSet, false)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
 		ginkgo.DescribeTable("Elastic scaling behavior is blocked",
 			func(tc *testCase) {
 				ctx := context.Background()
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, false)
+
 				ns := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "jobset-ns-",
