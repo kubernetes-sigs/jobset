@@ -59,6 +59,15 @@ const (
 	//
 	// Enables tracking and propagating JobSet execution attempts as a monotonic counter.
 	ExecutionAttemptsTracking featuregate.Feature = "ExecutionAttemptsTracking"
+
+	// owner: @kannon92
+	//
+	// MutablePodResourcesForSuspendedJobSets enables mutation of container/initContainer resource
+	// requests/limits on a ReplicatedJob's pod template while the JobSet is suspended (or
+	// getting suspended), so that integrators (e.g., Kueue/DWS) can right-size Pods before
+	// the JobSet is resumed. This relies on the Kubernetes `MutablePodResourcesForSuspendedJobs`
+	// feature gate, which was introduced as alpha (disabled by default) in Kubernetes 1.35.
+	MutablePodResourcesForSuspendedJobSets featuregate.Feature = "MutablePodResourcesForSuspendedJobSets"
 )
 
 func init() {
@@ -81,6 +90,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	ElasticJobSet: {Default: false, PreRelease: featuregate.Alpha},
 
 	ExecutionAttemptsTracking: {Default: false, PreRelease: featuregate.Alpha},
+
+	MutablePodResourcesForSuspendedJobSets: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {
