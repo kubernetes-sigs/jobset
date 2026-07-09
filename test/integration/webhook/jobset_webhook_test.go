@@ -48,8 +48,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 	ginkgo.BeforeEach(func() {
 
 		// Ensure feature gate is off by default for all standard tests
-		err := features.SetEnable(features.ElasticJobSet, false)
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, false)
 
 		// Create test namespace before each test.
 		ns = &corev1.Namespace{
@@ -777,8 +776,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateJobSet: func(js *jobset.JobSet) {
 				// Turn the feature gate ON just before we hit the update webhook
-				err := features.SetEnable(features.ElasticJobSet, true)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, true)
 
 				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
 				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
@@ -797,8 +795,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			updateJobSet: func(js *jobset.JobSet) {
-				err := features.SetEnable(features.ElasticJobSet, true)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, true)
 
 				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
 				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](5) // Mismatched values
@@ -818,8 +815,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			updateJobSet: func(js *jobset.JobSet) {
-				err := features.SetEnable(features.ElasticJobSet, true)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, true)
 
 				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
 				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
@@ -839,8 +835,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 						Obj())
 			},
 			updateJobSet: func(js *jobset.JobSet) {
-				err := features.SetEnable(features.ElasticJobSet, true)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, true)
 
 				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](0) // Invalid scale
 				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](0)
@@ -861,8 +856,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			updateJobSet: func(js *jobset.JobSet) {
 				// Ensure the feature gate is OFF (testing the default behavior)
-				err := features.SetEnable(features.ElasticJobSet, false)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, false)
 
 				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
 				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
