@@ -615,7 +615,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 			if !jobSuspended(job) {
 				continue
 			}
-			if err := r.resumeJob(ctx, job, replicatedJobTemplateMap); err != nil {
+			if err := r.resumeJob(ctx, js, job, replicatedJobTemplateMap); err != nil {
 				return err
 			}
 		}
@@ -633,7 +633,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 	return nil
 }
 
-func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, replicatedJobTemplateMap map[string]corev1.PodTemplateSpec) error {
+func (r *JobSetReconciler) resumeJob(ctx context.Context, js *jobset.JobSet, job *batchv1.Job, replicatedJobTemplateMap map[string]corev1.PodTemplateSpec) error {
 	log := ctrl.LoggerFrom(ctx)
 	// Kubernetes validates that a job template is immutable
 	// so if the job has started i.e., startTime != nil), we must set it to nil first.
@@ -674,11 +674,63 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 			job.Spec.Template.Spec.SchedulingGates,
 			replicatedJobPodTemplate.Spec.SchedulingGates,
 		)
+		// Container/InitContainer resource requests/limits may also be mutated while the
+		// JobSet is suspended (e.g., by Kueue/DWS for right-sizing). Propagate the latest
+		// values from the ReplicatedJob's pod template to the child Job's containers,
+		// matched by container name, when the Job is resumed.
+		if features.Enabled(features.MutablePodResourcesForSuspendedJobSets) {
+			job.Spec.Template.Spec.Containers = mergeContainerResources(
+				job.Spec.Template.Spec.Containers,
+				replicatedJobPodTemplate.Spec.Containers,
+			)
+			job.Spec.Template.Spec.InitContainers = mergeContainerResources(
+				job.Spec.Template.Spec.InitContainers,
+				replicatedJobPodTemplate.Spec.InitContainers,
+			)
+		}
 	} else {
 		log.Error(nil, "job missing ReplicatedJobName label")
 	}
 	job.Spec.Suspend = ptr.To(false)
-	return r.Update(ctx, job)
+	if err := r.Update(ctx, job); err != nil {
+		// If container/initContainer resources were mutated while suspended, a rejected
+		// update here likely means the Kubernetes MutablePodResourcesForSuspendedJobs
+		// feature gate is not enabled on the API server. Surface this via a Warning event
+		// rather than only retrying silently in the reconcile backoff.
+		if features.Enabled(features.MutablePodResourcesForSuspendedJobSets) {
+			r.Record.Eventf(js, nil, corev1.EventTypeWarning, constants.FailedResourcePropagationReason, "Reconciling",
+				"Failed to propagate mutated resources to child Job %s: %v. Ensure MutablePodResourcesForSuspendedJobs is enabled on the API server.", job.Name, err)
+		}
+		return err
+	}
+	return nil
+}
+
+// mergeContainerResources returns a copy of jobContainers where the Requests and Limits
+// of each container's Resources are replaced with those of the container with the same
+// name in templateContainers, if one exists. resources.claims is left untouched, since it
+// is not a mutable field. This is used to propagate resource mutations made to the
+// ReplicatedJob's pod template while the JobSet was suspended to the child Job's
+// containers when the Job is resumed.
+func mergeContainerResources(jobContainers, templateContainers []corev1.Container) []corev1.Container {
+	if len(jobContainers) == 0 {
+		return jobContainers
+	}
+
+	templateResourcesByName := make(map[string]corev1.ResourceRequirements, len(templateContainers))
+	for _, container := range templateContainers {
+		templateResourcesByName[container.Name] = container.Resources
+	}
+
+	merged := make([]corev1.Container, len(jobContainers))
+	copy(merged, jobContainers)
+	for i := range merged {
+		if resources, exists := templateResourcesByName[merged[i].Name]; exists {
+			merged[i].Resources.Requests = resources.Requests
+			merged[i].Resources.Limits = resources.Limits
+		}
+	}
+	return merged
 }
 
 func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {

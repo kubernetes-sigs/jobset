@@ -121,6 +121,12 @@ const (
 	// The event uses the error(s) as the message.
 	PVCCreationFailedReason = "PVCCreationFailed"
 
+	// Event reason used when propagating mutated container/initContainer resources from a
+	// suspended ReplicatedJob's pod template to a child Job fails on resume, e.g. because
+	// the Kubernetes MutablePodResourcesForSuspendedJobs feature gate is not enabled.
+	// The event uses the error(s) as the message.
+	FailedResourcePropagationReason = "FailedResourcePropagation"
+
 	// Event reason and message related to applying the RestartJob failure policy action.
 	RestartJobActionReason  = "RestartJobFailurePolicyAction"
 	RestartJobActionMessage = "applying RestartJob failure policy action"
