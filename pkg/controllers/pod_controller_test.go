@@ -21,13 +21,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/events"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -60,13 +64,14 @@ func TestValidatePodPlacements(t *testing.T) {
 		nodeSelector    = map[string]string{testTopologyKey: "topologyDomain"}
 	)
 	tests := []struct {
-		name           string
-		leaderPod      corev1.Pod
-		podList        *corev1.PodList
-		node           *corev1.Node
-		wantErr        error
-		forceClientErr bool
-		wantMatched    bool
+		name              string
+		leaderPod         corev1.Pod
+		podList           *corev1.PodList
+		node              *corev1.Node
+		wantErr           error
+		forceClientErr    bool
+		forceNodeNotFound bool
+		wantMatched       bool
 	}{
 		{
 			name:      "topology node label not found",
@@ -116,7 +121,7 @@ func TestValidatePodPlacements(t *testing.T) {
 					Labels: nodeSelector,
 				},
 			},
-			wantErr: fmt.Errorf("pod %s nodeSelector is nil", "test-jobset-replicated-job-1-test-job-0-1"),
+			wantMatched: false,
 		},
 		{
 			name:      "follower pod nodeSelector is empty",
@@ -133,12 +138,11 @@ func TestValidatePodPlacements(t *testing.T) {
 					Labels: nodeSelector,
 				},
 			},
-			wantErr: fmt.Errorf("pod %s nodeSelector is missing key: %s",
-				"test-jobset-replicated-job-1-test-job-0-1", testTopologyKey),
+			wantMatched: false,
 		},
 		{
 			name:      "followerTopology != leaderTopology",
-			leaderPod: leaderPodWrapper.Obj(),
+			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
 			podList: &corev1.PodList{
 				Items: []corev1.Pod{
 					leaderPodWrapper.Obj(),
@@ -151,8 +155,19 @@ func TestValidatePodPlacements(t *testing.T) {
 					Labels: nodeSelector,
 				},
 			},
-			wantErr: fmt.Errorf("follower topology %q != leader topology %q",
-				"topologyDomain1", "topologyDomain"),
+			wantMatched: false,
+		},
+		{
+			name:      "leader topology unknown retries instead of deleting followers",
+			leaderPod: leaderPodWrapper.AddAnnotation(jobset.ExclusiveKey, testTopologyKey).Obj(),
+			podList: &corev1.PodList{
+				Items: []corev1.Pod{
+					leaderPodWrapper.Obj(),
+					followerPodWrapper.NodeSelector(nodeSelector).Obj(),
+				},
+			},
+			forceNodeNotFound: true,
+			wantErr:           fmt.Errorf("leader topology is unknown (node not found)"),
 		},
 		{
 			name:      "get node error",
@@ -179,6 +194,9 @@ func TestValidatePodPlacements(t *testing.T) {
 					if tc.forceClientErr || node == nil {
 						return errors.New("example error")
 					}
+					if tc.forceNodeNotFound {
+						return apierrors.NewNotFound(schema.GroupResource{Resource: "nodes"}, key.Name)
+					}
 					// Set returned node value to be the node defined in the test case.
 					*node = *tc.node
 					return nil
@@ -195,6 +213,115 @@ func TestValidatePodPlacements(t *testing.T) {
 			assert.Equal(t, tc.wantMatched, gotMatched)
 		})
 	}
+}
+
+func TestReconcileDeletesMismatchedFollowerPods(t *testing.T) {
+	trueVar := true
+	const (
+		jobSetName      = "test-jobset"
+		ns              = "default"
+		jobName         = "test-jobset-replicated-job-1-test-job-0"
+		topologyKey     = "test-node-topologyKey"
+		nodeName        = "test-node"
+		jobUID          = types.UID("job-uid-1")
+		leaderPodName   = "test-jobset-replicated-job-1-test-job-0-0"
+		followerPodName = "test-jobset-replicated-job-1-test-job-0-1"
+	)
+
+	leaderPod := makePod(&makePodArgs{
+		jobSetName:        jobSetName,
+		replicatedJobName: "replicated-job-1",
+		jobName:           jobName,
+		podName:           leaderPodName,
+		ns:                ns,
+		nodeName:          nodeName,
+		jobIdx:            0,
+	}).
+		AddAnnotation(jobset.ExclusiveKey, topologyKey).
+		AddAnnotation(batchv1.JobCompletionIndexAnnotation, "0").
+		Obj()
+	leaderPod.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: "batch/v1",
+		Kind:       "Job",
+		Name:       jobName,
+		UID:        jobUID,
+		Controller: &trueVar,
+	}}
+
+	followerPod := makePod(&makePodArgs{
+		jobSetName:        jobSetName,
+		replicatedJobName: "replicated-job-1",
+		jobName:           jobName,
+		podName:           followerPodName,
+		ns:                ns,
+		jobIdx:            0,
+	}).
+		AddAnnotation(jobset.ExclusiveKey, topologyKey).
+		AddAnnotation(batchv1.JobCompletionIndexAnnotation, "1").
+		NodeSelector(map[string]string{topologyKey: "wrong-topology"}).
+		Obj()
+	followerPod.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: "batch/v1",
+		Kind:       "Job",
+		Name:       jobName,
+		UID:        jobUID,
+		Controller: &trueVar,
+	}}
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   nodeName,
+			Labels: map[string]string{topologyKey: "expected-topology"},
+		},
+	}
+
+	var deletedPods []string
+	var statusUpdatedPods []string
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(jobset.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+
+	fc := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(&leaderPod, &followerPod, node).
+		WithIndex(&corev1.Pod{}, podJobKey, IndexPodJob).
+		WithStatusSubresource(&leaderPod, &followerPod).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				retrievedNode, ok := obj.(*corev1.Node)
+				if !ok {
+					return c.Get(ctx, key, obj, opts...)
+				}
+				*retrievedNode = *node
+				return nil
+			},
+			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				pod, ok := obj.(*corev1.Pod)
+				if ok {
+					deletedPods = append(deletedPods, pod.Name)
+				}
+				return nil
+			},
+			SubResourceUpdate: func(ctx context.Context, c client.Client, subResourceName string, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+				pod, ok := obj.(*corev1.Pod)
+				if ok && subResourceName == "status" {
+					statusUpdatedPods = append(statusUpdatedPods, pod.Name)
+				}
+				return nil
+			},
+		}).
+		Build()
+
+	r := &PodReconciler{
+		Client: fc,
+		Scheme: scheme,
+	}
+
+	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(&leaderPod)})
+	require.NoError(t, err)
+	assert.Equal(t, []string{followerPodName}, deletedPods)
+	assert.Equal(t, []string{followerPodName}, statusUpdatedPods)
 }
 
 func TestDeleteFollowerPods(t *testing.T) {
