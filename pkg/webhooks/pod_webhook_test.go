@@ -599,6 +599,34 @@ func TestLeaderPodForFollower(t *testing.T) {
 			wantErr: "expected 1 leader pod (js-rjob-0-0), but got 0",
 		},
 		{
+			name:        "active leader alongside failed leader pod",
+			followerPod: followerPod,
+			existingPods: []runtime.Object{
+				leaderPod,
+				func() *corev1.Pod {
+					p := leaderPod.DeepCopy()
+					p.Name = "js-rjob-0-0-failed"
+					p.Status.Phase = corev1.PodFailed
+					return p
+				}(),
+			},
+			wantLeaderPod: leaderPod,
+		},
+		{
+			name:        "active leader alongside succeeded leader pod",
+			followerPod: followerPod,
+			existingPods: []runtime.Object{
+				leaderPod,
+				func() *corev1.Pod {
+					p := leaderPod.DeepCopy()
+					p.Name = "js-rjob-0-0-succeeded"
+					p.Status.Phase = corev1.PodSucceeded
+					return p
+				}(),
+			},
+			wantLeaderPod: leaderPod,
+		},
+		{
 			name:        "leader and follower owned by different jobs",
 			followerPod: followerPod,
 			existingPods: []runtime.Object{
@@ -675,4 +703,136 @@ func makeTestPod(name string, owner *metav1.OwnerReference, annotations map[stri
 		pod.OwnerReferences = []metav1.OwnerReference{*owner}
 	}
 	return pod
+}
+
+func TestPodWebhook_DuplicateLeaderPods(t *testing.T) {
+	// 1. Setup scheme and register resources
+	s := runtime.NewScheme()
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatalf("failed to add corev1 to scheme: %v", err)
+	}
+
+	// Define common metadata labels for JobSet pods
+	baseLabels := map[string]string{
+		"jobset.sigs.k8s.io/jobset-name":        "test-jobset",
+		"jobset.sigs.k8s.io/replicatedjob-name": "slice",
+		"jobset.sigs.k8s.io/job-index":          "0",
+		"jobset.sigs.k8s.io/restart-attempt":    "0",
+	}
+
+	cloneLabels := func() map[string]string {
+		m := make(map[string]string)
+		for k, v := range baseLabels {
+			m[k] = v
+		}
+		return m
+	}
+
+	// 2. Define the Mock Pods
+
+	// Old leader pod that failed (still in system, no deletion timestamp)
+	oldLeader := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-jobset-slice-0-0-oldhash",
+			Namespace: "default",
+			Labels:    cloneLabels(),
+			Annotations: map[string]string{
+				"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+				"jobset.sigs.k8s.io/jobset-name":              "test-jobset",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "batch/v1",
+					Kind:       "Job",
+					Name:       "test-jobset-slice-0",
+					UID:        "uid-123",
+					Controller: ptr.To(true),
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodFailed,
+		},
+	}
+	oldLeader.Labels["batch.kubernetes.io/job-completion-index"] = "0"
+	oldLeader.Labels["batch.kubernetes.io/controller-uid"] = "uid-123"
+
+	// New leader pod created by Job controller as a retry
+	newLeader := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-jobset-slice-0-0-newhash",
+			Namespace: "default",
+			Labels:    cloneLabels(),
+			Annotations: map[string]string{
+				"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+				"jobset.sigs.k8s.io/jobset-name":              "test-jobset",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "batch/v1",
+					Kind:       "Job",
+					Name:       "test-jobset-slice-0",
+					UID:        "uid-123",
+					Controller: ptr.To(true),
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-a", // Scheduled, otherwise ValidateCreate fails with "not scheduled"
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+		},
+	}
+	newLeader.Labels["batch.kubernetes.io/job-completion-index"] = "0"
+	newLeader.Labels["batch.kubernetes.io/controller-uid"] = "uid-123"
+
+	// New follower pod (index 1) that is attempting admission
+	follower := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-jobset-slice-0-1-randomhash",
+			Namespace: "default",
+			Labels:    cloneLabels(),
+			Annotations: map[string]string{
+				"alpha.jobset.sigs.k8s.io/exclusive-topology": "topology.kubernetes.io/zone",
+				"jobset.sigs.k8s.io/jobset-name":              "test-jobset",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "batch/v1",
+					Kind:       "Job",
+					Name:       "test-jobset-slice-0",
+					UID:        "uid-123",
+					Controller: ptr.To(true),
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeSelector: map[string]string{
+				"topology.kubernetes.io/zone": "zone-a", // Required for validation
+			},
+		},
+	}
+	follower.Labels["batch.kubernetes.io/job-completion-index"] = "1"
+
+	// 3. Initialize Fake Client and register Field Indexer
+	fc := fake.NewClientBuilder().
+		WithScheme(s).
+		WithObjects(oldLeader, newLeader, follower).
+		WithIndex(&corev1.Pod{}, controllers.PodNameKey, controllers.IndexPodName).
+		Build()
+
+	// 4. Instantiate Webhook
+	webhook := &podWebhook{
+		client: fc,
+	}
+
+	// 5. Execute Validation
+	_, err := webhook.ValidateCreate(context.Background(), follower)
+
+	// EXPECTED BEHAVIOR WITH THE FIX:
+	// The validation should PASS because the oldLeader (PodFailed phase) is ignored.
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 }
