@@ -1,0 +1,28 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: training-job
+spec:
+  replicatedJobs:
+  - name: workers
+    replicas: 3
+    template:
+      spec:
+        completions: 2
+        parallelism: 2
+        backoffLimit: 0
+        template:
+          spec:
+            terminationGracePeriodSeconds: 0
+            schedulingGroup:
+              podGroupName: training-workers
+            resourceClaims:
+            - name: shared-gpu
+              resourceClaimTemplateName: gpu-claim-template
+            containers:
+            - name: worker
+              image: busybox
+              command: ["/bin/sh", "-c", "sleep infinity"]
+              resources:
+                claims:
+                - name: shared-gpu

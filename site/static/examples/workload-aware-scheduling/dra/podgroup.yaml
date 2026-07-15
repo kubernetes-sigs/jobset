@@ -1,0 +1,16 @@
+apiVersion: scheduling.k8s.io/v1alpha2
+kind: PodGroup
+metadata:
+  name: training-workers
+  namespace: default
+spec:
+  podGroupTemplateRef:
+    workload:
+      workloadName: training-workload
+      podGroupTemplateName: workers
+  schedulingPolicy:
+    gang:
+      minCount: 6
+  resourceClaims:
+  - name: shared-gpu
+    resourceClaimTemplateName: gpu-claim-template
