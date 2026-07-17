@@ -190,7 +190,10 @@ func (r *PodReconciler) listPodsForJob(ctx context.Context, ns, jobKey string, o
 }
 
 // validatePodPlacements returns true if the topology value specified in follower pods' nodeSelectors
-// matches that of their leader pod, and the leader pod exists. Otherwise, it returns false.
+// matches that of their leader pod, and the leader pod exists. It returns false without an error
+// when follower placement data is malformed or mismatched so the reconciler can repair the job by
+// deleting follower pods. If the leader topology is temporarily unknown, it returns an error so
+// reconciliation retries instead of deleting followers based on incomplete information.
 func (r *PodReconciler) validatePodPlacements(ctx context.Context, leaderPod *corev1.Pod, podList *corev1.PodList) (bool, error) {
 	// We know exclusive key is set since we have an event filter for this.
 	topologyKey := leaderPod.Annotations[jobset.ExclusiveKey]
@@ -205,11 +208,11 @@ func (r *PodReconciler) validatePodPlacements(ctx context.Context, leaderPod *co
 			continue
 		}
 		followerTopology, err := followerPodTopology(&pod, topologyKey)
-		if err != nil {
-			return false, err
-		}
-		if followerTopology != leaderTopology {
-			return false, fmt.Errorf("follower topology %q != leader topology %q", followerTopology, leaderTopology)
+		if err != nil || followerTopology != leaderTopology {
+			if leaderTopology == "" {
+				return false, fmt.Errorf("leader topology is unknown (node not found)")
+			}
+			return false, nil
 		}
 	}
 	return true, nil
