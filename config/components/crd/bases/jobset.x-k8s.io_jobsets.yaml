@@ -278,6 +278,7 @@ spec:
                         replicas is the number of jobs that will be created from this ReplicatedJob's template.
                         Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
                       format: int32
+                      minimum: 0
                       type: integer
                     template:
                       description: template defines the template of the Job that will

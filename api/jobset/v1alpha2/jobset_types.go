@@ -332,6 +332,7 @@ type ReplicatedJob struct {
 	// replicas is the number of jobs that will be created from this ReplicatedJob's template.
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=0
 	Replicas int32 `json:"replicas,omitempty"`
 
 	// dependsOn is an optional list that specifies the preceding ReplicatedJobs upon which
