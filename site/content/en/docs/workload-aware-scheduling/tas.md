@@ -12,9 +12,9 @@ Topology Aware Scheduling (TAS) ensures that all pods in a gang are placed withi
 
 ## Prerequisites
 
-In addition to the [general WAS prerequisites](../), you must:
+In addition to the [general WAS prerequisites](/docs/workload-aware-scheduling/), you must:
 
-1. **Enable the `TopologyAwareWorkloadScheduling` feature gate.** This feature gate is included in the [kind cluster configuration](../) and is required for topology-aware placement.
+1. **Enable the `TopologyAwareWorkloadScheduling` feature gate.** This feature gate is included in the [kind cluster configuration](/docs/workload-aware-scheduling/) and is required for topology-aware placement.
 
 2. **Label your nodes with topology keys.** The scheduler uses node labels to determine topology domains. Apply labels that represent your topology hierarchy — for example, rack, block, or zone:
 

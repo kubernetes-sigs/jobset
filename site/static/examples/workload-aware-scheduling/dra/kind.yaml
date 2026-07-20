@@ -1,0 +1,20 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+featureGates:
+  GenericWorkload: true
+  GangScheduling: true
+  TopologyAwareWorkloadScheduling: true
+  WorkloadAwarePreemption: true
+  DRAWorkloadResourceClaims: true   # Enables PodGroup-level ResourceClaims
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        runtime-config: "api/alpha=true"
+- role: worker
+- role: worker
+- role: worker
+- role: worker
