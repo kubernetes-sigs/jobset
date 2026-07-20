@@ -12,7 +12,7 @@ When the `DRAWorkloadResourceClaims` feature gate is enabled, you can associate 
 
 ## Prerequisites
 
-In addition to the [general WAS prerequisites](../), you must:
+In addition to the [general WAS prerequisites](/docs/workload-aware-scheduling/), you must:
 
 **Enable an additional feature gate.** Add `DRAWorkloadResourceClaims` to your cluster configuration:
 
