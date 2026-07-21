@@ -351,10 +351,15 @@ func JobSetReadyForTesting(ctx context.Context, k8sClient client.Client) {
 		g.Expect(k8sClient.List(ctx, pods, client.InNamespace(deploymentKey.Namespace), client.MatchingLabels(deployment.Spec.Selector.MatchLabels))).To(gomega.Succeed())
 		for _, pod := range pods.Items {
 			for _, cs := range pod.Status.ContainerStatuses {
-				// To make sure that we don't have restarts of controller-manager.
-				// If we have that's mean that something went wrong, and there is
-				// no needs to continue trying check availability.
-				if cs.RestartCount > 0 {
+				// The cert-controller bootstrap can occasionally take
+				// longer than the liveness probe allows, causing a
+				// single restart.  The controller recovers on the
+				// second attempt because the certificates already
+				// exist on disk.  Tolerate one restart so this
+				// transient event does not abort the entire suite;
+				// bail only on repeated restarts that indicate a real
+				// problem.
+				if cs.RestartCount > 1 {
 					return gomega.StopTrying(fmt.Sprintf("%q in %q has restarted %d times", cs.Name, pod.Name, cs.RestartCount))
 				}
 			}
