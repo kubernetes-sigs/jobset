@@ -126,6 +126,31 @@ func TestDefault(t *testing.T) {
 			},
 		},
 		{
+			name: "jobset pod, no exclusive placement, with negative priority",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "p",
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name": "js",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Priority: ptr.To(int32(-1)),
+				},
+			},
+			wantPod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "p",
+					Annotations: map[string]string{
+						"jobset.sigs.k8s.io/jobset-name": "js",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Priority: ptr.To(int32(-1)),
+				},
+			},
+		},
+		{
 			name: "leader pod with exclusive placement",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
