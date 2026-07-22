@@ -1,0 +1,37 @@
+title: Mutable JobSet Requests and Limits on Suspended State
+kep-number: 1150
+authors:
+  - "@kannon92"
+status: implementable
+creation-date: 2026-07-09
+reviewers:
+  - "@andreyvelich"
+  - "@GiuseppeTT"
+approvers:
+  - "@andreyvelich"
+
+see-also:
+  - "https://github.com/kubernetes/enhancements/issues/5440"
+
+# The target maturity stage in the current dev cycle for this KEP.
+stage: alpha
+
+# The most recent milestone for which work toward delivery of this KEP has been
+# done. This can be the current (upcoming) milestone, if it is being actively
+# worked on.
+latest-milestone: "v0.13"
+
+# The milestone at which this feature was, or is targeted to be, at each stage.
+milestone:
+  alpha: "v0.13"
+  beta: "TBD"
+  stable: "TBD"
+
+# The following PRR answers are required at alpha release
+# List the feature gate name and the components for which it must be enabled
+feature-gates:
+  - name: SuspendedJobResourceMutation
+disable-supported: true
+
+# The following PRR answers are required at beta release
+metrics: []
