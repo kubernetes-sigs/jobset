@@ -52,6 +52,16 @@ const (
 	// ElasticJobSet enables the mutation of parallelism and completions for ReplicatedJobs
 	// to support dynamic horizontal pod-level scaling.
 	ElasticJobSet featuregate.Feature = "ElasticJobSet"
+
+	// owner: @kannon92
+	// kep: https://kep.k8s.io/5440
+	//
+	// SuspendedJobResourceMutation enables mutation of container/initContainer resource
+	// requests/limits on a ReplicatedJob's pod template while the JobSet is suspended (or
+	// getting suspended), so that integrators (e.g., Kueue/DWS) can right-size Pods before
+	// the JobSet is resumed. This relies on the Kubernetes `MutablePodResourcesForSuspendedJobs`
+	// feature gate, which was introduced as alpha (disabled by default) in Kubernetes 1.35.
+	SuspendedJobResourceMutation featuregate.Feature = "SuspendedJobResourceMutation"
 )
 
 func init() {
@@ -72,6 +82,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	RestartJob: {Default: false, PreRelease: featuregate.Alpha},
 
 	ElasticJobSet: {Default: false, PreRelease: featuregate.Alpha},
+
+	SuspendedJobResourceMutation: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {

@@ -146,6 +146,11 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				Operator: corev1.TolerationOpExists,
 			},
 		},
+		containerResources: &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU: resource.MustParse("2"),
+			},
+		},
 	}
 
 	ginkgo.DescribeTable("jobset is created and its jobs go through a series of updates",
@@ -1471,6 +1476,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
+						// Container resource mutation for suspended JobSets is gated behind the
+						// SuspendedJobResourceMutation feature gate.
+						features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.SuspendedJobResourceMutation, true)
 						updatePodTemplates(js, podTemplateUpdates)
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
@@ -3627,6 +3635,9 @@ type updatePodTemplateOpts struct {
 	annotations  map[string]string
 	nodeSelector map[string]string
 	tolerations  []corev1.Toleration
+	// containerResources, if set, is applied to the resources of the container named
+	// "test-container" in each ReplicatedJob's pod template.
+	containerResources *corev1.ResourceRequirements
 }
 
 func updatePodTemplates(js *jobset.JobSet, opts *updatePodTemplateOpts) {
@@ -3648,6 +3659,15 @@ func updatePodTemplates(js *jobset.JobSet, opts *updatePodTemplateOpts) {
 
 			// Update tolerations.
 			podTemplate.Spec.Tolerations = opts.tolerations
+
+			// Update container resource requests/limits.
+			if opts.containerResources != nil {
+				for cIdx := range podTemplate.Spec.Containers {
+					if podTemplate.Spec.Containers[cIdx].Name == "test-container" {
+						podTemplate.Spec.Containers[cIdx].Resources = *opts.containerResources
+					}
+				}
+			}
 		}
 		return k8sClient.Update(ctx, &jsGet)
 	}, timeout, interval).Should(gomega.Succeed())
@@ -3704,6 +3724,22 @@ func checkPodTemplateUpdates(js *jobset.JobSet, podTemplateUpdates *updatePodTem
 		for _, toleration := range podTemplateUpdates.tolerations {
 			if !slices.Contains(job.Spec.Template.Spec.Tolerations, toleration) {
 				return false, fmt.Errorf("missing toleration %v", toleration)
+			}
+		}
+
+		// Check container resources were updated.
+		if podTemplateUpdates.containerResources != nil {
+			found := false
+			for _, container := range job.Spec.Template.Spec.Containers {
+				if container.Name == "test-container" {
+					found = true
+					if !apiequality.Semantic.DeepEqual(container.Resources, *podTemplateUpdates.containerResources) {
+						return false, fmt.Errorf("container resources %v != %v", container.Resources, *podTemplateUpdates.containerResources)
+					}
+				}
+			}
+			if !found {
+				return false, fmt.Errorf("container test-container not found")
 			}
 		}
 
