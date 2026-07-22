@@ -1,0 +1,49 @@
+# KEP-969 Representative API: "Avoid reserving resources for suspended workloads"
+#
+# spec:
+#   suspend: true
+#   scheduling: ...
+#
+# Expected: the Workload/PodGroup are deleted while suspended, and recreated
+# (same names/mapping) when spec.suspend is set back to false.
+#
+# Verify:
+#   kubectl apply -f site/static/examples/scheduling/suspend-resume.yaml
+#   kubectl get workloads,podgroups -n default   # created
+#   kubectl patch jobset gang-suspend -n default --type=merge -p '{"spec":{"suspend":true}}'
+#   kubectl get workloads,podgroups -n default   # gone
+#   kubectl patch jobset gang-suspend -n default --type=merge -p '{"spec":{"suspend":false}}'
+#   kubectl get workloads,podgroups -n default   # recreated
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: gang-suspend
+  namespace: default
+spec:
+  suspend: false
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    schedulingPolicy:
+      gang: {}
+  replicatedJobs:
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          parallelism: 2
+          completions: 2
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["sleep", "120s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

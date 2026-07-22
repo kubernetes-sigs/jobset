@@ -21,7 +21,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
-	schedulingv1alpha2 "k8s.io/api/scheduling/v1alpha2"
+	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -48,16 +48,16 @@ func TestSchedulingE2E(t *testing.T) {
 var _ = ginkgo.BeforeSuite(func() {
 	ctx = context.Background()
 	cfg := config.GetConfigOrDie()
-	gomega.Expect(cfg).NotTo(gomega.BeNil())
+	gomega.ExpectWithOffset(1, cfg).NotTo(gomega.BeNil())
 
 	err := jobset.AddToScheme(scheme.Scheme)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	err = batchv1.AddToScheme(scheme.Scheme)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
-	err = schedulingv1alpha2.AddToScheme(scheme.Scheme)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	err = schedulingv1alpha3.AddToScheme(scheme.Scheme)
+	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())

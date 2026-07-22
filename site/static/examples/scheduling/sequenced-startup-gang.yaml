@@ -1,0 +1,79 @@
+# KEP-969 Representative API: "Combine sequencing with Gang scheduling"
+#
+# scheduling:
+#   schedulingPolicy:
+#     gang: {}
+# replicatedJobs:
+#   - name: leader
+#     dependsOn: []
+#   - name: worker
+#     dependsOn:
+#       - name: leader
+#         status: Ready
+#
+# Expected: because DependsOn makes Job creation sequential, the controller
+# uses one Gang PodGroup per ReplicatedJob ("<jobset-name>-leader",
+# "<jobset-name>-worker") instead of a single JobSet-wide PodGroup, avoiding
+# deadlock (a single PodGroup requiring every pod at once could never be
+# satisfied while worker's Job doesn't exist yet). Each PodGroup's minCount is
+# computed independently from its own ReplicatedJob (leader: 1, worker: 2);
+# the top-level schedulingPolicy is not used to compute a single combined
+# minCount when sequenced startup is active.
+#
+# Verify:
+#   kubectl get workloads,podgroups,jobs -n default
+#   kubectl get jobs -n default   # worker's Job appears only after leader is Ready
+#   kubectl get podgroups -n default -o custom-columns=NAME:.metadata.name,MINCOUNT:.spec.schedulingPolicy.gang.minCount
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: sequenced-gang
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    schedulingPolicy:
+      gang: {}
+  replicatedJobs:
+    - name: leader
+      replicas: 1
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: leader
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["/sleep", "-d", "10s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi
+    - name: worker
+      replicas: 1
+      dependsOn:
+        - name: leader
+          status: Ready
+      template:
+        spec:
+          parallelism: 2
+          completions: 2
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["/sleep", "-d", "10s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

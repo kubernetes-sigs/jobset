@@ -7,7 +7,9 @@ export NAMESPACE="jobset-system"
 export JOBSET_E2E_TESTS_DUMP_NAMESPACE=true
 # E2E config folder to use (defaults to "default")
 export E2E_TARGET_FOLDER="${E2E_TARGET_FOLDER:-default}"
-export E2E_TEST_PATH="${E2E_TEST_PATH:-./test/e2e/...}"
+# Excludes ./test/e2e/scheduling/..., which requires a WAS-enabled cluster
+# and is run separately via test-e2e-scheduling.sh / make test-e2e-kind-scheduling.
+export E2E_TEST_PATH="${E2E_TEST_PATH:-./test/e2e ./test/e2e/customconfigs/...}"
 K8S_VERSION="${E2E_KIND_VERSION##*:}"
 
 # Use a temporary KUBECONFIG so that the script does not mess with the current user's kubeconfig.

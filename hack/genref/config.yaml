@@ -10,6 +10,12 @@ apis:
     path: api/jobset/v1alpha2
 
 externalPackages:
+  # scheduling/v1alpha3 (Workload-Aware Scheduling) is an unreleased alpha API
+  # that has no generated Kubernetes API reference page yet, so link to the
+  # upstream KEP instead of the versioned API reference used below (which
+  # would 404 for these types).
+  - match: ^k8s\.io/api/scheduling/v1alpha3\.
+    target: https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling
   - match: ^k8s\.io/(api|apimachinery/pkg/apis)/
     target: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#{{- lower .TypeIdentifier -}}-{{- arrIndex .PackageSegments -1 -}}-{{- arrIndex .PackageSegments -2 -}}
   - match: ^k8s\.io/apimachinery/pkg/api/resource\.Quantity$
