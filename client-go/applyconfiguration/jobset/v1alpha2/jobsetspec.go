@@ -72,6 +72,13 @@ type JobSetSpecApplyConfiguration struct {
 	// pod template. Every claim in this list must have at least one matching (by name)
 	// volumeMount in one container in the template.
 	VolumeClaimPolicies []VolumeClaimPolicyApplyConfiguration `json:"volumeClaimPolicies,omitempty"`
+	// scheduling defines the Workload-Aware Scheduling configuration for this JobSet.
+	// When nil, no scheduling objects are created and behavior is unchanged.
+	// When set (even to {}), the controller compiles a Workload resource
+	// (containing PodGroupTemplates) and materializes the corresponding
+	// PodGroup objects for the scheduler.
+	// Requires the WorkloadAwareScheduling feature gate.
+	Scheduling *JobSetSchedulingApplyConfiguration `json:"scheduling,omitempty"`
 }
 
 // JobSetSpecApplyConfiguration constructs a declarative configuration of the JobSetSpec type for use with
@@ -167,5 +174,13 @@ func (b *JobSetSpecApplyConfiguration) WithVolumeClaimPolicies(values ...*Volume
 		}
 		b.VolumeClaimPolicies = append(b.VolumeClaimPolicies, *values[i])
 	}
+	return b
+}
+
+// WithScheduling sets the Scheduling field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Scheduling field is set to the value of the last call.
+func (b *JobSetSpecApplyConfiguration) WithScheduling(value *JobSetSchedulingApplyConfiguration) *JobSetSpecApplyConfiguration {
+	b.Scheduling = value
 	return b
 }

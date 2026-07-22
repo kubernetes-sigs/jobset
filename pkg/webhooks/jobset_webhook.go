@@ -26,6 +26,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -43,6 +44,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/features"
+	jobsetutil "sigs.k8s.io/jobset/pkg/util"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
@@ -158,10 +160,51 @@ func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
 		}
 	}
 
+	// Default scheduling policy to Gang when scheduling block is present but
+	// policy is nil. Sequenced startup uses one PodGroup per ReplicatedJob, so
+	// it intentionally leaves the composite policy unset and lets the builder
+	// apply the per-ReplicatedJob Gang defaults.
+	if js.Spec.Scheduling != nil && js.Spec.Scheduling.Policy == nil && !controllers.HasSequencedStartup(js) {
+		js.Spec.Scheduling.Policy = &schedulingv1alpha3.PodGroupSchedulingPolicy{
+			Gang: &schedulingv1alpha3.GangSchedulingPolicy{},
+		}
+	}
+	defaultSchedulingGangMinCounts(js)
+
 	return nil
 }
 
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha2-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=vjobset.kb.io,admissionReviewVersions=v1
+
+// defaultSchedulingGangMinCounts fills required gang minCount fields with the
+// number of pods represented by the corresponding JobSet or ReplicatedJob.
+func defaultSchedulingGangMinCounts(js *jobset.JobSet) {
+	scheduling := js.Spec.Scheduling
+	if scheduling == nil {
+		return
+	}
+
+	if scheduling.Policy != nil && scheduling.Policy.Gang != nil && scheduling.Policy.Gang.MinCount == 0 &&
+		(!controllers.HasSequencedStartup(js) || len(scheduling.ReplicatedJobPolicies) > 0) {
+		scheduling.Policy.Gang.MinCount = jobsetutil.TotalReplicatedJobPodCount(js.Spec.ReplicatedJobs)
+	}
+
+	for i := range scheduling.ReplicatedJobPolicies {
+		policy := &scheduling.ReplicatedJobPolicies[i]
+		if policy.Policy != nil && policy.Policy.Gang != nil && policy.Policy.Gang.MinCount == 0 {
+			for j := range js.Spec.ReplicatedJobs {
+				if js.Spec.ReplicatedJobs[j].Name == policy.TargetReplicatedJob {
+					policy.Policy.Gang.MinCount = replicatedJobPodCount(&js.Spec.ReplicatedJobs[j])
+					break
+				}
+			}
+		}
+	}
+}
+
+func replicatedJobPodCount(rjob *jobset.ReplicatedJob) int32 {
+	return jobsetutil.ReplicatedJobPodCount(rjob)
+}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (admission.Warnings, error) {
@@ -307,6 +350,9 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, jobSetNameForValidation, js.Spec.VolumeClaimPolicies)...)
 	}
 
+	// Validate scheduling configuration.
+	allErrs = append(allErrs, validateScheduling(ctx, js, rJobNames)...)
+
 	return nil, invalidError(js.Name, allErrs)
 }
 
@@ -396,6 +442,7 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJs.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))...)
 	errs = append(errs, apivalidation.ValidateImmutableField(newJs.Spec.ManagedBy, oldJs.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
+	errs = append(errs, apivalidation.ValidateImmutableField(newJs.Spec.Scheduling, oldJs.Spec.Scheduling, field.NewPath("spec").Child("scheduling"))...)
 
 	if len(errs) == 0 {
 		return nil, nil
@@ -707,6 +754,115 @@ func toFieldErrorList(errs []error) field.ErrorList {
 		}
 	}
 	return fieldErrs
+}
+
+func usesSingleTopLevelPodGroup(js *jobset.JobSet) bool {
+	return controllers.UseTopLevelGang(js.Spec.Scheduling) && !controllers.HasSequencedStartup(js)
+}
+
+// validateScheduling validates the scheduling configuration of a JobSet.
+// It uses the workloadbuilder library for declarative validation and complex
+// cross-field policy checks, and adds JobSet-specific validations on top.
+func validateScheduling(ctx context.Context, js *jobset.JobSet, rJobNames sets.Set[string]) []error {
+	var allErrs []error
+
+	// If feature gate is disabled, reject any scheduling config.
+	if !features.Enabled(features.WorkloadAwareScheduling) {
+		if js.Spec.Scheduling != nil {
+			allErrs = append(allErrs, field.Forbidden(field.NewPath("spec", "scheduling"), "cannot be set when WorkloadAwareScheduling feature gate is disabled"))
+		}
+		return allErrs
+	}
+
+	if js.Spec.Scheduling == nil {
+		return nil
+	}
+	if len(js.Spec.ReplicatedJobs) == 0 {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "replicatedJobs"), js.Spec.ReplicatedJobs, "must contain at least one replicatedJob when scheduling is configured"))
+		return allErrs
+	}
+
+	scheduling := js.Spec.Scheduling
+
+	// Run workloadbuilder validation for declarative checks and cross-field policy rules.
+	schedulingPath := field.NewPath("spec", "scheduling")
+	builderErrs := controllers.ValidateSchedulingWithBuilder(ctx, js, schedulingPath)
+	for _, fe := range builderErrs {
+		allErrs = append(allErrs, fe)
+	}
+
+	// JobSet-specific validations that the workloadbuilder doesn't cover.
+
+	// Sequenced startup with explicit top-level gang minCount is not allowed.
+	if controllers.HasSequencedStartup(js) && len(scheduling.ReplicatedJobPolicies) == 0 &&
+		scheduling.Policy != nil && scheduling.Policy.Gang != nil && scheduling.Policy.Gang.MinCount > 0 {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("spec", "scheduling", "policy", "gang", "minCount"),
+			scheduling.Policy.Gang.MinCount,
+			"cannot be set when DependsOn or InOrder StartupPolicy is used; use per-ReplicatedJob gang policies instead",
+		))
+	}
+
+	// All ReplicatedJobs must have the same priorityClassName when using a single top-level PodGroup.
+	if usesSingleTopLevelPodGroup(js) && len(js.Spec.ReplicatedJobs) > 1 {
+		priorityPath := field.NewPath("spec", "replicatedJobs")
+		expected := js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.PriorityClassName
+		for i := 1; i < len(js.Spec.ReplicatedJobs); i++ {
+			actual := js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.PriorityClassName
+			if actual != expected {
+				allErrs = append(allErrs, field.Invalid(
+					priorityPath.Index(i).Child("template", "spec", "template", "spec", "priorityClassName"),
+					actual,
+					fmt.Sprintf("must match %q when top-level gang scheduling is used", expected),
+				))
+			}
+		}
+	}
+
+	// Validate replicatedJobPolicies target valid ReplicatedJob names.
+	// Note: duplicate targetReplicatedJob entries are already rejected by the API server
+	// because the field uses +listType=map with +listMapKey=targetReplicatedJob.
+	for i, rjPolicy := range scheduling.ReplicatedJobPolicies {
+		fieldPath := field.NewPath("spec", "scheduling", "replicatedJobPolicies").Index(i)
+
+		// Target must reference a valid ReplicatedJob.
+		if !rJobNames.Has(rjPolicy.TargetReplicatedJob) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("targetReplicatedJob"), rjPolicy.TargetReplicatedJob, "does not reference a valid replicatedJob name"))
+			continue
+		}
+
+		if rjPolicy.Policy == nil || rjPolicy.Policy.Gang == nil {
+			continue
+		}
+		for j := range js.Spec.ReplicatedJobs {
+			if js.Spec.ReplicatedJobs[j].Name != rjPolicy.TargetReplicatedJob {
+				continue
+			}
+			maxCount := replicatedJobPodCount(&js.Spec.ReplicatedJobs[j])
+			if rjPolicy.Policy.Gang.MinCount > maxCount {
+				allErrs = append(allErrs, field.Invalid(
+					fieldPath.Child("policy", "gang", "minCount"),
+					rjPolicy.Policy.Gang.MinCount,
+					fmt.Sprintf("cannot exceed the number of pods in ReplicatedJob %q (%d)", rjPolicy.TargetReplicatedJob, maxCount),
+				))
+			}
+			break
+		}
+	}
+
+	if controllers.UseTopLevelGang(scheduling) && !controllers.HasSequencedStartup(js) &&
+		scheduling.Policy != nil && scheduling.Policy.Gang != nil {
+		maxCount := jobsetutil.TotalReplicatedJobPodCount(js.Spec.ReplicatedJobs)
+		if scheduling.Policy.Gang.MinCount > maxCount {
+			allErrs = append(allErrs, field.Invalid(
+				field.NewPath("spec", "scheduling", "policy", "gang", "minCount"),
+				scheduling.Policy.Gang.MinCount,
+				fmt.Sprintf("cannot exceed the total number of JobSet pods (%d)", maxCount),
+			))
+		}
+	}
+
+	return allErrs
 }
 
 // invalidError converts a list of validation errors into an

@@ -29,6 +29,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -103,6 +104,8 @@ func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record ev
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get;patch;update
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=scheduling.k8s.io,resources=workloads,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=scheduling.k8s.io,resources=podgroups,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch;create
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -159,11 +162,18 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 	rjobStatuses := r.calculateReplicatedJobStatuses(ctx, js, ownedJobs)
 	updateReplicatedJobsStatuses(js, rjobStatuses, updateStatusOpts)
 
-	// If JobSet is already completed or failed, clean up active child jobs and requeue if TTLSecondsAfterFinished is set.
+	// If JobSet is already completed or failed, clean up active child jobs,
+	// remove any scheduling objects, and requeue if TTLSecondsAfterFinished is set.
 	if jobSetFinished(js) {
 		if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
 			log.Error(err, "deleting jobs")
 			return ctrl.Result{}, err
+		}
+		if features.Enabled(features.WorkloadAwareScheduling) && js.Spec.Scheduling != nil {
+			if err := r.deleteSchedulingObjects(ctx, js); err != nil {
+				log.Error(err, "deleting scheduling objects for finished JobSet")
+				return ctrl.Result{}, err
+			}
 		}
 		requeueAfter, err := executeTTLAfterFinishedPolicy(ctx, r.Client, r.clock, js)
 		if err != nil {
@@ -213,6 +223,33 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 		if err := r.reconcileVolumeClaimPolicies(ctx, js); err != nil {
 			log.Error(err, "reconciling persistent volume claim policies")
 			return ctrl.Result{}, err
+		}
+	}
+
+	// Reconcile Workload-Aware Scheduling objects if scheduling is configured.
+	// When the JobSet is suspended, delete any existing scheduling objects so that
+	// the scheduler releases all resource claims. They are recreated on resume.
+	if features.Enabled(features.WorkloadAwareScheduling) && js.Spec.Scheduling != nil {
+		if jobSetSuspended(js) {
+			if err := r.deleteSchedulingObjects(ctx, js); err != nil {
+				log.Error(err, "deleting scheduling objects for suspended JobSet")
+				return ctrl.Result{}, err
+			}
+		} else {
+			schedulingObjectsDeleted, err := r.reconcileWorkload(ctx, js)
+			if err != nil {
+				log.Error(err, "reconciling Workload")
+				return ctrl.Result{}, err
+			}
+			// Workload and PodGroup specs are immutable. Wait for deletion and
+			// the owned-object watch before materializing the replacement objects.
+			if schedulingObjectsDeleted {
+				return ctrl.Result{}, nil
+			}
+			if err := r.reconcilePodGroups(ctx, js); err != nil {
+				log.Error(err, "reconciling PodGroups")
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
@@ -269,6 +306,13 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&jobset.JobSet{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Service{})
+
+	// Watch scheduling resources if WAS feature is enabled.
+	if features.Enabled(features.WorkloadAwareScheduling) {
+		controllerBuilder = controllerBuilder.
+			Owns(&schedulingv1alpha3.Workload{}).
+			Owns(&schedulingv1alpha3.PodGroup{})
+	}
 
 	// Watch Pods if in-place restart feature is enabled.
 	// This triggers the JobSet controller to reconcile when an associated Pod is created / modified / deleted.
@@ -972,6 +1016,29 @@ func constructJob(js *jobset.JobSet, rjob *jobset.ReplicatedJob, jobIdx int) *ba
 	// If VolumeClaimPolicies are set, update Job spec to set volumes and volumeMounts.
 	if len(js.Spec.VolumeClaimPolicies) > 0 {
 		addVolumes(job, js)
+	}
+
+	// If scheduling is configured, annotate child jobs with downward mapping annotations
+	// and inject schedulingGroup into the pod template so pods join the correct PodGroup.
+	if features.Enabled(features.WorkloadAwareScheduling) && js.Spec.Scheduling != nil {
+		if job.Annotations == nil {
+			job.Annotations = make(map[string]string)
+		}
+		var templateName string
+		if UseTopLevelGang(js.Spec.Scheduling) && !HasSequencedStartup(js) {
+			templateName = js.Name
+		} else {
+			templateName = rjob.Name
+		}
+		job.Annotations[SchedulingGroupTemplateNameKey] = templateName
+		pgName := schedulingPodGroupName(js, templateName)
+		job.Annotations[SchedulingParentCompositePodGroupKey] = js.Name
+
+		// Inject schedulingGroup into the pod template so that pods are
+		// associated with the PodGroup by the WAS scheduler.
+		job.Spec.Template.Spec.SchedulingGroup = &corev1.PodSchedulingGroup{
+			PodGroupName: ptr.To(pgName),
+		}
 	}
 
 	return job

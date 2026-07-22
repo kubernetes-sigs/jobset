@@ -1,0 +1,43 @@
+# Gang Scheduling Example
+#
+# All pods across driver and workers are gang-scheduled: they must be admitted
+# together atomically or none at all. This is the most common pattern for
+# distributed ML training.
+#
+# Verify:
+#   kubectl get workloads,podgroups,jobs -n default
+#   kubectl describe workload gang-training -n default
+#   kubectl get jobs -n default -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.annotations}{"\n"}{end}'
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: single-gang
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    policy:
+      gang: {}
+  replicatedJobs:
+    - name: workers
+      replicas: 2
+      template:
+        spec:
+          parallelism: 4
+          completions: 4
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["/sleep", "-d", "30s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

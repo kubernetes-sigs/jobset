@@ -7,14 +7,14 @@ description: Generated API reference documentation for jobset.x-k8s.io/v1alpha2.
 ---
 
 
-## Resource Types 
+## Resource Types
 
 
 - [JobSet](#jobset-x-k8s-io-v1alpha2-JobSet)
-  
+
 
 ## `JobSet`     {#jobset-x-k8s-io-v1alpha2-JobSet}
-    
+
 
 **Appears in:**
 
@@ -26,11 +26,11 @@ description: Generated API reference documentation for jobset.x-k8s.io/v1alpha2.
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
+
 <tr><td><code>apiVersion</code><br/>string</td><td><code>jobset.x-k8s.io/v1alpha2</code></td></tr>
 <tr><td><code>kind</code><br/>string</td><td><code>JobSet</code></td></tr>
-    
-  
+
+
 <tr><td><code>spec</code> <B>[Required]</B><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-JobSetSpec"><code>JobSetSpec</code></a>
 </td>
@@ -49,7 +49,7 @@ description: Generated API reference documentation for jobset.x-k8s.io/v1alpha2.
 </table>
 
 ## `Coordinator`     {#jobset-x-k8s-io-v1alpha2-Coordinator}
-    
+
 
 **Appears in:**
 
@@ -62,8 +62,8 @@ description: Generated API reference documentation for jobset.x-k8s.io/v1alpha2.
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>replicatedJob</code> <B>[Required]</B><br/>
 <code>string</code>
 </td>
@@ -91,7 +91,7 @@ the coordinator pod.</p>
 </table>
 
 ## `DependsOn`     {#jobset-x-k8s-io-v1alpha2-DependsOn}
-    
+
 
 **Appears in:**
 
@@ -104,8 +104,8 @@ the coordinator pod.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>name</code> <B>[Required]</B><br/>
 <code>string</code>
 </td>
@@ -124,7 +124,7 @@ the coordinator pod.</p>
 </table>
 
 ## `DependsOnStatus`     {#jobset-x-k8s-io-v1alpha2-DependsOnStatus}
-    
+
 (Alias of `string`)
 
 **Appears in:**
@@ -136,7 +136,7 @@ the coordinator pod.</p>
 
 
 ## `FailurePolicy`     {#jobset-x-k8s-io-v1alpha2-FailurePolicy}
-    
+
 
 **Appears in:**
 
@@ -147,8 +147,8 @@ the coordinator pod.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>maxRestarts</code> <B>[Required]</B><br/>
 <code>int32</code>
 </td>
@@ -183,7 +183,7 @@ If no matching rule is found, the RestartJobSet action is applied.</p>
 </table>
 
 ## `FailurePolicyAction`     {#jobset-x-k8s-io-v1alpha2-FailurePolicyAction}
-    
+
 (Alias of `string`)
 
 **Appears in:**
@@ -198,7 +198,7 @@ a given FailurePolicyRule.</p>
 
 
 ## `FailurePolicyRule`     {#jobset-x-k8s-io-v1alpha2-FailurePolicyRule}
-    
+
 
 **Appears in:**
 
@@ -215,8 +215,8 @@ order and the first matching rule is executed.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>name</code> <B>[Required]</B><br/>
 <code>string</code>
 </td>
@@ -271,7 +271,7 @@ An empty list will apply to all replicatedJobs.</p>
 </table>
 
 ## `JobSetRestartStrategy`     {#jobset-x-k8s-io-v1alpha2-JobSetRestartStrategy}
-    
+
 (Alias of `string`)
 
 **Appears in:**
@@ -282,8 +282,59 @@ An empty list will apply to all replicatedJobs.</p>
 
 
 
+## `JobSetScheduling`     {#jobset-x-k8s-io-v1alpha2-JobSetScheduling}
+
+
+**Appears in:**
+
+- [JobSetSpec](#jobset-x-k8s-io-v1alpha2-JobSetSpec)
+
+
+<p>JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet.
+All scheduling directives (both global and per-ReplicatedJob) are declared centrally
+in this struct. Per-ReplicatedJob overrides use the targetReplicatedJob pattern.</p>
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+
+
+<tr><td><code>policy</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingPolicy</code></a>
+</td>
+<td>
+   <p>policy defines the composite-level scheduling policy for the entire JobSet.
+Defaults to Gang when spec.scheduling is set but policy is nil.</p>
+</td>
+</tr>
+<tr><td><code>constraints</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingConstraints</code></a>
+</td>
+<td>
+   <p>constraints defines composite-level topology constraints for the entire JobSet.</p>
+</td>
+</tr>
+<tr><td><code>disruption</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.DisruptionMode</code></a>
+</td>
+<td>
+   <p>disruption defines how the entire composite group can be disrupted.</p>
+</td>
+</tr>
+<tr><td><code>replicatedJobPolicies</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-ReplicatedJobSchedulingPolicy"><code>[]ReplicatedJobSchedulingPolicy</code></a>
+</td>
+<td>
+   <p>replicatedJobPolicies specifies per-ReplicatedJob leaf-level scheduling overrides.
+Each entry targets a named ReplicatedJob.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
 ## `JobSetSpec`     {#jobset-x-k8s-io-v1alpha2-JobSetSpec}
-    
+
 
 **Appears in:**
 
@@ -296,8 +347,8 @@ An empty list will apply to all replicatedJobs.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>replicatedJobs</code> <B>[Required]</B><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-ReplicatedJob"><code>[]ReplicatedJob</code></a>
 </td>
@@ -397,11 +448,23 @@ pod template. Every claim in this list must have at least one matching (by name)
 volumeMount in one container in the template.</p>
 </td>
 </tr>
+<tr><td><code>scheduling</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-JobSetScheduling"><code>JobSetScheduling</code></a>
+</td>
+<td>
+   <p>scheduling defines the Workload-Aware Scheduling configuration for this JobSet.
+When nil, no scheduling objects are created and behavior is unchanged.
+When set (even to {}), the controller compiles a Workload resource
+(containing PodGroupTemplates) and materializes the corresponding
+PodGroup objects for the scheduler.
+Requires the WorkloadAwareScheduling feature gate.</p>
+</td>
+</tr>
 </tbody>
 </table>
 
 ## `JobSetStatus`     {#jobset-x-k8s-io-v1alpha2-JobSetStatus}
-    
+
 
 **Appears in:**
 
@@ -414,8 +477,8 @@ volumeMount in one container in the template.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>conditions</code><br/>
 <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#condition-v1-meta"><code>[]k8s.io/apimachinery/pkg/apis/meta/v1.Condition</code></a>
 </td>
@@ -479,7 +542,7 @@ start running.</p>
 </table>
 
 ## `Network`     {#jobset-x-k8s-io-v1alpha2-Network}
-    
+
 
 **Appears in:**
 
@@ -490,8 +553,8 @@ start running.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>enableDNSHostnames</code><br/>
 <code>bool</code>
 </td>
@@ -522,7 +585,7 @@ Defaults to True.</p>
 </table>
 
 ## `Operator`     {#jobset-x-k8s-io-v1alpha2-Operator}
-    
+
 (Alias of `string`)
 
 **Appears in:**
@@ -536,7 +599,7 @@ Defaults to True.</p>
 
 
 ## `ReplicatedJob`     {#jobset-x-k8s-io-v1alpha2-ReplicatedJob}
-    
+
 
 **Appears in:**
 
@@ -547,8 +610,8 @@ Defaults to True.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>name</code> <B>[Required]</B><br/>
 <code>string</code>
 </td>
@@ -597,8 +660,65 @@ This API is mutually exclusive with the StartupPolicy API.</p>
 </tbody>
 </table>
 
+## `ReplicatedJobSchedulingPolicy`     {#jobset-x-k8s-io-v1alpha2-ReplicatedJobSchedulingPolicy}
+
+
+**Appears in:**
+
+- [JobSetScheduling](#jobset-x-k8s-io-v1alpha2-JobSetScheduling)
+
+
+<p>ReplicatedJobSchedulingPolicy targets a named ReplicatedJob with leaf-level
+scheduling configuration.</p>
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+
+
+<tr><td><code>targetReplicatedJob</code> <B>[Required]</B><br/>
+<code>string</code>
+</td>
+<td>
+   <p>targetReplicatedJob is the name of the ReplicatedJob this policy applies to.</p>
+</td>
+</tr>
+<tr><td><code>policy</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingPolicy</code></a>
+</td>
+<td>
+   <p>policy defines the leaf-level scheduling policy (basic or gang) for
+jobs created by this ReplicatedJob.
+Defaults to Gang when not specified.</p>
+</td>
+</tr>
+<tr><td><code>constraints</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingConstraints</code></a>
+</td>
+<td>
+   <p>constraints defines leaf-level topology constraints for this ReplicatedJob's pods.</p>
+</td>
+</tr>
+<tr><td><code>disruption</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.DisruptionMode</code></a>
+</td>
+<td>
+   <p>disruption defines how pods within this ReplicatedJob can be disrupted.</p>
+</td>
+</tr>
+<tr><td><code>resourceClaims</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>[]k8s.io/api/scheduling/v1alpha3.PodGroupResourceClaim</code></a>
+</td>
+<td>
+   <p>resourceClaims specifies dynamic resource claims for this ReplicatedJob's pods.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
 ## `ReplicatedJobStatus`     {#jobset-x-k8s-io-v1alpha2-ReplicatedJobStatus}
-    
+
 
 **Appears in:**
 
@@ -611,8 +731,8 @@ This API is mutually exclusive with the StartupPolicy API.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>name</code> <B>[Required]</B><br/>
 <code>string</code>
 </td>
@@ -678,7 +798,7 @@ That is, jobRestartsCountTowardsMax[jobIndex] is the number of times the restart
 </table>
 
 ## `RetentionPolicyType`     {#jobset-x-k8s-io-v1alpha2-RetentionPolicyType}
-    
+
 (Alias of `string`)
 
 **Appears in:**
@@ -692,7 +812,7 @@ That is, jobRestartsCountTowardsMax[jobIndex] is the number of times the restart
 
 
 ## `StartupPolicy`     {#jobset-x-k8s-io-v1alpha2-StartupPolicy}
-    
+
 
 **Appears in:**
 
@@ -703,8 +823,8 @@ That is, jobRestartsCountTowardsMax[jobIndex] is the number of times the restart
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>startupPolicyOrder</code> <B>[Required]</B><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-StartupPolicyOptions"><code>StartupPolicyOptions</code></a>
 </td>
@@ -719,7 +839,7 @@ when all the jobs of the previous one are ready.</p>
 </table>
 
 ## `StartupPolicyOptions`     {#jobset-x-k8s-io-v1alpha2-StartupPolicyOptions}
-    
+
 (Alias of `string`)
 
 **Appears in:**
@@ -731,7 +851,7 @@ when all the jobs of the previous one are ready.</p>
 
 
 ## `SuccessPolicy`     {#jobset-x-k8s-io-v1alpha2-SuccessPolicy}
-    
+
 
 **Appears in:**
 
@@ -742,8 +862,8 @@ when all the jobs of the previous one are ready.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>operator</code> <B>[Required]</B><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-Operator"><code>Operator</code></a>
 </td>
@@ -763,7 +883,7 @@ A null or empty list will apply to all replicatedJobs.</p>
 </table>
 
 ## `VolumeClaimPolicy`     {#jobset-x-k8s-io-v1alpha2-VolumeClaimPolicy}
-    
+
 
 **Appears in:**
 
@@ -776,8 +896,8 @@ A null or empty list will apply to all replicatedJobs.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>templates</code><br/>
 <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#persistentvolumeclaim-v1-core"><code>[]k8s.io/api/core/v1.PersistentVolumeClaim</code></a>
 </td>
@@ -804,7 +924,7 @@ By default, all persistent volume claims are deleted once JobSet is deleted.</p>
 </table>
 
 ## `VolumeRetentionPolicy`     {#jobset-x-k8s-io-v1alpha2-VolumeRetentionPolicy}
-    
+
 
 **Appears in:**
 
@@ -817,8 +937,8 @@ By default, all persistent volume claims are deleted once JobSet is deleted.</p>
 <table class="table">
 <thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
 <tbody>
-    
-  
+
+
 <tr><td><code>whenDeleted</code><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-RetentionPolicyType"><code>RetentionPolicyType</code></a>
 </td>
@@ -828,4 +948,3 @@ By default, all persistent volume claims are deleted once JobSet is deleted.</p>
 </tr>
 </tbody>
 </table>
-  

@@ -47,12 +47,17 @@ ARTIFACTS ?= $(PROJECT_DIR)/bin
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-INTEGRATION_TARGET ?= ./test/integration/...
+# Excludes ./test/integration/scheduling/..., which requires a kube-apiserver
+# built from Kubernetes main (see hack/envtest-scheduling-setup.sh) and is
+# run separately via `make test-integration-scheduling`.
+INTEGRATION_TARGET ?= ./test/integration/controller/... ./test/integration/webhook/...
 
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 JOBSET_CHART_DIR := charts/jobset
 
-E2E_TEST_PATH ?= ./test/e2e/...
+# Excludes ./test/e2e/scheduling/..., which requires a WAS-enabled cluster
+# and is run separately via `make test-e2e-kind-scheduling`.
+E2E_TEST_PATH ?= ./test/e2e ./test/e2e/customconfigs/...
 E2E_KIND_VERSION ?= kindest/node:v1.34.0
 USE_EXISTING_CLUSTER ?= false
 # E2E config folder to use (e.g., "default", "certmanager", etc.)
@@ -155,13 +160,17 @@ vet: ## Run go vet against code.
 	$(GO_CMD) vet ./...
 
 .PHONY: ci-lint
-ci-lint: golangci-lint 
+ci-lint: golangci-lint
 	$(GOLANGCI_LINT) run --timeout 15m0s
+
+.PHONY: ci-lint-fix
+ci-lint-fix: golangci-lint
+	$(GOLANGCI_LINT) run --timeout 15m0s --fix
 
 .PHONY: lint-api
 lint-api: golangci-lint-kal
 	$(GOLANGCI_LINT_KAL) run -v --config $(PROJECT_DIR)/.golangci-kal.yml
-	
+
 .PHONY: lint-api-fix
 lint-api-fix: golangci-lint-kal
 	$(GOLANGCI_LINT_KAL) run -v --config $(PROJECT_DIR)/.golangci-kal.yml --fix
@@ -300,7 +309,7 @@ prepare-release-branch: kustomize ## Prepare the release branch with the release
 	make helm-docs
 
 .PHONY: clean-artifacts
-clean-artifacts: 
+clean-artifacts:
 	if [ -d artifacts ]; then rm -rf artifacts; fi
 	mkdir -p artifacts
 
@@ -349,7 +358,10 @@ CONTROLLER_TOOLS_VERSION ?= v0.17.2
 # ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script.
 ENVTEST_VERSION ?= $(shell $(GO_CMD) list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 # ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries.
-ENVTEST_K8S_VERSION ?= $(shell $(GO_CMD) list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
+# When k8s.io/api is pinned to a pre-release (alpha/beta/rc) version, e.g. while developing
+# against unreleased APIs, envtest binaries are not published yet for that minor version, so
+# fall back to the previous minor release.
+ENVTEST_K8S_VERSION ?= $(shell awk '$$1 == "k8s.io/api" { v=$$2; sub(/^v0\./, "", v); split(v, parts, "."); minor=parts[1]; if (v ~ /-(alpha|beta|rc)/) minor--; printf "1.%d", minor; exit }' go.mod)
 HELM_VERSION ?= v3.17.1
 HELM_UNITTEST_VERSION ?= 0.7.2
 HELM_DOCS_VERSION ?= v1.14.2
@@ -420,13 +432,47 @@ test-integration: manifests fmt vet envtest ginkgo ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
 	$(GINKGO) --junit-report=junit.xml --output-dir=$(ARTIFACTS) $(GINKGO_ARGS) -v $(INTEGRATION_TARGET)
 
+.PHONY: test-integration-scheduling
+test-integration-scheduling: manifests fmt vet envtest ginkgo ## Run WAS/gang scheduling integration tests against a kube-apiserver built from Kubernetes main.
+	KUBEBUILDER_ASSETS="$(shell ./hack/envtest-scheduling-setup.sh $(ENVTEST) $(ENVTEST_K8S_VERSION) $(LOCALBIN))" \
+	$(GINKGO) --junit-report=junit-scheduling.xml --output-dir=$(ARTIFACTS) $(GINKGO_ARGS) -v ./test/integration/scheduling/...
+
 .PHONY: test-e2e-kind
 test-e2e-kind: manifests kustomize fmt vet envtest ginkgo kind-image-build
-	E2E_KIND_VERSION=$(E2E_KIND_VERSION) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) ARTIFACTS=$(ARTIFACTS) IMAGE_TAG=$(IMAGE_TAG) E2E_TARGET_FOLDER=$(E2E_TARGET_FOLDER) E2E_TEST_PATH=$(E2E_TEST_PATH) ./hack/e2e-test.sh
+	E2E_KIND_VERSION=$(E2E_KIND_VERSION) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) ARTIFACTS=$(ARTIFACTS) IMAGE_TAG=$(IMAGE_TAG) E2E_TARGET_FOLDER=$(E2E_TARGET_FOLDER) E2E_TEST_PATH="$(E2E_TEST_PATH)" ./hack/e2e-test.sh
 
 .PHONY: test-e2e-kind-customconfigs
 test-e2e-kind-customconfigs: E2E_TEST_PATH = ./test/e2e/customconfigs/...
 test-e2e-kind-customconfigs: test-e2e-kind
+
+## WAS (Workload-Aware Scheduling) Kind cluster management
+# WAS targets build a Kind node image from Kubernetes main (latest CI build)
+# to ensure scheduling.k8s.io APIs are available.
+WAS_KIND_CLUSTER_NAME ?= was-test
+K8S_MAIN_NODE_IMAGE ?= k8s-main:latest
+
+.PHONY: setup-vendor
+setup-vendor: ## Setup vendor directory with scheduling/v1alpha3 types from k8s main.
+	./hack/setup-vendor.sh
+
+.PHONY: kind-k8s-main-image-build
+kind-k8s-main-image-build: kind ## Build a Kind node image from Kubernetes main (latest CI build).
+	KIND=$(KIND) K8S_MAIN_NODE_IMAGE=$(K8S_MAIN_NODE_IMAGE) \
+	bash -c 'source ./hack/e2e-scheduling-cluster.sh && build_scheduling_node_image'
+
+.PHONY: test-e2e-kind-scheduling
+test-e2e-kind-scheduling: manifests kustomize fmt vet envtest ginkgo kind-image-build kind-k8s-main-image-build ## Run scheduling-specific E2E tests on Kind with WAS feature gates enabled.
+	K8S_MAIN_NODE_IMAGE=$(K8S_MAIN_NODE_IMAGE) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) ARTIFACTS=$(ARTIFACTS) IMAGE_TAG=$(IMAGE_TAG) ./hack/e2e-scheduling-test.sh
+
+.PHONY: kind-cluster-scheduling
+kind-cluster-scheduling: kustomize kind-image-build ## Create a Kind cluster with WAS feature gates and deploy JobSet.
+	KIND=$(KIND) KUSTOMIZE=$(KUSTOMIZE) KIND_CLUSTER_NAME=$(WAS_KIND_CLUSTER_NAME) K8S_MAIN_NODE_IMAGE=$(K8S_MAIN_NODE_IMAGE) IMAGE_TAG=$(IMAGE_TAG) ARTIFACTS=$(ARTIFACTS) \
+	bash -c 'source ./hack/e2e-scheduling-cluster.sh && build_scheduling_node_image && create_scheduling_cluster && kind_load_image && deploy_scheduling_jobset && verify_scheduling_apis'
+
+.PHONY: kind-cluster-scheduling-delete
+kind-cluster-scheduling-delete: kind ## Delete the WAS Kind cluster and collect logs.
+	KIND=$(KIND) KIND_CLUSTER_NAME=$(WAS_KIND_CLUSTER_NAME) ARTIFACTS=$(ARTIFACTS) \
+	bash -c 'source ./hack/e2e-scheduling-cluster.sh && delete_scheduling_cluster'
 
 .PHONY: prometheus
 prometheus:

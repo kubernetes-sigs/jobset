@@ -24,7 +24,7 @@ With workload-aware preemption, the scheduler understands that pods belong to a 
 Two key fields on the PodGroup enable this:
 
 - **`priorityClassName`**: Associates the PodGroup with a Kubernetes `PriorityClass`, giving the scheduler a priority value to compare when deciding what to preempt.
-- **`disruptionMode: PodGroup`**: Ensures the entire gang is preempted together rather than individual pods.
+- **`disruptionMode: {all: {}}`**: Ensures the entire gang is preempted together rather than individual pods.
 
 ## Example: Gang Preemption
 
@@ -42,7 +42,7 @@ Create a [low-priority](https://github.com/kubernetes-sigs/jobset/blob/main/site
 
 ### Step 2: Apply the low-priority JobSet
 
-The [low-priority JobSet](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/workload-aware-scheduling/preemption/low-priority-jobset.yaml) includes its Workload and PodGroup. The PodGroup sets `priorityClassName: low-priority` and `disruptionMode: PodGroup`:
+The [low-priority JobSet](https://github.com/kubernetes-sigs/jobset/blob/main/site/static/examples/workload-aware-scheduling/preemption/low-priority-jobset.yaml) includes its Workload and PodGroup. The PodGroup sets `priorityClassName: low-priority` and `disruptionMode: {all: {}}`:
 
 {{< include file="/examples/workload-aware-scheduling/preemption/low-priority-jobset.yaml" lang="yaml" >}}
 
@@ -67,4 +67,4 @@ kubectl get pods -l 'jobset.sigs.k8s.io/jobset-name in (lp-js,hp-js)'
 kubectl get events --field-selector reason=Preempted
 ```
 
-All 4 low-priority pods are preempted together because of `disruptionMode: PodGroup`, and all 4 high-priority pods schedule and run.
+All 4 low-priority pods are preempted together because of `disruptionMode: {all: {}}`, and all 4 high-priority pods schedule and run.

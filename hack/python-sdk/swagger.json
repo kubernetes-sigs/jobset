@@ -129,7 +129,7 @@
         "metadata": {
           "description": "metadata is the object metadata for JobSet",
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
         },
         "spec": {
           "description": "spec is the specification for jobset",
@@ -166,7 +166,36 @@
         },
         "metadata": {
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "jobset.v1alpha2.JobSetScheduling": {
+      "description": "JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet. All scheduling directives (both global and per-ReplicatedJob) are declared centrally in this struct. Per-ReplicatedJob overrides use the targetReplicatedJob pattern.",
+      "type": "object",
+      "properties": {
+        "constraints": {
+          "description": "constraints defines composite-level topology constraints for the entire JobSet.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingConstraints"
+        },
+        "disruption": {
+          "description": "disruption defines how the entire composite group can be disrupted.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.DisruptionMode"
+        },
+        "policy": {
+          "description": "policy defines the composite-level scheduling policy for the entire JobSet. Defaults to Gang when spec.scheduling is set but policy is nil.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingPolicy"
+        },
+        "replicatedJobPolicies": {
+          "description": "replicatedJobPolicies specifies per-ReplicatedJob leaf-level scheduling overrides. Each entry targets a named ReplicatedJob.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/jobset.v1alpha2.ReplicatedJobSchedulingPolicy"
+          },
+          "x-kubernetes-list-map-keys": [
+            "targetReplicatedJob"
+          ],
+          "x-kubernetes-list-type": "map"
         }
       }
     },
@@ -203,6 +232,10 @@
           "x-kubernetes-patch-merge-key": "name",
           "x-kubernetes-patch-strategy": "merge"
         },
+        "scheduling": {
+          "description": "scheduling defines the Workload-Aware Scheduling configuration for this JobSet. When nil, no scheduling objects are created and behavior is unchanged. When set (even to {}), the controller compiles a Workload resource (containing PodGroupTemplates) and materializes the corresponding PodGroup objects for the scheduler. Requires the WorkloadAwareScheduling feature gate.",
+          "$ref": "#/definitions/jobset.v1alpha2.JobSetScheduling"
+        },
         "startupPolicy": {
           "description": "startupPolicy configures in what order jobs must be started Deprecated: StartupPolicy is deprecated, please use the DependsOn API.",
           "$ref": "#/definitions/jobset.v1alpha2.StartupPolicy"
@@ -238,7 +271,7 @@
           "description": "conditions track status",
           "type": "array",
           "items": {
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
           },
           "x-kubernetes-list-map-keys": [
             "type"
@@ -341,7 +374,40 @@
         "template": {
           "description": "template defines the template of the Job that will be created.",
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.batch.v1.JobTemplateSpec"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.batch.v1.JobTemplateSpec"
+        }
+      }
+    },
+    "jobset.v1alpha2.ReplicatedJobSchedulingPolicy": {
+      "description": "ReplicatedJobSchedulingPolicy targets a named ReplicatedJob with leaf-level scheduling configuration.",
+      "type": "object",
+      "required": [
+        "targetReplicatedJob"
+      ],
+      "properties": {
+        "constraints": {
+          "description": "constraints defines leaf-level topology constraints for this ReplicatedJob's pods.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingConstraints"
+        },
+        "disruption": {
+          "description": "disruption defines how pods within this ReplicatedJob can be disrupted.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.DisruptionMode"
+        },
+        "policy": {
+          "description": "policy defines the leaf-level scheduling policy (basic or gang) for jobs created by this ReplicatedJob. Defaults to Gang when not specified.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingPolicy"
+        },
+        "resourceClaims": {
+          "description": "resourceClaims specifies dynamic resource claims for this ReplicatedJob's pods.",
+          "type": "array",
+          "items": {
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupResourceClaim"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "targetReplicatedJob": {
+          "description": "targetReplicatedJob is the name of the ReplicatedJob this policy applies to.",
+          "type": "string"
         }
       }
     },
@@ -458,7 +524,7 @@
           "description": "templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference. The JobSet controller is responsible for creating shared PVCs that can be mounted by multiple ReplicatedJobs. Every claim in this list must have a matching (by name) volumeMount in one container or initContainer in at least one ReplicatedJob template. ReplicatedJob template must not have volumes with the same name as defined in this template. PVC template must not have the namespace parameter. Generated PVC naming convention: \u003cclaim-name\u003e-\u003cjobset-name\u003e Example: \"model-cache-trainjob\" (shared volume across all ReplicatedJobs).",
           "type": "array",
           "items": {
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-beta.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
           },
           "x-kubernetes-list-type": "atomic"
         }
