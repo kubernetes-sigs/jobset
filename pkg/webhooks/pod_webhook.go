@@ -64,7 +64,9 @@ func (p *podWebhook) Default(ctx context.Context, pod *corev1.Pod) error {
 	// Add the priority label to make sure the Pod is compatible with other pods using the exclusive
 	// placement feature.
 	// See https://github.com/kubernetes-sigs/jobset/issues/1057 for more details.
-	if pod.Spec.Priority != nil {
+	// Negative priorities are valid in Kubernetes (e.g. overprovisioning PriorityClasses),
+	// but label values cannot start with '-'. Only set the label for non-negative priorities.
+	if pod.Spec.Priority != nil && *pod.Spec.Priority >= 0 {
 		if pod.Labels == nil {
 			pod.Labels = make(map[string]string)
 		}
