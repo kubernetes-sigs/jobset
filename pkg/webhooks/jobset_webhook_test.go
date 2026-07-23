@@ -3195,6 +3195,64 @@ func TestValidateCreate(t *testing.T) {
 	}
 }
 
+func TestValidateExclusivePlacementCompletionMode(t *testing.T) {
+	t.Parallel()
+
+	makeJobSet := func(jobSetAnnotations, replicatedJobAnnotations map[string]string, completionMode batchv1.CompletionMode) *jobset.JobSet {
+		return &jobset.JobSet{
+			ObjectMeta: metav1.ObjectMeta{Annotations: jobSetAnnotations},
+			Spec: jobset.JobSetSpec{ReplicatedJobs: []jobset.ReplicatedJob{{
+				Name: "workers",
+				Template: batchv1.JobTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{Annotations: replicatedJobAnnotations},
+					Spec:       batchv1.JobSpec{CompletionMode: ptr.To(completionMode)},
+				},
+			}}},
+		}
+	}
+
+	testCases := map[string]struct {
+		jobSetAnnotations        map[string]string
+		replicatedJobAnnotations map[string]string
+		completionMode           batchv1.CompletionMode
+		wantErr                  bool
+	}{
+		"rejects non-indexed JobSet exclusive placement": {
+			jobSetAnnotations: map[string]string{jobset.ExclusiveKey: "topology.kubernetes.io/zone"},
+			completionMode:    batchv1.NonIndexedCompletion,
+			wantErr:           true,
+		},
+		"rejects non-indexed replicated job exclusive placement": {
+			replicatedJobAnnotations: map[string]string{jobset.ExclusiveKey: "topology.kubernetes.io/zone"},
+			completionMode:           batchv1.NonIndexedCompletion,
+			wantErr:                  true,
+		},
+		"allows indexed exclusive placement": {
+			jobSetAnnotations: map[string]string{jobset.ExclusiveKey: "topology.kubernetes.io/zone"},
+			completionMode:    batchv1.IndexedCompletion,
+		},
+		"allows non-indexed node selector strategy": {
+			jobSetAnnotations: map[string]string{
+				jobset.ExclusiveKey:            "topology.kubernetes.io/zone",
+				jobset.NodeSelectorStrategyKey: "true",
+			},
+			completionMode: batchv1.NonIndexedCompletion,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			errs := validateExclusivePlacementCompletionMode(makeJobSet(tc.jobSetAnnotations, tc.replicatedJobAnnotations, tc.completionMode))
+			if tc.wantErr {
+				require.Len(t, errs, 1)
+				assert.Contains(t, errs[0].Error(), "NonIndexed completion mode")
+			} else {
+				assert.Empty(t, errs)
+			}
+		})
+	}
+}
+
 func TestGetJobSetNameForValidation(t *testing.T) {
 	t.Parallel()
 

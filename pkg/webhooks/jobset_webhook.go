@@ -211,6 +211,10 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		}
 	}
 
+	for _, err := range validateExclusivePlacementCompletionMode(js) {
+		allErrs = append(allErrs, err)
+	}
+
 	rJobNames := sets.New[string]()
 
 	// Validate each replicatedJob.
@@ -313,7 +317,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset.JobSet) (admission.Warnings, error) {
 	mungedSpec := newJs.Spec.DeepCopy()
-	var errs field.ErrorList
+	errs := validateExclusivePlacementCompletionMode(newJs)
 
 	// Create a map of old ReplicatedJobs by name for safe lookup
 	oldJobsMap := make(map[string]*jobset.ReplicatedJob)
@@ -411,6 +415,31 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateDelete(ctx context.Context, js *jobset.JobSet) (admission.Warnings, error) {
 	return nil, nil
+}
+
+func validateExclusivePlacementCompletionMode(js *jobset.JobSet) field.ErrorList {
+	var errs field.ErrorList
+	for rJobIdx, rJob := range js.Spec.ReplicatedJobs {
+		if !usesPodWebhookExclusivePlacement(js, rJob) || rJob.Template.Spec.CompletionMode == nil || *rJob.Template.Spec.CompletionMode != batchv1.NonIndexedCompletion {
+			continue
+		}
+		errs = append(errs, field.Forbidden(
+			field.NewPath("spec", "replicatedJobs").Index(rJobIdx).Child("template", "spec", "completionMode"),
+			"NonIndexed completion mode is not supported with exclusive placement unless the node selector strategy is enabled",
+		))
+	}
+	return errs
+}
+
+func usesPodWebhookExclusivePlacement(js *jobset.JobSet, rJob jobset.ReplicatedJob) bool {
+	_, jobSetExclusive := js.Annotations[jobset.ExclusiveKey]
+	_, jobSetNodeSelectorStrategy := js.Annotations[jobset.NodeSelectorStrategyKey]
+	_, replicatedJobExclusive := rJob.Template.Annotations[jobset.ExclusiveKey]
+	_, replicatedJobNodeSelectorStrategy := rJob.Template.Annotations[jobset.NodeSelectorStrategyKey]
+
+	usesNodeSelectorStrategy := (jobSetExclusive && jobSetNodeSelectorStrategy) ||
+		(replicatedJobExclusive && replicatedJobNodeSelectorStrategy)
+	return (jobSetExclusive || replicatedJobExclusive) && !usesNodeSelectorStrategy
 }
 
 // Failure policy constants.
