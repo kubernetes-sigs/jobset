@@ -3238,6 +3238,33 @@ func TestValidateExclusivePlacementCompletionMode(t *testing.T) {
 			},
 			completionMode: batchv1.NonIndexedCompletion,
 		},
+		"allows non-indexed replicated job node selector strategy": {
+			replicatedJobAnnotations: map[string]string{
+				jobset.ExclusiveKey:            "topology.kubernetes.io/zone",
+				jobset.NodeSelectorStrategyKey: "true",
+			},
+			completionMode: batchv1.NonIndexedCompletion,
+		},
+		"rejects non-indexed placement when exclusive placement and node selector strategy use different scopes": {
+			jobSetAnnotations: map[string]string{
+				jobset.ExclusiveKey: "topology.kubernetes.io/zone",
+			},
+			replicatedJobAnnotations: map[string]string{
+				jobset.NodeSelectorStrategyKey: "true",
+			},
+			completionMode: batchv1.NonIndexedCompletion,
+			wantErr:        true,
+		},
+		"rejects non-indexed placement when node selector strategy and exclusive placement use different scopes": {
+			jobSetAnnotations: map[string]string{
+				jobset.NodeSelectorStrategyKey: "true",
+			},
+			replicatedJobAnnotations: map[string]string{
+				jobset.ExclusiveKey: "topology.kubernetes.io/zone",
+			},
+			completionMode: batchv1.NonIndexedCompletion,
+			wantErr:        true,
+		},
 	}
 
 	for name, tc := range testCases {

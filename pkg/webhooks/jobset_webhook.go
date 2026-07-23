@@ -437,8 +437,11 @@ func usesPodWebhookExclusivePlacement(js *jobset.JobSet, rJob jobset.ReplicatedJ
 	_, replicatedJobExclusive := rJob.Template.Annotations[jobset.ExclusiveKey]
 	_, replicatedJobNodeSelectorStrategy := rJob.Template.Annotations[jobset.NodeSelectorStrategyKey]
 
-	usesNodeSelectorStrategy := (jobSetExclusive && jobSetNodeSelectorStrategy) ||
-		(replicatedJobExclusive && replicatedJobNodeSelectorStrategy)
+	// The controller propagates the node selector strategy only when it is set
+	// alongside exclusive placement at the same scope.
+	jobSetUsesNodeSelectorStrategy := jobSetExclusive && jobSetNodeSelectorStrategy
+	replicatedJobUsesNodeSelectorStrategy := replicatedJobExclusive && replicatedJobNodeSelectorStrategy
+	usesNodeSelectorStrategy := jobSetUsesNodeSelectorStrategy || replicatedJobUsesNodeSelectorStrategy
 	return (jobSetExclusive || replicatedJobExclusive) && !usesNodeSelectorStrategy
 }
 
