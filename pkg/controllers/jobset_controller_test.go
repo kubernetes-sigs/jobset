@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
@@ -36,6 +37,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -2300,5 +2303,75 @@ func TestSyncJobScaling(t *testing.T) {
 				t.Errorf("Expected no patches to be sent, but got %d", patchesSent)
 			}
 		})
+	}
+}
+
+func TestDeleteSchedulingObjectsForFinishedJobSet(t *testing.T) {
+	features.SetFeatureGateDuringTest(t, features.WorkloadAwareScheduling, true)
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(jobset.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(schedulingv1alpha3.AddToScheme(scheme))
+
+	js := testutils.MakeJobSet("finished-js", "default").
+		SuccessPolicy(&jobset.SuccessPolicy{Operator: jobset.OperatorAll}).
+		ReplicatedJob(testutils.MakeReplicatedJob("workers").
+			Replicas(1).
+			Job(testutils.MakeJobTemplate("", "").
+				Parallelism(1).
+				PodSpec(testutils.TestPodSpec).
+				Obj()).
+			Obj()).
+		Obj()
+	js.UID = "finished-uid"
+	js.Spec.Scheduling = &jobset.JobSetScheduling{}
+
+	workload, err := buildWorkload(js)
+	if err != nil {
+		t.Fatalf("building workload: %v", err)
+	}
+	workload.OwnerReferences = nil
+	if err := ctrl.SetControllerReference(js, workload, scheme); err != nil {
+		t.Fatalf("setting workload owner reference: %v", err)
+	}
+
+	pg := &schedulingv1alpha3.PodGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      js.Name,
+			Namespace: js.Namespace,
+		},
+	}
+	if err := ctrl.SetControllerReference(js, pg, scheme); err != nil {
+		t.Fatalf("setting podgroup owner reference: %v", err)
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(js, workload, pg).Build()
+	r := &JobSetReconciler{
+		Client: fakeClient,
+		Scheme: scheme,
+		Record: events.NewFakeRecorder(32),
+	}
+
+	// Verify scheduling objects exist before deletion.
+	if err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(workload), &schedulingv1alpha3.Workload{}); err != nil {
+		t.Fatalf("expected workload to exist before deletion, got err=%v", err)
+	}
+	if err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(pg), &schedulingv1alpha3.PodGroup{}); err != nil {
+		t.Fatalf("expected podgroup to exist before deletion, got err=%v", err)
+	}
+
+	// Delete scheduling objects (this is what reconcile now calls for finished JobSets).
+	if err := r.deleteSchedulingObjects(context.Background(), js); err != nil {
+		t.Fatalf("deleteSchedulingObjects returned unexpected error: %v", err)
+	}
+
+	// Verify scheduling objects are deleted.
+	if err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(workload), &schedulingv1alpha3.Workload{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected workload to be deleted, got err=%v", err)
+	}
+	if err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(pg), &schedulingv1alpha3.PodGroup{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected podgroup to be deleted, got err=%v", err)
 	}
 }

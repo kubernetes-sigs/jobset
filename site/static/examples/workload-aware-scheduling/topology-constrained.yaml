@@ -1,0 +1,82 @@
+# Topology-Constrained Workers with Independent Driver
+#
+# The driver uses a Basic scheduling policy (schedules independently).
+# Workers use Gang scheduling (inherited from global policy) with topology
+# constraints requiring co-location on the same rack. This is ideal for
+# RDMA-based distributed training where network locality matters.
+#
+# Expected results:
+#   - A Workload named "topo-training" with 2 PodGroupTemplates
+#   - PodGroup "topo-training-driver" with Basic policy (no Gang)
+#   - PodGroup "topo-training-workers" with Gang policy + topology constraint
+#     on "topology.kubernetes.io/rack"
+#   - All child Jobs carry scheduling annotations
+#
+# Verify:
+#   kubectl get workloads,podgroups -n default
+#   kubectl get podgroup topo-training-driver -n default -o yaml  # expect basic != null
+#   kubectl get podgroup topo-training-workers -n default -o yaml # expect gang != null + topology
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: topo-training
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    # Global policy: Gang scheduling for the composite group.
+    policy:
+      gang:
+        minCount: 1
+    # Per-ReplicatedJob overrides.
+    replicatedJobPolicies:
+      - targetReplicatedJob: driver
+        # Driver schedules independently; no gang requirement.
+        policy:
+          basic: {}
+      - targetReplicatedJob: workers
+        # Workers are gang-scheduled (inherited from global) with rack constraints.
+        constraints:
+          topology:
+            - key: topology.kubernetes.io/rack
+  replicatedJobs:
+    - name: driver
+      replicas: 1
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: driver
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["/sleep", "-d", "30s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi
+    - name: workers
+      replicas: 2
+      template:
+        spec:
+          parallelism: 2
+          completions: 2
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["/sleep", "-d", "30s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

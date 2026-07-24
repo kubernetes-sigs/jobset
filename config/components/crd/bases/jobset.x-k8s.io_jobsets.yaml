@@ -544,6 +544,132 @@ spec:
                                 When using podFailurePolicy, Failed is the the only allowed value.
                                 TerminatingOrFailed and Failed are allowed values when podFailurePolicy is not in use.
                               type: string
+                            scheduling:
+                              description: |-
+                                scheduling defines the Workload-aware Scheduling configuration for this Job.
+                                When set, it specifies the scheduling policy (basic or gang), topology
+                                constraints, disruption mode, and shared resource claims.
+                                When omitted, the Job defaults to the basic scheduling policy, which behaves
+                                as standard pod-by-pod scheduling.
+                                This field is alpha-level and requires the WorkloadWithJob feature gate.
+                                This field is immutable, including whether it is set at all, only
+                                policy.gang.minCount may be changed after creation.
+                              properties:
+                                disruptionMode:
+                                  description: |-
+                                    DisruptionMode defines the mode in which the Job's pods can be disrupted.
+                                    One of Single, All.
+                                    This field is immutable after creation: it may not be added or removed,
+                                    and the selected mode may not be changed.
+                                  properties:
+                                    all:
+                                      description: all specifies that all pods in
+                                        the group must be disrupted together.
+                                      type: object
+                                    single:
+                                      description: single specifies that pods can
+                                        be disrupted independently from each other.
+                                      type: object
+                                  type: object
+                                resourceClaims:
+                                  description: |-
+                                    ResourceClaims defines which ResourceClaims may be shared among Pods in
+                                    the Job. Pods consume the devices allocated to a PodGroup's claim by
+                                    defining a claim in its own Spec.ResourceClaims that matches the
+                                    PodGroup's claim exactly. The claim must have the same name and refer to
+                                    the same ResourceClaim or ResourceClaimTemplate.
+                                    At most 4 claims may be set, matching the limit on the resulting PodGroup.
+                                    This list is immutable after creation: entries may neither be added,
+                                    removed, nor modified.
+                                  items:
+                                    description: |
+                                      WorkloadPodGroupResourceClaim references a dynamic resource claim
+                                      that is shared across pods in the group.
+                                    properties:
+                                      name:
+                                        description: |-
+                                          name uniquely identifies this resource claim inside the group.
+                                          This field is required. It must be a DNS_LABEL.
+                                        type: string
+                                      resourceClaimName:
+                                        description: |-
+                                          resourceClaimName is the name of a ResourceClaim object in the same
+                                          namespace.
+                                          This field is optional. If it is not specified, no resource claim
+                                          is used. If set, it must be a DNS subdomain.
+                                        type: string
+                                      resourceClaimTemplateName:
+                                        description: |-
+                                          resourceClaimTemplateName is the name of a ResourceClaimTemplate
+                                          object in the same namespace.
+                                          This field is optional. If it is not specified, no resource claim
+                                          template is used. If set, it must be a DNS subdomain.
+                                        type: string
+                                    required:
+                                    - name
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-map-keys:
+                                  - name
+                                  x-kubernetes-list-type: map
+                                schedulingConstraints:
+                                  description: |-
+                                    SchedulingConstraints defines scheduling constraints (e.g. topology)
+                                    for the Job's pods.
+                                    This field is immutable after creation.
+                                  properties:
+                                    topology:
+                                      description: |-
+                                        topology specifies desired topological placements for all pods
+                                        within the pod group.
+                                        If unset, no topology placement is requested.
+                                      items:
+                                        description: TopologyConstraint defines a
+                                          topology constraint for a PodGroup.
+                                        properties:
+                                          key:
+                                            description: |-
+                                              key specifies the key of the node label representing the topology domain.
+                                              All pods within the PodGroup must be colocated within the same domain instance.
+                                              Different PodGroups can land on different domain instances even if they derive from the same PodGroupTemplate.
+                                              Examples: "topology.kubernetes.io/rack"
+                                            type: string
+                                        required:
+                                        - key
+                                        type: object
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                  type: object
+                                schedulingPolicy:
+                                  description: |-
+                                    SchedulingPolicy defines the scheduling policy for this Job.
+                                    Exactly one of Basic or Gang must be set.
+                                    This field is immutable after creation: the policy may not be added or
+                                    removed. The policy variant (basic/gang) is frozen by hand-written
+                                    validation; only schedulingPolicy.gang.minCount may be changed.
+                                  properties:
+                                    basic:
+                                      description: |-
+                                        basic specifies that standard, pod-by-pod Kubernetes scheduling
+                                        behavior should be used.
+                                      type: object
+                                    gang:
+                                      description: gang specifies all-or-nothing scheduling
+                                        semantics.
+                                      properties:
+                                        minCount:
+                                          description: |-
+                                            minCount is the minimum number of pods that must be scheduled
+                                            at the same time for the scheduler to admit the entire group.
+                                            This field is optional. If it is not specified, the controller
+                                            should inject a context-specific sane default (e.g.,
+                                            parallelism for a Job).
+                                            If set, it must be a positive integer.
+                                          format: int32
+                                          type: integer
+                                      type: object
+                                  type: object
+                              type: object
                             selector:
                               description: |-
                                 A label query over pods that should match the pod count.
@@ -1737,8 +1863,9 @@ spec:
                                                         a ConfigMap.
                                                       properties:
                                                         key:
-                                                          description: The key to
-                                                            select.
+                                                          description: |-
+                                                            The key to select from the ConfigMap's Data field.
+                                                            Keys in the BinaryData field are not currently propagated to container env vars.
                                                           type: string
                                                         name:
                                                           default: ""
@@ -3186,9 +3313,9 @@ spec:
                                                 mounting of a Volume within a container.
                                               properties:
                                                 mountPath:
-                                                  description: |-
-                                                    Path within the container at which the volume should be mounted.  Must
-                                                    not contain ':'.
+                                                  description: Path within the container
+                                                    at which the volume should be
+                                                    mounted.
                                                   type: string
                                                 mountPropagation:
                                                   description: |-
@@ -3403,8 +3530,9 @@ spec:
                                                         a ConfigMap.
                                                       properties:
                                                         key:
-                                                          description: The key to
-                                                            select.
+                                                          description: |-
+                                                            The key to select from the ConfigMap's Data field.
+                                                            Keys in the BinaryData field are not currently propagated to container env vars.
                                                           type: string
                                                         name:
                                                           default: ""
@@ -4816,9 +4944,9 @@ spec:
                                                 mounting of a Volume within a container.
                                               properties:
                                                 mountPath:
-                                                  description: |-
-                                                    Path within the container at which the volume should be mounted.  Must
-                                                    not contain ':'.
+                                                  description: Path within the container
+                                                    at which the volume should be
+                                                    mounted.
                                                   type: string
                                                 mountPropagation:
                                                   description: |-
@@ -5072,8 +5200,9 @@ spec:
                                                         a ConfigMap.
                                                       properties:
                                                         key:
-                                                          description: The key to
-                                                            select.
+                                                          description: |-
+                                                            The key to select from the ConfigMap's Data field.
+                                                            Keys in the BinaryData field are not currently propagated to container env vars.
                                                           type: string
                                                         name:
                                                           default: ""
@@ -6521,9 +6650,9 @@ spec:
                                                 mounting of a Volume within a container.
                                               properties:
                                                 mountPath:
-                                                  description: |-
-                                                    Path within the container at which the volume should be mounted.  Must
-                                                    not contain ':'.
+                                                  description: Path within the container
+                                                    at which the volume should be
+                                                    mounted.
                                                   type: string
                                                 mountPropagation:
                                                   description: |-
@@ -6678,6 +6807,8 @@ spec:
                                       description: |-
                                         PreemptionPolicy is the Policy for preempting pods with lower priority.
                                         One of Never, PreemptLowerPriority.
+                                        When Priority Admission Controller is enabled, it prevents users from setting
+                                        this field. The admission controller populates this field from PriorityClassName.
                                         Defaults to PreemptLowerPriority if unset.
                                       type: string
                                     priority:
@@ -7024,11 +7155,8 @@ spec:
                                             Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                                             whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
                                             CSIDriver instance. Other volumes are always re-labelled recursively.
-                                            "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
-                                            If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
-                                            If not specified and SELinuxMount feature gate is disabled, "MountOption" is used for ReadWriteOncePod volumes
-                                            and "Recursive" for all other volumes.
+                                            If not specified, "MountOption" is used.
 
                                             This field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.
 
@@ -7988,8 +8116,8 @@ spec:
                                                           * An existing PVC (PersistentVolumeClaim)
                                                           If the provisioner or an external controller can support the specified data source,
                                                           it will create a new volume based on the contents of the specified data source.
-                                                          When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                                          and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                                          dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                                          copied to dataSource when dataSourceRef.namespace is not specified.
                                                           If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                                         properties:
                                                           apiGroup:
@@ -8036,7 +8164,6 @@ spec:
                                                             specified.
                                                           * While dataSource only allows local objects, dataSourceRef allows objects
                                                             in any namespaces.
-                                                          (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                                           (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                                         properties:
                                                           apiGroup:
@@ -9480,6 +9607,245 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              scheduling:
+                description: |-
+                  scheduling defines the Workload-Aware Scheduling configuration for this JobSet.
+                  When nil, no scheduling objects are created and behavior is unchanged.
+                  When set (even to {}), the controller compiles a Workload resource
+                  (containing PodGroupTemplates) and materializes the corresponding
+                  PodGroup objects for the scheduler.
+                  Requires the WorkloadAwareScheduling feature gate.
+                properties:
+                  constraints:
+                    description: constraints defines composite-level topology constraints
+                      for the entire JobSet.
+                    properties:
+                      topology:
+                        description: |-
+                          topology defines the topology constraints for the pod group.
+                          Currently only a single topology constraint can be specified. This may change in the future.
+                        items:
+                          description: TopologyConstraint defines a topology constraint
+                            for a PodGroup.
+                          properties:
+                            key:
+                              description: |-
+                                key specifies the key of the node label representing the topology domain.
+                                All pods within the PodGroup must be colocated within the same domain instance.
+                                Different PodGroups can land on different domain instances even if they derive from the same PodGroupTemplate.
+                                Examples: "topology.kubernetes.io/rack"
+                              type: string
+                          required:
+                          - key
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                    type: object
+                  disruption:
+                    description: disruption defines how the entire composite group
+                      can be disrupted.
+                    properties:
+                      all:
+                        description: all specifies that all children can only be disrupted
+                          together.
+                        type: object
+                      single:
+                        description: single specifies that children can be disrupted
+                          independently from each other.
+                        type: object
+                    type: object
+                  policy:
+                    description: |-
+                      policy defines the composite-level scheduling policy for the entire JobSet.
+                      Defaults to Gang when spec.scheduling is set but policy is nil.
+                    properties:
+                      basic:
+                        description: |-
+                          basic specifies that the pods in this group should be scheduled using
+                          standard Kubernetes scheduling behavior. Setting this field at group creation time
+                          opts this group to basic scheduling; this field cannot be changed afterward.
+                        type: object
+                      gang:
+                        description: |-
+                          gang specifies that the pods in this group should be scheduled using
+                          all-or-nothing semantics. Setting this field at group creation time
+                          opts this group to gang scheduling; this field cannot be set or unset afterward.
+                          The minCount field within Gang scheduling policy remains mutable after group creation.
+                        properties:
+                          minCount:
+                            description: |-
+                              minCount is the minimum number of pods that must be schedulable or scheduled
+                              at the same time for the scheduler to admit the entire group.
+                              It must be a positive integer. This field is mutable to support workload scaling.
+
+                              Note that the scheduler operates on an eventually consistent model. Updates
+                              to minCount may not be immediately reflected in scheduling decisions due to
+                              propagation delays. If minCount is updated while a scheduling cycle is in
+                              progress for that group, the new value may not take effect until the next
+                              cycle. Moreover, minCount is only enforced during scheduling, meaning that
+                              modifications to this field do not affect already-scheduled pods, applying
+                              only to those evaluated in future cycles.
+                            format: int32
+                            type: integer
+                        required:
+                        - minCount
+                        type: object
+                    type: object
+                  replicatedJobPolicies:
+                    description: |-
+                      replicatedJobPolicies specifies per-ReplicatedJob leaf-level scheduling overrides.
+                      Each entry targets a named ReplicatedJob.
+                    items:
+                      description: |-
+                        ReplicatedJobSchedulingPolicy targets a named ReplicatedJob with leaf-level
+                        scheduling configuration.
+                      properties:
+                        constraints:
+                          description: constraints defines leaf-level topology constraints
+                            for this ReplicatedJob's pods.
+                          properties:
+                            topology:
+                              description: |-
+                                topology defines the topology constraints for the pod group.
+                                Currently only a single topology constraint can be specified. This may change in the future.
+                              items:
+                                description: TopologyConstraint defines a topology
+                                  constraint for a PodGroup.
+                                properties:
+                                  key:
+                                    description: |-
+                                      key specifies the key of the node label representing the topology domain.
+                                      All pods within the PodGroup must be colocated within the same domain instance.
+                                      Different PodGroups can land on different domain instances even if they derive from the same PodGroupTemplate.
+                                      Examples: "topology.kubernetes.io/rack"
+                                    type: string
+                                required:
+                                - key
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          type: object
+                        disruption:
+                          description: disruption defines how pods within this ReplicatedJob
+                            can be disrupted.
+                          properties:
+                            all:
+                              description: all specifies that all children can only
+                                be disrupted together.
+                              type: object
+                            single:
+                              description: single specifies that children can be disrupted
+                                independently from each other.
+                              type: object
+                          type: object
+                        policy:
+                          description: |-
+                            policy defines the leaf-level scheduling policy (basic or gang) for
+                            jobs created by this ReplicatedJob.
+                            Defaults to Gang when not specified.
+                          properties:
+                            basic:
+                              description: |-
+                                basic specifies that the pods in this group should be scheduled using
+                                standard Kubernetes scheduling behavior. Setting this field at group creation time
+                                opts this group to basic scheduling; this field cannot be changed afterward.
+                              type: object
+                            gang:
+                              description: |-
+                                gang specifies that the pods in this group should be scheduled using
+                                all-or-nothing semantics. Setting this field at group creation time
+                                opts this group to gang scheduling; this field cannot be set or unset afterward.
+                                The minCount field within Gang scheduling policy remains mutable after group creation.
+                              properties:
+                                minCount:
+                                  description: |-
+                                    minCount is the minimum number of pods that must be schedulable or scheduled
+                                    at the same time for the scheduler to admit the entire group.
+                                    It must be a positive integer. This field is mutable to support workload scaling.
+
+                                    Note that the scheduler operates on an eventually consistent model. Updates
+                                    to minCount may not be immediately reflected in scheduling decisions due to
+                                    propagation delays. If minCount is updated while a scheduling cycle is in
+                                    progress for that group, the new value may not take effect until the next
+                                    cycle. Moreover, minCount is only enforced during scheduling, meaning that
+                                    modifications to this field do not affect already-scheduled pods, applying
+                                    only to those evaluated in future cycles.
+                                  format: int32
+                                  type: integer
+                              required:
+                              - minCount
+                              type: object
+                          type: object
+                        resourceClaims:
+                          description: resourceClaims specifies dynamic resource claims
+                            for this ReplicatedJob's pods.
+                          items:
+                            description: |-
+                              PodGroupResourceClaim references exactly one ResourceClaim, either directly
+                              or by naming a ResourceClaimTemplate which is then turned into a ResourceClaim
+                              for the PodGroup.
+
+                              It adds a name to it that uniquely identifies the ResourceClaim inside the PodGroup.
+                              Pods that need access to the ResourceClaim define a matching reference in its
+                              own Spec.ResourceClaims. The Pod's claim must match all fields of the
+                              PodGroup's claim exactly.
+                            properties:
+                              name:
+                                description: |-
+                                  name uniquely identifies this resource claim inside the PodGroup.
+                                  This must be a DNS_LABEL.
+                                type: string
+                              resourceClaimName:
+                                description: |-
+                                  resourceClaimName is the name of a ResourceClaim object in the same
+                                  namespace as this PodGroup. The ResourceClaim will be reserved for the
+                                  PodGroup instead of its individual pods.
+
+                                  Exactly one of ResourceClaimName and ResourceClaimTemplateName must
+                                  be set.
+                                type: string
+                              resourceClaimTemplateName:
+                                description: |-
+                                  resourceClaimTemplateName is the name of a ResourceClaimTemplate
+                                  object in the same namespace as this PodGroup.
+
+                                  The template will be used to create a new ResourceClaim, which will
+                                  be bound to this PodGroup. When this PodGroup is deleted, the ResourceClaim
+                                  will also be deleted. The PodGroup name and resource name, along with a
+                                  generated component, will be used to form a unique name for the
+                                  ResourceClaim, which will be recorded in podgroup.status.resourceClaimStatuses.
+
+                                  This field is immutable and no changes will be made to the
+                                  corresponding ResourceClaim by the control plane after creating the
+                                  ResourceClaim.
+
+                                  Exactly one of ResourceClaimName and ResourceClaimTemplateName must
+                                  be set.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          maxItems: 4
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        targetReplicatedJob:
+                          description: targetReplicatedJob is the name of the ReplicatedJob
+                            this policy applies to.
+                          maxLength: 63
+                          minLength: 1
+                          type: string
+                      required:
+                      - targetReplicatedJob
+                      type: object
+                    maxItems: 50
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - targetReplicatedJob
+                    x-kubernetes-list-type: map
+                type: object
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               startupPolicy:
                 description: |-
                   startupPolicy configures in what order jobs must be started
@@ -9639,8 +10005,8 @@ spec:
                                   * An existing PVC (PersistentVolumeClaim)
                                   If the provisioner or an external controller can support the specified data source,
                                   it will create a new volume based on the contents of the specified data source.
-                                  When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                  and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                  dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                  copied to dataSource when dataSourceRef.namespace is not specified.
                                   If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                 properties:
                                   apiGroup:
@@ -9685,7 +10051,6 @@ spec:
                                     specified.
                                   * While dataSource only allows local objects, dataSourceRef allows objects
                                     in any namespaces.
-                                  (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                   (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                 properties:
                                   apiGroup:

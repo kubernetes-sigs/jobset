@@ -8,7 +8,7 @@ description: >
 no_list: true
 ---
 
-JobSet can integrate with the Kubernetes Workload Aware Scheduling (WAS) APIs (`scheduling.k8s.io/v1alpha2`) to enable gang scheduling and coordinated pod placement. This guide shows how to create the WAS resources alongside your JobSet.
+JobSet can integrate with the Kubernetes Workload Aware Scheduling (WAS) APIs (`scheduling.k8s.io/v1alpha3`) to enable gang scheduling and coordinated pod placement. This guide shows how to create the WAS resources alongside your JobSet.
 
 ## Prerequisites
 

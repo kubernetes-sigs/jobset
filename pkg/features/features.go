@@ -52,6 +52,14 @@ const (
 	// ElasticJobSet enables the mutation of parallelism and completions for ReplicatedJobs
 	// to support dynamic horizontal pod-level scaling.
 	ElasticJobSet featuregate.Feature = "ElasticJobSet"
+
+	// owner: @kehannon
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/WAS-integration/README.md
+	//
+	// WorkloadAwareScheduling enables integration with Workload-Aware Scheduling (WAS)
+	// building blocks from scheduling.k8s.io, allowing users to configure gang scheduling,
+	// topology constraints, and disruption policies on JobSets.
+	WorkloadAwareScheduling featuregate.Feature = "WorkloadAwareScheduling"
 )
 
 func init() {
@@ -72,6 +80,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	RestartJob: {Default: false, PreRelease: featuregate.Alpha},
 
 	ElasticJobSet: {Default: false, PreRelease: featuregate.Alpha},
+
+	WorkloadAwareScheduling: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {
