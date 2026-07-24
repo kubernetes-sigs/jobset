@@ -10105,6 +10105,11 @@ spec:
                 format: int32
                 minimum: 0
                 type: integer
+              executeAttempts:
+                description: executeAttempts tracks the number of execution lifecycles.
+                format: int32
+                minimum: 0
+                type: integer
               previousInPlaceRestartAttempt:
                 description: |-
                   previousInPlaceRestartAttempt tracks the previous in-place restart attempt

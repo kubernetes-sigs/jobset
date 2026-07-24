@@ -473,6 +473,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 2,
+				ExecuteAttempts:         ptr.To(int32(1)),
 				Conditions: []metav1.Condition{
 					{
 						Type:   string(jobset.JobSetRestarting),
@@ -500,6 +501,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 2,
+				ExecuteAttempts:         ptr.To(int32(1)),
 				Conditions: []metav1.Condition{
 					{
 						Type:   string(jobset.JobSetRestarting),
@@ -549,6 +551,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 1, // not incremented
+				ExecuteAttempts:         ptr.To(int32(1)),
 				Conditions: []metav1.Condition{
 					{
 						Type:   string(jobset.JobSetRestarting),
