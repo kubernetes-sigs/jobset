@@ -717,6 +717,36 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
+			name:              "resume job set with >0 ExecuteAttempts",
+			restartJobEnabled: true,
+			js: testutils.MakeJobSet(jobSetName, ns).
+				Suspend(false).
+				EnableDNSHostnames(true).
+				NetworkSubdomain(jobSetName).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Subdomain(jobSetName).
+					Replicas(1).
+					GroupName("default").
+					Obj()).
+				SetExecuteAttempts(1).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					groupName:         "default",
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0,
+					executeAttempts:   1}).
+					Suspend(false).
+					Subdomain(jobSetName).Obj(),
+			},
+		},
+		{
 			name:              "node selector exclusive placement strategy enabled",
 			restartJobEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
@@ -1094,6 +1124,76 @@ func addGroupReplicas(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 	// Job template
 	job.Spec.Template.Labels[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
 	job.Spec.Template.Annotations[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
+}
+
+func TestResumeJob(t *testing.T) {
+	var (
+		jobSetName        = "test-jobset"
+		replicatedJobName = "replicated-job"
+		ns                = "default"
+	)
+
+	tests := []struct {
+		name                     string
+		js                       *jobset.JobSet
+		job                      *batchv1.Job
+		replicatedJobTemplateMap map[string]corev1.PodTemplateSpec
+		want                     *batchv1.Job
+	}{
+		{
+			name: "resume job updates execute-attempt annotations and wipes start time",
+			js:   testutils.MakeJobSet(jobSetName, ns).SetExecuteAttempts(2).Obj(),
+			job: func() *batchv1.Job {
+				j := testutils.MakeJob("test-jobset-replicated-job-0", ns).Suspend(true).JobLabels(map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName}).Obj()
+				j.Status.StartTime = &metav1.Time{Time: time.Now()}
+				return j
+			}(),
+			replicatedJobTemplateMap: map[string]corev1.PodTemplateSpec{
+				replicatedJobName: {
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{"foo": "bar"},
+					},
+				},
+			},
+			want: testutils.MakeJob("test-jobset-replicated-job-0", ns).
+				Suspend(false).
+				JobLabels(map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName}).
+				JobAnnotations(map[string]string{constants.ExecuteAttemptsKey: "2"}).
+				PodAnnotations(map[string]string{"foo": "bar", constants.ExecuteAttemptsKey: "2"}).
+				Obj(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			localScheme := runtime.NewScheme()
+			utilruntime.Must(jobset.AddToScheme(localScheme))
+			utilruntime.Must(batchv1.AddToScheme(localScheme))
+			utilruntime.Must(corev1.AddToScheme(localScheme))
+
+			fakeClient := fake.NewClientBuilder().WithScheme(localScheme).WithObjects(tc.job).WithStatusSubresource(&batchv1.Job{}).Build()
+			r := &JobSetReconciler{
+				Client: fakeClient,
+				Scheme: localScheme,
+			}
+			err := r.resumeJob(context.Background(), tc.js, tc.job, tc.replicatedJobTemplateMap)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Verify the job was updated correctly.
+			var actual batchv1.Job
+			if err := fakeClient.Get(context.Background(), client.ObjectKey{Name: tc.job.Name, Namespace: tc.job.Namespace}, &actual); err != nil {
+				t.Fatalf("failed to get job: %v", err)
+			}
+			if diff := cmp.Diff(tc.want, &actual, cmpopts.IgnoreFields(batchv1.Job{}, "TypeMeta", "ResourceVersion", "Status")); diff != "" {
+				t.Errorf("unexpected job mutation (+got/-want): %s", diff)
+			}
+			if actual.Status.StartTime != nil {
+				t.Errorf("expected job start time to be nil, got: %v", actual.Status.StartTime)
+			}
+		})
+	}
 }
 
 func TestUpdateConditions(t *testing.T) {
@@ -1660,6 +1760,7 @@ type makeJobArgs struct {
 	jobIdx                int
 	restarts              int
 	jobRestartAttempt     int
+	executeAttempts       int
 	omitJobRestartAttempt bool
 	topology              string
 	nodeSelectorStrategy  bool
@@ -1685,6 +1786,7 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
+		constants.ExecuteAttemptsKey: strconv.Itoa(args.executeAttempts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
 	if !args.omitJobRestartAttempt {

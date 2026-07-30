@@ -252,6 +252,11 @@
           "type": "integer",
           "format": "int32"
         },
+        "executeAttempts": {
+          "description": "executeAttempts tracks the number of execution lifecycles.",
+          "type": "integer",
+          "format": "int32"
+        },
         "previousInPlaceRestartAttempt": {
           "description": "previousInPlaceRestartAttempt tracks the previous in-place restart attempt of the JobSet. It is read by the agent. If the in-place restart attempt of the Pod is smaller than or equal to previousInPlaceRestartAttempt, the agent should restart its Pod in-place.",
           "type": "integer",

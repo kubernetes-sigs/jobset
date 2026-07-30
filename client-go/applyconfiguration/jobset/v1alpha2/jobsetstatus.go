@@ -34,6 +34,8 @@ type JobSetStatusApplyConfiguration struct {
 	// restartsCountTowardsMax tracks the number of times the JobSet has been globally restarted that counts towards the maximum allowed number of restarts.
 	// That is, restartsCountTowardsMax is the number of times the restart action RestartJobSet has been executed and led to the recreation of all Jobs.
 	RestartsCountTowardsMax *int32 `json:"restartsCountTowardsMax,omitempty"`
+	// executeAttempts tracks the number of execution lifecycles.
+	ExecuteAttempts *int32 `json:"executeAttempts,omitempty"`
 	// terminalState tracks the state of the JobSet when it finishes execution.
 	// It can be either Completed or Failed. Otherwise, it is empty by default.
 	TerminalState *string `json:"terminalState,omitempty"`
@@ -84,6 +86,14 @@ func (b *JobSetStatusApplyConfiguration) WithRestarts(value int32) *JobSetStatus
 // If called multiple times, the RestartsCountTowardsMax field is set to the value of the last call.
 func (b *JobSetStatusApplyConfiguration) WithRestartsCountTowardsMax(value int32) *JobSetStatusApplyConfiguration {
 	b.RestartsCountTowardsMax = &value
+	return b
+}
+
+// WithExecuteAttempts sets the ExecuteAttempts field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ExecuteAttempts field is set to the value of the last call.
+func (b *JobSetStatusApplyConfiguration) WithExecuteAttempts(value int32) *JobSetStatusApplyConfiguration {
+	b.ExecuteAttempts = &value
 	return b
 }
 

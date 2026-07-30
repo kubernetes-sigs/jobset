@@ -45,6 +45,7 @@ class TestJobsetV1alpha2JobSetStatus(unittest.TestCase):
                         type = '', )
                     ],
                 current_in_place_restart_attempt = 56,
+                execute_attempts = 56,
                 previous_in_place_restart_attempt = 56,
                 replicated_jobs_status = [
                     jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(

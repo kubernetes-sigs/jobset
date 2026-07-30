@@ -479,6 +479,13 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							Format:      "int32",
 						},
 					},
+					"executeAttempts": {
+						SchemaProps: spec.SchemaProps{
+							Description: "executeAttempts tracks the number of execution lifecycles.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
 					"terminalState": {
 						SchemaProps: spec.SchemaProps{
 							Description: "terminalState tracks the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",

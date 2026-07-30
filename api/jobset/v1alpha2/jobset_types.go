@@ -217,6 +217,11 @@ type JobSetStatus struct {
 	// +optional
 	RestartsCountTowardsMax int32 `json:"restartsCountTowardsMax,omitempty"`
 
+	// executeAttempts tracks the number of execution lifecycles.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	ExecuteAttempts *int32 `json:"executeAttempts,omitempty"`
+
 	// terminalState tracks the state of the JobSet when it finishes execution.
 	// It can be either Completed or Failed. Otherwise, it is empty by default.
 	// +optional

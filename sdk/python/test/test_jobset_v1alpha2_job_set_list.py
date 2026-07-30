@@ -163,6 +163,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 ], ), 
                         status = jobset.models.jobset_v1alpha2_job_set_status.JobsetV1alpha2JobSetStatus(
                             current_in_place_restart_attempt = 56, 
+                            execute_attempts = 56, 
                             previous_in_place_restart_attempt = 56, 
                             replicated_jobs_status = [
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(
@@ -321,6 +322,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 ], ), 
                         status = jobset.models.jobset_v1alpha2_job_set_status.JobsetV1alpha2JobSetStatus(
                             current_in_place_restart_attempt = 56, 
+                            execute_attempts = 56, 
                             previous_in_place_restart_attempt = 56, 
                             replicated_jobs_status = [
                                 jobset.models.jobset_v1alpha2_replicated_job_status.JobsetV1alpha2ReplicatedJobStatus(

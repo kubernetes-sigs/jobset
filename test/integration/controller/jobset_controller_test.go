@@ -34,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -746,6 +747,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetRestartsCountTowardsMax(js, 1)
 						matchJobRestarts(js, nil)
 						matchJobRestartsCountTowardsMax(js, nil)
+						matchJobSetExecuteAttempts(js, 1)
+						matchChildJobsExecuteAttempts(js, 1)
 					},
 				},
 			},
@@ -1493,6 +1496,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+						matchJobSetExecuteAttempts(js, 0)
+						matchChildJobsExecuteAttempts(js, 0)
 					},
 					checkJobSetCondition: testutil.JobSetResumed,
 				},
@@ -1520,7 +1525,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("suspend a running jobset", &testCase{
+		ginkgo.Entry("suspend and resume a running jobset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testJobSet(ns).Suspend(false)
 			},
@@ -1532,6 +1537,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 				},
 				{
+					jobUpdateFn: startAllJobs,
+				},
+				{
 					jobSetUpdateFn: func(js *jobset.JobSet) {
 						suspendJobSet(js, true)
 					},
@@ -1540,6 +1548,90 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
 					},
 					checkJobSetCondition: testutil.JobSetSuspended,
+				},
+				{
+					// Simulate kube-controller-manager Job controller behavior
+					jobUpdateFn: setJobsSuspendedCondition,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, false)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+						matchJobSetExecuteAttempts(js, 1)
+						matchChildJobsExecuteAttempts(js, 1)
+					},
+					checkJobSetCondition: testutil.JobSetResumed,
+				},
+			},
+		}),
+		ginkgo.Entry("multiple suspend and resume cycles", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Suspend(false)
+			},
+			steps: []*step{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are not suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+					},
+				},
+				{
+					jobUpdateFn: startAllJobs,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, true)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
+					},
+					checkJobSetCondition: testutil.JobSetSuspended,
+				},
+				{
+					// Simulate kube-controller-manager Job controller behavior
+					jobUpdateFn: setJobsSuspendedCondition,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, false)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+						matchJobSetExecuteAttempts(js, 1)
+						matchChildJobsExecuteAttempts(js, 1)
+					},
+					checkJobSetCondition: testutil.JobSetResumed,
+				},
+				{
+					// Second cycle
+					jobUpdateFn: startAllJobs,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, true)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
+					},
+					checkJobSetCondition: testutil.JobSetSuspended,
+				},
+				{
+					jobUpdateFn: setJobsSuspendedCondition,
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, false)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+						matchJobSetExecuteAttempts(js, 2)
+						matchChildJobsExecuteAttempts(js, 2)
+					},
+					checkJobSetCondition: testutil.JobSetResumed,
 				},
 			},
 		}),
@@ -2968,7 +3060,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						LastTransitionTime: metav1.Now(),
 					},
 				},
-				Restarts: 1,
+				Restarts:        1,
+				ExecuteAttempts: ptr.To(int32(0)),
 				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 					{
 						Name:      "replicated-job-a",
@@ -3235,19 +3328,21 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					{
 						// Step 2: Simulate an external scaling operation.
 						jobSetUpdateFn: func(js *jobset.JobSet) {
-							var latestJS jobset.JobSet
-							err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js), &latestJS)
-							gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to fetch latest JobSet")
-
-							// Mutating Parallelism and Completions locally and forcing the update to the cluster
-							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
-							latestJS.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
-
-							err = k8sClient.Update(ctx, &latestJS)
+							err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+								var latestJS jobset.JobSet
+								if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(js), &latestJS); err != nil {
+									return err
+								}
+								latestJS.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](4)
+								latestJS.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](4)
+								err := k8sClient.Update(ctx, &latestJS)
+								if err == nil {
+									*js = latestJS
+								}
+								return err
+							})
 							gomega.Expect(err).NotTo(gomega.HaveOccurred(), "API Server rejected the JobSet update")
 
-							// Update the local pointer so the test framework has the correct ResourceVersion
-							*js = latestJS
 						},
 						// Step 3: Verify the controller caught the update and patched the child job in-place.
 						checkJobSetState: func(js *jobset.JobSet) {
@@ -3434,6 +3529,16 @@ func setJobsSuspendedCondition(jobList *batchv1.JobList) {
 					Status: corev1.ConditionTrue,
 				},
 			},
+		})
+	}
+}
+
+func startAllJobs(jobList *batchv1.JobList) {
+	ginkgo.By("starting all jobs")
+	now := metav1.Now()
+	for _, job := range jobList.Items {
+		updateJobStatus(&job, batchv1.JobStatus{
+			StartTime: &now,
 		})
 	}
 }
@@ -3813,6 +3918,47 @@ func matchJobSetRestarts(js *jobset.JobSet, expectedCount int32) {
 
 		return newJs.Status.Restarts, nil
 	}, timeout, interval).Should(gomega.BeComparableTo(expectedCount))
+}
+
+// matchJobSetExecuteAttempts checks that the supplied jobset js has expectedCount
+// as the value of js.Status.ExecuteAttempts.
+func matchJobSetExecuteAttempts(js *jobset.JobSet, expectedCount int32) {
+	gomega.Eventually(func() (int32, error) {
+		newJs := jobset.JobSet{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
+			return 0, err
+		}
+
+		return ptr.Deref(newJs.Status.ExecuteAttempts, 0), nil
+	}, timeout, interval).Should(gomega.BeComparableTo(expectedCount))
+}
+
+// matchChildJobsExecuteAttempts checks that all child Jobs of a JobSet have expectedCount
+// as the value of their execute-attempts annotation.
+func matchChildJobsExecuteAttempts(js *jobset.JobSet, expectedCount int32) {
+	gomega.Eventually(func() (bool, error) {
+		var jobList batchv1.JobList
+		if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+			return false, err
+		}
+		expectedStr := strconv.Itoa(int(expectedCount))
+		for _, job := range jobList.Items {
+			// check if job belongs to jobset
+			if job.Labels[jobset.JobSetNameKey] != js.Name {
+				continue
+			}
+			if job.DeletionTimestamp != nil {
+				continue
+			}
+			if job.Annotations[constants.ExecuteAttemptsKey] != expectedStr {
+				return false, nil
+			}
+			if job.Spec.Template.Annotations[constants.ExecuteAttemptsKey] != expectedStr {
+				return false, nil
+			}
+		}
+		return true, nil
+	}, timeout, interval).Should(gomega.Equal(true))
 }
 
 func matchJobSetRestartsCountTowardsMax(js *jobset.JobSet, expectedCount int32) {
