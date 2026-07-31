@@ -54,7 +54,6 @@ const (
 	ElasticJobSet featuregate.Feature = "ElasticJobSet"
 
 	// owner: @kannon92
-	// kep: https://kep.k8s.io/5440
 	//
 	// SuspendedJobResourceMutation enables mutation of container/initContainer resource
 	// requests/limits on a ReplicatedJob's pod template while the JobSet is suspended (or
