@@ -89,6 +89,9 @@ func TestDefaultSetsValidPriorityLabelForNegativePriority(t *testing.T) {
 	}
 
 	got := pod.Labels[constants.PriorityKey]
+	if want := "n1"; got != want {
+		t.Errorf("priority label = %q, want %q", got, want)
+	}
 	if errs := validation.IsValidLabelValue(got); len(errs) > 0 {
 		t.Errorf("priority label %q is not a valid label value: %v", got, errs)
 	}
