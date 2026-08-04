@@ -52,6 +52,12 @@ const (
 	// ElasticJobSet enables the mutation of parallelism and completions for ReplicatedJobs
 	// to support dynamic horizontal pod-level scaling.
 	ElasticJobSet featuregate.Feature = "ElasticJobSet"
+
+	// owner: @jianqiaol
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/1282-execution-attempts/README.md
+	//
+	// Enables tracking and propagating JobSet execution attempts as a monotonic counter.
+	ExecuteAttemptsTracking featuregate.Feature = "ExecuteAttemptsTracking"
 )
 
 func init() {
@@ -72,6 +78,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	RestartJob: {Default: false, PreRelease: featuregate.Alpha},
 
 	ElasticJobSet: {Default: false, PreRelease: featuregate.Alpha},
+
+	ExecuteAttemptsTracking: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {

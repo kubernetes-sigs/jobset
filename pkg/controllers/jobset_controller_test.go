@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -155,11 +157,12 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 	)
 
 	tests := []struct {
-		name              string
-		restartJobEnabled bool
-		js                *jobset.JobSet
-		ownedJobs         *childJobs
-		want              []*batchv1.Job
+		name                           string
+		restartJobEnabled              bool
+		executeAttemptsTrackingEnabled bool
+		js                             *jobset.JobSet
+		ownedJobs                      *childJobs
+		want                           []*batchv1.Job
 	}{
 		{
 			name:              "no jobs created",
@@ -717,8 +720,9 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name:              "resume job set with >0 ExecuteAttempts",
-			restartJobEnabled: true,
+			name:                           "resume job set with >0 ExecuteAttempts",
+			restartJobEnabled:              true,
+			executeAttemptsTrackingEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Suspend(false).
 				EnableDNSHostnames(true).
@@ -1030,11 +1034,43 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Suspend(false).Obj(),
 			},
 		},
+		{
+			name:                           "ExecuteAttemptsTracking disabled does not inject execute attempts annotation",
+			restartJobEnabled:              true,
+			executeAttemptsTrackingEnabled: false,
+			js: testutils.MakeJobSet(jobSetName, ns).
+				Suspend(false).
+				EnableDNSHostnames(true).
+				NetworkSubdomain(jobSetName).
+				ReplicatedJob(testutils.MakeReplicatedJob(replicatedJobName).
+					Job(testutils.MakeJobTemplate(jobName, ns).Obj()).
+					Subdomain(jobSetName).
+					Replicas(1).
+					GroupName("default").
+					Obj()).
+				SetExecuteAttempts(1).
+				Obj(),
+			ownedJobs: &childJobs{},
+			want: []*batchv1.Job{
+				makeJob(&makeJobArgs{
+					jobSetName:        jobSetName,
+					replicatedJobName: replicatedJobName,
+					groupName:         "default",
+					jobName:           "test-jobset-replicated-job-0",
+					ns:                ns,
+					replicas:          1,
+					jobIdx:            0,
+					executeAttempts:   1}).
+					Suspend(false).
+					Subdomain(jobSetName).Obj(),
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.restartJobEnabled)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExecuteAttemptsTracking, tc.executeAttemptsTrackingEnabled)
 			// Here we update the expected Jobs with certain features which require
 			// direct access to the JobSet object itself to calculate. For example,
 			// the `jobset.sigs.k8s.io/job-global-index` annotation requires access to the
@@ -1044,6 +1080,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				addGlobalReplicas(t, tc.js, expectedJob)
 				addJobGroupIndex(t, tc.js, expectedJob)
 				addGroupReplicas(t, tc.js, expectedJob)
+				addExecuteAttempts(t, tc.js, expectedJob)
 			}
 
 			// Now get the actual output of constructJobsFromTemplate, and diff the results.
@@ -1126,6 +1163,18 @@ func addGroupReplicas(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 	job.Spec.Template.Annotations[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
 }
 
+func addExecuteAttempts(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
+	t.Helper()
+	if features.Enabled(features.ExecuteAttemptsTracking) {
+		val := strconv.Itoa(int(ptr.Deref(js.Status.ExecuteAttempts, 0)))
+		job.Annotations[constants.ExecuteAttemptsKey] = val
+		job.Spec.Template.Annotations[constants.ExecuteAttemptsKey] = val
+	} else {
+		delete(job.Annotations, constants.ExecuteAttemptsKey)
+		delete(job.Spec.Template.Annotations, constants.ExecuteAttemptsKey)
+	}
+}
+
 func TestResumeJob(t *testing.T) {
 	var (
 		jobSetName        = "test-jobset"
@@ -1135,14 +1184,16 @@ func TestResumeJob(t *testing.T) {
 
 	tests := []struct {
 		name                     string
+		enableExecuteAttempts    bool
 		js                       *jobset.JobSet
 		job                      *batchv1.Job
 		replicatedJobTemplateMap map[string]corev1.PodTemplateSpec
 		want                     *batchv1.Job
 	}{
 		{
-			name: "resume job updates execute-attempt annotations and wipes start time",
-			js:   testutils.MakeJobSet(jobSetName, ns).SetExecuteAttempts(2).Obj(),
+			name:                  "resume job updates execute-attempt annotations and wipes start time",
+			enableExecuteAttempts: true,
+			js:                    testutils.MakeJobSet(jobSetName, ns).SetExecuteAttempts(2).Obj(),
 			job: func() *batchv1.Job {
 				j := testutils.MakeJob("test-jobset-replicated-job-0", ns).Suspend(true).JobLabels(map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName}).Obj()
 				j.Status.StartTime = &metav1.Time{Time: time.Now()}
@@ -1162,10 +1213,33 @@ func TestResumeJob(t *testing.T) {
 				PodAnnotations(map[string]string{"foo": "bar", constants.ExecuteAttemptsKey: "2"}).
 				Obj(),
 		},
+		{
+			name:                  "resume job with ExecuteAttemptsTracking disabled does not update execute-attempt annotations",
+			enableExecuteAttempts: false,
+			js:                    testutils.MakeJobSet(jobSetName, ns).SetExecuteAttempts(2).Obj(),
+			job: func() *batchv1.Job {
+				j := testutils.MakeJob("test-jobset-replicated-job-0", ns).Suspend(true).JobLabels(map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName}).Obj()
+				j.Status.StartTime = &metav1.Time{Time: time.Now()}
+				return j
+			}(),
+			replicatedJobTemplateMap: map[string]corev1.PodTemplateSpec{
+				replicatedJobName: {
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{"foo": "bar"},
+					},
+				},
+			},
+			want: testutils.MakeJob("test-jobset-replicated-job-0", ns).
+				Suspend(false).
+				JobLabels(map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName}).
+				PodAnnotations(map[string]string{"foo": "bar"}).
+				Obj(),
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExecuteAttemptsTracking, tc.enableExecuteAttempts)
 			localScheme := runtime.NewScheme()
 			utilruntime.Must(jobset.AddToScheme(localScheme))
 			utilruntime.Must(batchv1.AddToScheme(localScheme))
@@ -1786,8 +1860,10 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		jobset.ReplicatedJobReplicas: strconv.Itoa(args.replicas),
 		jobset.JobIndexKey:           strconv.Itoa(args.jobIdx),
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
-		constants.ExecuteAttemptsKey: strconv.Itoa(args.executeAttempts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
+	}
+	if features.Enabled(features.ExecuteAttemptsTracking) {
+		annotations[constants.ExecuteAttemptsKey] = strconv.Itoa(args.executeAttempts)
 	}
 	if !args.omitJobRestartAttempt {
 		labels[constants.JobRestartAttemptKey] = strconv.Itoa(args.jobRestartAttempt)
