@@ -651,8 +651,8 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 		// Certain fields on the Job pod template may be mutated while a JobSet is suspended,
 		// for integration with Kueue. Ensure these updates are propagated to the child Jobs
 		// when the JobSet is resumed.
-		// Merge values rather than overwriting them, since a different controller
-		// (e.g., the Job controller) may have added labels/annotations/etc to the
+		// Labels and annotations are merged rather than overwritten, since a different
+		// controller (e.g., the Job controller) may have added labels/annotations to the
 		// Job that do not exist in the ReplicatedJob pod template.
 		job.Spec.Template.Labels = collections.MergeMaps(
 			job.Spec.Template.Labels,
@@ -662,18 +662,20 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 			job.Spec.Template.Annotations,
 			replicatedJobPodTemplate.Annotations,
 		)
-		job.Spec.Template.Spec.NodeSelector = collections.MergeMaps(
-			job.Spec.Template.Spec.NodeSelector,
-			replicatedJobPodTemplate.Spec.NodeSelector,
-		)
-		job.Spec.Template.Spec.Tolerations = collections.MergeSlices(
-			job.Spec.Template.Spec.Tolerations,
-			replicatedJobPodTemplate.Spec.Tolerations,
-		)
-		job.Spec.Template.Spec.SchedulingGates = collections.MergeSlices(
-			job.Spec.Template.Spec.SchedulingGates,
-			replicatedJobPodTemplate.Spec.SchedulingGates,
-		)
+		// Scheduling directives are rebuilt from the pod template rather than merged:
+		// no other controller adds entries to them on the Job, and merging would keep
+		// directives injected for a previous admission (e.g., by Kueue for a different
+		// ResourceFlavor), leaving pods unschedulable or placed on the wrong nodes.
+		// JobSet-owned entries added by constructJob are re-applied below.
+		job.Spec.Template.Spec.NodeSelector = maps.Clone(replicatedJobPodTemplate.Spec.NodeSelector)
+		job.Spec.Template.Spec.Tolerations = slices.Clone(replicatedJobPodTemplate.Spec.Tolerations)
+		job.Spec.Template.Spec.SchedulingGates = slices.Clone(replicatedJobPodTemplate.Spec.SchedulingGates)
+		_, exclusivePlacement := job.Annotations[jobset.ExclusiveKey]
+		_, nodeSelectorStrategy := job.Annotations[jobset.NodeSelectorStrategyKey]
+		if exclusivePlacement && nodeSelectorStrategy {
+			addNamespacedJobNodeSelector(job)
+			addTaintToleration(job)
+		}
 	} else {
 		log.Error(nil, "job missing ReplicatedJobName label")
 	}
