@@ -479,9 +479,9 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							Format:      "int32",
 						},
 					},
-					"executeAttempts": {
+					"executionAttempts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "executeAttempts tracks the number of execution lifecycles.",
+							Description: "executionAttempts tracks the number of execution lifecycles.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},

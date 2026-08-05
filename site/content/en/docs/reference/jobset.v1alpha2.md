@@ -439,6 +439,13 @@ That is, restarts is the number of times the restart action RestartJobSet or Res
 That is, restartsCountTowardsMax is the number of times the restart action RestartJobSet has been executed and led to the recreation of all Jobs.</p>
 </td>
 </tr>
+<tr><td><code>executionAttempts</code><br/>
+<code>int32</code>
+</td>
+<td>
+   <p>executionAttempts tracks the number of execution lifecycles.</p>
+</td>
+</tr>
 <tr><td><code>terminalState</code><br/>
 <code>string</code>
 </td>

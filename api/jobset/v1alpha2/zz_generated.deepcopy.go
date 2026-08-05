@@ -246,8 +246,8 @@ func (in *JobSetStatus) DeepCopyInto(out *JobSetStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.ExecuteAttempts != nil {
-		in, out := &in.ExecuteAttempts, &out.ExecuteAttempts
+	if in.ExecutionAttempts != nil {
+		in, out := &in.ExecutionAttempts, &out.ExecutionAttempts
 		*out = new(int32)
 		**out = **in
 	}

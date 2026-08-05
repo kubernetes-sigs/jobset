@@ -10105,8 +10105,8 @@ spec:
                 format: int32
                 minimum: 0
                 type: integer
-              executeAttempts:
-                description: executeAttempts tracks the number of execution lifecycles.
+              executionAttempts:
+                description: executionAttempts tracks the number of execution lifecycles.
                 format: int32
                 minimum: 0
                 type: integer

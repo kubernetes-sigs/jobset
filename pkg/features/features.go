@@ -57,7 +57,7 @@ const (
 	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/1282-execution-attempts/README.md
 	//
 	// Enables tracking and propagating JobSet execution attempts as a monotonic counter.
-	ExecuteAttemptsTracking featuregate.Feature = "ExecuteAttemptsTracking"
+	ExecutionAttemptsTracking featuregate.Feature = "ExecutionAttemptsTracking"
 )
 
 func init() {
@@ -79,7 +79,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 
 	ElasticJobSet: {Default: false, PreRelease: featuregate.Alpha},
 
-	ExecuteAttemptsTracking: {Default: false, PreRelease: featuregate.Alpha},
+	ExecutionAttemptsTracking: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {

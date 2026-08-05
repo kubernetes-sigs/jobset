@@ -157,12 +157,12 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 	)
 
 	tests := []struct {
-		name                           string
-		restartJobEnabled              bool
-		executeAttemptsTrackingEnabled bool
-		js                             *jobset.JobSet
-		ownedJobs                      *childJobs
-		want                           []*batchv1.Job
+		name                             string
+		restartJobEnabled                bool
+		executionAttemptsTrackingEnabled bool
+		js                               *jobset.JobSet
+		ownedJobs                        *childJobs
+		want                             []*batchv1.Job
 	}{
 		{
 			name:              "no jobs created",
@@ -720,9 +720,9 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name:                           "resume job set with >0 ExecuteAttempts",
-			restartJobEnabled:              true,
-			executeAttemptsTrackingEnabled: true,
+			name:                             "resume job set with >0 ExecutionAttempts",
+			restartJobEnabled:                true,
+			executionAttemptsTrackingEnabled: true,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Suspend(false).
 				EnableDNSHostnames(true).
@@ -733,7 +733,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Replicas(1).
 					GroupName("default").
 					Obj()).
-				SetExecuteAttempts(1).
+				SetExecutionAttempts(1).
 				Obj(),
 			ownedJobs: &childJobs{},
 			want: []*batchv1.Job{
@@ -745,7 +745,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					ns:                ns,
 					replicas:          1,
 					jobIdx:            0,
-					executeAttempts:   1}).
+					executionAttempts: 1}).
 					Suspend(false).
 					Subdomain(jobSetName).Obj(),
 			},
@@ -1035,9 +1035,9 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 			},
 		},
 		{
-			name:                           "ExecuteAttemptsTracking disabled does not inject execute attempts annotation",
-			restartJobEnabled:              true,
-			executeAttemptsTrackingEnabled: false,
+			name:                             "ExecutionAttemptsTracking disabled does not inject execution attempts annotation",
+			restartJobEnabled:                true,
+			executionAttemptsTrackingEnabled: false,
 			js: testutils.MakeJobSet(jobSetName, ns).
 				Suspend(false).
 				EnableDNSHostnames(true).
@@ -1048,7 +1048,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					Replicas(1).
 					GroupName("default").
 					Obj()).
-				SetExecuteAttempts(1).
+				SetExecutionAttempts(1).
 				Obj(),
 			ownedJobs: &childJobs{},
 			want: []*batchv1.Job{
@@ -1060,7 +1060,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 					ns:                ns,
 					replicas:          1,
 					jobIdx:            0,
-					executeAttempts:   1}).
+					executionAttempts: 1}).
 					Suspend(false).
 					Subdomain(jobSetName).Obj(),
 			},
@@ -1070,7 +1070,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.restartJobEnabled)
-			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExecuteAttemptsTracking, tc.executeAttemptsTrackingEnabled)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExecutionAttemptsTracking, tc.executionAttemptsTrackingEnabled)
 			// Here we update the expected Jobs with certain features which require
 			// direct access to the JobSet object itself to calculate. For example,
 			// the `jobset.sigs.k8s.io/job-global-index` annotation requires access to the
@@ -1080,7 +1080,7 @@ func TestConstructJobsFromTemplate(t *testing.T) {
 				addGlobalReplicas(t, tc.js, expectedJob)
 				addJobGroupIndex(t, tc.js, expectedJob)
 				addGroupReplicas(t, tc.js, expectedJob)
-				addExecuteAttempts(t, tc.js, expectedJob)
+				addExecutionAttempts(t, tc.js, expectedJob)
 			}
 
 			// Now get the actual output of constructJobsFromTemplate, and diff the results.
@@ -1163,15 +1163,15 @@ func addGroupReplicas(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 	job.Spec.Template.Annotations[jobset.GroupReplicasKey] = groupReplicas(js, groupName)
 }
 
-func addExecuteAttempts(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
+func addExecutionAttempts(t *testing.T, js *jobset.JobSet, job *batchv1.Job) {
 	t.Helper()
-	if features.Enabled(features.ExecuteAttemptsTracking) {
-		val := strconv.Itoa(int(ptr.Deref(js.Status.ExecuteAttempts, 0)))
-		job.Annotations[constants.ExecuteAttemptsKey] = val
-		job.Spec.Template.Annotations[constants.ExecuteAttemptsKey] = val
+	if features.Enabled(features.ExecutionAttemptsTracking) {
+		val := strconv.Itoa(int(ptr.Deref(js.Status.ExecutionAttempts, 0)))
+		job.Annotations[constants.ExecutionAttemptsKey] = val
+		job.Spec.Template.Annotations[constants.ExecutionAttemptsKey] = val
 	} else {
-		delete(job.Annotations, constants.ExecuteAttemptsKey)
-		delete(job.Spec.Template.Annotations, constants.ExecuteAttemptsKey)
+		delete(job.Annotations, constants.ExecutionAttemptsKey)
+		delete(job.Spec.Template.Annotations, constants.ExecutionAttemptsKey)
 	}
 }
 
@@ -1184,16 +1184,16 @@ func TestResumeJob(t *testing.T) {
 
 	tests := []struct {
 		name                     string
-		enableExecuteAttempts    bool
+		enableExecutionAttempts  bool
 		js                       *jobset.JobSet
 		job                      *batchv1.Job
 		replicatedJobTemplateMap map[string]corev1.PodTemplateSpec
 		want                     *batchv1.Job
 	}{
 		{
-			name:                  "resume job updates execute-attempt annotations and wipes start time",
-			enableExecuteAttempts: true,
-			js:                    testutils.MakeJobSet(jobSetName, ns).SetExecuteAttempts(2).Obj(),
+			name:                    "resume job updates execution-attempt annotations and wipes start time",
+			enableExecutionAttempts: true,
+			js:                      testutils.MakeJobSet(jobSetName, ns).SetExecutionAttempts(2).Obj(),
 			job: func() *batchv1.Job {
 				j := testutils.MakeJob("test-jobset-replicated-job-0", ns).Suspend(true).JobLabels(map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName}).Obj()
 				j.Status.StartTime = &metav1.Time{Time: time.Now()}
@@ -1209,14 +1209,14 @@ func TestResumeJob(t *testing.T) {
 			want: testutils.MakeJob("test-jobset-replicated-job-0", ns).
 				Suspend(false).
 				JobLabels(map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName}).
-				JobAnnotations(map[string]string{constants.ExecuteAttemptsKey: "2"}).
-				PodAnnotations(map[string]string{"foo": "bar", constants.ExecuteAttemptsKey: "2"}).
+				JobAnnotations(map[string]string{constants.ExecutionAttemptsKey: "2"}).
+				PodAnnotations(map[string]string{"foo": "bar", constants.ExecutionAttemptsKey: "2"}).
 				Obj(),
 		},
 		{
-			name:                  "resume job with ExecuteAttemptsTracking disabled does not update execute-attempt annotations",
-			enableExecuteAttempts: false,
-			js:                    testutils.MakeJobSet(jobSetName, ns).SetExecuteAttempts(2).Obj(),
+			name:                    "resume job with ExecutionAttemptsTracking disabled does not update execution-attempt annotations",
+			enableExecutionAttempts: false,
+			js:                      testutils.MakeJobSet(jobSetName, ns).SetExecutionAttempts(2).Obj(),
 			job: func() *batchv1.Job {
 				j := testutils.MakeJob("test-jobset-replicated-job-0", ns).Suspend(true).JobLabels(map[string]string{jobset.ReplicatedJobNameKey: replicatedJobName}).Obj()
 				j.Status.StartTime = &metav1.Time{Time: time.Now()}
@@ -1239,7 +1239,7 @@ func TestResumeJob(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExecuteAttemptsTracking, tc.enableExecuteAttempts)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExecutionAttemptsTracking, tc.enableExecutionAttempts)
 			localScheme := runtime.NewScheme()
 			utilruntime.Must(jobset.AddToScheme(localScheme))
 			utilruntime.Must(batchv1.AddToScheme(localScheme))
@@ -1834,7 +1834,7 @@ type makeJobArgs struct {
 	jobIdx                int
 	restarts              int
 	jobRestartAttempt     int
-	executeAttempts       int
+	executionAttempts     int
 	omitJobRestartAttempt bool
 	topology              string
 	nodeSelectorStrategy  bool
@@ -1862,8 +1862,8 @@ func makeJob(args *makeJobArgs) *testutils.JobWrapper {
 		constants.RestartsKey:        strconv.Itoa(args.restarts),
 		jobset.JobKey:                jobHashKey(args.ns, args.jobName),
 	}
-	if features.Enabled(features.ExecuteAttemptsTracking) {
-		annotations[constants.ExecuteAttemptsKey] = strconv.Itoa(args.executeAttempts)
+	if features.Enabled(features.ExecutionAttemptsTracking) {
+		annotations[constants.ExecutionAttemptsKey] = strconv.Itoa(args.executionAttempts)
 	}
 	if !args.omitJobRestartAttempt {
 		labels[constants.JobRestartAttemptKey] = strconv.Itoa(args.jobRestartAttempt)
@@ -2476,6 +2476,72 @@ func TestSyncJobScaling(t *testing.T) {
 			}
 			if !tc.expectPatch && patchesSent > 0 {
 				t.Errorf("Expected no patches to be sent, but got %d", patchesSent)
+			}
+		})
+	}
+}
+
+func TestResumeJobsIfNecessary_ExecutionAttemptsInitialization(t *testing.T) {
+	tests := []struct {
+		name              string
+		enableFeatureGate bool
+		js                *jobset.JobSet
+		activeJobs        []*batchv1.Job
+		wantAttempts      *int32
+	}{
+		{
+			name:              "new jobset initializes ExecutionAttempts to 0",
+			enableFeatureGate: true,
+			js:                testutils.MakeJobSet("test-js", "default").Obj(),
+			activeJobs:        nil,
+			wantAttempts:      ptr.To(int32(0)),
+		},
+		{
+			name:              "running jobset with Restarts > 0 initializes ExecutionAttempts to Restarts",
+			enableFeatureGate: true,
+			js: func() *jobset.JobSet {
+				js := testutils.MakeJobSet("test-js", "default").Obj()
+				js.Status.Restarts = 3
+				return js
+			}(),
+			activeJobs:   nil,
+			wantAttempts: ptr.To(int32(3)),
+		},
+		{
+			name:              "feature gate disabled leaves ExecutionAttempts nil",
+			enableFeatureGate: false,
+			js: func() *jobset.JobSet {
+				js := testutils.MakeJobSet("test-js", "default").Obj()
+				js.Status.Restarts = 3
+				return js
+			}(),
+			activeJobs:   nil,
+			wantAttempts: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExecutionAttemptsTracking, tc.enableFeatureGate)
+			localScheme := runtime.NewScheme()
+			utilruntime.Must(jobset.AddToScheme(localScheme))
+			utilruntime.Must(batchv1.AddToScheme(localScheme))
+			utilruntime.Must(corev1.AddToScheme(localScheme))
+
+			fakeClient := fake.NewClientBuilder().WithScheme(localScheme).WithObjects(tc.js).WithStatusSubresource(tc.js).Build()
+			r := &JobSetReconciler{
+				Client: fakeClient,
+				Scheme: localScheme,
+				Record: events.NewFakeRecorder(10),
+			}
+
+			updateStatusOpts := &statusUpdateOpts{}
+			err := r.resumeJobsIfNecessary(context.TODO(), tc.js, tc.activeJobs, nil, updateStatusOpts)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(tc.wantAttempts, tc.js.Status.ExecutionAttempts); diff != "" {
+				t.Errorf("unexpected ExecutionAttempts (-want,+got):\n%s", diff)
 			}
 		})
 	}

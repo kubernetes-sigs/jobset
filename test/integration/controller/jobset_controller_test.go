@@ -719,7 +719,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("[failure policy] jobset restarts with RestartJobSet failure policy action (without RestartJob feature gate).", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecuteAttemptsTracking, true)
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecutionAttemptsTracking, true)
 				return testJobSet(ns).
 					FailurePolicy(&jobset.FailurePolicy{
 						MaxRestarts: 1,
@@ -748,8 +748,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						matchJobSetRestartsCountTowardsMax(js, 1)
 						matchJobRestarts(js, nil)
 						matchJobRestartsCountTowardsMax(js, nil)
-						matchJobSetExecuteAttempts(js, 1)
-						matchChildJobsExecuteAttempts(js, 1)
+						matchJobSetExecutionAttempts(js, 1)
+						matchChildJobsExecutionAttempts(js, 1)
 					},
 				},
 			},
@@ -1457,7 +1457,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("resume a suspended jobset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecuteAttemptsTracking, true)
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecutionAttemptsTracking, true)
 				return testJobSet(ns).Suspend(true)
 			},
 			steps: []*step{
@@ -1498,8 +1498,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
-						matchJobSetExecuteAttempts(js, 0)
-						matchChildJobsExecuteAttempts(js, 0)
+						matchJobSetExecutionAttempts(js, 0)
+						matchChildJobsExecutionAttempts(js, 0)
 					},
 					checkJobSetCondition: testutil.JobSetResumed,
 				},
@@ -1527,9 +1527,9 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				},
 			},
 		}),
-		ginkgo.Entry("resume a suspended jobset with ExecuteAttemptsTracking disabled", &testCase{
+		ginkgo.Entry("resume a suspended jobset with ExecutionAttemptsTracking disabled", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecuteAttemptsTracking, false)
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecutionAttemptsTracking, false)
 				return testJobSet(ns).Suspend(true)
 			},
 			steps: []*step{
@@ -1570,7 +1570,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
-						matchNoExecuteAttempts(js)
+						matchNoExecutionAttempts(js)
 					},
 					checkJobSetCondition: testutil.JobSetResumed,
 				},
@@ -1600,7 +1600,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("suspend and resume a running jobset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecuteAttemptsTracking, true)
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecutionAttemptsTracking, true)
 				return testJobSet(ns).Suspend(false)
 			},
 			steps: []*step{
@@ -1633,8 +1633,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
-						matchJobSetExecuteAttempts(js, 1)
-						matchChildJobsExecuteAttempts(js, 1)
+						matchJobSetExecutionAttempts(js, 1)
+						matchChildJobsExecutionAttempts(js, 1)
 					},
 					checkJobSetCondition: testutil.JobSetResumed,
 				},
@@ -1642,7 +1642,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 		}),
 		ginkgo.Entry("multiple suspend and resume cycles", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
-				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecuteAttemptsTracking, true)
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecutionAttemptsTracking, true)
 				return testJobSet(ns).Suspend(false)
 			},
 			steps: []*step{
@@ -1675,8 +1675,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
-						matchJobSetExecuteAttempts(js, 1)
-						matchChildJobsExecuteAttempts(js, 1)
+						matchJobSetExecutionAttempts(js, 1)
+						matchChildJobsExecutionAttempts(js, 1)
 					},
 					checkJobSetCondition: testutil.JobSetResumed,
 				},
@@ -1703,10 +1703,43 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 					},
 					checkJobSetState: func(js *jobset.JobSet) {
 						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
-						matchJobSetExecuteAttempts(js, 2)
-						matchChildJobsExecuteAttempts(js, 2)
+						matchJobSetExecutionAttempts(js, 2)
+						matchChildJobsExecutionAttempts(js, 2)
 					},
 					checkJobSetCondition: testutil.JobSetResumed,
+				},
+			},
+		}),
+		ginkgo.Entry("upgrade migration: running jobset with nil ExecutionAttempts and Restarts > 0 initializes ExecutionAttempts to Restarts", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ExecutionAttemptsTracking, true)
+				return testJobSet(ns).Suspend(false)
+			},
+			steps: []*step{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+					},
+				},
+				{
+					jobUpdateFn: func(jobList *batchv1.JobList) {
+						for i := range jobList.Items {
+							jobList.Items[i].Labels[constants.RestartsKey] = "1"
+							gomega.Expect(k8sClient.Update(ctx, &jobList.Items[i])).To(gomega.Succeed())
+						}
+					},
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						gomega.Eventually(func(g gomega.Gomega) {
+							g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(js), js)).To(gomega.Succeed())
+							js.Status.Restarts = 1
+							js.Status.ExecutionAttempts = nil
+							g.Expect(k8sClient.Status().Update(ctx, js)).To(gomega.Succeed())
+						}, timeout, interval).Should(gomega.Succeed())
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						matchJobSetExecutionAttempts(js, 1)
+						matchChildJobsExecutionAttempts(js, 1)
+					},
 				},
 			},
 		}),
@@ -3135,8 +3168,8 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 						LastTransitionTime: metav1.Now(),
 					},
 				},
-				Restarts:        1,
-				ExecuteAttempts: ptr.To(int32(0)),
+				Restarts:          1,
+				ExecutionAttempts: ptr.To(int32(0)),
 				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
 					{
 						Name:      "replicated-job-a",
@@ -4008,22 +4041,22 @@ func matchJobSetRestarts(js *jobset.JobSet, expectedCount int32) {
 	}, timeout, interval).Should(gomega.BeComparableTo(expectedCount))
 }
 
-// matchJobSetExecuteAttempts checks that the supplied jobset js has expectedCount
-// as the value of js.Status.ExecuteAttempts.
-func matchJobSetExecuteAttempts(js *jobset.JobSet, expectedCount int32) {
+// matchJobSetExecutionAttempts checks that the supplied jobset js has expectedCount
+// as the value of js.Status.ExecutionAttempts.
+func matchJobSetExecutionAttempts(js *jobset.JobSet, expectedCount int32) {
 	gomega.Eventually(func() (int32, error) {
 		newJs := jobset.JobSet{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
 			return 0, err
 		}
 
-		return ptr.Deref(newJs.Status.ExecuteAttempts, 0), nil
+		return ptr.Deref(newJs.Status.ExecutionAttempts, 0), nil
 	}, timeout, interval).Should(gomega.BeComparableTo(expectedCount))
 }
 
-// matchChildJobsExecuteAttempts checks that all child Jobs of a JobSet have expectedCount
-// as the value of their execute-attempts annotation.
-func matchChildJobsExecuteAttempts(js *jobset.JobSet, expectedCount int32) {
+// matchChildJobsExecutionAttempts checks that all child Jobs of a JobSet have expectedCount
+// as the value of their execution-attempt annotation.
+func matchChildJobsExecutionAttempts(js *jobset.JobSet, expectedCount int32) {
 	gomega.Eventually(func() (bool, error) {
 		var jobList batchv1.JobList
 		if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
@@ -4038,10 +4071,10 @@ func matchChildJobsExecuteAttempts(js *jobset.JobSet, expectedCount int32) {
 			if job.DeletionTimestamp != nil {
 				continue
 			}
-			if job.Annotations[constants.ExecuteAttemptsKey] != expectedStr {
+			if job.Annotations[constants.ExecutionAttemptsKey] != expectedStr {
 				return false, nil
 			}
-			if job.Spec.Template.Annotations[constants.ExecuteAttemptsKey] != expectedStr {
+			if job.Spec.Template.Annotations[constants.ExecutionAttemptsKey] != expectedStr {
 				return false, nil
 			}
 		}
@@ -4049,15 +4082,15 @@ func matchChildJobsExecuteAttempts(js *jobset.JobSet, expectedCount int32) {
 	}, timeout, interval).Should(gomega.Equal(true))
 }
 
-// matchNoExecuteAttempts checks that js.Status.ExecuteAttempts is nil and that no child Jobs
-// of a JobSet have the execute-attempts annotation.
-func matchNoExecuteAttempts(js *jobset.JobSet) {
+// matchNoExecutionAttempts checks that js.Status.ExecutionAttempts is nil and that no child Jobs
+// of a JobSet have the execution-attempt annotation.
+func matchNoExecutionAttempts(js *jobset.JobSet) {
 	gomega.Eventually(func() (bool, error) {
 		newJs := jobset.JobSet{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: js.Name, Namespace: js.Namespace}, &newJs); err != nil {
 			return false, err
 		}
-		if newJs.Status.ExecuteAttempts != nil {
+		if newJs.Status.ExecutionAttempts != nil {
 			return false, nil
 		}
 		var jobList batchv1.JobList
@@ -4072,10 +4105,10 @@ func matchNoExecuteAttempts(js *jobset.JobSet) {
 			if job.DeletionTimestamp != nil {
 				continue
 			}
-			if _, exists := job.Annotations[constants.ExecuteAttemptsKey]; exists {
+			if _, exists := job.Annotations[constants.ExecutionAttemptsKey]; exists {
 				return false, nil
 			}
-			if _, exists := job.Spec.Template.Annotations[constants.ExecuteAttemptsKey]; exists {
+			if _, exists := job.Spec.Template.Annotations[constants.ExecutionAttemptsKey]; exists {
 				return false, nil
 			}
 		}

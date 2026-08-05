@@ -595,10 +595,14 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 
 	// Set the suspended condition on the JobSet to false to indicate
 	// the JobSet is no longer suspended. We do this before iterating and resuming
-	// jobs so that they receive the updated ExecuteAttempts value.
+	// jobs so that they receive the updated ExecutionAttempts value.
 	setJobSetResumedCondition(js, updateStatusOpts)
-	if features.Enabled(features.ExecuteAttemptsTracking) && js.Status.ExecuteAttempts == nil {
-		js.Status.ExecuteAttempts = ptr.To(int32(0))
+	if features.Enabled(features.ExecutionAttemptsTracking) && js.Status.ExecutionAttempts == nil {
+		attempts := int32(0)
+		if js.Status.Restarts > 0 || len(activeJobs) > 0 {
+			attempts = js.Status.Restarts
+		}
+		js.Status.ExecutionAttempts = ptr.To(attempts)
 		updateStatusOpts.shouldUpdate = true
 	}
 
@@ -692,16 +696,16 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, js *jobset.JobSet, job
 			replicatedJobPodTemplate.Spec.SchedulingGates,
 		)
 
-		if features.Enabled(features.ExecuteAttemptsTracking) {
+		if features.Enabled(features.ExecutionAttemptsTracking) {
 			if job.Spec.Template.Annotations == nil {
 				job.Spec.Template.Annotations = make(map[string]string)
 			}
-			job.Spec.Template.Annotations[constants.ExecuteAttemptsKey] = strconv.Itoa(int(ptr.Deref(js.Status.ExecuteAttempts, 0)))
+			job.Spec.Template.Annotations[constants.ExecutionAttemptsKey] = strconv.Itoa(int(ptr.Deref(js.Status.ExecutionAttempts, 0)))
 
 			if job.Annotations == nil {
 				job.Annotations = make(map[string]string)
 			}
-			job.Annotations[constants.ExecuteAttemptsKey] = strconv.Itoa(int(ptr.Deref(js.Status.ExecuteAttempts, 0)))
+			job.Annotations[constants.ExecutionAttemptsKey] = strconv.Itoa(int(ptr.Deref(js.Status.ExecutionAttempts, 0)))
 		}
 	} else {
 		log.Error(nil, "job missing ReplicatedJobName label")
@@ -1071,8 +1075,8 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	if features.Enabled(features.RestartJob) {
 		annotations[constants.JobRestartAttemptKey] = strconv.Itoa(int(getJobRestarts(js, rjob.Name)[jobIdx]))
 	}
-	if features.Enabled(features.ExecuteAttemptsTracking) {
-		annotations[constants.ExecuteAttemptsKey] = strconv.Itoa(int(ptr.Deref(js.Status.ExecuteAttempts, 0)))
+	if features.Enabled(features.ExecutionAttemptsTracking) {
+		annotations[constants.ExecutionAttemptsKey] = strconv.Itoa(int(ptr.Deref(js.Status.ExecutionAttempts, 0)))
 	}
 
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
@@ -1330,8 +1334,8 @@ func setJobSetResumedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdate
 		}
 	}
 	if setCondition(js, makeResumedConditionOpts(), updateStatusOpts) {
-		if wasSuspended && features.Enabled(features.ExecuteAttemptsTracking) && js.Status.ExecuteAttempts != nil {
-			js.Status.ExecuteAttempts = ptr.To(*js.Status.ExecuteAttempts + 1)
+		if wasSuspended && features.Enabled(features.ExecutionAttemptsTracking) && js.Status.ExecutionAttempts != nil {
+			js.Status.ExecutionAttempts = ptr.To(*js.Status.ExecutionAttempts + 1)
 		}
 	}
 }
