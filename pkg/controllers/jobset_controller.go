@@ -593,6 +593,30 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 	// Map where key is the Job name and value is the Job replicas.
 	rJobsReplicas := map[string]int32{}
 
+	// Set the suspended condition on the JobSet to false to indicate
+	// the JobSet is no longer suspended. We do this before iterating and resuming
+	// jobs so that they receive the updated ExecutionAttempts value.
+	setJobSetResumedCondition(js, updateStatusOpts)
+	if features.Enabled(features.ExecutionAttemptsTracking) && js.Status.ExecutionAttempts == nil {
+		attempts := int32(0)
+		if js.Status.Restarts > 0 || len(activeJobs) > 0 {
+			attempts = js.Status.Restarts
+		}
+		js.Status.ExecutionAttempts = ptr.To(attempts)
+		updateStatusOpts.shouldUpdate = true
+	}
+
+	// Synchronously commit the execution increment and condition to etcd BEFORE modifying children
+	// This prevents a race condition where the controller crashes after wiping child Job StartTimes,
+	// but before persisting the JobSet status, resulting in irreversible state loss.
+	if updateStatusOpts.shouldUpdate {
+		if err := r.updateJobSetStatus(ctx, js, updateStatusOpts); err != nil {
+			return err
+		}
+		updateStatusOpts.shouldUpdate = false
+		updateStatusOpts.events = nil
+	}
+
 	// If JobSpec is unsuspended, ensure all active child Jobs are also
 	// unsuspended and update the suspend condition to false.
 	for _, replicatedJob := range js.Spec.ReplicatedJobs {
@@ -615,7 +639,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 			if !jobSuspended(job) {
 				continue
 			}
-			if err := r.resumeJob(ctx, job, replicatedJobTemplateMap); err != nil {
+			if err := r.resumeJob(ctx, js, job, replicatedJobTemplateMap); err != nil {
 				return err
 			}
 		}
@@ -627,13 +651,10 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 		}
 	}
 
-	// Finally, set the suspended condition on the JobSet to false to indicate
-	// the JobSet is no longer suspended.
-	setJobSetResumedCondition(js, updateStatusOpts)
 	return nil
 }
 
-func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, replicatedJobTemplateMap map[string]corev1.PodTemplateSpec) error {
+func (r *JobSetReconciler) resumeJob(ctx context.Context, js *jobset.JobSet, job *batchv1.Job, replicatedJobTemplateMap map[string]corev1.PodTemplateSpec) error {
 	log := ctrl.LoggerFrom(ctx)
 	// Kubernetes validates that a job template is immutable
 	// so if the job has started i.e., startTime != nil), we must set it to nil first.
@@ -674,6 +695,18 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 			job.Spec.Template.Spec.SchedulingGates,
 			replicatedJobPodTemplate.Spec.SchedulingGates,
 		)
+
+		if features.Enabled(features.ExecutionAttemptsTracking) {
+			if job.Spec.Template.Annotations == nil {
+				job.Spec.Template.Annotations = make(map[string]string)
+			}
+			job.Spec.Template.Annotations[constants.ExecutionAttemptsKey] = strconv.Itoa(int(ptr.Deref(js.Status.ExecutionAttempts, 0)))
+
+			if job.Annotations == nil {
+				job.Annotations = make(map[string]string)
+			}
+			job.Annotations[constants.ExecutionAttemptsKey] = strconv.Itoa(int(ptr.Deref(js.Status.ExecutionAttempts, 0)))
+		}
 	} else {
 		log.Error(nil, "job missing ReplicatedJobName label")
 	}
@@ -1042,6 +1075,10 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	if features.Enabled(features.RestartJob) {
 		annotations[constants.JobRestartAttemptKey] = strconv.Itoa(int(getJobRestarts(js, rjob.Name)[jobIdx]))
 	}
+	if features.Enabled(features.ExecutionAttemptsTracking) {
+		annotations[constants.ExecutionAttemptsKey] = strconv.Itoa(int(ptr.Deref(js.Status.ExecutionAttempts, 0)))
+	}
+
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.GlobalReplicasKey] = globalReplicas(js)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)
@@ -1195,10 +1232,10 @@ type conditionOpts struct {
 
 // setCondition will add a new condition to the JobSet status (or update an existing one),
 // and enqueue an event for emission if the status update succeeds at the end of the reconcile.
-func setCondition(js *jobset.JobSet, condOpts *conditionOpts, updateStatusOpts *statusUpdateOpts) {
+func setCondition(js *jobset.JobSet, condOpts *conditionOpts, updateStatusOpts *statusUpdateOpts) bool {
 	// Return early if no status update is required for this condition.
 	if !updateCondition(js, condOpts) {
-		return
+		return false
 	}
 
 	if updateStatusOpts == nil {
@@ -1218,6 +1255,7 @@ func setCondition(js *jobset.JobSet, condOpts *conditionOpts, updateStatusOpts *
 		eventMessage: condOpts.condition.Message,
 	}
 	enqueueEvent(updateStatusOpts, event)
+	return true
 }
 
 // updateCondition accepts a given condition and does one of the following:
@@ -1288,7 +1326,18 @@ func setJobSetSuspendedCondition(js *jobset.JobSet, updateStatusOpts *statusUpda
 // setJobSetResumedCondition sets a condition on the JobSet status indicating it has been resumed.
 // This updates the "suspended" condition type from "true" to "false."
 func setJobSetResumedCondition(js *jobset.JobSet, updateStatusOpts *statusUpdateOpts) {
-	setCondition(js, makeResumedConditionOpts(), updateStatusOpts)
+	wasSuspended := false
+	for _, c := range js.Status.Conditions {
+		if c.Type == string(jobset.JobSetSuspended) && c.Status == metav1.ConditionTrue {
+			wasSuspended = true
+			break
+		}
+	}
+	if setCondition(js, makeResumedConditionOpts(), updateStatusOpts) {
+		if wasSuspended && features.Enabled(features.ExecutionAttemptsTracking) && js.Status.ExecutionAttempts != nil {
+			js.Status.ExecutionAttempts = ptr.To(*js.Status.ExecutionAttempts + 1)
+		}
+	}
 }
 
 func setRestartingConditionFalse(js *jobset.JobSet, reason, message string, updateStatusOpts *statusUpdateOpts) {

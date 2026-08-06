@@ -56,13 +56,25 @@ if [[ "$CONTAINER_ENGINE" == podman ]]; then
   volume_mapping="${repo_root}:/local:rw,Z"
 fi
 
-${CONTAINER_ENGINE} run --user "${user}" --rm \
-  -v "${volume_mapping}" docker.io/openapitools/openapi-generator-cli:v7.11.0 generate \
-  -i /local/hack/python-sdk/swagger.json \
-  -g python \
-  -o /local/sdk/python \
-  -c local/hack/python-sdk/swagger_config.json \
-  --global-property modelDocs=false
+if command -v "${CONTAINER_ENGINE}" >/dev/null 2>&1; then
+  ${CONTAINER_ENGINE} run --user "${user}" --rm \
+    -v "${volume_mapping}" docker.io/openapitools/openapi-generator-cli:v7.11.0 generate \
+    -i /local/hack/python-sdk/swagger.json \
+    -g python \
+    -o /local/sdk/python \
+    -c local/hack/python-sdk/swagger_config.json \
+    --global-property modelDocs=false
+elif [ -f "${repo_root}/bin/openapi-generator-cli.jar" ]; then
+  java -jar "${repo_root}/bin/openapi-generator-cli.jar" generate \
+    -i "${repo_root}/hack/python-sdk/swagger.json" \
+    -g python \
+    -o "${repo_root}/sdk/python" \
+    -c "${repo_root}/hack/python-sdk/swagger_config.json" \
+    --global-property modelDocs=false
+else
+  echo "ERROR: Neither ${CONTAINER_ENGINE} nor ${repo_root}/bin/openapi-generator-cli.jar found." >&2
+  exit 1
+fi
 
 echo "Running post-generation script ..."
 "${repo_root}"/hack/python-sdk/post_gen.py
