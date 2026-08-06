@@ -141,7 +141,7 @@ YAML_PROCESSOR_LOG_LEVEL ?= info
 
 .PHONY: update-helm
 update-helm: manifests ## Generate Helm templates from Kustomize manifests.
-	$(GO_CMD) run -modfile=$(PROJECT_DIR)/hack/tools/yaml-processor/go.mod \
+	GOFLAGS=-mod=mod $(GO_CMD) run -modfile=$(PROJECT_DIR)/hack/tools/yaml-processor/go.mod \
 	sigs.k8s.io/kueue/hack/tools/yaml-processor \
 	-zap-log-level=$(YAML_PROCESSOR_LOG_LEVEL) $(PROJECT_DIR)/hack/processing-plan.yaml
 
@@ -427,6 +427,26 @@ test-e2e-kind: manifests kustomize fmt vet envtest ginkgo kind-image-build
 .PHONY: test-e2e-kind-customconfigs
 test-e2e-kind-customconfigs: E2E_TEST_PATH = ./test/e2e/customconfigs/...
 test-e2e-kind-customconfigs: test-e2e-kind
+
+## WAS (Workload-Aware Scheduling) Kind cluster management
+# WAS targets use kindest/node:v1.36.x which includes the
+# scheduling.k8s.io/v1alpha2 API group.
+WAS_KIND_CLUSTER_NAME ?= was-test
+WAS_NODE_IMAGE ?= kindest/node:v1.36.1
+
+.PHONY: test-e2e-kind-scheduling
+test-e2e-kind-scheduling: manifests kustomize fmt vet envtest ginkgo kind-image-build ## Run scheduling-specific E2E tests on Kind with WAS feature gates enabled.
+	KIND=$(KIND) WAS_NODE_IMAGE=$(WAS_NODE_IMAGE) KIND_CLUSTER_NAME=$(WAS_KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) ARTIFACTS=$(ARTIFACTS) IMAGE_TAG=$(IMAGE_TAG) ./hack/e2e-scheduling-test.sh
+
+.PHONY: kind-cluster-scheduling
+kind-cluster-scheduling: kustomize kind-image-build ## Create a Kind cluster with WAS feature gates and deploy JobSet.
+	KIND=$(KIND) KUSTOMIZE=$(KUSTOMIZE) KIND_CLUSTER_NAME=$(WAS_KIND_CLUSTER_NAME) WAS_NODE_IMAGE=$(WAS_NODE_IMAGE) IMAGE_TAG=$(IMAGE_TAG) ARTIFACTS=$(ARTIFACTS) \
+	bash -c 'source ./hack/e2e-scheduling-cluster.sh && ensure_scheduling_node_image && create_scheduling_cluster && label_scheduling_nodes && kind_load_image && deploy_scheduling_jobset && verify_scheduling_apis'
+
+.PHONY: kind-cluster-scheduling-delete
+kind-cluster-scheduling-delete: ## Delete the WAS Kind cluster and collect logs.
+	KIND=$(KIND) KIND_CLUSTER_NAME=$(WAS_KIND_CLUSTER_NAME) ARTIFACTS=$(ARTIFACTS) \
+	bash -c 'source ./hack/e2e-scheduling-cluster.sh && delete_scheduling_cluster'
 
 .PHONY: prometheus
 prometheus:

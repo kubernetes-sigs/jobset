@@ -63,4 +63,4 @@ build_node_image
 startup
 kind_load
 jobset_deploy
-$GINKGO --junit-report=junit.xml --output-dir=$ARTIFACTS -v $E2E_TEST_PATH
+$GINKGO --junit-report=junit.xml --output-dir="$ARTIFACTS" -v --skip-package=scheduling "$E2E_TEST_PATH"
