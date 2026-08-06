@@ -146,6 +146,26 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 				Operator: corev1.TolerationOpExists,
 			},
 		},
+		schedulingGates: []corev1.PodSchedulingGate{
+			{Name: "example.com/gate-a"},
+		},
+	}
+
+	// Second set of scheduling directives, disjoint from podTemplateUpdates,
+	// simulating re-admission by Kueue on a different ResourceFlavor.
+	var podTemplateUpdatesFlavorB = &updatePodTemplateOpts{
+		labels:       map[string]string{"label": "value-b"},
+		annotations:  map[string]string{"annotation": "value-b"},
+		nodeSelector: map[string]string{"node-selector-test-b": "node-selector-test-b"},
+		tolerations: []corev1.Toleration{
+			{
+				Key:      "key-b",
+				Operator: corev1.TolerationOpExists,
+			},
+		},
+		schedulingGates: []corev1.PodSchedulingGate{
+			{Name: "example.com/gate-b"},
+		},
 	}
 
 	ginkgo.DescribeTable("jobset is created and its jobs go through a series of updates",
@@ -1517,6 +1537,75 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 							},
 						})
 					},
+				},
+			},
+		}),
+		ginkgo.Entry("resuming twice with different scheduling directives does not leave stale directives on child jobs", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testJobSet(ns).Suspend(true)
+			},
+			steps: []*step{
+				{
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are suspended")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
+					},
+					checkJobSetCondition: testutil.JobSetSuspended,
+				},
+				{
+					jobUpdateFn: setJobsSuspendedCondition,
+				},
+				{
+					// First admission: inject flavor A scheduling directives while suspended.
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						updatePodTemplates(js, podTemplateUpdates)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, false)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+						ginkgo.By("checking jobs carry flavor A directives")
+						gomega.Eventually(checkPodTemplateUpdates, timeout, interval).WithArguments(js, podTemplateUpdates).Should(gomega.Equal(true))
+					},
+					checkJobSetCondition: testutil.JobSetResumed,
+				},
+				{
+					// Eviction: suspend the jobset again.
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, true)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						ginkgo.By("checking all jobs are suspended again")
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, true).Should(gomega.Equal(true))
+					},
+					checkJobSetCondition: testutil.JobSetSuspended,
+				},
+				{
+					jobUpdateFn: setJobsSuspendedCondition,
+				},
+				{
+					// Second admission: the JobSet template now carries only flavor B
+					// directives (Kueue restores the template on eviction, then injects
+					// the directives of the newly assigned flavor).
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						updatePodTemplates(js, podTemplateUpdatesFlavorB)
+					},
+				},
+				{
+					jobSetUpdateFn: func(js *jobset.JobSet) {
+						suspendJobSet(js, false)
+					},
+					checkJobSetState: func(js *jobset.JobSet) {
+						gomega.Eventually(matchJobsSuspendState, timeout, interval).WithArguments(js, false).Should(gomega.Equal(true))
+						ginkgo.By("checking jobs carry flavor B directives")
+						gomega.Eventually(checkPodTemplateUpdates, timeout, interval).WithArguments(js, podTemplateUpdatesFlavorB).Should(gomega.Equal(true))
+						ginkgo.By("checking flavor A directives were removed from child jobs")
+						gomega.Eventually(checkStaleDirectivesRemoved, timeout, interval).WithArguments(js, podTemplateUpdates).Should(gomega.Equal(true))
+					},
+					checkJobSetCondition: testutil.JobSetResumed,
 				},
 			},
 		}),
@@ -3623,10 +3712,11 @@ func suspendJobSet(js *jobset.JobSet, suspend bool) {
 // which can be mutated on a ReplicatedJob template
 // while a JobSet is suspended.
 type updatePodTemplateOpts struct {
-	labels       map[string]string
-	annotations  map[string]string
-	nodeSelector map[string]string
-	tolerations  []corev1.Toleration
+	labels          map[string]string
+	annotations     map[string]string
+	nodeSelector    map[string]string
+	tolerations     []corev1.Toleration
+	schedulingGates []corev1.PodSchedulingGate
 }
 
 func updatePodTemplates(js *jobset.JobSet, opts *updatePodTemplateOpts) {
@@ -3648,6 +3738,9 @@ func updatePodTemplates(js *jobset.JobSet, opts *updatePodTemplateOpts) {
 
 			// Update tolerations.
 			podTemplate.Spec.Tolerations = opts.tolerations
+
+			// Update scheduling gates.
+			podTemplate.Spec.SchedulingGates = opts.schedulingGates
 		}
 		return k8sClient.Update(ctx, &jsGet)
 	}, timeout, interval).Should(gomega.Succeed())
@@ -3707,6 +3800,13 @@ func checkPodTemplateUpdates(js *jobset.JobSet, podTemplateUpdates *updatePodTem
 			}
 		}
 
+		// Check scheduling gates were updated.
+		for _, gate := range podTemplateUpdates.schedulingGates {
+			if !slices.Contains(job.Spec.Template.Spec.SchedulingGates, gate) {
+				return false, fmt.Errorf("missing scheduling gate %v", gate)
+			}
+		}
+
 		jobsUpdated++
 	}
 	// Calculate expected number of updated jobs
@@ -3715,6 +3815,36 @@ func checkPodTemplateUpdates(js *jobset.JobSet, podTemplateUpdates *updatePodTem
 		wantJobsUpdated += int(rjob.Replicas)
 	}
 	return wantJobsUpdated == jobsUpdated, nil
+}
+
+// checkStaleDirectivesRemoved verifies that no child job still carries scheduling
+// directives (nodeSelector keys, tolerations) from a previous resume cycle.
+func checkStaleDirectivesRemoved(js *jobset.JobSet, stale *updatePodTemplateOpts) (bool, error) {
+	var jobList batchv1.JobList
+	if err := k8sClient.List(ctx, &jobList, client.InNamespace(js.Namespace)); err != nil {
+		return false, err
+	}
+	if len(jobList.Items) != testutil.NumExpectedJobs(js) {
+		return false, nil
+	}
+	for _, job := range jobList.Items {
+		for label := range stale.nodeSelector {
+			if _, ok := job.Spec.Template.Spec.NodeSelector[label]; ok {
+				return false, fmt.Errorf("job %s still carries stale node selector key %q", job.Name, label)
+			}
+		}
+		for _, toleration := range stale.tolerations {
+			if slices.Contains(job.Spec.Template.Spec.Tolerations, toleration) {
+				return false, fmt.Errorf("job %s still carries stale toleration %v", job.Name, toleration)
+			}
+		}
+		for _, gate := range stale.schedulingGates {
+			if slices.Contains(job.Spec.Template.Spec.SchedulingGates, gate) {
+				return false, fmt.Errorf("job %s still carries stale scheduling gate %v", job.Name, gate)
+			}
+		}
+	}
+	return true, nil
 }
 
 func checkJobsRecreated(js *jobset.JobSet, expectedRestarts int) (bool, error) {
