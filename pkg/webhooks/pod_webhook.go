@@ -68,13 +68,30 @@ func (p *podWebhook) Default(ctx context.Context, pod *corev1.Pod) error {
 		if pod.Labels == nil {
 			pod.Labels = make(map[string]string)
 		}
-		pod.Labels[constants.PriorityKey] = fmt.Sprint(*pod.Spec.Priority)
+		pod.Labels[constants.PriorityKey] = priorityLabelValue(*pod.Spec.Priority)
 	}
 	// If the parent JobSet is using the exclusive placement feature, patch the Pod accordingly
 	if _, usingExclusivePlacement := pod.Annotations[jobset.ExclusiveKey]; usingExclusivePlacement {
 		return p.patchPod(ctx, pod)
 	}
 	return nil
+}
+
+// priorityLabelValue renders a Pod priority as a valid label value.
+//
+// PriorityClasses may carry negative values, which are legal in Kubernetes, but
+// a label value must start and end with an alphanumeric character, so a leading
+// "-" makes the Pod rejected by the API server. Negative priorities are written
+// as their absolute value with an "n" prefix. Non-negative priorities keep their
+// plain decimal form so that Pods admitted before this change continue to match
+// the exclusive-placement anti-affinity term.
+//
+// The value is only ever compared for equality, never parsed back into a number.
+func priorityLabelValue(priority int32) string {
+	if priority < 0 {
+		return fmt.Sprintf("n%d", -int64(priority))
+	}
+	return fmt.Sprint(priority)
 }
 
 // patchPod will mutate pods in the following ways:
