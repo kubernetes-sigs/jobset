@@ -674,11 +674,50 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 			job.Spec.Template.Spec.SchedulingGates,
 			replicatedJobPodTemplate.Spec.SchedulingGates,
 		)
+		// Container/InitContainer resource requests/limits may also be mutated while the
+		// JobSet is suspended (e.g., by Kueue/DWS for right-sizing). Propagate the latest
+		// values from the ReplicatedJob's pod template to the child Job's containers,
+		// matched by container name, when the Job is resumed.
+		if features.Enabled(features.SuspendedJobResourceMutation) {
+			job.Spec.Template.Spec.Containers = mergeContainerResources(
+				job.Spec.Template.Spec.Containers,
+				replicatedJobPodTemplate.Spec.Containers,
+			)
+			job.Spec.Template.Spec.InitContainers = mergeContainerResources(
+				job.Spec.Template.Spec.InitContainers,
+				replicatedJobPodTemplate.Spec.InitContainers,
+			)
+		}
 	} else {
 		log.Error(nil, "job missing ReplicatedJobName label")
 	}
 	job.Spec.Suspend = ptr.To(false)
 	return r.Update(ctx, job)
+}
+
+// mergeContainerResources returns a copy of jobContainers where the Resources field
+// (requests/limits) of each container is replaced with the Resources of the container
+// with the same name in templateContainers, if one exists. This is used to propagate
+// resource mutations made to the ReplicatedJob's pod template while the JobSet was
+// suspended to the child Job's containers when the Job is resumed.
+func mergeContainerResources(jobContainers, templateContainers []corev1.Container) []corev1.Container {
+	if len(jobContainers) == 0 {
+		return jobContainers
+	}
+
+	templateResourcesByName := make(map[string]corev1.ResourceRequirements, len(templateContainers))
+	for _, container := range templateContainers {
+		templateResourcesByName[container.Name] = container.Resources
+	}
+
+	merged := make([]corev1.Container, len(jobContainers))
+	copy(merged, jobContainers)
+	for i := range merged {
+		if resources, exists := templateResourcesByName[merged[i].Name]; exists {
+			merged[i].Resources = resources
+		}
+	}
+	return merged
 }
 
 func (r *JobSetReconciler) reconcileReplicatedJobs(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {

@@ -3250,11 +3250,12 @@ func TestValidateUpdate(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name                string
-		oldJs               *jobset.JobSet
-		js                  *jobset.JobSet
-		want                error
-		enableElasticJobSet bool
+		name                            string
+		oldJs                           *jobset.JobSet
+		js                              *jobset.JobSet
+		want                            error
+		enableElasticJobSet             bool
+		enableSuspendedResourceMutation bool
 	}{
 		{
 			name: "update suspend",
@@ -3530,6 +3531,210 @@ func TestValidateUpdate(t *testing.T) {
 			want: field.ErrorList{
 				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
 			}.ToAggregate(),
+		},
+		{
+			name: "container resource requests/limits can be updated for suspended JobSet",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name: "c",
+													// Updated resource requests/limits.
+													Resources: corev1.ResourceRequirements{
+														Requests: corev1.ResourceList{
+															corev1.ResourceCPU: resource.MustParse("2"),
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name: "c",
+													Resources: corev1.ResourceRequirements{
+														Requests: corev1.ResourceList{
+															corev1.ResourceCPU: resource.MustParse("1"),
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			enableSuspendedResourceMutation: true,
+		},
+		{
+			name: "container resource requests/limits cannot be updated for suspended JobSet when feature gate is disabled",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name: "c",
+													// Updated resource requests/limits.
+													Resources: corev1.ResourceRequirements{
+														Requests: corev1.ResourceList{
+															corev1.ResourceCPU: resource.MustParse("2"),
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name: "c",
+													Resources: corev1.ResourceRequirements{
+														Requests: corev1.ResourceList{
+															corev1.ResourceCPU: resource.MustParse("1"),
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+			// enableSuspendedResourceMutation intentionally left false (default) to verify the
+			// mutation is rejected when the feature gate is disabled.
+		},
+		{
+			name: "container resource requests/limits cannot be updated for running JobSet",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name: "c",
+													// Updated resource requests/limits.
+													Resources: corev1.ResourceRequirements{
+														Requests: corev1.ResourceList{
+															corev1.ResourceCPU: resource.MustParse("2"),
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 2,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Parallelism: ptr.To[int32](2),
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name: "c",
+													Resources: corev1.ResourceRequirements{
+														Requests: corev1.ResourceList{
+															corev1.ResourceCPU: resource.MustParse("1"),
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec").Child("replicatedJobs"), "", "field is immutable"),
+			}.ToAggregate(),
+			enableSuspendedResourceMutation: true,
 		},
 		{
 			name: "replicated job name cannot be updated",
@@ -4032,6 +4237,7 @@ func TestValidateUpdate(t *testing.T) {
 			fakeClient := fake.NewFakeClient()
 			webhook := &jobSetWebhook{client: fakeClient}
 			features.SetFeatureGateDuringTest(t, features.ElasticJobSet, tc.enableElasticJobSet)
+			features.SetFeatureGateDuringTest(t, features.SuspendedJobResourceMutation, tc.enableSuspendedResourceMutation)
 			newObj := tc.js.DeepCopy()
 			oldObj := tc.oldJs.DeepCopy()
 			_, err := webhook.ValidateUpdate(context.TODO(), oldObj, newObj)

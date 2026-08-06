@@ -25,6 +25,7 @@ import (
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -49,6 +50,7 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 
 		// Ensure feature gate is off by default for all standard tests
 		features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, false)
+		features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.SuspendedJobResourceMutation, false)
 
 		// Create test namespace before each test.
 		ns = &corev1.Namespace{
@@ -431,6 +433,164 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 					},
 				}
 			},
+		}),
+		ginkgo.Entry("updating container resources in suspended jobset is allowed", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("suspended-resources", ns.Name).
+					Suspend(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				// Container resource mutation for suspended JobSets is gated behind the
+				// SuspendedJobResourceMutation feature gate.
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.SuspendedJobResourceMutation, true)
+
+				containers := js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Containers
+				for i := range containers {
+					containers[i].Resources = corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("2"),
+						},
+					}
+				}
+			},
+		}),
+		ginkgo.Entry("updating container resources in suspended jobset fails when feature gate is disabled", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("suspended-resources-disabled", ns.Name).
+					Suspend(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				// Ensure the feature gate is OFF (testing the default behavior).
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.SuspendedJobResourceMutation, false)
+
+				containers := js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Containers
+				for i := range containers {
+					containers[i].Resources = corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("2"),
+						},
+					}
+				}
+			},
+			updateShouldFail: true,
+		}),
+		ginkgo.Entry("updating initContainer resources in suspended jobset is allowed", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("suspended-initcontainer-resources", ns.Name).
+					Suspend(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: "Never",
+								InitContainers: []corev1.Container{
+									{
+										Name:  "test-init-container",
+										Image: "busybox:latest",
+									},
+								},
+								Containers: testing.TestPodSpec.Containers,
+							}).
+							Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				// InitContainer resource mutation for suspended JobSets is gated behind the
+				// SuspendedJobResourceMutation feature gate.
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.SuspendedJobResourceMutation, true)
+
+				initContainers := js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.InitContainers
+				for i := range initContainers {
+					initContainers[i].Resources = corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("2"),
+						},
+					}
+				}
+			},
+		}),
+		ginkgo.Entry("updating initContainer image in suspended jobset is not allowed even with feature gate enabled", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("suspended-initcontainer-image", ns.Name).
+					Suspend(true).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodSpec(corev1.PodSpec{
+								RestartPolicy: "Never",
+								InitContainers: []corev1.Container{
+									{
+										Name:  "test-init-container",
+										Image: "busybox:latest",
+									},
+								},
+								Containers: testing.TestPodSpec.Containers,
+							}).
+							Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				// Only resources are mutable for initContainers; other fields must remain immutable.
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.SuspendedJobResourceMutation, true)
+
+				initContainers := js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.InitContainers
+				for i := range initContainers {
+					initContainers[i].Image = "alpine:latest"
+				}
+			},
+			updateShouldFail: true,
+		}),
+		ginkgo.Entry("updating container resources in running jobset is not allowed", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("running-resources", ns.Name).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							CompletionMode(batchv1.IndexedCompletion).
+							PodSpec(testing.TestPodSpec).
+							Obj()).
+						Obj())
+			},
+			defaultsApplied: func(js *jobset.JobSet) bool {
+				return true
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				// Even with the feature gate enabled, mutation is only allowed while suspended.
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.SuspendedJobResourceMutation, true)
+
+				containers := js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.Containers
+				for i := range containers {
+					containers[i].Resources = corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("2"),
+						},
+					}
+				}
+			},
+			updateShouldFail: true,
 		}),
 		ginkgo.Entry("updating pod template in running jobset is not allowed", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
