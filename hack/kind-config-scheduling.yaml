@@ -1,0 +1,69 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+featureGates:
+  GenericWorkload: true
+  # WorkloadWithJob is intentionally disabled. When enabled, the upstream Job
+  # controller creates its own Workload/PodGroup per Job. JobSet manages
+  # scheduling objects at the JobSet level, so per-Job objects are redundant
+  # and interfere with e2e assertions that count scheduling resources.
+  WorkloadWithJob: true
+  # TopologyAwareWorkloadScheduling and DRAWorkloadResourceClaims must be
+  # enabled to exercise spec.scheduling.schedulingConstraints.topology and
+  # spec.scheduling.replicatedJobPolicies[].resourceClaims. Without these,
+  # the apiserver silently drops the corresponding PodGroup fields on write
+  # (see pkg/registry/scheduling/podgroup dropDisabledPodGroupFields), which
+  # then looks like permanent spec drift to the JobSet controller and causes
+  # it to continuously delete and recreate the Workload/PodGroup.
+  TopologyAwareWorkloadScheduling: true
+  DRAWorkloadResourceClaims: true
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiVersion: kubeadm.k8s.io/v1beta4
+        scheduler:
+          extraArgs:
+          - name: v
+            value: "3"
+        controllerManager:
+          extraArgs:
+          - name: v
+            value: "3"
+        apiServer:
+          extraArgs:
+          - name: enable-aggregator-routing
+            value: "true"
+          - name: runtime-config
+            # v1beta1 must also be enabled: newer Kubernetes builds have
+            # promoted the in-tree kube-scheduler/kube-controller-manager
+            # Workload/PodGroup clients from v1alpha3 to v1beta1. Without
+            # v1beta1 storage enabled, those built-in components' informers
+            # 404 forever and the scheduler never becomes Ready. JobSet's
+            # own controller still uses the v1alpha3 client, which remains
+            # enabled for compatibility.
+            value: "scheduling.k8s.io/v1alpha3=true,scheduling.k8s.io/v1beta1=true"
+          - name: v
+            value: "3"
+      - |
+        kind: InitConfiguration
+        apiVersion: kubeadm.k8s.io/v1beta4
+        nodeRegistration:
+          kubeletExtraArgs:
+          - name: v
+            value: "3"
+  - role: worker
+    labels:
+      instance-type: on-demand
+  - role: worker
+    labels:
+      instance-type: spot
+
+kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    apiVersion: kubeadm.k8s.io/v1beta4
+    nodeRegistration:
+      kubeletExtraArgs:
+      - name: v
+        value: "3"

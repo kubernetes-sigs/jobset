@@ -279,6 +279,31 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			},
 			jobSetCreationShouldFail: true,
 		}),
+		ginkgo.Entry("negative replicated job replicas are rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("negative-replicas", ns.Name).
+					EnableDNSHostnames(true).
+					ReplicatedJob(testing.MakeReplicatedJob("negative-replicas").
+						Replicas(-1).
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
+		ginkgo.Entry("zero replicated job replicas are accepted", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("zero-replicas", ns.Name).
+					EnableDNSHostnames(true).
+					ReplicatedJob(testing.MakeReplicatedJob("zero-replicas").
+						Replicas(0).
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							PodSpec(testing.TestPodSpec).
+							CompletionMode(batchv1.IndexedCompletion).Obj()).
+						Obj())
+			},
+		}),
 		ginkgo.Entry("suspend jobset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("js-hostnames-non-indexed", ns.Name).
