@@ -27,7 +27,7 @@ spec:
       - targetReplicatedJob: ["launcher", "worker"]
         schedulingPolicy:
           gang: {}
-        disuptionMode: 
+        disruptionMode:
           all: {}
   replicatedJobs:
     - name: launcher
