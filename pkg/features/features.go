@@ -59,6 +59,13 @@ const (
 	//
 	// Enables tracking and propagating JobSet execution attempts as a monotonic counter.
 	ExecutionAttemptsTracking featuregate.Feature = "ExecutionAttemptsTracking"
+	// owner: @kehannon
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/969-WAS-integration/README.md
+	//
+	// JobSetWorkloadAwareSchedulingAPI enables integration with Workload-Aware Scheduling (WAS)
+	// building blocks from scheduling.k8s.io, allowing users to configure gang scheduling,
+	// topology constraints, and disruption policies on JobSets.
+	JobSetWorkloadAwareSchedulingAPI featuregate.Feature = "JobSetWorkloadAwareSchedulingAPI"
 )
 
 func init() {
@@ -81,6 +88,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	ElasticJobSet: {Default: false, PreRelease: featuregate.Alpha},
 
 	ExecutionAttemptsTracking: {Default: false, PreRelease: featuregate.Alpha},
+
+	JobSetWorkloadAwareSchedulingAPI: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {

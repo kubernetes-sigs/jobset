@@ -3,6 +3,7 @@ apiVersion: kind.x-k8s.io/v1alpha4
 featureGates:
   GenericWorkload: true
   GangScheduling: true
+  WorkloadWithJob: true
   TopologyAwareWorkloadScheduling: true
   WorkloadAwarePreemption: true
 nodes:
@@ -12,7 +13,7 @@ nodes:
     kind: ClusterConfiguration
     apiServer:
       extraArgs:
-        runtime-config: "api/alpha=true"
+        runtime-config: "scheduling.k8s.io/v1alpha3=true"
 - role: worker
 - role: worker
 - role: worker
