@@ -26,7 +26,7 @@ class IoK8sApiCoreV1VolumeMount(BaseModel):
     """
     VolumeMount describes a mounting of a Volume within a container.
     """ # noqa: E501
-    mount_path: StrictStr = Field(description="Path within the container at which the volume should be mounted.  Must not contain ':'.", alias="mountPath")
+    mount_path: StrictStr = Field(description="Path within the container at which the volume should be mounted.", alias="mountPath")
     mount_propagation: Optional[StrictStr] = Field(default=None, description="mountPropagation determines how mounts are propagated from the host to container and the other way around. When not set, MountPropagationNone is used. This field is beta in 1.10. When RecursiveReadOnly is set to IfPossible or to Enabled, MountPropagation must be None or unspecified (which defaults to None).", alias="mountPropagation")
     name: StrictStr = Field(description="This must match the Name of a Volume.")
     read_only: Optional[StrictBool] = Field(default=None, description="Mounted read-only if true, read-write otherwise (false or unspecified). Defaults to false.", alias="readOnly")

@@ -1,0 +1,68 @@
+# KEP-969 Representative API: "Schedule groups together"
+#
+# scheduling:
+#   replicatedJobPolicies:
+#     - targetReplicatedJob: [launcher, worker]
+#       schedulingPolicy: {gang: {}}
+#
+# Expected: one Workload containing one PodGroup shared by launcher and worker,
+# named "<jobset-name>-launcher-worker". minCount is the sum of the pod counts
+# of both targeted ReplicatedJobs (launcher: 1*1=1, worker: 2*2=4 -> total 5).
+#
+# Verify:
+#   kubectl get workloads,podgroups,jobs -n default
+#   kubectl get podgroup per-rj-grouped-launcher-worker -n default -o jsonpath='{.spec.schedulingPolicy.gang.minCount}{"\n"}'
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: per-rj-grouped
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    replicatedJobPolicies:
+      - targetReplicatedJob: ["launcher", "worker"]
+        schedulingPolicy:
+          gang: {}
+        disruptionMode:
+          all: {}
+  replicatedJobs:
+    - name: launcher
+      replicas: 1
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: launcher
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["/sleep", "-d", "30s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi
+    - name: worker
+      replicas: 2
+      template:
+        spec:
+          parallelism: 2
+          completions: 2
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["/sleep", "-d", "30s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

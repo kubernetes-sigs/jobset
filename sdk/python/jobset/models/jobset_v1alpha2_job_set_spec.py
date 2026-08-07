@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, Strict
 from typing import Any, ClassVar, Dict, List, Optional
 from jobset.models.jobset_v1alpha2_coordinator import JobsetV1alpha2Coordinator
 from jobset.models.jobset_v1alpha2_failure_policy import JobsetV1alpha2FailurePolicy
+from jobset.models.jobset_v1alpha2_job_set_scheduling import JobsetV1alpha2JobSetScheduling
 from jobset.models.jobset_v1alpha2_network import JobsetV1alpha2Network
 from jobset.models.jobset_v1alpha2_replicated_job import JobsetV1alpha2ReplicatedJob
 from jobset.models.jobset_v1alpha2_startup_policy import JobsetV1alpha2StartupPolicy
@@ -38,12 +39,13 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
     managed_by: Optional[StrictStr] = Field(default=None, description="managedBy is used to indicate the controller or entity that manages a JobSet. The built-in JobSet controller reconciles JobSets which don't have this field at all or the field value is the reserved string `jobset.sigs.k8s.io/jobset-controller`, but skips reconciling JobSets with a custom value for this field.  The value must be a valid domain-prefixed path (e.g. acme.io/foo) - all characters before the first \"/\" must be a valid subdomain as defined by RFC 1123. All characters trailing the first \"/\" must be valid HTTP Path characters as defined by RFC 3986. The value cannot exceed 63 characters. The field is immutable.", alias="managedBy")
     network: Optional[JobsetV1alpha2Network] = None
     replicated_jobs: Optional[List[JobsetV1alpha2ReplicatedJob]] = Field(default=None, description="replicatedJobs is the group of jobs that will form the set.", alias="replicatedJobs")
+    scheduling: Optional[JobsetV1alpha2JobSetScheduling] = None
     startup_policy: Optional[JobsetV1alpha2StartupPolicy] = Field(default=None, alias="startupPolicy")
     success_policy: Optional[JobsetV1alpha2SuccessPolicy] = Field(default=None, alias="successPolicy")
     suspend: Optional[StrictBool] = Field(default=None, description="suspend suspends all running child Jobs when set to true.")
     ttl_seconds_after_finished: Optional[StrictInt] = Field(default=None, description="ttlSecondsAfterFinished limits the lifetime of a JobSet that has finished execution (either Complete or Failed). If this field is set, TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be automatically deleted. When the JobSet is being deleted, its lifecycle guarantees (e.g. finalizers) will be honored. If this field is unset, the JobSet won't be automatically deleted. If this field is set to zero, the JobSet becomes eligible to be deleted immediately after it finishes.", alias="ttlSecondsAfterFinished")
     volume_claim_policies: Optional[List[JobsetV1alpha2VolumeClaimPolicy]] = Field(default=None, description="volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed to reference. JobSet controller automatically adds the required volume claims to the pod template. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template.", alias="volumeClaimPolicies")
-    __properties: ClassVar[List[str]] = ["coordinator", "failurePolicy", "managedBy", "network", "replicatedJobs", "startupPolicy", "successPolicy", "suspend", "ttlSecondsAfterFinished", "volumeClaimPolicies"]
+    __properties: ClassVar[List[str]] = ["coordinator", "failurePolicy", "managedBy", "network", "replicatedJobs", "scheduling", "startupPolicy", "successPolicy", "suspend", "ttlSecondsAfterFinished", "volumeClaimPolicies"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -100,6 +102,9 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
                 if _item_replicated_jobs:
                     _items.append(_item_replicated_jobs.to_dict())
             _dict['replicatedJobs'] = _items
+        # override the default output from pydantic by calling `to_dict()` of scheduling
+        if self.scheduling:
+            _dict['scheduling'] = self.scheduling.to_dict()
         # override the default output from pydantic by calling `to_dict()` of startup_policy
         if self.startup_policy:
             _dict['startupPolicy'] = self.startup_policy.to_dict()
@@ -130,6 +135,7 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
             "managedBy": obj.get("managedBy"),
             "network": JobsetV1alpha2Network.from_dict(obj["network"]) if obj.get("network") is not None else None,
             "replicatedJobs": [JobsetV1alpha2ReplicatedJob.from_dict(_item) for _item in obj["replicatedJobs"]] if obj.get("replicatedJobs") is not None else None,
+            "scheduling": JobsetV1alpha2JobSetScheduling.from_dict(obj["scheduling"]) if obj.get("scheduling") is not None else None,
             "startupPolicy": JobsetV1alpha2StartupPolicy.from_dict(obj["startupPolicy"]) if obj.get("startupPolicy") is not None else None,
             "successPolicy": JobsetV1alpha2SuccessPolicy.from_dict(obj["successPolicy"]) if obj.get("successPolicy") is not None else None,
             "suspend": obj.get("suspend"),

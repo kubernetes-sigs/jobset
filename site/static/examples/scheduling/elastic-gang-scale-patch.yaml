@@ -1,0 +1,48 @@
+# Scale patch for elastic-gang.yaml
+#
+# Apply this after elastic-gang.yaml to scale the "workers" ReplicatedJob's
+# parallelism/completions from 2 to 4. See elastic-gang.yaml for a detailed
+# explanation of why, on a real cluster with the mutating webhook enabled,
+# the PodGroup's minCount currently stays frozen at its original value (2)
+# instead of updating to 4.
+#
+# Usage:
+#   kubectl apply -f site/static/examples/scheduling/elastic-gang.yaml
+#   kubectl apply -f site/static/examples/scheduling/elastic-gang-scale-patch.yaml
+#
+# Or, without a full re-apply, patch directly:
+#   kubectl patch jobset gang-elastic -n default --type merge -p \
+#     '{"spec":{"replicatedJobs":[{"name":"workers","replicas":1,"template":{"spec":{"parallelism":4,"completions":4}}}]}}'
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: gang-elastic
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    schedulingPolicy:
+      gang: {}
+  replicatedJobs:
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          parallelism: 4
+          completions: 4
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["sleep", "120s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

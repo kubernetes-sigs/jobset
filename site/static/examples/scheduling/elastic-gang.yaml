@@ -1,0 +1,82 @@
+# Elastic Gang Scheduling Example
+#
+# Mirrors the integration test "should patch Gang minCount in place when
+# ElasticJobSet changes parallelism" (test/integration/scheduling/scheduling_test.go)
+# and the KEP-969 "Scale an elastic workload" representative API.
+#
+# A single ReplicatedJob is gang-scheduled with parallelism/completions=2.
+#
+# Expected results (before scaling):
+#   - A Workload named "gang-elastic" with 1 PodGroupTemplate
+#   - A single PodGroup "gang-elastic" with Gang policy, minCount=2
+#
+# KNOWN ALPHA LIMITATION (verified against a real WAS Kind cluster):
+#   The upstream GangSchedulingPolicy.MinCount field is +required, so the
+#   JobSet CRD's embedded schedulingPolicy.gang.minCount is also required.
+#   JobSet's mutating webhook (jobset-controller-manager) fills it in at
+#   CREATE time with the computed pod count so users can write `gang: {}`
+#   without specifying minCount themselves. But spec.scheduling as a whole is
+#   immutable (enforced by a CEL rule) and the mutating webhook only runs on
+#   CREATE, not UPDATE, so once written this value is frozen for the lifetime
+#   of the JobSet. When ElasticJobSet later changes a ReplicatedJob's
+#   parallelism/completions, the controller's minCount computation
+#   (totalMinCount in pkg/controllers/scheduling.go) still finds the old,
+#   now-stale explicit minCount and uses it as-is instead of recomputing,
+#   because it cannot distinguish "webhook-computed default" from "user chose
+#   this exact quorum on purpose and it must never change".
+#
+#   As a result, on a cluster with the mutating webhook enabled (any real
+#   deployment), scaling parallelism/completions here will NOT update the
+#   PodGroup's minCount, even though the underlying Job's pod count did
+#   change. The "patch Gang minCount in place" behavior in
+#   pkg/controllers/scheduling.go is real and does work (see the integration
+#   test), but is currently only reachable when spec.scheduling.schedulingPolicy
+#   .gang.minCount is left at its zero value in the stored object, which only
+#   happens in test environments that don't register the mutating webhook
+#   (e.g. envtest suites that don't wire up webhooks). Tracking/fixing this
+#   for real clusters requires either an API change (making minCount
+#   independently trackable as "auto" vs "explicit") or a different
+#   defaulting strategy, and is out of scope for a webhook-only fix.
+#
+# Verify:
+#   kubectl get workloads,podgroups,jobs -n default
+#   kubectl get podgroup gang-elastic -n default -o jsonpath='{.spec.schedulingPolicy.gang.minCount}{"\n"}'
+#   kubectl get workload gang-elastic -n default -o jsonpath='{.metadata.uid}{"\n"}'
+#
+# To reproduce the scale-up and observe the current (frozen) minCount behavior:
+#   kubectl apply -f site/static/examples/scheduling/elastic-gang-scale-patch.yaml
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: gang-elastic
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    schedulingPolicy:
+      gang: {}
+    disruptionMode:
+      all: {}
+  replicatedJobs:
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          parallelism: 2
+          completions: 2
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["sleep", "120s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

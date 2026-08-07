@@ -1,0 +1,51 @@
+# No-Scheduling Baseline
+#
+# This JobSet does NOT set spec.scheduling. It verifies backward compatibility:
+# existing JobSets without scheduling config must continue to work identically,
+# producing zero Workload or PodGroup objects.
+#
+# Expected results:
+#   - Jobs are created normally
+#   - NO Workload objects exist for this JobSet
+#   - NO PodGroup objects exist for this JobSet
+#   - Child Jobs do NOT carry scheduling.k8s.io annotations
+#
+# Verify:
+#   kubectl get jobs -n default -l jobset.x-k8s.io/jobset-name=no-sched-baseline
+#   kubectl get workloads -n default         # should NOT contain no-sched-baseline
+#   kubectl get podgroups -n default         # should NOT contain no-sched-baseline
+#   kubectl get jobs -n default -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.annotations}{"\n"}{end}'
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: no-sched-baseline
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  # No spec.scheduling — this is the baseline.
+  replicatedJobs:
+    - name: workers
+      replicas: 2
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: busybox
+                  command:
+                    - "sleep"
+                  args:
+                    - 30s
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi
