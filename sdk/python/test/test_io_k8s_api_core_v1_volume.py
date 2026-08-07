@@ -69,11 +69,13 @@ class TestIoK8sApiCoreV1Volume(unittest.TestCase):
                     volume_id = '', ),
                 config_map = jobset.models.io/k8s/api/core/v1/config_map_volume_source.io.k8s.api.core.v1.ConfigMapVolumeSource(
                     default_mode = 56, 
+                    default_user = 56, 
                     items = [
                         jobset.models.io/k8s/api/core/v1/key_to_path.io.k8s.api.core.v1.KeyToPath(
                             key = '', 
                             mode = 56, 
-                            path = '', )
+                            path = '', 
+                            user = 56, )
                         ], 
                     name = '', 
                     optional = True, ),
@@ -88,6 +90,7 @@ class TestIoK8sApiCoreV1Volume(unittest.TestCase):
                         }, ),
                 downward_api = jobset.models.io/k8s/api/core/v1/downward_api_volume_source.io.k8s.api.core.v1.DownwardAPIVolumeSource(
                     default_mode = 56, 
+                    default_user = 56, 
                     items = [
                         jobset.models.io/k8s/api/core/v1/downward_api_volume_file.io.k8s.api.core.v1.DownwardAPIVolumeFile(
                             field_ref = jobset.models.io/k8s/api/core/v1/object_field_selector.io.k8s.api.core.v1.ObjectFieldSelector(
@@ -98,10 +101,12 @@ class TestIoK8sApiCoreV1Volume(unittest.TestCase):
                             resource_field_ref = jobset.models.io/k8s/api/core/v1/resource_field_selector.io.k8s.api.core.v1.ResourceFieldSelector(
                                 container_name = '', 
                                 divisor = '', 
-                                resource = '', ), )
+                                resource = '', ), 
+                            user = 56, )
                         ], ),
                 empty_dir = jobset.models.io/k8s/api/core/v1/empty_dir_volume_source.io.k8s.api.core.v1.EmptyDirVolumeSource(
                     medium = '', 
+                    mode = 56, 
                     size_limit = '', ),
                 ephemeral = jobset.models.io/k8s/api/core/v1/ephemeral_volume_source.io.k8s.api.core.v1.EphemeralVolumeSource(
                     volume_claim_template = jobset.models.io/k8s/api/core/v1/persistent_volume_claim_template.io.k8s.api.core.v1.PersistentVolumeClaimTemplate(
@@ -253,6 +258,7 @@ class TestIoK8sApiCoreV1Volume(unittest.TestCase):
                     volume_id = '', ),
                 projected = jobset.models.io/k8s/api/core/v1/projected_volume_source.io.k8s.api.core.v1.ProjectedVolumeSource(
                     default_mode = 56, 
+                    default_user = 56, 
                     sources = [
                         jobset.models.io/k8s/api/core/v1/volume_projection.io.k8s.api.core.v1.VolumeProjection(
                             cluster_trust_bundle = jobset.models.io/k8s/api/core/v1/cluster_trust_bundle_projection.io.k8s.api.core.v1.ClusterTrustBundleProjection(
@@ -271,13 +277,15 @@ class TestIoK8sApiCoreV1Volume(unittest.TestCase):
                                 name = '', 
                                 optional = True, 
                                 path = '', 
-                                signer_name = '', ), 
+                                signer_name = '', 
+                                user = 56, ), 
                             config_map = jobset.models.io/k8s/api/core/v1/config_map_projection.io.k8s.api.core.v1.ConfigMapProjection(
                                 items = [
                                     jobset.models.io/k8s/api/core/v1/key_to_path.io.k8s.api.core.v1.KeyToPath(
                                         key = '', 
                                         mode = 56, 
-                                        path = '', )
+                                        path = '', 
+                                        user = 56, )
                                     ], 
                                 name = '', 
                                 optional = True, ), 
@@ -289,6 +297,7 @@ class TestIoK8sApiCoreV1Volume(unittest.TestCase):
                                 key_type = '', 
                                 max_expiration_seconds = 56, 
                                 signer_name = '', 
+                                user = 56, 
                                 user_annotations = {
                                     'key' : ''
                                     }, ), 
@@ -298,7 +307,8 @@ class TestIoK8sApiCoreV1Volume(unittest.TestCase):
                             service_account_token = jobset.models.io/k8s/api/core/v1/service_account_token_projection.io.k8s.api.core.v1.ServiceAccountTokenProjection(
                                 audience = '', 
                                 expiration_seconds = 56, 
-                                path = '', ), )
+                                path = '', 
+                                user = 56, ), )
                         ], ),
                 quobyte = jobset.models.io/k8s/api/core/v1/quobyte_volume_source.io.k8s.api.core.v1.QuobyteVolumeSource(
                     group = '', 
@@ -333,11 +343,13 @@ class TestIoK8sApiCoreV1Volume(unittest.TestCase):
                     volume_name = '', ),
                 secret = jobset.models.io/k8s/api/core/v1/secret_volume_source.io.k8s.api.core.v1.SecretVolumeSource(
                     default_mode = 56, 
+                    default_user = 56, 
                     items = [
                         jobset.models.io/k8s/api/core/v1/key_to_path.io.k8s.api.core.v1.KeyToPath(
                             key = '', 
                             mode = 56, 
-                            path = '', )
+                            path = '', 
+                            user = 56, )
                         ], 
                     optional = True, 
                     secret_name = '', ),

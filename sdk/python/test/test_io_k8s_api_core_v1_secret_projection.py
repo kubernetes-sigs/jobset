@@ -39,7 +39,8 @@ class TestIoK8sApiCoreV1SecretProjection(unittest.TestCase):
                     jobset.models.io/k8s/api/core/v1/key_to_path.io.k8s.api.core.v1.KeyToPath(
                         key = '', 
                         mode = 56, 
-                        path = '', )
+                        path = '', 
+                        user = 56, )
                     ],
                 name = '',
                 optional = True

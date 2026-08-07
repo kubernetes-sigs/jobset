@@ -118,6 +118,19 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     replicas = 56, 
                                     template = jobset.models.io/k8s/api/batch/v1/job_template_spec.io.k8s.api.batch.v1.JobTemplateSpec(), )
                                 ], 
+                            scheduling = jobset.models.jobset_v1alpha2_job_set_scheduling.JobsetV1alpha2JobSetScheduling(
+                                disruption_mode = jobset.models.io/k8s/api/scheduling/v1alpha3/disruption_mode.io.k8s.api.scheduling.v1alpha3.DisruptionMode(
+                                    all = jobset.models.io/k8s/api/scheduling/v1alpha3/all_disruption_mode.io.k8s.api.scheduling.v1alpha3.AllDisruptionMode(), 
+                                    single = jobset.models.io/k8s/api/scheduling/v1alpha3/single_disruption_mode.io.k8s.api.scheduling.v1alpha3.SingleDisruptionMode(), ), 
+                                scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingConstraints(
+                                    topology = [
+                                        jobset.models.io/k8s/api/scheduling/v1alpha3/topology_constraint.io.k8s.api.scheduling.v1alpha3.TopologyConstraint(
+                                            key = '', )
+                                        ], ), 
+                                scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingPolicy(
+                                    basic = jobset.models.io/k8s/api/scheduling/v1alpha3/basic_scheduling_policy.io.k8s.api.scheduling.v1alpha3.BasicSchedulingPolicy(), 
+                                    gang = jobset.models.io/k8s/api/scheduling/v1alpha3/gang_scheduling_policy.io.k8s.api.scheduling.v1alpha3.GangSchedulingPolicy(
+                                        min_count = 56, ), ), ), 
                             startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
                                 startup_policy_order = '', ), 
                             success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
@@ -155,6 +168,13 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                                         type = '', )
                                                     ], 
                                                 current_volume_attributes_class_name = '', 
+                                                health_status = jobset.models.io/k8s/api/core/v1/volume_health_status.io.k8s.api.core.v1.VolumeHealthStatus(
+                                                    health_conditions = [
+                                                        jobset.models.io/k8s/api/core/v1/volume_health_condition.io.k8s.api.core.v1.VolumeHealthCondition(
+                                                            message = '', 
+                                                            reason = '', 
+                                                            status = '', )
+                                                        ], ), 
                                                 modify_volume_status = jobset.models.io/k8s/api/core/v1/modify_volume_status.io.k8s.api.core.v1.ModifyVolumeStatus(
                                                     status = '', 
                                                     target_volume_attributes_class_name = '', ), 
@@ -276,6 +296,19 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     replicas = 56, 
                                     template = jobset.models.io/k8s/api/batch/v1/job_template_spec.io.k8s.api.batch.v1.JobTemplateSpec(), )
                                 ], 
+                            scheduling = jobset.models.jobset_v1alpha2_job_set_scheduling.JobsetV1alpha2JobSetScheduling(
+                                disruption_mode = jobset.models.io/k8s/api/scheduling/v1alpha3/disruption_mode.io.k8s.api.scheduling.v1alpha3.DisruptionMode(
+                                    all = jobset.models.io/k8s/api/scheduling/v1alpha3/all_disruption_mode.io.k8s.api.scheduling.v1alpha3.AllDisruptionMode(), 
+                                    single = jobset.models.io/k8s/api/scheduling/v1alpha3/single_disruption_mode.io.k8s.api.scheduling.v1alpha3.SingleDisruptionMode(), ), 
+                                scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingConstraints(
+                                    topology = [
+                                        jobset.models.io/k8s/api/scheduling/v1alpha3/topology_constraint.io.k8s.api.scheduling.v1alpha3.TopologyConstraint(
+                                            key = '', )
+                                        ], ), 
+                                scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingPolicy(
+                                    basic = jobset.models.io/k8s/api/scheduling/v1alpha3/basic_scheduling_policy.io.k8s.api.scheduling.v1alpha3.BasicSchedulingPolicy(), 
+                                    gang = jobset.models.io/k8s/api/scheduling/v1alpha3/gang_scheduling_policy.io.k8s.api.scheduling.v1alpha3.GangSchedulingPolicy(
+                                        min_count = 56, ), ), ), 
                             startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
                                 startup_policy_order = '', ), 
                             success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
@@ -313,6 +346,13 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                                         type = '', )
                                                     ], 
                                                 current_volume_attributes_class_name = '', 
+                                                health_status = jobset.models.io/k8s/api/core/v1/volume_health_status.io.k8s.api.core.v1.VolumeHealthStatus(
+                                                    health_conditions = [
+                                                        jobset.models.io/k8s/api/core/v1/volume_health_condition.io.k8s.api.core.v1.VolumeHealthCondition(
+                                                            message = '', 
+                                                            reason = '', 
+                                                            status = '', )
+                                                        ], ), 
                                                 modify_volume_status = jobset.models.io/k8s/api/core/v1/modify_volume_status.io.k8s.api.core.v1.ModifyVolumeStatus(
                                                     status = '', 
                                                     target_volume_attributes_class_name = '', ), 

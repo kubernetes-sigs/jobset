@@ -26,6 +26,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -43,6 +44,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/features"
+	jobsetutil "sigs.k8s.io/jobset/pkg/util"
 	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
@@ -158,10 +160,39 @@ func (j *jobSetWebhook) Default(ctx context.Context, js *jobset.JobSet) error {
 		}
 	}
 
+	// Scheduling defaulting is gated behind JobSetWorkloadAwareSchedulingAPI so
+	// that a JobSet with spec.scheduling set (which ValidateCreate rejects when
+	// the gate is disabled) is not otherwise mutated by this webhook.
+	if features.Enabled(features.JobSetWorkloadAwareSchedulingAPI) {
+		// Default scheduling policy to Gang when scheduling block is present but
+		// policy is nil. Sequenced startup uses one PodGroup per ReplicatedJob, so
+		// it intentionally leaves the composite policy unset and lets the builder
+		// apply the per-ReplicatedJob Gang defaults. The top-level (composite)
+		// schedulingPolicy is also left unset when replicatedJobs is set,
+		// since the two are mutually exclusive (see validateScheduling).
+		if js.Spec.Scheduling != nil && js.Spec.Scheduling.SchedulingPolicy == nil &&
+			!controllers.HasSequencedStartup(js) && len(js.Spec.Scheduling.ReplicatedJobs) == 0 {
+			js.Spec.Scheduling.SchedulingPolicy = &schedulingv1alpha3.PodGroupSchedulingPolicy{
+				Gang: &schedulingv1alpha3.GangSchedulingPolicy{},
+			}
+		}
+		// Gang minCount is intentionally NOT defaulted here. A webhook-materialized
+		// minCount could not be lowered while the JobSet is running, which would
+		// permanently block an ElasticJobSet from scaling down. Instead the controller computes
+		// minCount from the live represented pod count during compilation and
+		// patches PodGroup.spec.minCount in place as parallelism scales. A
+		// minCount left unset (0) in spec is treated as "controller-computed";
+		// any explicit non-zero value is the user's fixed quorum.
+	}
+
 	return nil
 }
 
 //+kubebuilder:webhook:path=/validate-jobset-x-k8s-io-v1alpha2-jobset,mutating=false,failurePolicy=fail,sideEffects=None,groups=jobset.x-k8s.io,resources=jobsets,verbs=create;update,versions=v1alpha2,name=vjobset.kb.io,admissionReviewVersions=v1
+
+func replicatedJobPodCount(rjob *jobset.ReplicatedJob) int32 {
+	return jobsetutil.ReplicatedJobPodCount(rjob)
+}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (admission.Warnings, error) {
@@ -307,6 +338,9 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		allErrs = append(allErrs, j.validateVolumeClaimPolicies(ctx, js, jobSetNameForValidation, js.Spec.VolumeClaimPolicies)...)
 	}
 
+	// Validate scheduling configuration.
+	allErrs = append(allErrs, validateScheduling(ctx, js, rJobNames)...)
+
 	return nil, invalidError(js.Name, allErrs)
 }
 
@@ -368,6 +402,14 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 				mungedSpec.ReplicatedJobs[index].Template.Spec.Completions = oldRJob.Template.Spec.Completions
 			}
 		}
+
+		// spec.scheduling is immutable, but the pod count it represents isn't:
+		// ElasticJobSet scaling can shrink parallelism/completions below an
+		// already-configured Gang minCount. Re-check that invariant on every
+		// update; the minCount itself can't be lowered to compensate since
+		// spec.scheduling is immutable, so the JobSet must be scaled back up
+		// (or not scaled down further) instead.
+		errs = append(errs, validateSchedulingGangMinCounts(newJs)...)
 	}
 
 	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
@@ -393,9 +435,22 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 		}
 	}
 
-	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.
+	// Note that SuccessPolicy and FailurePolicy are made immutable via CEL.
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJs.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))...)
 	errs = append(errs, apivalidation.ValidateImmutableField(newJs.Spec.ManagedBy, oldJs.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
+
+	// Scheduling objects are deleted while a JobSet is suspended and recreated
+	// when it resumes. Allow changing the scheduling configuration only while
+	// the JobSet remains suspended and its Suspended condition has been set by
+	// the controller. In particular, do not allow a scheduling change in the
+	// same update that resumes the JobSet: that would make the controller
+	// recreate scheduling objects for a running JobSet.
+	isSuspended := ptr.Deref(oldJs.Spec.Suspend, false) &&
+		ptr.Deref(newJs.Spec.Suspend, false) &&
+		meta.IsStatusConditionTrue(oldJs.Status.Conditions, string(jobset.JobSetSuspended))
+	if !reflect.DeepEqual(newJs.Spec.Scheduling, oldJs.Spec.Scheduling) && !isSuspended {
+		errs = append(errs, field.Invalid(field.NewPath("spec").Child("scheduling"), "", "field is immutable"))
+	}
 
 	if len(errs) == 0 {
 		return nil, nil
@@ -707,6 +762,284 @@ func toFieldErrorList(errs []error) field.ErrorList {
 		}
 	}
 	return fieldErrs
+}
+
+func usesSingleTopLevelPodGroup(js *jobset.JobSet) bool {
+	return controllers.UseTopLevelGang(js.Spec.Scheduling) && !controllers.HasSequencedStartup(js)
+}
+
+// validateScheduling validates the scheduling configuration of a JobSet.
+// It uses the workloadbuilder library for declarative validation and complex
+// cross-field policy checks, and adds JobSet-specific validations on top.
+func validateScheduling(ctx context.Context, js *jobset.JobSet, rJobNames sets.Set[string]) []error {
+	var allErrs []error
+
+	// If feature gate is disabled, reject any scheduling config.
+	if !features.Enabled(features.JobSetWorkloadAwareSchedulingAPI) {
+		if js.Spec.Scheduling != nil {
+			allErrs = append(allErrs, field.Forbidden(field.NewPath("spec", "scheduling"), "cannot be set when JobSetWorkloadAwareSchedulingAPI feature gate is disabled"))
+		}
+		return allErrs
+	}
+
+	if js.Spec.Scheduling == nil {
+		return nil
+	}
+	if len(js.Spec.ReplicatedJobs) == 0 {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "replicatedJobs"), js.Spec.ReplicatedJobs, "must contain at least one replicatedJob when scheduling is configured"))
+		return allErrs
+	}
+
+	// The JobSet controller manages each pod's schedulingGroup itself, mapping it
+	// to the PodGroup compiled from spec.scheduling. Setting it directly in a Job
+	// template (the "Template Delegation Model") would conflict with that and is
+	// rejected, matching the KEP's decision to centralize scheduling configuration
+	// in spec.scheduling instead of the embedded Job template.
+	for i := range js.Spec.ReplicatedJobs {
+		if js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.SchedulingGroup != nil {
+			allErrs = append(allErrs, field.Forbidden(
+				field.NewPath("spec", "replicatedJobs").Index(i).Child("template", "spec", "template", "spec", "schedulingGroup"),
+				"cannot be set directly when spec.scheduling is configured; the JobSet controller manages this field",
+			))
+		}
+	}
+
+	scheduling := js.Spec.Scheduling
+	schedulingPath := field.NewPath("spec", "scheduling")
+
+	// Composite (Gang-of-Gangs) PodGroup hierarchies are not implemented in
+	// alpha, so a top-level schedulingPolicy/schedulingConstraints/disruptionMode
+	// cannot be combined with replicatedJobs: there is no parent PodGroup
+	// to link the leaf PodGroups to. A JobSet must therefore configure scheduling
+	// with exactly one of the two models (see the JobSetScheduling type comment):
+	// top-level only, or replicatedJobs only with every ReplicatedJob
+	// targeted by exactly one entry.
+	usesTopLevelAPI := scheduling.SchedulingPolicy != nil || scheduling.SchedulingConstraints != nil || scheduling.DisruptionMode != nil
+	if usesTopLevelAPI && len(scheduling.ReplicatedJobs) > 0 {
+		allErrs = append(allErrs, field.Forbidden(
+			schedulingPath,
+			"cannot set schedulingPolicy, schedulingConstraints, or disruptionMode together with replicatedJobs; use exactly one of the top-level scheduling API or the per-ReplicatedJob (replicatedJobs) scheduling API",
+		))
+	}
+
+	// When only the per-ReplicatedJob API is used (no top-level scheduling
+	// fields set), every ReplicatedJob must be targeted by a replicatedJobs
+	// entry: there is no top-level policy for an untargeted ReplicatedJob to fall
+	// back to.
+	if !usesTopLevelAPI && len(scheduling.ReplicatedJobs) > 0 {
+		targetedNames := sets.New[string]()
+		for _, rjPolicy := range scheduling.ReplicatedJobs {
+			targetedNames.Insert(rjPolicy.TargetReplicatedJobs...)
+		}
+		for i := range js.Spec.ReplicatedJobs {
+			name := js.Spec.ReplicatedJobs[i].Name
+			if !targetedNames.Has(name) {
+				allErrs = append(allErrs, field.Invalid(
+					field.NewPath("spec", "replicatedJobs").Index(i).Child("name"),
+					name,
+					"must be targeted by a replicatedJobs entry when spec.scheduling does not set a top-level schedulingPolicy, schedulingConstraints, or disruptionMode",
+				))
+			}
+		}
+	}
+
+	// Run workloadbuilder validation for declarative checks and cross-field policy rules.
+	builderErrs := controllers.ValidateSchedulingWithBuilder(ctx, js, schedulingPath)
+	for _, fe := range builderErrs {
+		allErrs = append(allErrs, fe)
+	}
+
+	// JobSet-specific validations that the workloadbuilder doesn't cover.
+
+	// Sequenced startup with explicit top-level gang minCount is not allowed.
+	if controllers.HasSequencedStartup(js) && len(scheduling.ReplicatedJobs) == 0 &&
+		scheduling.SchedulingPolicy != nil && scheduling.SchedulingPolicy.Gang != nil && scheduling.SchedulingPolicy.Gang.MinCount > 0 {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("spec", "scheduling", "schedulingPolicy", "gang", "minCount"),
+			scheduling.SchedulingPolicy.Gang.MinCount,
+			"cannot be set when DependsOn or InOrder StartupPolicy is used; use per-ReplicatedJob gang policies instead",
+		))
+	}
+
+	// All ReplicatedJobs must have the same priorityClassName when using a single top-level PodGroup.
+	if usesSingleTopLevelPodGroup(js) && len(js.Spec.ReplicatedJobs) > 1 {
+		priorityPath := field.NewPath("spec", "replicatedJobs")
+		expected := js.Spec.ReplicatedJobs[0].Template.Spec.Template.Spec.PriorityClassName
+		for i := 1; i < len(js.Spec.ReplicatedJobs); i++ {
+			actual := js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec.PriorityClassName
+			if actual != expected {
+				allErrs = append(allErrs, field.Invalid(
+					priorityPath.Index(i).Child("template", "spec", "template", "spec", "priorityClassName"),
+					actual,
+					fmt.Sprintf("must match %q when top-level gang scheduling is used", expected),
+				))
+			}
+		}
+	}
+
+	// Validate replicatedJobs target valid, unique ReplicatedJob names.
+	// Duplicate targetReplicatedJobs entries within one entry's list are rejected by
+	// the API server via +listType=set, but overlap across different entries is not,
+	// so it must be checked here.
+	targeted := sets.New[string]()
+	for i, rjPolicy := range scheduling.ReplicatedJobs {
+		fieldPath := field.NewPath("spec", "scheduling", "replicatedJobs").Index(i)
+		targetPath := fieldPath.Child("targetReplicatedJobs")
+
+		var validTargets []string
+		for j, name := range rjPolicy.TargetReplicatedJobs {
+			if !rJobNames.Has(name) {
+				allErrs = append(allErrs, field.Invalid(targetPath.Index(j), name, "does not reference a valid replicatedJob name"))
+				continue
+			}
+			if targeted.Has(name) {
+				allErrs = append(allErrs, field.Invalid(targetPath.Index(j), name, "is targeted by more than one replicatedJobs entry"))
+				continue
+			}
+			targeted.Insert(name)
+			validTargets = append(validTargets, name)
+		}
+		if len(validTargets) == 0 {
+			continue
+		}
+
+		// job switches this entry to the Gang-of-Gangs per-Job
+		// model, where each replica of the targeted ReplicatedJob gets its own
+		// independent PodGroup. It is therefore restricted to exactly one
+		// target and is mutually exclusive with the leaf-level fields that
+		// configure a single PodGroup shared across the targeted ReplicatedJobs.
+		if rjPolicy.Job != nil {
+			if len(rjPolicy.TargetReplicatedJobs) != 1 {
+				allErrs = append(allErrs, field.Invalid(
+					targetPath, rjPolicy.TargetReplicatedJobs,
+					"must target exactly one replicatedJob when job is set",
+				))
+			}
+			if rjPolicy.SchedulingPolicy != nil || rjPolicy.SchedulingConstraints != nil || rjPolicy.DisruptionMode != nil || len(rjPolicy.ResourceClaims) > 0 {
+				allErrs = append(allErrs, field.Invalid(
+					fieldPath.Child("job"), true,
+					"cannot be set together with schedulingPolicy, schedulingConstraints, disruptionMode, or resourceClaims on the same replicatedJobs entry; job replaces the single shared PodGroup those fields configure with one PodGroup per Job",
+				))
+			}
+			// Per-Job PodGroups are independent of one another, so the
+			// shared-PodGroup priorityClassName check below does not apply.
+			continue
+		}
+
+		// ReplicatedJobs sharing a single PodGroup must share one priorityClassName.
+		if len(validTargets) > 1 {
+			expected := replicatedJobPriorityClassName(js, validTargets[0])
+			for j, name := range validTargets[1:] {
+				if actual := replicatedJobPriorityClassName(js, name); actual != expected {
+					allErrs = append(allErrs, field.Invalid(
+						targetPath.Index(j+1),
+						name,
+						fmt.Sprintf("priorityClassName %q must match %q of the other ReplicatedJobs sharing this PodGroup", actual, expected),
+					))
+				}
+			}
+		}
+	}
+
+	for _, fe := range validateSchedulingGangMinCounts(js) {
+		allErrs = append(allErrs, fe)
+	}
+
+	return allErrs
+}
+
+// validateSchedulingGangMinCounts checks that any configured Gang minCount
+// (top-level or per-replicatedJobs entry) does not exceed the number of
+// pods currently represented by its target(s). It is used both at creation and
+// on update: spec.scheduling and the identity of spec.replicatedJobs are
+// immutable, but ElasticJobSet scaling can change parallelism/completions and
+// shrink the represented pod count below an already-configured minCount, which
+// must be re-checked on every update.
+func validateSchedulingGangMinCounts(js *jobset.JobSet) field.ErrorList {
+	scheduling := js.Spec.Scheduling
+	if scheduling == nil {
+		return nil
+	}
+
+	var allErrs field.ErrorList
+	for i := range scheduling.ReplicatedJobs {
+		rjPolicy := &scheduling.ReplicatedJobs[i]
+
+		// job sizes each Job's own PodGroup to that Job's
+		// per-Job pod count (parallelism), not the ReplicatedJob's total
+		// pod count across every replica.
+		if rjPolicy.Job != nil {
+			jsp := rjPolicy.Job
+			if jsp.SchedulingPolicy == nil || jsp.SchedulingPolicy.Gang == nil || len(rjPolicy.TargetReplicatedJobs) != 1 {
+				continue
+			}
+			rjob := rjobByName(js, rjPolicy.TargetReplicatedJobs[0])
+			if rjob == nil {
+				continue
+			}
+			maxCount := jobsetutil.JobParallelism(rjob)
+			if jsp.SchedulingPolicy.Gang.MinCount > maxCount {
+				allErrs = append(allErrs, field.Invalid(
+					field.NewPath("spec", "scheduling", "replicatedJobs").Index(i).Child("job", "schedulingPolicy", "gang", "minCount"),
+					jsp.SchedulingPolicy.Gang.MinCount,
+					fmt.Sprintf("cannot exceed the per-Job pod count (parallelism) of replicatedJob %q (%d)", rjPolicy.TargetReplicatedJobs[0], maxCount),
+				))
+			}
+			continue
+		}
+
+		if rjPolicy.SchedulingPolicy == nil || rjPolicy.SchedulingPolicy.Gang == nil {
+			continue
+		}
+		var maxCount int32
+		for _, name := range rjPolicy.TargetReplicatedJobs {
+			if rjob := rjobByName(js, name); rjob != nil {
+				maxCount += replicatedJobPodCount(rjob)
+			}
+		}
+		if rjPolicy.SchedulingPolicy.Gang.MinCount > maxCount {
+			allErrs = append(allErrs, field.Invalid(
+				field.NewPath("spec", "scheduling", "replicatedJobs").Index(i).Child("schedulingPolicy", "gang", "minCount"),
+				rjPolicy.SchedulingPolicy.Gang.MinCount,
+				fmt.Sprintf("cannot exceed the number of pods across the targeted ReplicatedJobs %v (%d)", rjPolicy.TargetReplicatedJobs, maxCount),
+			))
+		}
+	}
+
+	if controllers.UseTopLevelGang(scheduling) && !controllers.HasSequencedStartup(js) &&
+		scheduling.SchedulingPolicy != nil && scheduling.SchedulingPolicy.Gang != nil {
+		maxCount := jobsetutil.TotalReplicatedJobPodCount(js.Spec.ReplicatedJobs)
+		if scheduling.SchedulingPolicy.Gang.MinCount > maxCount {
+			allErrs = append(allErrs, field.Invalid(
+				field.NewPath("spec", "scheduling", "schedulingPolicy", "gang", "minCount"),
+				scheduling.SchedulingPolicy.Gang.MinCount,
+				fmt.Sprintf("cannot exceed the total number of JobSet pods (%d)", maxCount),
+			))
+		}
+	}
+
+	return allErrs
+}
+
+// rjobByName returns the ReplicatedJob with the given name. Callers must only
+// pass names already validated to exist in js.Spec.ReplicatedJobs.
+func rjobByName(js *jobset.JobSet, name string) *jobset.ReplicatedJob {
+	for i := range js.Spec.ReplicatedJobs {
+		if js.Spec.ReplicatedJobs[i].Name == name {
+			return &js.Spec.ReplicatedJobs[i]
+		}
+	}
+	return nil
+}
+
+// replicatedJobPriorityClassName returns the priorityClassName of the named
+// ReplicatedJob's pod template.
+func replicatedJobPriorityClassName(js *jobset.JobSet, name string) string {
+	rjob := rjobByName(js, name)
+	if rjob == nil {
+		return ""
+	}
+	return rjob.Template.Spec.Template.Spec.PriorityClassName
 }
 
 // invalidError converts a list of validation errors into an

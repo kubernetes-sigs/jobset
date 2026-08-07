@@ -43,6 +43,7 @@ class TestIoK8sApiCoreV1HTTPGetAction(unittest.TestCase):
                     ],
                 path = '',
                 port = '',
+                protocol = '',
                 scheme = ''
             )
         else:

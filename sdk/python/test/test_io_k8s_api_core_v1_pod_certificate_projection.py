@@ -41,6 +41,7 @@ class TestIoK8sApiCoreV1PodCertificateProjection(unittest.TestCase):
                 key_type = '',
                 max_expiration_seconds = 56,
                 signer_name = '',
+                user = 56,
                 user_annotations = {
                     'key' : ''
                     }

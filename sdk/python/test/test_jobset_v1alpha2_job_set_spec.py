@@ -138,6 +138,25 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
                                                 ], )
                                         ], ), 
                                 pod_replacement_policy = '', 
+                                scheduling = jobset.models.io/k8s/api/batch/v1/job_scheduling_configuration.io.k8s.api.batch.v1.JobSchedulingConfiguration(
+                                    disruption_mode = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_disruption_mode.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupDisruptionMode(
+                                        all = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_all_disruption_mode.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupAllDisruptionMode(), 
+                                        single = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_single_disruption_mode.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupSingleDisruptionMode(), ), 
+                                    resource_claims = [
+                                        jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_resource_claim.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupResourceClaim(
+                                            name = '', 
+                                            resource_claim_name = '', 
+                                            resource_claim_template_name = '', )
+                                        ], 
+                                    scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupSchedulingConstraints(
+                                        topology = [
+                                            jobset.models.io/k8s/api/scheduling/v1alpha3/topology_constraint.io.k8s.api.scheduling.v1alpha3.TopologyConstraint(
+                                                key = '', )
+                                            ], ), 
+                                    scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupSchedulingPolicy(
+                                        basic = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_basic_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupBasicSchedulingPolicy(), 
+                                        gang = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_gang_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupGangSchedulingPolicy(
+                                            min_count = 56, ), ), ), 
                                 selector = jobset.models.io/k8s/apimachinery/pkg/apis/meta/v1/label_selector.io.k8s.apimachinery.pkg.apis.meta.v1.LabelSelector(
                                     match_expressions = [
                                         jobset.models.io/k8s/apimachinery/pkg/apis/meta/v1/label_selector_requirement.io.k8s.apimachinery.pkg.apis.meta.v1.LabelSelectorRequirement(
@@ -157,6 +176,42 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
                                 template = jobset.models.io/k8s/api/core/v1/pod_template_spec.io.k8s.api.core.v1.PodTemplateSpec(), 
                                 ttl_seconds_after_finished = 56, ), ), )
                     ],
+                scheduling = jobset.models.jobset_v1alpha2_job_set_scheduling.JobsetV1alpha2JobSetScheduling(
+                    disruption_mode = jobset.models.io/k8s/api/scheduling/v1alpha3/disruption_mode.io.k8s.api.scheduling.v1alpha3.DisruptionMode(
+                        all = jobset.models.io/k8s/api/scheduling/v1alpha3/all_disruption_mode.io.k8s.api.scheduling.v1alpha3.AllDisruptionMode(), 
+                        single = jobset.models.io/k8s/api/scheduling/v1alpha3/single_disruption_mode.io.k8s.api.scheduling.v1alpha3.SingleDisruptionMode(), ), 
+                    replicated_jobs = [
+                        jobset.models.jobset_v1alpha2_replicated_job_scheduling.JobsetV1alpha2ReplicatedJobScheduling(
+                            job = jobset.models.jobset_v1alpha2_job_scheduling.JobsetV1alpha2JobScheduling(
+                                resource_claims = [
+                                    jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_resource_claim.io.k8s.api.scheduling.v1alpha3.PodGroupResourceClaim(
+                                        name = '', 
+                                        resource_claim_name = '', 
+                                        resource_claim_template_name = '', )
+                                    ], 
+                                scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingConstraints(
+                                    topology = [
+                                        jobset.models.io/k8s/api/scheduling/v1alpha3/topology_constraint.io.k8s.api.scheduling.v1alpha3.TopologyConstraint(
+                                            key = '', )
+                                        ], ), 
+                                scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingPolicy(
+                                    basic = jobset.models.io/k8s/api/scheduling/v1alpha3/basic_scheduling_policy.io.k8s.api.scheduling.v1alpha3.BasicSchedulingPolicy(), 
+                                    gang = jobset.models.io/k8s/api/scheduling/v1alpha3/gang_scheduling_policy.io.k8s.api.scheduling.v1alpha3.GangSchedulingPolicy(
+                                        min_count = 56, ), ), ), 
+                            resource_claims = [
+                                jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_resource_claim.io.k8s.api.scheduling.v1alpha3.PodGroupResourceClaim(
+                                    name = '', 
+                                    resource_claim_name = '', 
+                                    resource_claim_template_name = '', )
+                                ], 
+                            scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingConstraints(), 
+                            scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingPolicy(), 
+                            target_replicated_jobs = [
+                                ''
+                                ], )
+                        ], 
+                    scheduling_constraints = , 
+                    scheduling_policy = , ),
                 startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
                     startup_policy_order = '', ),
                 success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
@@ -269,6 +324,13 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
                                             type = '', )
                                         ], 
                                     current_volume_attributes_class_name = '', 
+                                    health_status = jobset.models.io/k8s/api/core/v1/volume_health_status.io.k8s.api.core.v1.VolumeHealthStatus(
+                                        health_conditions = [
+                                            jobset.models.io/k8s/api/core/v1/volume_health_condition.io.k8s.api.core.v1.VolumeHealthCondition(
+                                                message = '', 
+                                                reason = '', 
+                                                status = '', )
+                                            ], ), 
                                     modify_volume_status = jobset.models.io/k8s/api/core/v1/modify_volume_status.io.k8s.api.core.v1.ModifyVolumeStatus(
                                         status = '', 
                                         target_volume_attributes_class_name = '', ), 

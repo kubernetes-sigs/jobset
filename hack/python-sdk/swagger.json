@@ -114,6 +114,32 @@
         }
       }
     },
+    "jobset.v1alpha2.JobScheduling": {
+      "description": "JobScheduling defines scheduling configuration applied at the individual Job (ReplicatedJob replica) level, enabling each replica to be scheduled as its own independent gang. This is part of the Gang-of-Gangs model: the JobSet controller compiles one PodGroupTemplate/PodGroup per Job (replica) of the targeted ReplicatedJob, sized to that Job's own parallelism, rather than one PodGroup shared across all of the ReplicatedJob's replicas.",
+      "type": "object",
+      "properties": {
+        "disruptionMode": {
+          "description": "disruptionMode defines how pods within a single replica can be disrupted.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.DisruptionMode"
+        },
+        "resourceClaims": {
+          "description": "resourceClaims specifies dynamic resource claims shared by the pods of a single replica.",
+          "type": "array",
+          "items": {
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupResourceClaim"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "schedulingConstraints": {
+          "description": "schedulingConstraints defines topology constraints applied to each replica of the targeted ReplicatedJobs.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingConstraints"
+        },
+        "schedulingPolicy": {
+          "description": "schedulingPolicy defines the scheduling policy (basic or gang) applied to each replica of the targeted ReplicatedJobs.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingPolicy"
+        }
+      }
+    },
     "jobset.v1alpha2.JobSet": {
       "description": "JobSet is the Schema for the jobsets API",
       "type": "object",
@@ -129,7 +155,7 @@
         "metadata": {
           "description": "metadata is the object metadata for JobSet",
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
         },
         "spec": {
           "description": "spec is the specification for jobset",
@@ -166,7 +192,33 @@
         },
         "metadata": {
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "jobset.v1alpha2.JobSetScheduling": {
+      "description": "JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet. A JobSet must configure scheduling using exactly one of two mutually exclusive models, since composite Gang-of-Gangs PodGroup hierarchies linking a parent PodGroup to leaf PodGroups are not implemented in alpha:\n  - the top-level (composite) model: set schedulingPolicy, schedulingConstraints,\n    and/or disruptionMode to configure a single PodGroup (or, under sequenced\n    startup, one PodGroup per ReplicatedJob) covering the whole JobSet, and leave\n    replicatedJobs unset.\n  - the per-ReplicatedJob (leaf) model: set replicatedJobs and leave\n    schedulingPolicy, schedulingConstraints, and disruptionMode unset at the top\n    level. Every ReplicatedJob must then be targeted by exactly one\n    replicatedJobs entry, since there is no top-level policy for an\n    untargeted ReplicatedJob to fall back to.",
+      "type": "object",
+      "properties": {
+        "disruptionMode": {
+          "description": "disruptionMode defines how the entire composite group can be disrupted. Mutually exclusive with replicatedJobs: see the type-level comment.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.DisruptionMode"
+        },
+        "replicatedJobs": {
+          "description": "replicatedJobs specifies per-ReplicatedJob leaf-level scheduling overrides. Each entry targets one or more named ReplicatedJobs. Mutually exclusive with the top-level schedulingPolicy, schedulingConstraints, and disruptionMode fields: see the type-level comment. When set, every ReplicatedJob in the JobSet must be targeted by exactly one entry.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/jobset.v1alpha2.ReplicatedJobScheduling"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "schedulingConstraints": {
+          "description": "schedulingConstraints defines composite-level topology constraints for the entire JobSet. Mutually exclusive with replicatedJobs: see the type-level comment.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingConstraints"
+        },
+        "schedulingPolicy": {
+          "description": "schedulingPolicy defines the composite-level scheduling policy for the entire JobSet. Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and replicatedJobs is not set. This default does not apply when the JobSet uses sequenced startup (DependsOn or an InOrder StartupPolicy): the composite policy is left unset in that case, and each ReplicatedJob defaults to its own Gang policy instead, since a single PodGroup spanning the whole JobSet would deadlock while Jobs are created sequentially. Mutually exclusive with replicatedJobs: see the type-level comment.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingPolicy"
         }
       }
     },
@@ -203,6 +255,10 @@
           "x-kubernetes-patch-merge-key": "name",
           "x-kubernetes-patch-strategy": "merge"
         },
+        "scheduling": {
+          "description": "scheduling defines the Workload-Aware Scheduling configuration for this JobSet. When nil, no scheduling objects are created and behavior is unchanged. When set (even to {}), the controller compiles a Workload resource (containing PodGroupTemplates) and materializes the corresponding PodGroup objects for the scheduler. Requires the JobSetWorkloadAwareSchedulingAPI feature gate.",
+          "$ref": "#/definitions/jobset.v1alpha2.JobSetScheduling"
+        },
         "startupPolicy": {
           "description": "startupPolicy configures in what order jobs must be started Deprecated: StartupPolicy is deprecated, please use the DependsOn API.",
           "$ref": "#/definitions/jobset.v1alpha2.StartupPolicy"
@@ -238,7 +294,7 @@
           "description": "conditions track status",
           "type": "array",
           "items": {
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
           },
           "x-kubernetes-list-map-keys": [
             "type"
@@ -341,7 +397,48 @@
         "template": {
           "description": "template defines the template of the Job that will be created.",
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.batch.v1.JobTemplateSpec"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.batch.v1.JobTemplateSpec"
+        }
+      }
+    },
+    "jobset.v1alpha2.ReplicatedJobScheduling": {
+      "description": "ReplicatedJobScheduling targets one or more named ReplicatedJobs with leaf-level scheduling configuration.",
+      "type": "object",
+      "required": [
+        "targetReplicatedJobs"
+      ],
+      "properties": {
+        "disruptionMode": {
+          "description": "disruptionMode defines how pods within the targeted ReplicatedJobs can be disrupted.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.DisruptionMode"
+        },
+        "job": {
+          "description": "job defines job-level (replica-level) scheduling configuration, where each replica of the targeted ReplicatedJobs forms its own independent gang (i.e. one PodGroup per Job) instead of sharing a single PodGroup across every replica of the targeted ReplicatedJobs. This is part of the Gang-of-Gangs model. When set, targetReplicatedJobs must contain exactly one ReplicatedJob name, and the leaf-level schedulingPolicy/schedulingConstraints/disruptionMode/resourceClaims fields on this ReplicatedJobScheduling must not be set, since they configure a shared PodGroup that job replaces with one PodGroup per Job.",
+          "$ref": "#/definitions/jobset.v1alpha2.JobScheduling"
+        },
+        "resourceClaims": {
+          "description": "resourceClaims specifies dynamic resource claims shared by the targeted ReplicatedJobs' pods.",
+          "type": "array",
+          "items": {
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupResourceClaim"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "schedulingConstraints": {
+          "description": "schedulingConstraints defines leaf-level topology constraints for the targeted ReplicatedJobs' pods.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingConstraints"
+        },
+        "schedulingPolicy": {
+          "description": "schedulingPolicy defines the leaf-level scheduling policy (basic or gang) for jobs created by the targeted ReplicatedJobs. Defaults to Gang when not specified.",
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.PodGroupSchedulingPolicy"
+        },
+        "targetReplicatedJobs": {
+          "description": "targetReplicatedJobs is the list of ReplicatedJob names this policy applies to. When more than one name is listed, the targeted ReplicatedJobs share a single PodGroup. Every name must be unique across all replicatedJobs entries. The list is limited to a maximum of 50 jobs and the length of each replicatedJobName can not exceed 256 characters.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-kubernetes-list-type": "set"
         }
       }
     },
@@ -458,7 +555,7 @@
           "description": "templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference. The JobSet controller is responsible for creating shared PVCs that can be mounted by multiple ReplicatedJobs. Every claim in this list must have a matching (by name) volumeMount in one container or initContainer in at least one ReplicatedJob template. ReplicatedJob template must not have volumes with the same name as defined in this template. PVC template must not have the namespace parameter. Generated PVC naming convention: \u003cclaim-name\u003e-\u003cjobset-name\u003e Example: \"model-cache-trainjob\" (shared volume across all ReplicatedJobs).",
           "type": "array",
           "items": {
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.36.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.0-rc.0/api/openapi-spec/swagger.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
           },
           "x-kubernetes-list-type": "atomic"
         }
