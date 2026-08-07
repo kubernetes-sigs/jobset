@@ -274,7 +274,7 @@ func (p *podWebhook) leaderPodForFollower(ctx context.Context, pod *corev1.Pod) 
 		return nil, err
 	}
 	podList.Items = slices.DeleteFunc(podList.Items, func(p corev1.Pod) bool {
-		return !p.DeletionTimestamp.IsZero()
+		return !p.DeletionTimestamp.IsZero() || p.Status.Phase == corev1.PodFailed || p.Status.Phase == corev1.PodSucceeded
 	})
 
 	// Validate there is only 1 leader pod for this job.

@@ -42,6 +42,31 @@ const (
 	// only among jobs within the same priority.
 	PriorityKey = "jobset.sigs.k8s.io/priority"
 
+	// GangMinCountAutoDefaultedKey is an annotation set by the mutating webhook when it
+	// defaults the top-level Scheduling.SchedulingPolicy.Gang.MinCount field from the
+	// JobSet's total pod count, rather than the user setting it explicitly. Its presence
+	// tells the controller that the persisted MinCount value is derived, so it should be
+	// recomputed from the live ReplicatedJob pod count on every reconcile (e.g. to track
+	// ElasticJobSet parallelism/completions changes) instead of being treated as a fixed
+	// user-specified quorum.
+	GangMinCountAutoDefaultedKey = "jobset.sigs.k8s.io/gang-min-count-auto-defaulted"
+
+	// ReplicatedJobGangMinCountAutoDefaultedKey is an annotation set by the mutating
+	// webhook, holding a comma-separated list of replicatedJobPolicies group names
+	// (controllers.SchedulingGroupName) whose leaf SchedulingPolicy.Gang.MinCount was
+	// auto-derived from the targeted ReplicatedJobs' pod count, rather than the user
+	// setting it explicitly. Same purpose as GangMinCountAutoDefaultedKey, but scoped
+	// per group since each replicatedJobPolicies entry defaults independently.
+	ReplicatedJobGangMinCountAutoDefaultedKey = "jobset.sigs.k8s.io/replicated-job-gang-min-count-auto-defaulted"
+
+	// JobGangMinCountAutoDefaultedKey is an annotation set by the mutating webhook,
+	// holding a comma-separated list of ReplicatedJob names whose jobSchedulingPolicy
+	// SchedulingPolicy.Gang.MinCount was auto-derived from that Job's own parallelism,
+	// rather than the user setting it explicitly. Same purpose as
+	// GangMinCountAutoDefaultedKey, but scoped per ReplicatedJob since each
+	// jobSchedulingPolicy defaults independently.
+	JobGangMinCountAutoDefaultedKey = "jobset.sigs.k8s.io/job-gang-min-count-auto-defaulted"
+
 	// MaxParallelism defines the maximum number of parallel Job creations/deltions that
 	// the JobSet controller can perform.
 	MaxParallelism = 50
