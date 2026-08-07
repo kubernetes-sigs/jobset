@@ -17,18 +17,17 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from typing import Any, ClassVar, Dict, List
 from typing import Optional, Set
 from typing_extensions import Self
 
-class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
+class IoK8sApiSchedulingV1alpha3GangSchedulingPolicy(BaseModel):
     """
-    ConfigMapEnvSource selects a ConfigMap to populate the environment variables with.  The contents of the target ConfigMap's Data field will represent the key-value pairs as environment variables. Keys in the BinaryData field are not currently propagated to container env vars.
+    GangSchedulingPolicy defines the parameters for gang scheduling.
     """ # noqa: E501
-    name: Optional[StrictStr] = Field(default=None, description="Name of the referent. This field is effectively required, but due to backwards compatibility is allowed to be empty. Instances of this type with an empty value here are almost certainly wrong. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names")
-    optional: Optional[StrictBool] = Field(default=None, description="Specify whether the ConfigMap must be defined")
-    __properties: ClassVar[List[str]] = ["name", "optional"]
+    min_count: StrictInt = Field(description="minCount is the minimum number of pods that must be schedulable or scheduled at the same time for the scheduler to admit the entire group. It must be a positive integer. This field is mutable to support workload scaling.  Note that the scheduler operates on an eventually consistent model. Updates to minCount may not be immediately reflected in scheduling decisions due to propagation delays. If minCount is updated while a scheduling cycle is in progress for that group, the new value may not take effect until the next cycle. Moreover, minCount is only enforced during scheduling, meaning that modifications to this field do not affect already-scheduled pods, applying only to those evaluated in future cycles.", alias="minCount")
+    __properties: ClassVar[List[str]] = ["minCount"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -48,7 +47,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a JSON string"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3GangSchedulingPolicy from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -73,7 +72,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a dict"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3GangSchedulingPolicy from a dict"""
         if obj is None:
             return None
 
@@ -81,8 +80,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "optional": obj.get("optional")
+            "minCount": obj.get("minCount")
         })
         return _obj
 

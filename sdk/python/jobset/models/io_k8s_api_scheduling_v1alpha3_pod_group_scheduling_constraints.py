@@ -17,18 +17,18 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, ClassVar, Dict, List, Optional
+from jobset.models.io_k8s_api_scheduling_v1alpha3_topology_constraint import IoK8sApiSchedulingV1alpha3TopologyConstraint
 from typing import Optional, Set
 from typing_extensions import Self
 
-class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
+class IoK8sApiSchedulingV1alpha3PodGroupSchedulingConstraints(BaseModel):
     """
-    ConfigMapEnvSource selects a ConfigMap to populate the environment variables with.  The contents of the target ConfigMap's Data field will represent the key-value pairs as environment variables. Keys in the BinaryData field are not currently propagated to container env vars.
+    PodGroupSchedulingConstraints defines scheduling constraints (e.g. topology) for a PodGroup.
     """ # noqa: E501
-    name: Optional[StrictStr] = Field(default=None, description="Name of the referent. This field is effectively required, but due to backwards compatibility is allowed to be empty. Instances of this type with an empty value here are almost certainly wrong. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names")
-    optional: Optional[StrictBool] = Field(default=None, description="Specify whether the ConfigMap must be defined")
-    __properties: ClassVar[List[str]] = ["name", "optional"]
+    topology: Optional[List[IoK8sApiSchedulingV1alpha3TopologyConstraint]] = Field(default=None, description="topology defines the topology constraints for the pod group. Currently only a single topology constraint can be specified. This may change in the future.")
+    __properties: ClassVar[List[str]] = ["topology"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -48,7 +48,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a JSON string"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3PodGroupSchedulingConstraints from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -69,11 +69,18 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # override the default output from pydantic by calling `to_dict()` of each item in topology (list)
+        _items = []
+        if self.topology:
+            for _item_topology in self.topology:
+                if _item_topology:
+                    _items.append(_item_topology.to_dict())
+            _dict['topology'] = _items
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a dict"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3PodGroupSchedulingConstraints from a dict"""
         if obj is None:
             return None
 
@@ -81,8 +88,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "optional": obj.get("optional")
+            "topology": [IoK8sApiSchedulingV1alpha3TopologyConstraint.from_dict(_item) for _item in obj["topology"]] if obj.get("topology") is not None else None
         })
         return _obj
 

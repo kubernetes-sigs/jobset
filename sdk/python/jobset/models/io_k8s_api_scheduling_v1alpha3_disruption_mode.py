@@ -17,18 +17,18 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
-class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
+class IoK8sApiSchedulingV1alpha3DisruptionMode(BaseModel):
     """
-    ConfigMapEnvSource selects a ConfigMap to populate the environment variables with.  The contents of the target ConfigMap's Data field will represent the key-value pairs as environment variables. Keys in the BinaryData field are not currently propagated to container env vars.
+    DisruptionMode defines how individual entities within a group can be disrupted. Exactly one mode can be set.
     """ # noqa: E501
-    name: Optional[StrictStr] = Field(default=None, description="Name of the referent. This field is effectively required, but due to backwards compatibility is allowed to be empty. Instances of this type with an empty value here are almost certainly wrong. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names")
-    optional: Optional[StrictBool] = Field(default=None, description="Specify whether the ConfigMap must be defined")
-    __properties: ClassVar[List[str]] = ["name", "optional"]
+    all: Optional[Dict[str, Any]] = Field(default=None, description="AllDisruptionMode specifies that children can only be disrupted together.")
+    single: Optional[Dict[str, Any]] = Field(default=None, description="SingleDisruptionMode specifies that children can be disrupted independently.")
+    __properties: ClassVar[List[str]] = ["all", "single"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -48,7 +48,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a JSON string"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3DisruptionMode from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -73,7 +73,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a dict"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3DisruptionMode from a dict"""
         if obj is None:
             return None
 
@@ -81,8 +81,8 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "optional": obj.get("optional")
+            "all": obj.get("all"),
+            "single": obj.get("single")
         })
         return _obj
 

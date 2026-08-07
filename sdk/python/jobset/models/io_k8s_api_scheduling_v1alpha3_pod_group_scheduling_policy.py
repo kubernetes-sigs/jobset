@@ -17,18 +17,19 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, ClassVar, Dict, List, Optional
+from jobset.models.io_k8s_api_scheduling_v1alpha3_gang_scheduling_policy import IoK8sApiSchedulingV1alpha3GangSchedulingPolicy
 from typing import Optional, Set
 from typing_extensions import Self
 
-class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
+class IoK8sApiSchedulingV1alpha3PodGroupSchedulingPolicy(BaseModel):
     """
-    ConfigMapEnvSource selects a ConfigMap to populate the environment variables with.  The contents of the target ConfigMap's Data field will represent the key-value pairs as environment variables. Keys in the BinaryData field are not currently propagated to container env vars.
+    PodGroupSchedulingPolicy defines the scheduling configuration for a PodGroup. Exactly one policy must be set. The policy is chosen at creation time by setting either the Basic or Gang field. The PodGroup may not change policy after creation. Fields within chosen policy may be updated after creation when their individual fields allow it.
     """ # noqa: E501
-    name: Optional[StrictStr] = Field(default=None, description="Name of the referent. This field is effectively required, but due to backwards compatibility is allowed to be empty. Instances of this type with an empty value here are almost certainly wrong. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names")
-    optional: Optional[StrictBool] = Field(default=None, description="Specify whether the ConfigMap must be defined")
-    __properties: ClassVar[List[str]] = ["name", "optional"]
+    basic: Optional[Dict[str, Any]] = Field(default=None, description="BasicSchedulingPolicy indicates that standard Kubernetes scheduling behavior should be used.")
+    gang: Optional[IoK8sApiSchedulingV1alpha3GangSchedulingPolicy] = None
+    __properties: ClassVar[List[str]] = ["basic", "gang"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -48,7 +49,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a JSON string"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3PodGroupSchedulingPolicy from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -69,11 +70,14 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # override the default output from pydantic by calling `to_dict()` of gang
+        if self.gang:
+            _dict['gang'] = self.gang.to_dict()
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a dict"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3PodGroupSchedulingPolicy from a dict"""
         if obj is None:
             return None
 
@@ -81,8 +85,8 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "optional": obj.get("optional")
+            "basic": obj.get("basic"),
+            "gang": IoK8sApiSchedulingV1alpha3GangSchedulingPolicy.from_dict(obj["gang"]) if obj.get("gang") is not None else None
         })
         return _obj
 

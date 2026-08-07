@@ -270,6 +270,61 @@ An empty list will apply to all replicatedJobs.</p>
 </tbody>
 </table>
 
+## `JobSchedulingPolicy`     {#jobset-x-k8s-io-v1alpha2-JobSchedulingPolicy}
+    
+
+**Appears in:**
+
+- [ReplicatedJobSchedulingPolicy](#jobset-x-k8s-io-v1alpha2-ReplicatedJobSchedulingPolicy)
+
+
+<p>JobSchedulingPolicy defines scheduling configuration applied at the individual
+Job (ReplicatedJob replica) level, enabling each replica to be scheduled as its
+own independent gang. This is part of the Gang-of-Gangs model: the JobSet
+controller compiles one PodGroupTemplate/PodGroup per Job (replica) of the
+targeted ReplicatedJob, sized to that Job's own parallelism, rather than one
+PodGroup shared across all of the ReplicatedJob's replicas.</p>
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+    
+  
+<tr><td><code>schedulingPolicy</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingPolicy</code></a>
+</td>
+<td>
+   <p>schedulingPolicy defines the scheduling policy (basic or gang) applied to each
+replica of the targeted ReplicatedJobs.</p>
+</td>
+</tr>
+<tr><td><code>schedulingConstraints</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingConstraints</code></a>
+</td>
+<td>
+   <p>schedulingConstraints defines topology constraints applied to each replica of
+the targeted ReplicatedJobs.</p>
+</td>
+</tr>
+<tr><td><code>disruptionMode</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.DisruptionMode</code></a>
+</td>
+<td>
+   <p>disruptionMode defines how pods within a single replica can be disrupted.</p>
+</td>
+</tr>
+<tr><td><code>resourceClaims</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>[]k8s.io/api/scheduling/v1alpha3.PodGroupResourceClaim</code></a>
+</td>
+<td>
+   <p>resourceClaims specifies dynamic resource claims shared by the pods of a
+single replica.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
 ## `JobSetRestartStrategy`     {#jobset-x-k8s-io-v1alpha2-JobSetRestartStrategy}
     
 (Alias of `string`)
@@ -281,6 +336,61 @@ An empty list will apply to all replicatedJobs.</p>
 
 
 
+
+## `JobSetScheduling`     {#jobset-x-k8s-io-v1alpha2-JobSetScheduling}
+    
+
+**Appears in:**
+
+- [JobSetSpec](#jobset-x-k8s-io-v1alpha2-JobSetSpec)
+
+
+<p>JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet.
+All scheduling directives (both global and per-ReplicatedJob) are declared centrally
+in this struct. Per-ReplicatedJob overrides use the targetReplicatedJob pattern.</p>
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+    
+  
+<tr><td><code>schedulingPolicy</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingPolicy</code></a>
+</td>
+<td>
+   <p>schedulingPolicy defines the composite-level scheduling policy for the entire JobSet.
+Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil.
+This default does not apply when the JobSet uses sequenced startup (DependsOn or
+an InOrder StartupPolicy): the composite policy is left unset in that case, and each
+ReplicatedJob defaults to its own Gang policy instead, since a single PodGroup
+spanning the whole JobSet would deadlock while Jobs are created sequentially.</p>
+</td>
+</tr>
+<tr><td><code>schedulingConstraints</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingConstraints</code></a>
+</td>
+<td>
+   <p>schedulingConstraints defines composite-level topology constraints for the entire JobSet.</p>
+</td>
+</tr>
+<tr><td><code>disruptionMode</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.DisruptionMode</code></a>
+</td>
+<td>
+   <p>disruptionMode defines how the entire composite group can be disrupted.</p>
+</td>
+</tr>
+<tr><td><code>replicatedJobPolicies</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-ReplicatedJobSchedulingPolicy"><code>[]ReplicatedJobSchedulingPolicy</code></a>
+</td>
+<td>
+   <p>replicatedJobPolicies specifies per-ReplicatedJob leaf-level scheduling overrides.
+Each entry targets one or more named ReplicatedJobs.</p>
+</td>
+</tr>
+</tbody>
+</table>
 
 ## `JobSetSpec`     {#jobset-x-k8s-io-v1alpha2-JobSetSpec}
     
@@ -395,6 +505,18 @@ the JobSet becomes eligible to be deleted immediately after it finishes.</p>
 to reference. JobSet controller automatically adds the required volume claims to the
 pod template. Every claim in this list must have at least one matching (by name)
 volumeMount in one container in the template.</p>
+</td>
+</tr>
+<tr><td><code>scheduling</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-JobSetScheduling"><code>JobSetScheduling</code></a>
+</td>
+<td>
+   <p>scheduling defines the Workload-Aware Scheduling configuration for this JobSet.
+When nil, no scheduling objects are created and behavior is unchanged.
+When set (even to {}), the controller compiles a Workload resource
+(containing PodGroupTemplates) and materializes the corresponding
+PodGroup objects for the scheduler.
+Requires the JobSetWorkloadAwareSchedulingAPI feature gate.</p>
 </td>
 </tr>
 </tbody>
@@ -592,6 +714,83 @@ Currently, only a single item is supported in the DependsOn list.
 If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is
 resumed the Job sequence starts again.
 This API is mutually exclusive with the StartupPolicy API.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+## `ReplicatedJobSchedulingPolicy`     {#jobset-x-k8s-io-v1alpha2-ReplicatedJobSchedulingPolicy}
+    
+
+**Appears in:**
+
+- [JobSetScheduling](#jobset-x-k8s-io-v1alpha2-JobSetScheduling)
+
+
+<p>ReplicatedJobSchedulingPolicy targets one or more named ReplicatedJobs with
+leaf-level scheduling configuration.</p>
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+    
+  
+<tr><td><code>targetReplicatedJob</code> <B>[Required]</B><br/>
+<code>[]string</code>
+</td>
+<td>
+   <p>targetReplicatedJob is the list of ReplicatedJob names this policy applies to.
+When more than one name is listed, the targeted ReplicatedJobs share a single
+PodGroup. Every name must be unique across all replicatedJobPolicies entries.
+The list is limited to a maximum of 50 jobs
+and the length of each replicatedJobName can not exceed 256 characters.</p>
+</td>
+</tr>
+<tr><td><code>schedulingPolicy</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingPolicy</code></a>
+</td>
+<td>
+   <p>schedulingPolicy defines the leaf-level scheduling policy (basic or gang) for
+jobs created by the targeted ReplicatedJobs.
+Defaults to Gang when not specified.</p>
+</td>
+</tr>
+<tr><td><code>schedulingConstraints</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.PodGroupSchedulingConstraints</code></a>
+</td>
+<td>
+   <p>schedulingConstraints defines leaf-level topology constraints for the targeted
+ReplicatedJobs' pods.</p>
+</td>
+</tr>
+<tr><td><code>disruptionMode</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>k8s.io/api/scheduling/v1alpha3.DisruptionMode</code></a>
+</td>
+<td>
+   <p>disruptionMode defines how pods within the targeted ReplicatedJobs can be disrupted.</p>
+</td>
+</tr>
+<tr><td><code>resourceClaims</code><br/>
+<a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling"><code>[]k8s.io/api/scheduling/v1alpha3.PodGroupResourceClaim</code></a>
+</td>
+<td>
+   <p>resourceClaims specifies dynamic resource claims shared by the targeted
+ReplicatedJobs' pods.</p>
+</td>
+</tr>
+<tr><td><code>jobSchedulingPolicy</code><br/>
+<a href="#jobset-x-k8s-io-v1alpha2-JobSchedulingPolicy"><code>JobSchedulingPolicy</code></a>
+</td>
+<td>
+   <p>jobSchedulingPolicy defines job-level (replica-level) scheduling configuration,
+where each replica of the targeted ReplicatedJobs forms its own independent gang
+(i.e. one PodGroup per Job) instead of sharing a single PodGroup across every
+replica of the targeted ReplicatedJobs. This is part of the Gang-of-Gangs model.
+When set, targetReplicatedJob must contain exactly one ReplicatedJob name, and
+the leaf-level schedulingPolicy/schedulingConstraints/disruptionMode/resourceClaims
+fields on this ReplicatedJobSchedulingPolicy must not be set, since they configure
+a shared PodGroup that jobSchedulingPolicy replaces with one PodGroup per Job.</p>
 </td>
 </tr>
 </tbody>

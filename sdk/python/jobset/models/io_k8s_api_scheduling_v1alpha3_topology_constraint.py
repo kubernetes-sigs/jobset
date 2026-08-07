@@ -17,18 +17,17 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from typing import Any, ClassVar, Dict, List
 from typing import Optional, Set
 from typing_extensions import Self
 
-class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
+class IoK8sApiSchedulingV1alpha3TopologyConstraint(BaseModel):
     """
-    ConfigMapEnvSource selects a ConfigMap to populate the environment variables with.  The contents of the target ConfigMap's Data field will represent the key-value pairs as environment variables. Keys in the BinaryData field are not currently propagated to container env vars.
+    TopologyConstraint defines a topology constraint for a PodGroup.
     """ # noqa: E501
-    name: Optional[StrictStr] = Field(default=None, description="Name of the referent. This field is effectively required, but due to backwards compatibility is allowed to be empty. Instances of this type with an empty value here are almost certainly wrong. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names")
-    optional: Optional[StrictBool] = Field(default=None, description="Specify whether the ConfigMap must be defined")
-    __properties: ClassVar[List[str]] = ["name", "optional"]
+    key: StrictStr = Field(description="key specifies the key of the node label representing the topology domain. All pods within the PodGroup must be colocated within the same domain instance. Different PodGroups can land on different domain instances even if they derive from the same PodGroupTemplate. Examples: \"topology.kubernetes.io/rack\"")
+    __properties: ClassVar[List[str]] = ["key"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -48,7 +47,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a JSON string"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3TopologyConstraint from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -73,7 +72,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of IoK8sApiCoreV1ConfigMapEnvSource from a dict"""
+        """Create an instance of IoK8sApiSchedulingV1alpha3TopologyConstraint from a dict"""
         if obj is None:
             return None
 
@@ -81,8 +80,7 @@ class IoK8sApiCoreV1ConfigMapEnvSource(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "optional": obj.get("optional")
+            "key": obj.get("key")
         })
         return _obj
 
