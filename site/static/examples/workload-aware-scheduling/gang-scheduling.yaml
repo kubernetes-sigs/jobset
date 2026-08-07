@@ -1,0 +1,78 @@
+# Gang Scheduling Example
+#
+# All pods across driver and workers are gang-scheduled: they must be admitted
+# together atomically or none at all. This is the most common pattern for
+# distributed ML training.
+#
+# Expected results:
+#   - A Workload named "gang-training" is created with 1 PodGroupTemplate
+#     (top-level gang with no per-RJ overrides → single PodGroup)
+#   - A single PodGroup "gang-training" with Gang policy (computed minCount
+#     = sum of parallelism x replicas across all ReplicatedJobs)
+#   - All child Jobs carry scheduling annotations:
+#       scheduling.k8s.io/group-template-name: gang-training
+#       scheduling.k8s.io/parent-composite-podgroup: gang-training
+#   - The Workload has an OwnerReference pointing to the JobSet
+#
+# Verify:
+#   kubectl get workloads,podgroups,jobs -n default
+#   kubectl describe workload gang-training -n default
+#   kubectl get jobs -n default -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.annotations}{"\n"}{end}'
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: gang-training
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    policy:
+      gang:
+        minCount: 5
+  replicatedJobs:
+    - name: driver
+      replicas: 1
+      template:
+        spec:
+          parallelism: 1
+          completions: 1
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: driver
+                  image: busybox
+                  command:
+                    - "sleep"
+                  args:
+                    - 30s
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi
+    - name: workers
+      replicas: 2
+      template:
+        spec:
+          parallelism: 2
+          completions: 2
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: busybox
+                  command:
+                    - "sleep"
+                  args:
+                    - infinity
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

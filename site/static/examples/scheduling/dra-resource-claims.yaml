@@ -1,0 +1,81 @@
+# KEP-969 Representative API: "Share a DRA claim across a Job's pods"
+#
+# scheduling:
+#   replicatedJobPolicies:
+#     - targetReplicatedJob: [worker]
+#       schedulingPolicy: {gang: {}}
+#       resourceClaims:
+#         - name: imex-channel
+#           resourceClaimTemplateName: imex-channel-template
+#
+# Expected: the "worker" PodGroup carries the resourceClaims entry. Each pod
+# in "worker" references the same claim name + resourceClaimTemplateName in
+# its own pod.spec.resourceClaims, which (with the DRAWorkloadResourceClaims
+# feature gate enabled) resolves to the single ResourceClaim generated for
+# and owned by the PodGroup instead of creating one ResourceClaim per pod.
+#
+# Requires: DRAWorkloadResourceClaims feature gate enabled on the apiserver,
+# and a DRA driver + DeviceClass so the ResourceClaimTemplate is schedulable.
+# This example only exercises the JobSet -> PodGroup resourceClaims wiring;
+# without a real DRA driver installed the pods may stay Pending on claim
+# allocation, but the PodGroup/ResourceClaimTemplate wiring can still be
+# verified directly.
+#
+# Verify:
+#   kubectl get workloads,podgroups,resourceclaimtemplates -n default
+#   kubectl get podgroup dra-shared-claim-worker -n default -o jsonpath='{.spec.resourceClaims}{"\n"}'
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: imex-channel-template
+  namespace: default
+spec:
+  spec:
+    devices:
+      requests:
+        - name: channel
+          exactly:
+            deviceClassName: imex-channel-verify-class
+---
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: dra-shared-claim
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    replicatedJobPolicies:
+      - targetReplicatedJob: ["worker"]
+        schedulingPolicy:
+          gang: {}
+        resourceClaims:
+          - name: imex-channel
+            resourceClaimTemplateName: imex-channel-template
+  replicatedJobs:
+    - name: worker
+      replicas: 1
+      template:
+        spec:
+          parallelism: 2
+          completions: 2
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              resourceClaims:
+                - name: imex-channel
+                  resourceClaimTemplateName: imex-channel-template
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["/sleep", "-d", "10s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi
+                    claims:
+                      - name: imex-channel

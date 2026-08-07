@@ -1,14 +1,17 @@
-apiVersion: scheduling.k8s.io/v1alpha3
+apiVersion: scheduling.k8s.io/v1alpha2
 kind: Workload
 metadata:
-  name: js-abc
+  name: training-workload
 spec:
   controllerRef:
     apiGroup: jobset.x-k8s.io
     kind: JobSet
-    name: js
+    name: training-job
   podGroupTemplates:
   - name: workers
     schedulingPolicy:
       gang:
         minCount: 6
+    resourceClaims:
+    - name: shared-gpu
+      resourceClaimTemplateName: gpu-claim-template
