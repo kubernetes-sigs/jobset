@@ -89,7 +89,7 @@ spec:
             port: 8081
             scheme: HTTP
             path: /healthz
-          initialDelaySeconds: 15
+          initialDelaySeconds: 30
           periodSeconds: 20
         readinessProbe:
           httpGet:
