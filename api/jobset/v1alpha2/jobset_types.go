@@ -17,6 +17,7 @@ package v1alpha2
 import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -195,6 +196,16 @@ type JobSetSpec struct {
 	// +listType=atomic
 	// +kubebuilder:validation:MaxItems=50
 	VolumeClaimPolicies []VolumeClaimPolicy `json:"volumeClaimPolicies,omitempty"`
+
+	// scheduling defines the Workload-Aware Scheduling configuration for this JobSet.
+	// When nil, no scheduling objects are created and behavior is unchanged.
+	// When set (even to {}), the controller compiles a Workload resource
+	// (containing PodGroupTemplates) and materializes the corresponding
+	// PodGroup objects for the scheduler.
+	// Requires the JobSetWorkloadAwareSchedulingAPI feature gate.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +optional
+	Scheduling *JobSetScheduling `json:"scheduling,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet
@@ -332,6 +343,7 @@ type ReplicatedJob struct {
 	// replicas is the number of jobs that will be created from this ReplicatedJob's template.
 	// Jobs names will be in the format: <jobSet.name>-<spec.replicatedJob.name>-<job-index>
 	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=0
 	Replicas int32 `json:"replicas,omitempty"`
 
 	// dependsOn is an optional list that specifies the preceding ReplicatedJobs upon which
@@ -566,6 +578,113 @@ type Coordinator struct {
 
 	// podIndex is the Job completion index of the coordinator pod.
 	PodIndex int `json:"podIndex,omitempty"`
+}
+
+// JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet.
+// All scheduling directives (both global and per-ReplicatedJob) are declared centrally
+// in this struct. Per-ReplicatedJob overrides use the targetReplicatedJob pattern.
+type JobSetScheduling struct {
+	// schedulingPolicy defines the composite-level scheduling policy for the entire JobSet.
+	// Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil.
+	// This default does not apply when the JobSet uses sequenced startup (DependsOn or
+	// an InOrder StartupPolicy): the composite policy is left unset in that case, and each
+	// ReplicatedJob defaults to its own Gang policy instead, since a single PodGroup
+	// spanning the whole JobSet would deadlock while Jobs are created sequentially.
+	// +optional
+	SchedulingPolicy *schedulingv1alpha3.PodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
+
+	// schedulingConstraints defines composite-level topology constraints for the entire JobSet.
+	// +optional
+	SchedulingConstraints *schedulingv1alpha3.PodGroupSchedulingConstraints `json:"schedulingConstraints,omitempty"`
+
+	// disruptionMode defines how the entire composite group can be disrupted.
+	// +optional
+	DisruptionMode *schedulingv1alpha3.DisruptionMode `json:"disruptionMode,omitempty"`
+
+	// replicatedJobPolicies specifies per-ReplicatedJob leaf-level scheduling overrides.
+	// Each entry targets one or more named ReplicatedJobs.
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=50
+	ReplicatedJobPolicies []ReplicatedJobSchedulingPolicy `json:"replicatedJobPolicies,omitempty"`
+}
+
+// ReplicatedJobSchedulingPolicy targets one or more named ReplicatedJobs with
+// leaf-level scheduling configuration.
+type ReplicatedJobSchedulingPolicy struct {
+	// targetReplicatedJob is the list of ReplicatedJob names this policy applies to.
+	// When more than one name is listed, the targeted ReplicatedJobs share a single
+	// PodGroup. Every name must be unique across all replicatedJobPolicies entries.
+	// The list is limited to a maximum of 50 jobs
+	// and the length of each replicatedJobName can not exceed 256 characters.
+	// +required
+	// +listType=set
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=50
+	// +kubebuilder:validation:items:MaxLength=256
+	TargetReplicatedJob []string `json:"targetReplicatedJob,omitempty"`
+
+	// schedulingPolicy defines the leaf-level scheduling policy (basic or gang) for
+	// jobs created by the targeted ReplicatedJobs.
+	// Defaults to Gang when not specified.
+	// +optional
+	SchedulingPolicy *schedulingv1alpha3.PodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
+
+	// schedulingConstraints defines leaf-level topology constraints for the targeted
+	// ReplicatedJobs' pods.
+	// +optional
+	SchedulingConstraints *schedulingv1alpha3.PodGroupSchedulingConstraints `json:"schedulingConstraints,omitempty"`
+
+	// disruptionMode defines how pods within the targeted ReplicatedJobs can be disrupted.
+	// +optional
+	DisruptionMode *schedulingv1alpha3.DisruptionMode `json:"disruptionMode,omitempty"`
+
+	// resourceClaims specifies dynamic resource claims shared by the targeted
+	// ReplicatedJobs' pods.
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=4
+	ResourceClaims []schedulingv1alpha3.PodGroupResourceClaim `json:"resourceClaims,omitempty"`
+
+	// jobSchedulingPolicy defines job-level (replica-level) scheduling configuration,
+	// where each replica of the targeted ReplicatedJobs forms its own independent gang
+	// (i.e. one PodGroup per Job) instead of sharing a single PodGroup across every
+	// replica of the targeted ReplicatedJobs. This is part of the Gang-of-Gangs model.
+	// When set, targetReplicatedJob must contain exactly one ReplicatedJob name, and
+	// the leaf-level schedulingPolicy/schedulingConstraints/disruptionMode/resourceClaims
+	// fields on this ReplicatedJobSchedulingPolicy must not be set, since they configure
+	// a shared PodGroup that jobSchedulingPolicy replaces with one PodGroup per Job.
+	// +optional
+	JobSchedulingPolicy *JobSchedulingPolicy `json:"jobSchedulingPolicy,omitempty"`
+}
+
+// JobSchedulingPolicy defines scheduling configuration applied at the individual
+// Job (ReplicatedJob replica) level, enabling each replica to be scheduled as its
+// own independent gang. This is part of the Gang-of-Gangs model: the JobSet
+// controller compiles one PodGroupTemplate/PodGroup per Job (replica) of the
+// targeted ReplicatedJob, sized to that Job's own parallelism, rather than one
+// PodGroup shared across all of the ReplicatedJob's replicas.
+type JobSchedulingPolicy struct {
+	// schedulingPolicy defines the scheduling policy (basic or gang) applied to each
+	// replica of the targeted ReplicatedJobs.
+	// +optional
+	SchedulingPolicy *schedulingv1alpha3.PodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
+
+	// schedulingConstraints defines topology constraints applied to each replica of
+	// the targeted ReplicatedJobs.
+	// +optional
+	SchedulingConstraints *schedulingv1alpha3.PodGroupSchedulingConstraints `json:"schedulingConstraints,omitempty"`
+
+	// disruptionMode defines how pods within a single replica can be disrupted.
+	// +optional
+	DisruptionMode *schedulingv1alpha3.DisruptionMode `json:"disruptionMode,omitempty"`
+
+	// resourceClaims specifies dynamic resource claims shared by the pods of a
+	// single replica.
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=4
+	ResourceClaims []schedulingv1alpha3.PodGroupResourceClaim `json:"resourceClaims,omitempty"`
 }
 
 // volumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.
