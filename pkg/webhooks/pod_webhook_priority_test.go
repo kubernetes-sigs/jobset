@@ -18,6 +18,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -47,12 +49,8 @@ func TestPriorityLabelValueIsAValidLabel(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			got := priorityLabelValue(tc.priority)
-			if got != tc.want {
-				t.Errorf("priorityLabelValue(%d) = %q, want %q", tc.priority, got, tc.want)
-			}
-			if errs := validation.IsValidLabelValue(got); len(errs) > 0 {
-				t.Errorf("priorityLabelValue(%d) = %q is not a valid label value: %v", tc.priority, got, errs)
-			}
+			assert.Equal(t, tc.want, got, "priorityLabelValue(%d)", tc.priority)
+			assert.Empty(t, validation.IsValidLabelValue(got), "priorityLabelValue(%d) = %q is not a valid label value", tc.priority, got)
 		})
 	}
 }
@@ -64,9 +62,8 @@ func TestPriorityLabelValueIsInjective(t *testing.T) {
 	seen := map[string]int32{}
 	for _, p := range []int32{math.MinInt32, -1000, -100, -2, -1, 0, 1, 2, 100, 1000, math.MaxInt32} {
 		v := priorityLabelValue(p)
-		if prev, ok := seen[v]; ok {
-			t.Errorf("priorities %d and %d both render as %q", prev, p, v)
-		}
+		prev, ok := seen[v]
+		assert.False(t, ok, "priorities %d and %d both render as %q", prev, p, v)
 		seen[v] = p
 	}
 }
@@ -84,15 +81,9 @@ func TestDefaultSetsValidPriorityLabelForNegativePriority(t *testing.T) {
 	}
 
 	webhook := &podWebhook{}
-	if err := webhook.Default(context.Background(), pod); err != nil {
-		t.Fatalf("Default returned an unexpected error: %v", err)
-	}
+	require.NoError(t, webhook.Default(context.Background(), pod), "Default returned an unexpected error")
 
 	got := pod.Labels[constants.PriorityKey]
-	if want := "n1"; got != want {
-		t.Errorf("priority label = %q, want %q", got, want)
-	}
-	if errs := validation.IsValidLabelValue(got); len(errs) > 0 {
-		t.Errorf("priority label %q is not a valid label value: %v", got, errs)
-	}
+	assert.Equal(t, "n1", got, "priority label")
+	assert.Empty(t, validation.IsValidLabelValue(got), "priority label %q is not a valid label value", got)
 }
