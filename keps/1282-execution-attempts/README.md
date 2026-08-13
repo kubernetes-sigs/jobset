@@ -34,7 +34,7 @@ Because JobSet resumptions do not increment the `restart-attempt` counter (which
 
 - Provide a persistent, monotonic counter that increments on **both** failure-triggered restarts and suspension-driven resumptions.  
 - Inject this new metric as a pod annotation (`jobset.sigs.k8s.io/execution-attempt`) to allow external logging systems (like FluentBit) to cleanly slice log iterations.
-- Support seamless upgrades of the JobSet controller while JobSets are running in the cluster without resetting attempt counts.
+- Support seamless upgrades of the JobSet controller while JobSets are active in the cluster, preserving the `ExecutionAttempts >= Restarts` invariant.
 
 ### Non-Goals
 
@@ -67,6 +67,7 @@ type JobSetStatus struct {
     ...
 	// executionAttempts tracks the number of execution lifecycles.
 	// +optional
+	// +kubebuilder:validation:Minimum=0
 	ExecutionAttempts *int32 `json:"executionAttempts,omitempty"`
     ...
 }
@@ -91,7 +92,7 @@ const (
 #### 1. Initialization and Upgrade Migration
 When the JobSet controller reconciles a JobSet where `Status.ExecutionAttempts` is `nil`, it distinguishes between a new JobSet and an existing running JobSet (e.g., during a controller upgrade while workloads are actively running in the cluster):
 *   **Upgrade Semantics for Running Workloads:** If `Status.ExecutionAttempts` is `nil` but the JobSet has already started executing (i.e., `Status.Restarts > 0` or active child Jobs exist), the controller initializes `Status.ExecutionAttempts` to the current `Status.Restarts` value. This migration rule ensures that existing workloads maintain the invariant `ExecutionAttempts >= Restarts` and prevents resetting the attempt count to `0` mid-run after a controller upgrade.
-*   **New Workloads:** If `Status.ExecutionAttempts` is `nil` and the JobSet has not started executing yet (new JobSet created unsuspended, or first resumed from an initially suspended state), the controller initializes `Status.ExecutionAttempts` to `0`.
+*   **New Workloads & Pre-Upgrade Suspended Workloads:** If `Status.ExecutionAttempts` is `nil` and the JobSet has no active child Jobs and `Status.Restarts == 0` (e.g., newly created suspended JobSets, or JobSets suspended prior to upgrade without restart history), the controller initializes `Status.ExecutionAttempts` to `0` upon first resumption.
 
 #### 2. Increment on resume (with Idempotency)
 When the JobSet transitions from suspended to unsuspended (`spec.suspend` transitions from `true` to `false`):
@@ -105,12 +106,12 @@ When a failure policy triggers a recreate of all jobs (which is a restart):
 *   **Idempotency:** The increment occurs **exactly once per failure restart event**, regardless of the number of child Jobs or reconciliation retries.
 
 #### 4. Atomicity of Updates on Resume and Data Propagation
-*   **Atomicity on Resume:** When resuming a suspended JobSet, the controller MUST update the `jobset.sigs.k8s.io/execution-attempt` annotation on child Jobs and Pod templates **before or atomically with** clearing `spec.suspend` (`spec.suspend = false`). This prevents any race condition where child Pods are created with stale attempt annotations before the controller has updated them.
+*   **Atomicity on Resume:** When resuming a suspended JobSet, the controller synchronously persists the updated `Status.ExecutionAttempts` to etcd and updates the `jobset.sigs.k8s.io/execution-attempt` annotation on child Jobs and Pod templates **before** clearing each child Job's `spec.suspend` (`job.Spec.Suspend = false`). This prevents any race condition where child Pods are spawned with stale attempt annotations before metadata is committed.
 *   **Data Propagation:** During child Job creation (in `constructJob`) and during Job resumption (in `resumeJob`), the controller injects the current `Status.ExecutionAttempts` value (defaulting to `0` if nil) into the Job's annotations and its Pod template annotations using the `jobset.sigs.k8s.io/execution-attempt` key. This ensures both newly created jobs and existing resumed jobs (which might have updated templates from Kueue) receive the correct annotation.
 
 #### 5. Feature Gate Disabled Behavior
 The execution attempts tracking feature is controlled by the `ExecutionAttemptsTracking` feature gate (alpha).
-*   When the `ExecutionAttemptsTracking` feature gate is **disabled**, the controller will leave `Status.ExecutionAttempts` unset (`nil`) and will not inject or update the `jobset.sigs.k8s.io/execution-attempt` annotation on child Jobs or Pods.
+*   When the `ExecutionAttemptsTracking` feature gate is **disabled**, the controller will leave `Status.ExecutionAttempts` unset (`nil`) for new JobSets, preserve any existing values on already tracked JobSets without further updates, and will not inject or update the `jobset.sigs.k8s.io/execution-attempt` annotation on child Jobs or Pods. Upon re-enabling the feature gate, tracking resumes from the persisted `Status.ExecutionAttempts` value.
 
 ## Test Plan
 
@@ -118,7 +119,7 @@ The execution attempts tracking feature is controlled by the `ExecutionAttemptsT
 *   Verify `ExecutionAttempts` initialization and upgrade migration logic (`nil` -> `restarts` when active jobs or restarts exist) in controller unit tests (`pkg/controllers/jobset_controller_test.go`).
 *   Verify increment idempotency across repeated reconciliation attempts.
 *   Verify annotation propagation in job construction tests.
-*   Verify feature gate disabled behavior (no status update, no annotation injection).
+*   Verify feature gate disabled and re-enabled transitions.
 
 ### Integration Tests
 *   Verify suspend/resume cycles increment `ExecutionAttempts` exactly once per cycle and propagate annotations to child Jobs and Pods (`test/integration/controller/jobset_controller_test.go`).
