@@ -1,0 +1,18 @@
+title: Add Execution Attempts Tracking
+kep-number: 1282
+authors:
+  - "@jianqiaol"
+status: implementable
+creation-date: 2026-07-27
+reviewers:
+  - "@kannon92"
+approvers:
+  - "@andreyvelich"
+see-also:
+  - "NA"
+replaces:
+  - "NA"
+stage: alpha
+latest-milestone: "v0.13.0"
+milestone:
+  alpha: "v0.13.0"
