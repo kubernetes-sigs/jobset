@@ -37,7 +37,8 @@ class TestIoK8sApiCoreV1KeyToPath(unittest.TestCase):
             return IoK8sApiCoreV1KeyToPath(
                 key = '',
                 mode = 56,
-                path = ''
+                path = '',
+                user = 56
             )
         else:
             return IoK8sApiCoreV1KeyToPath(

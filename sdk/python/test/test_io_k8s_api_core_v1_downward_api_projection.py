@@ -45,7 +45,8 @@ class TestIoK8sApiCoreV1DownwardAPIProjection(unittest.TestCase):
                         resource_field_ref = jobset.models.io/k8s/api/core/v1/resource_field_selector.io.k8s.api.core.v1.ResourceFieldSelector(
                             container_name = '', 
                             divisor = '', 
-                            resource = '', ), )
+                            resource = '', ), 
+                        user = 56, )
                     ]
             )
         else:

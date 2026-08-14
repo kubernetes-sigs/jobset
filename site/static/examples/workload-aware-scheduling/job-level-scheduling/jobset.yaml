@@ -1,0 +1,33 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: js-delegated
+spec:
+  replicatedJobs:
+  - name: workers
+    replicas: 1
+    template:
+      metadata:
+        # Delegates runtime PodGroup creation for this Job to the upstream
+        # Job controller. The value must match the name of a podGroupTemplates
+        # entry on the parent Workload (see workload.yaml).
+        annotations:
+          scheduling.k8s.io/group-template-name: workers
+      spec:
+        completions: 2
+        parallelism: 2
+        completionMode: Indexed
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            terminationGracePeriodSeconds: 0
+            containers:
+            - name: worker
+              image: busybox
+              command: ["/bin/sh", "-c", "sleep 5"]
+              # Pick resource requests appropriate for your cluster and workload.
+              # These values are just an example.
+              resources:
+                requests:
+                  cpu: "10m"

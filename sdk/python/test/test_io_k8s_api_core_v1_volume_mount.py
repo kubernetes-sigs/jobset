@@ -35,6 +35,9 @@ class TestIoK8sApiCoreV1VolumeMount(unittest.TestCase):
         model = IoK8sApiCoreV1VolumeMount()
         if include_optional:
             return IoK8sApiCoreV1VolumeMount(
+                bind_mount_options = [
+                    ''
+                    ],
                 mount_path = '',
                 mount_propagation = '',
                 name = '',

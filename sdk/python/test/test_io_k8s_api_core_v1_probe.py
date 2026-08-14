@@ -41,6 +41,7 @@ class TestIoK8sApiCoreV1Probe(unittest.TestCase):
                         ], ),
                 failure_threshold = 56,
                 grpc = jobset.models.io/k8s/api/core/v1/grpc_action.io.k8s.api.core.v1.GRPCAction(
+                    mode = '', 
                     port = 56, 
                     service = '', ),
                 http_get = jobset.models.io/k8s/api/core/v1/http_get_action.io.k8s.api.core.v1.HTTPGetAction(
@@ -52,6 +53,7 @@ class TestIoK8sApiCoreV1Probe(unittest.TestCase):
                         ], 
                     path = '', 
                     port = '', 
+                    protocol = '', 
                     scheme = '', ),
                 initial_delay_seconds = 56,
                 period_seconds = 56,

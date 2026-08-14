@@ -36,6 +36,7 @@ class TestIoK8sApiCoreV1ProjectedVolumeSource(unittest.TestCase):
         if include_optional:
             return IoK8sApiCoreV1ProjectedVolumeSource(
                 default_mode = 56,
+                default_user = 56,
                 sources = [
                     jobset.models.io/k8s/api/core/v1/volume_projection.io.k8s.api.core.v1.VolumeProjection(
                         cluster_trust_bundle = jobset.models.io/k8s/api/core/v1/cluster_trust_bundle_projection.io.k8s.api.core.v1.ClusterTrustBundleProjection(
@@ -54,13 +55,15 @@ class TestIoK8sApiCoreV1ProjectedVolumeSource(unittest.TestCase):
                             name = '', 
                             optional = True, 
                             path = '', 
-                            signer_name = '', ), 
+                            signer_name = '', 
+                            user = 56, ), 
                         config_map = jobset.models.io/k8s/api/core/v1/config_map_projection.io.k8s.api.core.v1.ConfigMapProjection(
                             items = [
                                 jobset.models.io/k8s/api/core/v1/key_to_path.io.k8s.api.core.v1.KeyToPath(
                                     key = '', 
                                     mode = 56, 
-                                    path = '', )
+                                    path = '', 
+                                    user = 56, )
                                 ], 
                             name = '', 
                             optional = True, ), 
@@ -72,6 +75,7 @@ class TestIoK8sApiCoreV1ProjectedVolumeSource(unittest.TestCase):
                             key_type = '', 
                             max_expiration_seconds = 56, 
                             signer_name = '', 
+                            user = 56, 
                             user_annotations = {
                                 'key' : ''
                                 }, ), 
@@ -81,7 +85,8 @@ class TestIoK8sApiCoreV1ProjectedVolumeSource(unittest.TestCase):
                         service_account_token = jobset.models.io/k8s/api/core/v1/service_account_token_projection.io.k8s.api.core.v1.ServiceAccountTokenProjection(
                             audience = '', 
                             expiration_seconds = 56, 
-                            path = '', ), )
+                            path = '', 
+                            user = 56, ), )
                     ]
             )
         else:

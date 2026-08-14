@@ -1,7 +1,7 @@
 ---
 title: "Preemption"
 linkTitle: "Preemption"
-weight: 2
+weight: 3
 date: 2026-05-31
 description: >
     Workload-aware preemption for gang-scheduled JobSets

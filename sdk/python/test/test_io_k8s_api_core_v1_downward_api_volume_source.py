@@ -36,6 +36,7 @@ class TestIoK8sApiCoreV1DownwardAPIVolumeSource(unittest.TestCase):
         if include_optional:
             return IoK8sApiCoreV1DownwardAPIVolumeSource(
                 default_mode = 56,
+                default_user = 56,
                 items = [
                     jobset.models.io/k8s/api/core/v1/downward_api_volume_file.io.k8s.api.core.v1.DownwardAPIVolumeFile(
                         field_ref = jobset.models.io/k8s/api/core/v1/object_field_selector.io.k8s.api.core.v1.ObjectFieldSelector(
@@ -46,7 +47,8 @@ class TestIoK8sApiCoreV1DownwardAPIVolumeSource(unittest.TestCase):
                         resource_field_ref = jobset.models.io/k8s/api/core/v1/resource_field_selector.io.k8s.api.core.v1.ResourceFieldSelector(
                             container_name = '', 
                             divisor = '', 
-                            resource = '', ), )
+                            resource = '', ), 
+                        user = 56, )
                     ]
             )
         else:

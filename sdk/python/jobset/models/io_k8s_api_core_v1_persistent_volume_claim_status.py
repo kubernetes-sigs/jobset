@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from jobset.models.io_k8s_api_core_v1_modify_volume_status import IoK8sApiCoreV1ModifyVolumeStatus
 from jobset.models.io_k8s_api_core_v1_persistent_volume_claim_condition import IoK8sApiCoreV1PersistentVolumeClaimCondition
+from jobset.models.io_k8s_api_core_v1_volume_health_status import IoK8sApiCoreV1VolumeHealthStatus
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -34,9 +35,10 @@ class IoK8sApiCoreV1PersistentVolumeClaimStatus(BaseModel):
     capacity: Optional[Dict[str, StrictStr]] = Field(default=None, description="capacity represents the actual resources of the underlying volume.")
     conditions: Optional[List[IoK8sApiCoreV1PersistentVolumeClaimCondition]] = Field(default=None, description="conditions is the current Condition of persistent volume claim. If underlying persistent volume is being resized then the Condition will be set to 'Resizing'.")
     current_volume_attributes_class_name: Optional[StrictStr] = Field(default=None, description="currentVolumeAttributesClassName is the current name of the VolumeAttributesClass the PVC is using. When unset, there is no VolumeAttributeClass applied to this PersistentVolumeClaim", alias="currentVolumeAttributesClassName")
+    health_status: Optional[IoK8sApiCoreV1VolumeHealthStatus] = Field(default=None, alias="healthStatus")
     modify_volume_status: Optional[IoK8sApiCoreV1ModifyVolumeStatus] = Field(default=None, alias="modifyVolumeStatus")
     phase: Optional[StrictStr] = Field(default=None, description="phase represents the current phase of PersistentVolumeClaim.")
-    __properties: ClassVar[List[str]] = ["accessModes", "allocatedResourceStatuses", "allocatedResources", "capacity", "conditions", "currentVolumeAttributesClassName", "modifyVolumeStatus", "phase"]
+    __properties: ClassVar[List[str]] = ["accessModes", "allocatedResourceStatuses", "allocatedResources", "capacity", "conditions", "currentVolumeAttributesClassName", "healthStatus", "modifyVolumeStatus", "phase"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -84,6 +86,9 @@ class IoK8sApiCoreV1PersistentVolumeClaimStatus(BaseModel):
                 if _item_conditions:
                     _items.append(_item_conditions.to_dict())
             _dict['conditions'] = _items
+        # override the default output from pydantic by calling `to_dict()` of health_status
+        if self.health_status:
+            _dict['healthStatus'] = self.health_status.to_dict()
         # override the default output from pydantic by calling `to_dict()` of modify_volume_status
         if self.modify_volume_status:
             _dict['modifyVolumeStatus'] = self.modify_volume_status.to_dict()
@@ -105,6 +110,7 @@ class IoK8sApiCoreV1PersistentVolumeClaimStatus(BaseModel):
             "capacity": obj.get("capacity"),
             "conditions": [IoK8sApiCoreV1PersistentVolumeClaimCondition.from_dict(_item) for _item in obj["conditions"]] if obj.get("conditions") is not None else None,
             "currentVolumeAttributesClassName": obj.get("currentVolumeAttributesClassName"),
+            "healthStatus": IoK8sApiCoreV1VolumeHealthStatus.from_dict(obj["healthStatus"]) if obj.get("healthStatus") is not None else None,
             "modifyVolumeStatus": IoK8sApiCoreV1ModifyVolumeStatus.from_dict(obj["modifyVolumeStatus"]) if obj.get("modifyVolumeStatus") is not None else None,
             "phase": obj.get("phase")
         })

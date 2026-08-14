@@ -31,8 +31,9 @@ class IoK8sApiCoreV1HTTPGetAction(BaseModel):
     http_headers: Optional[List[IoK8sApiCoreV1HTTPHeader]] = Field(default=None, description="Custom headers to set in the request. HTTP allows repeated headers.", alias="httpHeaders")
     path: Optional[StrictStr] = Field(default=None, description="Path to access on the HTTP server.")
     port: StrictStr = Field(description="IntOrString is a type that can hold an int32 or a string.  When used in JSON or YAML marshalling and unmarshalling, it produces or consumes the inner type.  This allows you to have, for example, a JSON field that can accept a name or number.")
+    protocol: Optional[StrictStr] = Field(default=None, description="Protocol selects the wire protocol for the probe connection. Nil defaults to HTTP/1.1.")
     scheme: Optional[StrictStr] = Field(default=None, description="Scheme to use for connecting to the host. Defaults to HTTP.")
-    __properties: ClassVar[List[str]] = ["host", "httpHeaders", "path", "port", "scheme"]
+    __properties: ClassVar[List[str]] = ["host", "httpHeaders", "path", "port", "protocol", "scheme"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -96,6 +97,7 @@ class IoK8sApiCoreV1HTTPGetAction(BaseModel):
             "httpHeaders": [IoK8sApiCoreV1HTTPHeader.from_dict(_item) for _item in obj["httpHeaders"]] if obj.get("httpHeaders") is not None else None,
             "path": obj.get("path"),
             "port": obj.get("port"),
+            "protocol": obj.get("protocol"),
             "scheme": obj.get("scheme")
         })
         return _obj

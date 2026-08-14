@@ -50,7 +50,8 @@ class TestIoK8sApiCoreV1ClusterTrustBundleProjection(unittest.TestCase):
                 name = '',
                 optional = True,
                 path = '',
-                signer_name = ''
+                signer_name = '',
+                user = 56
             )
         else:
             return IoK8sApiCoreV1ClusterTrustBundleProjection(
