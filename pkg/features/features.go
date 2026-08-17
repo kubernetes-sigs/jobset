@@ -36,6 +36,7 @@ const (
 	// owner: @kannon92
 	//
 	// Enables TLSOptions for TLSMinVersion and CipherSuites for JobSet servers.
+	// Graduated to GA; locked to its default (enabled).
 	TLSOptions featuregate.Feature = "TLSOptions"
 
 	// owner: @GiuseppeTT
@@ -67,7 +68,7 @@ func init() {
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	InPlaceRestart: {Default: false, PreRelease: featuregate.Alpha},
 
-	TLSOptions: {Default: true, PreRelease: featuregate.Beta},
+	TLSOptions: {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
 
 	RestartJob: {Default: false, PreRelease: featuregate.Alpha},
 

@@ -38,7 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	configapi "sigs.k8s.io/jobset/api/config/v1alpha1"
-	"sigs.k8s.io/jobset/pkg/features"
 )
 
 func TestLoad(t *testing.T) {
@@ -654,29 +653,20 @@ tls:
 	testcases := []struct {
 		name               string
 		configFile         string
-		featureGateEnabled bool
 		wantTLSOptsApplied bool
 		wantMinVersion     uint16
 		wantCipherSuiteSet bool
 	}{
 		{
-			name:               "TLS config with feature gate enabled",
+			name:               "TLS config",
 			configFile:         tlsConfig,
-			featureGateEnabled: true,
 			wantTLSOptsApplied: true,
 			wantMinVersion:     tls.VersionTLS12,
 			wantCipherSuiteSet: true,
 		},
 		{
-			name:               "TLS config with feature gate disabled",
-			configFile:         tlsConfig,
-			featureGateEnabled: false,
-			wantTLSOptsApplied: false,
-		},
-		{
-			name:               "TLS 1.3 config with feature gate enabled",
+			name:               "TLS 1.3 config",
 			configFile:         tls13Config,
-			featureGateEnabled: true,
 			wantTLSOptsApplied: true,
 			wantMinVersion:     tls.VersionTLS13,
 			wantCipherSuiteSet: false,
@@ -685,8 +675,6 @@ tls:
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			features.SetFeatureGateDuringTest(t, features.TLSOptions, tc.featureGateEnabled)
-
 			options, cfg, err := Load(testScheme, tc.configFile)
 			if err != nil {
 				t.Fatalf("Unexpected error: %s", err)
