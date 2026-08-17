@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/utils/ptr"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -435,13 +437,14 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 	matchingFailedJobWithLabels.Labels[jobset.JobIndexKey] = "0"
 
 	testCases := []struct {
-		name                 string
-		enableRestartJob     bool
-		jobSet               *jobset.JobSet
-		matchingFailedJob    *batchv1.Job
-		rule                 *jobset.FailurePolicyRule
-		failurePolicyAction  jobset.FailurePolicyAction
-		expectedJobSetStatus jobset.JobSetStatus
+		name                            string
+		enableRestartJob                bool
+		enableExecutionAttemptsTracking bool
+		jobSet                          *jobset.JobSet
+		matchingFailedJob               *batchv1.Job
+		rule                            *jobset.FailurePolicyRule
+		failurePolicyAction             jobset.FailurePolicyAction
+		expectedJobSetStatus            jobset.JobSetStatus
 	}{
 		{
 			name:                "FailJobSet action",
@@ -549,6 +552,82 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			expectedJobSetStatus: jobset.JobSetStatus{
 				Restarts:                2,
 				RestartsCountTowardsMax: 1, // not incremented
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetRestarting),
+						Status: metav1.ConditionTrue,
+						Reason: constants.RestartingJobSetReasonDefaultFailurePolicy,
+					},
+				},
+			},
+		},
+		{
+			name:                            "RestartJobSet when ExecutionAttemptsTracking is enabled and ExecutionAttempts is nil increments Restarts and initializes ExecutionAttempts",
+			enableRestartJob:                true,
+			enableExecutionAttemptsTracking: true,
+			jobSet: testutils.MakeJobSet("test-js", "default").FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                1,
+					RestartsCountTowardsMax: 1,
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                2,
+				RestartsCountTowardsMax: 2,
+				ExecutionAttempts:       ptr.To(int32(2)),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetRestarting),
+						Status: metav1.ConditionTrue,
+						Reason: constants.RestartingJobSetReasonDefaultFailurePolicy,
+					},
+				},
+			},
+		},
+		{
+			name:                            "RestartJobSet when ExecutionAttempts is already set increments ExecutionAttempts by 1",
+			enableRestartJob:                true,
+			enableExecutionAttemptsTracking: true,
+			jobSet: testutils.MakeJobSet("test-js", "default").FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                2,
+					RestartsCountTowardsMax: 2,
+					ExecutionAttempts:       ptr.To(int32(3)),
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                3,
+				RestartsCountTowardsMax: 3,
+				ExecutionAttempts:       ptr.To(int32(4)),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetRestarting),
+						Status: metav1.ConditionTrue,
+						Reason: constants.RestartingJobSetReasonDefaultFailurePolicy,
+					},
+				},
+			},
+		},
+		{
+			name:                            "RestartJobSet with ExecutionAttemptsTracking disabled does not increment ExecutionAttempts",
+			enableRestartJob:                true,
+			enableExecutionAttemptsTracking: false,
+			jobSet: testutils.MakeJobSet("test-js", "default").FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 5}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                1,
+					RestartsCountTowardsMax: 1,
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                2,
+				RestartsCountTowardsMax: 2,
+				ExecutionAttempts:       nil,
 				Conditions: []metav1.Condition{
 					{
 						Type:   string(jobset.JobSetRestarting),
@@ -707,6 +786,7 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.enableRestartJob)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExecutionAttemptsTracking, tc.enableExecutionAttemptsTracking)
 			updateStatusOpts := &statusUpdateOpts{}
 			jobSetCopy := tc.jobSet.DeepCopy()
 			err := applyFailurePolicyRuleAction(context.TODO(), jobSetCopy, tc.matchingFailedJob, tc.rule, updateStatusOpts, tc.failurePolicyAction)

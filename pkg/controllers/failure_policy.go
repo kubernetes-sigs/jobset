@@ -193,6 +193,13 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 	// Increment JobSet global restarts. This will trigger reconciliation and result in deletions
 	// of old jobs not part of the current jobSet run.
 	js.Status.Restarts += 1
+	if features.Enabled(features.ExecutionAttemptsTracking) {
+		if js.Status.ExecutionAttempts == nil {
+			js.Status.ExecutionAttempts = ptr.To(js.Status.Restarts)
+		} else {
+			js.Status.ExecutionAttempts = ptr.To(*js.Status.ExecutionAttempts + 1)
+		}
+	}
 	if shouldCountTowardsMax {
 		js.Status.RestartsCountTowardsMax += 1
 	}

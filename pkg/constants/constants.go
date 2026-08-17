@@ -38,6 +38,9 @@ const (
 	// That is, it should match `jobSet.spec.replicatedJobs[replicatedJobName].jobRestarts[jobIndex]`
 	JobRestartAttemptKey = "jobset.sigs.k8s.io/job-restart-attempt"
 
+	// ExecutionAttemptsKey is a job and pod template annotation which defines the current execution attempt of the jobset.
+	ExecutionAttemptsKey = "jobset.sigs.k8s.io/execution-attempt"
+
 	// PriorityKey is a label key to record the pod priority. This is needed to enforce exclusive placement
 	// only among jobs within the same priority.
 	PriorityKey = "jobset.sigs.k8s.io/priority"
