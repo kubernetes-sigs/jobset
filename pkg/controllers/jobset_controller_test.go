@@ -2302,3 +2302,81 @@ func TestSyncJobScaling(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeContainerResources(t *testing.T) {
+	cpu1 := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}
+	cpu2 := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}
+	claims := []corev1.ResourceClaim{{Name: "original-claim"}}
+
+	tests := []struct {
+		name               string
+		jobContainers      []corev1.Container
+		templateContainers []corev1.Container
+		want               []corev1.Container
+	}{
+		{
+			name:               "no job containers is a no-op",
+			jobContainers:      nil,
+			templateContainers: []corev1.Container{{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu2}}},
+			want:               nil,
+		},
+		{
+			name: "resources updated for container matched by name",
+			jobContainers: []corev1.Container{
+				{Name: "c", Image: "image:v1", Resources: corev1.ResourceRequirements{Requests: cpu1}},
+			},
+			templateContainers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu2}},
+			},
+			want: []corev1.Container{
+				{Name: "c", Image: "image:v1", Resources: corev1.ResourceRequirements{Requests: cpu2}},
+			},
+		},
+		{
+			name: "resources.claims are preserved from the job container, not overwritten by the template",
+			jobContainers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu1, Claims: claims}},
+			},
+			templateContainers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu2}},
+			},
+			want: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu2, Claims: claims}},
+			},
+		},
+		{
+			name: "container with no match in template is left unchanged",
+			jobContainers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu1}},
+			},
+			templateContainers: []corev1.Container{
+				{Name: "other", Resources: corev1.ResourceRequirements{Requests: cpu2}},
+			},
+			want: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu1}},
+			},
+		},
+		{
+			name: "only containers matched by name are updated, others are left as-is",
+			jobContainers: []corev1.Container{
+				{Name: "init", Resources: corev1.ResourceRequirements{Requests: cpu1}},
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu1}},
+			},
+			templateContainers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu2}},
+			},
+			want: []corev1.Container{
+				{Name: "init", Resources: corev1.ResourceRequirements{Requests: cpu1}},
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: cpu2}},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := mergeContainerResources(tc.jobContainers, tc.templateContainers)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("mergeContainerResources() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
