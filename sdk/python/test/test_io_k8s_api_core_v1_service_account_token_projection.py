@@ -37,7 +37,8 @@ class TestIoK8sApiCoreV1ServiceAccountTokenProjection(unittest.TestCase):
             return IoK8sApiCoreV1ServiceAccountTokenProjection(
                 audience = '',
                 expiration_seconds = 56,
-                path = ''
+                path = '',
+                user = 56
             )
         else:
             return IoK8sApiCoreV1ServiceAccountTokenProjection(

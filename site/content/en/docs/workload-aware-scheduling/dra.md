@@ -1,7 +1,7 @@
 ---
 title: "DRA Integration"
 linkTitle: "DRA Integration"
-weight: 4
+weight: 5
 date: 2026-07-15
 description: >
     Share DRA devices across a gang-scheduled JobSet using PodGroup-level ResourceClaims

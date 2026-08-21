@@ -24,7 +24,7 @@ import (
 // Interface provides access to all the informers in this group version.
 type Interface interface {
 	// JobSets returns a JobSetInformer.
-	JobSets() JobSetInformer
+	JobSets() TypedJobSetInformer
 }
 
 type version struct {
@@ -38,7 +38,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// JobSets returns a JobSetInformer.
-func (v *version) JobSets() JobSetInformer {
+// JobSets returns a TypedJobSetInformer.
+func (v *version) JobSets() TypedJobSetInformer {
 	return &jobSetInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

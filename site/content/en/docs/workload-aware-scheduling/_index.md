@@ -41,6 +41,7 @@ Pods in the JobSet are associated with a PodGroup through the `schedulingGroup.p
 ## Topics
 
 - [Gang Scheduling](./gang_scheduling): Configure gang scheduling so that all pods in a JobSet must be schedulable before any are admitted.
+- [Job-Level Scheduling](./job_level_scheduling): Enable gang scheduling for a JobSet-owned Job using the native Kubernetes Job `spec.scheduling` field and a delegated PodGroup.
 - [Preemption](./preemption): Enable workload-aware preemption to preempt entire pod groups rather than individual pods.
 - [Topology Aware Scheduling](./tas): Co-locate all pods in a gang within the same network topology domain for low-latency communication.
 - [DRA Integration](./dra): Share DRA devices across a gang-scheduled JobSet using PodGroup-level ResourceClaims.

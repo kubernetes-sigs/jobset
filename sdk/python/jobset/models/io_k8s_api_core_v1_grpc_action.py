@@ -26,9 +26,10 @@ class IoK8sApiCoreV1GRPCAction(BaseModel):
     """
     GRPCAction specifies an action involving a GRPC service.
     """ # noqa: E501
+    mode: Optional[StrictStr] = Field(default=None, description="mode specifies the connection mode for the gRPC health probe. Set to \"TLS\" to use TLS without certificate verification. Set to \"Plaintext\" to use a plaintext (insecure) connection explicitly. If not specified, the probe uses a plaintext (insecure) connection.")
     port: StrictInt = Field(description="Port number of the gRPC service. Number must be in the range 1 to 65535.")
     service: Optional[StrictStr] = Field(default=None, description="Service is the name of the service to place in the gRPC HealthCheckRequest (see https://github.com/grpc/grpc/blob/master/doc/health-checking.md).  If this is not specified, the default behavior is defined by gRPC.")
-    __properties: ClassVar[List[str]] = ["port", "service"]
+    __properties: ClassVar[List[str]] = ["mode", "port", "service"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -81,6 +82,7 @@ class IoK8sApiCoreV1GRPCAction(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
+            "mode": obj.get("mode"),
             "port": obj.get("port"),
             "service": obj.get("service")
         })

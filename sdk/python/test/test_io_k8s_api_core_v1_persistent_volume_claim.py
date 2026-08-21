@@ -135,6 +135,13 @@ class TestIoK8sApiCoreV1PersistentVolumeClaim(unittest.TestCase):
                             type = '', )
                         ], 
                     current_volume_attributes_class_name = '', 
+                    health_status = jobset.models.io/k8s/api/core/v1/volume_health_status.io.k8s.api.core.v1.VolumeHealthStatus(
+                        health_conditions = [
+                            jobset.models.io/k8s/api/core/v1/volume_health_condition.io.k8s.api.core.v1.VolumeHealthCondition(
+                                message = '', 
+                                reason = '', 
+                                status = '', )
+                            ], ), 
                     modify_volume_status = jobset.models.io/k8s/api/core/v1/modify_volume_status.io.k8s.api.core.v1.ModifyVolumeStatus(
                         status = '', 
                         target_volume_attributes_class_name = '', ), 

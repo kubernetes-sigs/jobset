@@ -11,11 +11,12 @@ spec:
         completions: 2
         parallelism: 2
         backoffLimit: 0
+        scheduling:
+          schedulingPolicy:
+            gang: {}
         template:
           spec:
             terminationGracePeriodSeconds: 0
-            schedulingGroup:
-              podGroupName: js-abc-workers-def
             containers:
             - name: worker
               image: busybox

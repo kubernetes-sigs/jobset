@@ -1,7 +1,7 @@
 ---
 title: "Topology Aware Scheduling"
 linkTitle: "Topology Aware Scheduling"
-weight: 3
+weight: 4
 date: 2026-05-31
 description: >
     Configure topology aware scheduling with JobSet using the Kubernetes WAS APIs

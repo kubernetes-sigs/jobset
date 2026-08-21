@@ -36,6 +36,7 @@ class TestIoK8sApiCoreV1EmptyDirVolumeSource(unittest.TestCase):
         if include_optional:
             return IoK8sApiCoreV1EmptyDirVolumeSource(
                 medium = '',
+                mode = 56,
                 size_limit = ''
             )
         else:
