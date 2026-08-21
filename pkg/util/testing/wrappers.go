@@ -61,6 +61,12 @@ func (j *JobSetWrapper) Conditions(conditions []metav1.Condition) *JobSetWrapper
 	return j
 }
 
+// SetExecutionAttempts sets the value of jobSet.status.executionAttempts
+func (j *JobSetWrapper) SetExecutionAttempts(attempts int32) *JobSetWrapper {
+	j.Status.ExecutionAttempts = ptr.To(attempts)
+	return j
+}
+
 // SetStatus sets the value of jobSet.status
 func (j *JobSetWrapper) SetStatus(status jobset.JobSetStatus) *JobSetWrapper {
 	j.Status = status

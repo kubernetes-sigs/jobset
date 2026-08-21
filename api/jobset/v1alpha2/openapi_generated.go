@@ -479,6 +479,13 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 							Format:      "int32",
 						},
 					},
+					"executionAttempts": {
+						SchemaProps: spec.SchemaProps{
+							Description: "executionAttempts tracks the number of execution lifecycles of the JobSet. A value of nil indicates the JobSet has not yet executed (e.g. created suspended). A value of 0 indicates the initial execution attempt, and values > 0 indicate subsequent execution attempts triggered by failure policy restarts or suspend/resume cycles.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
 					"terminalState": {
 						SchemaProps: spec.SchemaProps{
 							Description: "terminalState tracks the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",

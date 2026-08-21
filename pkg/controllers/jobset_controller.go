@@ -31,6 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -222,6 +223,13 @@ func (r *JobSetReconciler) reconcile(ctx context.Context, js *jobset.JobSet, upd
 			log.Error(err, "syncing job scaling")
 			return ctrl.Result{}, err
 		}
+	}
+
+	if err := r.syncExecutionAttempts(ctx, js, ownedJobs, updateStatusOpts); err != nil {
+		if !apierrors.IsConflict(err) {
+			log.Error(err, "syncing execution attempts")
+		}
+		return ctrl.Result{}, err
 	}
 
 	// If job has not failed or succeeded, reconcile the state of the replicatedJobs.
@@ -572,6 +580,100 @@ func (r *JobSetReconciler) suspendJobs(ctx context.Context, js *jobset.JobSet, a
 	return nil
 }
 
+// syncExecutionAttempts handles initial setup and resume increments for ExecutionAttempts.
+func (r *JobSetReconciler) syncExecutionAttempts(ctx context.Context, js *jobset.JobSet, ownedJobs *childJobs, updateStatusOpts *statusUpdateOpts) error {
+	if !features.Enabled(features.ExecutionAttemptsTracking) {
+		return nil
+	}
+
+	// jobSetSuspended(js) checks the current desired state (from Spec.Suspend),
+	// while previouslySuspended checks if the JobSet was previously observed as suspended in status conditions.
+	// This distinction detects the Suspended -> Active (resume) transition.
+	previouslySuspended := apimeta.IsStatusConditionTrue(js.Status.Conditions, string(jobset.JobSetSuspended))
+	isSuspended := jobSetSuspended(js)
+
+	// If the JobSet is currently suspended, do not initialize ExecutionAttempts yet
+	// (allows distinguishing between JobSets created suspended vs suspended after running).
+	if isSuspended {
+		return nil
+	}
+
+	// Not a resume transition (normal running reconcile or newly created unsuspended JobSet).
+	if !previouslySuspended {
+		if js.Status.ExecutionAttempts == nil {
+			js.Status.ExecutionAttempts = ptr.To(js.Status.Restarts)
+			updateStatusOpts.shouldUpdate = true
+		}
+		return nil
+	}
+
+	// The JobSet is transitioning from suspended to active (resuming).
+	var updated bool
+	// First resume after upgrade or first resume of a JobSet created suspended.
+	if js.Status.ExecutionAttempts == nil {
+		attempts := js.Status.Restarts
+		if attempts > 0 {
+			attempts++
+		}
+		js.Status.ExecutionAttempts = ptr.To(attempts)
+		updated = true
+	} else {
+		// Determine whether ExecutionAttempts has already been incremented for this resume transition.
+		// If any child job is already unsuspended, or if Status.ExecutionAttempts is already greater
+		// than the attempt recorded on suspended child jobs, it was already incremented (e.g. on a reconcile retry).
+		shouldIncrement := true
+		if len(ownedJobs.active) > 0 {
+			for _, job := range ownedJobs.active {
+				if !jobSuspended(job) {
+					shouldIncrement = false
+					break
+				}
+				val, hasAnnotation := job.Annotations[constants.ExecutionAttemptsKey]
+				if !hasAnnotation {
+					// Child job was created suspended and has never executed with ExecutionAttempts.
+					// Since Status.ExecutionAttempts is already non-nil, it was already initialized
+					// for this resume transition in a prior reconcile attempt.
+					shouldIncrement = false
+					break
+				} else if attempt, err := strconv.Atoi(val); err == nil {
+					if *js.Status.ExecutionAttempts > int32(attempt) {
+						// Status was already incremented and persisted in a prior reconcile attempt.
+						shouldIncrement = false
+						break
+					}
+				}
+			}
+		} else if len(ownedJobs.successful) > 0 || len(ownedJobs.failed) > 0 {
+			// No active jobs exist (e.g. InOrder startup suspended between stages).
+			// Inspect completed jobs to check if Status.ExecutionAttempts was already incremented in a prior reconcile attempt.
+			for _, job := range slices.Concat(ownedJobs.successful, ownedJobs.failed) {
+				val, hasAnnotation := job.Annotations[constants.ExecutionAttemptsKey]
+				if hasAnnotation {
+					if attempt, err := strconv.Atoi(val); err == nil {
+						if *js.Status.ExecutionAttempts > int32(attempt) {
+							shouldIncrement = false
+							break
+						}
+					}
+				}
+			}
+		} else {
+			// No active, successful, or failed jobs exist (e.g. retry of initially suspended JobSet before jobs were created).
+			shouldIncrement = false
+		}
+
+		if shouldIncrement {
+			js.Status.ExecutionAttempts = ptr.To(*js.Status.ExecutionAttempts + 1)
+			updated = true
+		}
+	}
+
+	if updated {
+		return r.Status().Update(ctx, js)
+	}
+	return nil
+}
+
 // resumeJobsIfNecessary iterates through each replicatedJob, resuming any suspended jobs if the JobSet
 // is not suspended.
 func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset.JobSet, activeJobs []*batchv1.Job, replicatedJobStatuses []jobset.ReplicatedJobStatus, updateStatusOpts *statusUpdateOpts) error {
@@ -615,7 +717,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 			if !jobSuspended(job) {
 				continue
 			}
-			if err := r.resumeJob(ctx, job, replicatedJobTemplateMap); err != nil {
+			if err := r.resumeJob(ctx, js, job, replicatedJobTemplateMap); err != nil {
 				return err
 			}
 		}
@@ -633,7 +735,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 	return nil
 }
 
-func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, replicatedJobTemplateMap map[string]corev1.PodTemplateSpec) error {
+func (r *JobSetReconciler) resumeJob(ctx context.Context, js *jobset.JobSet, job *batchv1.Job, replicatedJobTemplateMap map[string]corev1.PodTemplateSpec) error {
 	log := ctrl.LoggerFrom(ctx)
 	// Kubernetes validates that a job template is immutable
 	// so if the job has started i.e., startTime != nil), we must set it to nil first.
@@ -674,6 +776,19 @@ func (r *JobSetReconciler) resumeJob(ctx context.Context, job *batchv1.Job, repl
 			job.Spec.Template.Spec.SchedulingGates,
 			replicatedJobPodTemplate.Spec.SchedulingGates,
 		)
+
+		if features.Enabled(features.ExecutionAttemptsTracking) {
+			attemptsStr := strconv.Itoa(int(ptr.Deref(js.Status.ExecutionAttempts, 0)))
+			if job.Spec.Template.Annotations == nil {
+				job.Spec.Template.Annotations = make(map[string]string)
+			}
+			job.Spec.Template.Annotations[constants.ExecutionAttemptsKey] = attemptsStr
+
+			if job.Annotations == nil {
+				job.Annotations = make(map[string]string)
+			}
+			job.Annotations[constants.ExecutionAttemptsKey] = attemptsStr
+		}
 	} else {
 		log.Error(nil, "job missing ReplicatedJobName label")
 	}
@@ -1042,6 +1157,12 @@ func labelAndAnnotateObject(obj metav1.Object, js *jobset.JobSet, rjob *jobset.R
 	if features.Enabled(features.RestartJob) {
 		annotations[constants.JobRestartAttemptKey] = strconv.Itoa(int(getJobRestarts(js, rjob.Name)[jobIdx]))
 	}
+	if features.Enabled(features.ExecutionAttemptsTracking) {
+		if js.Status.ExecutionAttempts != nil {
+			annotations[constants.ExecutionAttemptsKey] = strconv.Itoa(int(*js.Status.ExecutionAttempts))
+		}
+	}
+
 	annotations[jobset.ReplicatedJobReplicas] = strconv.Itoa(int(rjob.Replicas))
 	annotations[jobset.GlobalReplicasKey] = globalReplicas(js)
 	annotations[jobset.JobIndexKey] = strconv.Itoa(jobIdx)

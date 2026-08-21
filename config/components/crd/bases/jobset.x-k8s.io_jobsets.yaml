@@ -10105,6 +10105,15 @@ spec:
                 format: int32
                 minimum: 0
                 type: integer
+              executionAttempts:
+                description: |-
+                  executionAttempts tracks the number of execution lifecycles of the JobSet.
+                  A value of nil indicates the JobSet has not yet executed (e.g. created suspended).
+                  A value of 0 indicates the initial execution attempt, and values > 0 indicate
+                  subsequent execution attempts triggered by failure policy restarts or suspend/resume cycles.
+                format: int32
+                minimum: 0
+                type: integer
               previousInPlaceRestartAttempt:
                 description: |-
                   previousInPlaceRestartAttempt tracks the previous in-place restart attempt
