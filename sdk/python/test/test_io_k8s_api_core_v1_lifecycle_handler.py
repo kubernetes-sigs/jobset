@@ -48,6 +48,7 @@ class TestIoK8sApiCoreV1LifecycleHandler(unittest.TestCase):
                         ], 
                     path = '', 
                     port = '', 
+                    protocol = '', 
                     scheme = '', ),
                 sleep = jobset.models.io/k8s/api/core/v1/sleep_action.io.k8s.api.core.v1.SleepAction(
                     seconds = 56, ),

@@ -57,6 +57,14 @@ class TestIoK8sApiCoreV1PersistentVolumeClaimStatus(unittest.TestCase):
                         type = '', )
                     ],
                 current_volume_attributes_class_name = '',
+                health_status = jobset.models.io/k8s/api/core/v1/volume_health_status.io.k8s.api.core.v1.VolumeHealthStatus(
+                    health_conditions = [
+                        jobset.models.io/k8s/api/core/v1/volume_health_condition.io.k8s.api.core.v1.VolumeHealthCondition(
+                            message = '', 
+                            reason = '', 
+                            status = '', )
+                        ], 
+                    last_transition_time = datetime.datetime.strptime('2013-10-20 19:20:30.00', '%Y-%m-%d %H:%M:%S.%f'), ),
                 modify_volume_status = jobset.models.io/k8s/api/core/v1/modify_volume_status.io.k8s.api.core.v1.ModifyVolumeStatus(
                     status = '', 
                     target_volume_attributes_class_name = '', ),

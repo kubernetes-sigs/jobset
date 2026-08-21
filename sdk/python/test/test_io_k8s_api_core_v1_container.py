@@ -94,6 +94,7 @@ class TestIoK8sApiCoreV1Container(unittest.TestCase):
                                 ], 
                             path = '', 
                             port = '', 
+                            protocol = '', 
                             scheme = '', ), 
                         sleep = jobset.models.io/k8s/api/core/v1/sleep_action.io.k8s.api.core.v1.SleepAction(
                             seconds = 56, ), 
@@ -109,6 +110,7 @@ class TestIoK8sApiCoreV1Container(unittest.TestCase):
                             ], ), 
                     failure_threshold = 56, 
                     grpc = jobset.models.io/k8s/api/core/v1/grpc_action.io.k8s.api.core.v1.GRPCAction(
+                        mode = '', 
                         port = 56, 
                         service = '', ), 
                     http_get = jobset.models.io/k8s/api/core/v1/http_get_action.io.k8s.api.core.v1.HTTPGetAction(
@@ -120,6 +122,7 @@ class TestIoK8sApiCoreV1Container(unittest.TestCase):
                             ], 
                         path = '', 
                         port = '', 
+                        protocol = '', 
                         scheme = '', ), 
                     initial_delay_seconds = 56, 
                     period_seconds = 56, 
@@ -145,6 +148,7 @@ class TestIoK8sApiCoreV1Container(unittest.TestCase):
                             ], ), 
                     failure_threshold = 56, 
                     grpc = jobset.models.io/k8s/api/core/v1/grpc_action.io.k8s.api.core.v1.GRPCAction(
+                        mode = '', 
                         port = 56, 
                         service = '', ), 
                     http_get = jobset.models.io/k8s/api/core/v1/http_get_action.io.k8s.api.core.v1.HTTPGetAction(
@@ -156,6 +160,7 @@ class TestIoK8sApiCoreV1Container(unittest.TestCase):
                             ], 
                         path = '', 
                         port = '', 
+                        protocol = '', 
                         scheme = '', ), 
                     initial_delay_seconds = 56, 
                     period_seconds = 56, 
@@ -230,6 +235,7 @@ class TestIoK8sApiCoreV1Container(unittest.TestCase):
                             ], ), 
                     failure_threshold = 56, 
                     grpc = jobset.models.io/k8s/api/core/v1/grpc_action.io.k8s.api.core.v1.GRPCAction(
+                        mode = '', 
                         port = 56, 
                         service = '', ), 
                     http_get = jobset.models.io/k8s/api/core/v1/http_get_action.io.k8s.api.core.v1.HTTPGetAction(
@@ -241,6 +247,7 @@ class TestIoK8sApiCoreV1Container(unittest.TestCase):
                             ], 
                         path = '', 
                         port = '', 
+                        protocol = '', 
                         scheme = '', ), 
                     initial_delay_seconds = 56, 
                     period_seconds = 56, 
@@ -262,6 +269,9 @@ class TestIoK8sApiCoreV1Container(unittest.TestCase):
                     ],
                 volume_mounts = [
                     jobset.models.io/k8s/api/core/v1/volume_mount.io.k8s.api.core.v1.VolumeMount(
+                        bind_mount_options = [
+                            ''
+                            ], 
                         mount_path = '', 
                         mount_propagation = '', 
                         name = '', 

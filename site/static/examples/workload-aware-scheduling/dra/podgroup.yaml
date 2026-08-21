@@ -1,13 +1,12 @@
-apiVersion: scheduling.k8s.io/v1alpha2
+apiVersion: scheduling.k8s.io/v1alpha3
 kind: PodGroup
 metadata:
   name: training-workers
   namespace: default
 spec:
-  podGroupTemplateRef:
-    workload:
-      workloadName: training-workload
-      podGroupTemplateName: workers
+  workloadRef:
+    workloadName: training-workload
+    templateName: workers
   schedulingPolicy:
     gang:
       minCount: 6

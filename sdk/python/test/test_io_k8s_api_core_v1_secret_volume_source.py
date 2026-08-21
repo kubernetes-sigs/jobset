@@ -36,11 +36,13 @@ class TestIoK8sApiCoreV1SecretVolumeSource(unittest.TestCase):
         if include_optional:
             return IoK8sApiCoreV1SecretVolumeSource(
                 default_mode = 56,
+                default_user = 56,
                 items = [
                     jobset.models.io/k8s/api/core/v1/key_to_path.io.k8s.api.core.v1.KeyToPath(
                         key = '', 
                         mode = 56, 
-                        path = '', )
+                        path = '', 
+                        user = 56, )
                     ],
                 optional = True,
                 secret_name = ''

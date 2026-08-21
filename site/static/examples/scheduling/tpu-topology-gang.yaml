@@ -1,0 +1,56 @@
+# KEP-969 Representative API: "Run a TPU multi-slice workload"
+#
+# scheduling:
+#   schedulingPolicy:
+#     gang: {}
+#   schedulingConstraints:
+#     topologyRequest: ...
+#
+# Expected: one Workload and one JobSet-wide PodGroup with the requested
+# topology constraint, coordinating placement across TPU slices. TPU-specific
+# pod resources/topology values stay in the JobSet pod templates (not shown
+# here in full since this example doesn't request real TPU resources).
+#
+# Requires the TopologyAwareWorkloadScheduling feature gate on the apiserver;
+# see the note in topology-constrained.yaml for what happens without it.
+#
+# Verify:
+#   kubectl get workloads,podgroups,jobs -n default
+#   kubectl get podgroup tpu-multislice -n default -o jsonpath='{.spec.schedulingPolicy}{" "}{.spec.schedulingConstraints}{"\n"}'
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: tpu-multislice
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    schedulingPolicy:
+      gang: {}
+    disruptionMode: 
+      all: {}
+    schedulingConstraints:
+      topology:
+        - key: cloud.google.com/gke-tpu-slice
+  replicatedJobs:
+    - name: slice
+      replicas: 2
+      template:
+        spec:
+          parallelism: 2
+          completions: 2
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["sleep", "15s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

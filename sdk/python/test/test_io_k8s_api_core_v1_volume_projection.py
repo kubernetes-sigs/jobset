@@ -51,13 +51,15 @@ class TestIoK8sApiCoreV1VolumeProjection(unittest.TestCase):
                     name = '', 
                     optional = True, 
                     path = '', 
-                    signer_name = '', ),
+                    signer_name = '', 
+                    user = 56, ),
                 config_map = jobset.models.io/k8s/api/core/v1/config_map_projection.io.k8s.api.core.v1.ConfigMapProjection(
                     items = [
                         jobset.models.io/k8s/api/core/v1/key_to_path.io.k8s.api.core.v1.KeyToPath(
                             key = '', 
                             mode = 56, 
-                            path = '', )
+                            path = '', 
+                            user = 56, )
                         ], 
                     name = '', 
                     optional = True, ),
@@ -72,7 +74,8 @@ class TestIoK8sApiCoreV1VolumeProjection(unittest.TestCase):
                             resource_field_ref = jobset.models.io/k8s/api/core/v1/resource_field_selector.io.k8s.api.core.v1.ResourceFieldSelector(
                                 container_name = '', 
                                 divisor = '', 
-                                resource = '', ), )
+                                resource = '', ), 
+                            user = 56, )
                         ], ),
                 pod_certificate = jobset.models.io/k8s/api/core/v1/pod_certificate_projection.io.k8s.api.core.v1.PodCertificateProjection(
                     certificate_chain_path = '', 
@@ -81,6 +84,7 @@ class TestIoK8sApiCoreV1VolumeProjection(unittest.TestCase):
                     key_type = '', 
                     max_expiration_seconds = 56, 
                     signer_name = '', 
+                    user = 56, 
                     user_annotations = {
                         'key' : ''
                         }, ),
@@ -89,14 +93,16 @@ class TestIoK8sApiCoreV1VolumeProjection(unittest.TestCase):
                         jobset.models.io/k8s/api/core/v1/key_to_path.io.k8s.api.core.v1.KeyToPath(
                             key = '', 
                             mode = 56, 
-                            path = '', )
+                            path = '', 
+                            user = 56, )
                         ], 
                     name = '', 
                     optional = True, ),
                 service_account_token = jobset.models.io/k8s/api/core/v1/service_account_token_projection.io.k8s.api.core.v1.ServiceAccountTokenProjection(
                     audience = '', 
                     expiration_seconds = 56, 
-                    path = '', )
+                    path = '', 
+                    user = 56, )
             )
         else:
             return IoK8sApiCoreV1VolumeProjection(

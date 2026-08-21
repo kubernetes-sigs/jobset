@@ -35,6 +35,7 @@ class TestIoK8sApiCoreV1GRPCAction(unittest.TestCase):
         model = IoK8sApiCoreV1GRPCAction()
         if include_optional:
             return IoK8sApiCoreV1GRPCAction(
+                mode = '',
                 port = 56,
                 service = ''
             )
