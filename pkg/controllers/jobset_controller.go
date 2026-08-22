@@ -23,6 +23,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	"k8s.io/utils/clock"
@@ -34,6 +35,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -785,6 +787,46 @@ func (r *JobSetReconciler) deleteJobs(ctx context.Context, jobsForDeletion []*ba
 
 // TODO: look into adopting service and updating the selector
 // if it is not matching the job selector.
+// headlessSvcPorts collects the unique container ports declared across all
+// replicatedJobs' pod templates, so service meshes like Istio (which match
+// traffic on ports declared in the Service) can route to headless service pods.
+// Ports are deduplicated by port number and protocol. If no container declares
+// a port, this returns nil and the service is created without ports, preserving
+// the previous behavior.
+func headlessSvcPorts(js *jobset.JobSet) []corev1.ServicePort {
+	seen := make(map[string]bool)
+	var ports []corev1.ServicePort
+	for i := range js.Spec.ReplicatedJobs {
+		podSpec := js.Spec.ReplicatedJobs[i].Template.Spec.Template.Spec
+		for c := range podSpec.Containers {
+			for _, p := range podSpec.Containers[c].Ports {
+				if p.ContainerPort == 0 {
+					continue
+				}
+				proto := p.Protocol
+				if proto == "" {
+					proto = corev1.ProtocolTCP
+				}
+				key := fmt.Sprintf("%d/%s", p.ContainerPort, proto)
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				ports = append(ports, corev1.ServicePort{
+					// Name follows the Istio port naming convention (<protocol>-<suffix>)
+					// so meshes detect the protocol and match traffic. It also stays
+					// within the 15 character limit Kubernetes enforces on port names.
+					Name:       fmt.Sprintf("%s-%d", strings.ToLower(string(proto)), p.ContainerPort),
+					Port:       p.ContainerPort,
+					TargetPort: intstr.FromInt32(p.ContainerPort),
+					Protocol:   proto,
+				})
+			}
+		}
+	}
+	return ports
+}
+
 func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js *jobset.JobSet) error {
 	log := ctrl.LoggerFrom(ctx)
 
@@ -814,6 +856,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 					jobset.JobSetNameKey: js.Name,
 				},
 				PublishNotReadyAddresses: ptr.Deref(js.Spec.Network.PublishNotReadyAddresses, true),
+				Ports:                    headlessSvcPorts(js),
 			},
 		}
 
