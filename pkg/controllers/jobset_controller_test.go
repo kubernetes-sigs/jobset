@@ -28,6 +28,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2/ktesting"
@@ -1860,6 +1861,88 @@ func TestCreateHeadlessSvcIfNecessary(t *testing.T) {
 			}
 			if tc.expectServiceCreate && servicesCreated != 1 {
 				t.Errorf("expected 1 service to be created, got %d created services", servicesCreated)
+			}
+		})
+	}
+}
+
+func TestHeadlessSvcPorts(t *testing.T) {
+	container := func(ports ...corev1.ContainerPort) corev1.Container {
+		return corev1.Container{Name: "c", Ports: ports}
+	}
+	jsWith := func(containers ...corev1.Container) *jobset.JobSet {
+		return &jobset.JobSet{
+			Spec: jobset.JobSetSpec{
+				ReplicatedJobs: []jobset.ReplicatedJob{
+					{Template: batchv1.JobTemplateSpec{
+						Spec: batchv1.JobSpec{
+							Template: corev1.PodTemplateSpec{
+								Spec: corev1.PodSpec{Containers: containers},
+							},
+						},
+					}},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		jobSet *jobset.JobSet
+		want   []corev1.ServicePort
+	}{
+		{
+			name:   "no container ports",
+			jobSet: jsWith(container()),
+			want:   nil,
+		},
+		{
+			name: "single port defaults to TCP",
+			jobSet: jsWith(container(
+				corev1.ContainerPort{ContainerPort: 8080},
+			)),
+			want: []corev1.ServicePort{
+				{Name: "tcp-8080", Port: 8080, TargetPort: intstr.FromInt32(8080), Protocol: corev1.ProtocolTCP},
+			},
+		},
+		{
+			name: "duplicate port and protocol are deduplicated",
+			jobSet: jsWith(
+				container(corev1.ContainerPort{ContainerPort: 8080, Protocol: corev1.ProtocolTCP}),
+				container(corev1.ContainerPort{ContainerPort: 8080, Protocol: corev1.ProtocolTCP}),
+			),
+			want: []corev1.ServicePort{
+				{Name: "tcp-8080", Port: 8080, TargetPort: intstr.FromInt32(8080), Protocol: corev1.ProtocolTCP},
+			},
+		},
+		{
+			name: "same port number with different protocols are kept",
+			jobSet: jsWith(container(
+				corev1.ContainerPort{ContainerPort: 53, Protocol: corev1.ProtocolTCP},
+				corev1.ContainerPort{ContainerPort: 53, Protocol: corev1.ProtocolUDP},
+			)),
+			want: []corev1.ServicePort{
+				{Name: "tcp-53", Port: 53, TargetPort: intstr.FromInt32(53), Protocol: corev1.ProtocolTCP},
+				{Name: "udp-53", Port: 53, TargetPort: intstr.FromInt32(53), Protocol: corev1.ProtocolUDP},
+			},
+		},
+		{
+			name: "zero container port is skipped",
+			jobSet: jsWith(container(
+				corev1.ContainerPort{ContainerPort: 0},
+				corev1.ContainerPort{ContainerPort: 9090},
+			)),
+			want: []corev1.ServicePort{
+				{Name: "tcp-9090", Port: 9090, TargetPort: intstr.FromInt32(9090), Protocol: corev1.ProtocolTCP},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := headlessSvcPorts(tc.jobSet)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("unexpected ports (-want/+got): %s", diff)
 			}
 		})
 	}
