@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - pfn-dev
+      - "v*-devel"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  ARTIFACTS: ${{ github.workspace }}/_artifacts
+
+jobs:
+  verify:
+    name: make verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Run verification
+        run: make verify
+
+  unit-test:
+    name: make test
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Run unit tests
+        run: |
+          mkdir -p "${ARTIFACTS}"
+          make test
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-test-artifacts
+          path: ${{ env.ARTIFACTS }}
+          if-no-files-found: ignore
+          retention-days: 3
+          overwrite: true
+
+  integration-test:
+    name: make test-integration
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Run integration tests
+        run: |
+          mkdir -p "${ARTIFACTS}"
+          make test-integration
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-test-artifacts
+          path: ${{ env.ARTIFACTS }}
+          if-no-files-found: ignore
+          retention-days: 3
+          overwrite: true
+
+  e2e-test:
+    name: make test-e2e-kind
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Run E2E tests
+        run: |
+          mkdir -p "${ARTIFACTS}"
+          E2E_KIND_VERSION=kindest/node:v1.36.1 make test-e2e-kind
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-test-artifacts
+          path: ${{ env.ARTIFACTS }}
+          if-no-files-found: ignore
+          retention-days: 3
+          overwrite: true
+
+  e2e-scheduling-test:
+    name: make test-e2e-kind-scheduling
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Run scheduling E2E tests
+        run: |
+          mkdir -p "${ARTIFACTS}"
+          make test-e2e-kind-scheduling
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-scheduling-test-artifacts
+          path: ${{ env.ARTIFACTS }}
+          if-no-files-found: ignore
+          retention-days: 3
+          overwrite: true
