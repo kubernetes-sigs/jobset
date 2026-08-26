@@ -147,6 +147,44 @@ func TestReconcileVolumeClaimPolicies(t *testing.T) {
 			},
 		},
 		{
+			name: "nil whenDeleted defaults to Delete and sets the owner reference",
+			jobSet: testutils.MakeJobSet(jobSetName, ns).
+				VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+					{
+						Templates: []corev1.PersistentVolumeClaim{
+							{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: "volume-unset",
+								},
+								Spec: testPVCSpec,
+							},
+						},
+						RetentionPolicy: &jobset.VolumeRetentionPolicy{},
+					},
+				}).Obj(),
+			expectedPVCs: []corev1.PersistentVolumeClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "volume-unset-test-jobset",
+						Namespace: ns,
+						Labels: map[string]string{
+							jobset.JobSetNameKey: jobSetName,
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion:         "jobset.x-k8s.io/v1alpha2",
+								Kind:               "JobSet",
+								Name:               jobSetName,
+								Controller:         ptr.To(true),
+								BlockOwnerDeletion: ptr.To(true),
+							},
+						},
+					},
+					Spec: testPVCSpec,
+				},
+			},
+		},
+		{
 			name: "PVC already exists and should not be created again",
 			jobSet: testutils.MakeJobSet(jobSetName, ns).
 				VolumeClaimPolicies([]jobset.VolumeClaimPolicy{

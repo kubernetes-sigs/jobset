@@ -11,6 +11,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -51,7 +52,8 @@ func (r *JobSetReconciler) createPVCsIfNecessary(ctx context.Context, js *jobset
 		}
 
 		// Set PVC owner reference if retention policy is Delete.
-		if volumeClaimPolicy.RetentionPolicy != nil && *volumeClaimPolicy.RetentionPolicy.WhenDeleted == jobset.RetentionPolicyDelete {
+		if volumeClaimPolicy.RetentionPolicy != nil &&
+			ptr.Deref(volumeClaimPolicy.RetentionPolicy.WhenDeleted, jobset.RetentionPolicyDelete) == jobset.RetentionPolicyDelete {
 			if err := ctrl.SetControllerReference(js, &pvc, r.Scheme); err != nil {
 				return err
 			}

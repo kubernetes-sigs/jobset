@@ -592,7 +592,8 @@ func (j *jobSetWebhook) validateVolumeClaimPolicies(ctx context.Context, js *job
 					))
 				}
 				// Retention policy must be retain for the existing PVC.
-				if policy.RetentionPolicy != nil && *policy.RetentionPolicy.WhenDeleted != jobset.RetentionPolicyRetain {
+				if policy.RetentionPolicy != nil &&
+					ptr.Deref(policy.RetentionPolicy.WhenDeleted, jobset.RetentionPolicyDelete) != jobset.RetentionPolicyRetain {
 					allErrs = append(allErrs, field.Invalid(
 						fieldPath.Child("retentionPolicy").Child("whenDeleted"),
 						policy.RetentionPolicy.WhenDeleted,

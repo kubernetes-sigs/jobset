@@ -2873,6 +2873,68 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(fmt.Errorf("retentionPolicy must be retain when PVC exist")),
 		},
 		{
+			name: "volumeClaimPolicy with unset whenDeleted defaults to delete and is rejected for existing PVC",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "js",
+					Namespace: "default",
+				},
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{},
+					VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+						{
+							Templates: []corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "test-volume",
+									},
+									Spec: testPVCSpec,
+								},
+							},
+							RetentionPolicy: &jobset.VolumeRetentionPolicy{},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: corev1.PodTemplateSpec{
+										Spec: corev1.PodSpec{
+											Containers: []corev1.Container{
+												{
+													Name:  "test",
+													Image: "bash:latest",
+													VolumeMounts: []corev1.VolumeMount{
+														{
+															Name:      "test-volume",
+															MountPath: "/test/path",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			existingObjs: []runtime.Object{
+				&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-volume-js",
+						Namespace: "default",
+					},
+					Spec: testPVCSpec,
+				},
+			},
+			want: errors.Join(fmt.Errorf("retentionPolicy must be retain when PVC exist")),
+		},
+		{
 			name: "volumeClaimPolicy is invalid when existing PVC does not match template spec",
 			js: &jobset.JobSet{
 				ObjectMeta: metav1.ObjectMeta{
