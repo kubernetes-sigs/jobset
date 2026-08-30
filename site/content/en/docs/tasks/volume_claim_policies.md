@@ -68,8 +68,14 @@ The PVC is kept after the JobSet is deleted, allowing you to access the data lat
 subsequent JobSets.
 
 {{% alert title="Note" color="primary" %}}
-If you are trying to use the existing volume in the VolumeClaimPolicies,
-the spec must be equal to the existing PVC spec.
+If you are trying to use an existing volume in the VolumeClaimPolicies, the template must
+match the existing PVC. The fields the API server fills in on a PVC's behalf --
+`volumeMode`, `storageClassName`, `volumeAttributesClassName`, `volumeName`, `dataSource`
+and `dataSourceRef` -- are compared only when the template sets them, so re-applying an
+unchanged manifest against a retained PVC is admitted even though the live PVC carries
+values the template never spelled out. The remaining fields -- `accessModes`, `resources`
+and `selector` -- are compared as written, so the template must still declare them, and a
+PVC that has since been expanded no longer matches a template asking for the original size.
 {{% /alert %}}
 
 ```yaml
@@ -124,5 +130,6 @@ volumeClaimPolicies:
 - ReplicatedJob templates must not define volumes with the same name as VolumeClaimPolicy templates
 - At least one container or initContainer in the ReplicatedJobs must have a volumeMount matching
   each volume claim template name
-- When defining the existing volume in VolumeClaimPolicies the spec must be equal to
-  the pre-created PVC
+- When reusing an existing PVC in VolumeClaimPolicies, the template must match the
+  pre-created PVC as described above; the JobSet is rejected at admission otherwise, and
+  the rejection names the fields that differ

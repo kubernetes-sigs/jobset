@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -2345,6 +2346,15 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
+	// boundPVCSpec is testPVCSpec as the API server stores it once the claim has been
+	// created and bound: volumeMode and storageClassName filled in by defaulting, and
+	// volumeName assigned by the binder. This is the shape a PVC retained by
+	// retentionPolicy.whenDeleted: Retain has when the JobSet is re-applied.
+	boundPVCSpec := *testPVCSpec.DeepCopy()
+	boundPVCSpec.VolumeMode = ptr.To(corev1.PersistentVolumeFilesystem)
+	boundPVCSpec.StorageClassName = ptr.To("standard")
+	boundPVCSpec.VolumeName = "pv-abc123"
+
 	volumeClaimPolicyTests := []validationTestCase{
 		{
 			name: "volumeClaimPolicy is valid since volume exists in the container",
@@ -3006,6 +3016,77 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			want: errors.Join(fmt.Errorf("spec does not match existing PVC")),
+		},
+		{
+			// Regression test for #1307: a PVC retained across JobSet deletions carries
+			// values the API server populated for it, which the template never has.
+			// Re-applying the unchanged manifest must still be admitted.
+			name: "volumeClaimPolicy is valid when existing PVC was defaulted and bound by the API server",
+			js:   jobSetWithVolumeClaimTemplate(testPVCSpec),
+			existingObjs: []runtime.Object{
+				&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-volume-js",
+						Namespace: "default",
+					},
+					Spec: boundPVCSpec,
+				},
+			},
+			want: errors.Join(),
+		},
+		{
+			name: "volumeClaimPolicy is invalid when template pins a different storageClassName than the existing PVC",
+			js: jobSetWithVolumeClaimTemplate(func() corev1.PersistentVolumeClaimSpec {
+				spec := *testPVCSpec.DeepCopy()
+				spec.StorageClassName = ptr.To("premium")
+				return spec
+			}()),
+			existingObjs: []runtime.Object{
+				&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-volume-js",
+						Namespace: "default",
+					},
+					Spec: boundPVCSpec,
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec does not match existing PVC test-volume-js in namespace default, differing field(s): storageClassName")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid when template pins a different volumeName than the existing PVC",
+			js: jobSetWithVolumeClaimTemplate(func() corev1.PersistentVolumeClaimSpec {
+				spec := *testPVCSpec.DeepCopy()
+				spec.VolumeName = "some-other-pv"
+				return spec
+			}()),
+			existingObjs: []runtime.Object{
+				&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-volume-js",
+						Namespace: "default",
+					},
+					Spec: boundPVCSpec,
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec does not match existing PVC test-volume-js in namespace default, differing field(s): volumeName")),
+		},
+		{
+			name: "volumeClaimPolicy is invalid when template pins a different volumeMode than the existing PVC",
+			js: jobSetWithVolumeClaimTemplate(func() corev1.PersistentVolumeClaimSpec {
+				spec := *testPVCSpec.DeepCopy()
+				spec.VolumeMode = ptr.To(corev1.PersistentVolumeBlock)
+				return spec
+			}()),
+			existingObjs: []runtime.Object{
+				&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-volume-js",
+						Namespace: "default",
+					},
+					Spec: boundPVCSpec,
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec does not match existing PVC test-volume-js in namespace default, differing field(s): volumeMode")),
 		},
 	}
 
@@ -4114,6 +4195,357 @@ func TestValidateUpdate(t *testing.T) {
 			} else if err == nil && tc.want != nil {
 				t.Errorf("missing expected error: %v", tc.want)
 			}
+		})
+	}
+}
+
+// jobSetWithVolumeClaimTemplate builds a JobSet named "js" with a single volume claim
+// policy holding the given template spec under a Retain retention policy, mounted by its
+// one replicatedJob.
+func jobSetWithVolumeClaimTemplate(spec corev1.PersistentVolumeClaimSpec) *jobset.JobSet {
+	return &jobset.JobSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "js",
+			Namespace: "default",
+		},
+		Spec: jobset.JobSetSpec{
+			SuccessPolicy: &jobset.SuccessPolicy{},
+			VolumeClaimPolicies: []jobset.VolumeClaimPolicy{
+				{
+					Templates: []corev1.PersistentVolumeClaim{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-volume",
+							},
+							Spec: spec,
+						},
+					},
+					RetentionPolicy: &jobset.VolumeRetentionPolicy{
+						WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
+					},
+				},
+			},
+			ReplicatedJobs: []jobset.ReplicatedJob{
+				{
+					Name:      "job-1",
+					GroupName: "default",
+					Replicas:  1,
+					Template: batchv1.JobTemplateSpec{
+						Spec: batchv1.JobSpec{
+							Template: corev1.PodTemplateSpec{
+								Spec: corev1.PodSpec{
+									Containers: []corev1.Container{
+										{
+											Name:  "test",
+											Image: "bash:latest",
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "test-volume",
+													MountPath: "/test/path",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestPVCSpecMismatches(t *testing.T) {
+	t.Parallel()
+
+	// baseTemplate is what a user writes in spec.volumeClaimPolicies[].templates[].spec:
+	// only the fields they care about, with everything else left to the API server.
+	baseTemplate := corev1.PersistentVolumeClaimSpec{
+		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+		Resources: corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceStorage: resource.MustParse("1Gi"),
+			},
+		},
+	}
+
+	// withExisting returns baseTemplate as the API server stores it, after applying the
+	// given mutations on top of the defaults it fills in.
+	withExisting := func(mutate func(*corev1.PersistentVolumeClaimSpec)) corev1.PersistentVolumeClaimSpec {
+		spec := *baseTemplate.DeepCopy()
+		spec.VolumeMode = ptr.To(corev1.PersistentVolumeFilesystem)
+		spec.StorageClassName = ptr.To("standard")
+		if mutate != nil {
+			mutate(&spec)
+		}
+		return spec
+	}
+
+	withTemplate := func(mutate func(*corev1.PersistentVolumeClaimSpec)) corev1.PersistentVolumeClaimSpec {
+		spec := *baseTemplate.DeepCopy()
+		if mutate != nil {
+			mutate(&spec)
+		}
+		return spec
+	}
+
+	testCases := map[string]struct {
+		template corev1.PersistentVolumeClaimSpec
+		existing corev1.PersistentVolumeClaimSpec
+		want     []string
+	}{
+		"identical specs match": {
+			template: baseTemplate,
+			existing: *baseTemplate.DeepCopy(),
+		},
+		"template unset fields defaulted by the API server match": {
+			template: baseTemplate,
+			existing: withExisting(nil),
+		},
+		"bound PVC with a binder-assigned volumeName matches an unpinned template": {
+			template: baseTemplate,
+			existing: withExisting(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.VolumeName = "pv-abc123"
+			}),
+		},
+		"equal storage requests in different units match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.Resources.Requests[corev1.ResourceStorage] = resource.MustParse("1024Mi")
+			}),
+			existing: withExisting(nil),
+		},
+		"template that pins the same storageClassName matches": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.StorageClassName = ptr.To("standard")
+			}),
+			existing: withExisting(nil),
+		},
+		"template that sets only dataSource matches a cross-populated existing PVC": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.DataSource = &corev1.TypedLocalObjectReference{Kind: "PersistentVolumeClaim", Name: "src"}
+			}),
+			existing: withExisting(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.DataSource = &corev1.TypedLocalObjectReference{Kind: "PersistentVolumeClaim", Name: "src"}
+				s.DataSourceRef = &corev1.TypedObjectReference{Kind: "PersistentVolumeClaim", Name: "src"}
+			}),
+		},
+		"template that sets only dataSourceRef matches a cross-populated existing PVC": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.DataSourceRef = &corev1.TypedObjectReference{Kind: "PersistentVolumeClaim", Name: "src"}
+			}),
+			existing: withExisting(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.DataSource = &corev1.TypedLocalObjectReference{Kind: "PersistentVolumeClaim", Name: "src"}
+				s.DataSourceRef = &corev1.TypedObjectReference{Kind: "PersistentVolumeClaim", Name: "src"}
+			}),
+		},
+		"existing PVC with a default volumeAttributesClassName matches an unset template": {
+			template: baseTemplate,
+			existing: withExisting(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.VolumeAttributesClassName = ptr.To("silver")
+			}),
+		},
+		"nil and empty accessModes match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.AccessModes = nil
+			}),
+			existing: withExisting(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.AccessModes = []corev1.PersistentVolumeAccessMode{}
+			}),
+		},
+		// accessModes, resources and selector are never populated by the API server, so
+		// unlike the fields above they are compared as written even when the template
+		// leaves them unset.
+		"unset accessModes are still compared": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.AccessModes = nil
+			}),
+			existing: withExisting(nil),
+			want:     []string{"accessModes"},
+		},
+		// A retained PVC that has since been expanded no longer matches a template asking
+		// for the original size. Rejecting is intentional: the size is the user's to
+		// declare, not the API server's to fill in.
+		"expanded existing PVC does not match the original template": {
+			template: baseTemplate,
+			existing: withExisting(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.Resources.Requests[corev1.ResourceStorage] = resource.MustParse("2Gi")
+			}),
+			want: []string{"resources"},
+		},
+		"different storage request does not match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.Resources.Requests[corev1.ResourceStorage] = resource.MustParse("2Gi")
+			}),
+			existing: withExisting(nil),
+			want:     []string{"resources"},
+		},
+		"different accessModes do not match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
+			}),
+			existing: withExisting(nil),
+			want:     []string{"accessModes"},
+		},
+		"explicitly pinned storageClassName that differs does not match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.StorageClassName = ptr.To("premium")
+			}),
+			existing: withExisting(nil),
+			want:     []string{"storageClassName"},
+		},
+		"empty storageClassName is distinct from the cluster default": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.StorageClassName = ptr.To("")
+			}),
+			existing: withExisting(nil),
+			want:     []string{"storageClassName"},
+		},
+		"explicitly pinned volumeName that differs does not match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.VolumeName = "some-other-pv"
+			}),
+			existing: withExisting(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.VolumeName = "pv-abc123"
+			}),
+			want: []string{"volumeName"},
+		},
+		"explicitly pinned volumeMode that differs does not match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.VolumeMode = ptr.To(corev1.PersistentVolumeBlock)
+			}),
+			existing: withExisting(nil),
+			want:     []string{"volumeMode"},
+		},
+		"explicitly pinned volumeAttributesClassName that differs does not match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.VolumeAttributesClassName = ptr.To("gold")
+			}),
+			existing: withExisting(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.VolumeAttributesClassName = ptr.To("silver")
+			}),
+			want: []string{"volumeAttributesClassName"},
+		},
+		"different selector does not match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.Selector = &metav1.LabelSelector{MatchLabels: map[string]string{"tier": "fast"}}
+			}),
+			existing: withExisting(nil),
+			want:     []string{"selector"},
+		},
+		"different dataSource does not match": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.DataSource = &corev1.TypedLocalObjectReference{Kind: "PersistentVolumeClaim", Name: "src"}
+			}),
+			existing: withExisting(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.DataSource = &corev1.TypedLocalObjectReference{Kind: "PersistentVolumeClaim", Name: "other"}
+			}),
+			want: []string{"dataSource"},
+		},
+		"every differing field is reported": {
+			template: withTemplate(func(s *corev1.PersistentVolumeClaimSpec) {
+				s.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
+				s.Resources.Requests[corev1.ResourceStorage] = resource.MustParse("2Gi")
+				s.VolumeMode = ptr.To(corev1.PersistentVolumeBlock)
+			}),
+			existing: withExisting(nil),
+			want:     []string{"accessModes", "resources", "volumeMode"},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			// DeepCopy the template the way the API server does before admission, which
+			// drops the cached string representation of resource quantities.
+			got := pvcSpecMismatches(tc.template.DeepCopy(), &tc.existing)
+			assert.ElementsMatch(t, tc.want, got)
+		})
+	}
+}
+
+// TestPVCSpecMismatchesDetectsEveryField guards the reflection-based comparison in
+// pvcSpecMismatches against a field being added to PersistentVolumeClaimSpec upstream.
+//
+// That is the maintenance trap behind this whole check. A new field the API server
+// populates on the user's behalf, left out of normalizePVCSpec, brings back exactly the
+// bug this function exists to fix: a retained PVC stops matching the template that
+// created it. The count assertion below fails as soon as such a field appears, so
+// whoever bumps k8s.io/api has to decide which side of the comparison it belongs on
+// rather than finding out from a bug report.
+//
+// Each field is also given a conflicting value to confirm it is genuinely compared and
+// reported under its json name, so nothing can be silently dropped or surface as a Go
+// field name in a user facing message.
+func TestPVCSpecMismatchesDetectsEveryField(t *testing.T) {
+	t.Parallel()
+
+	// A fully populated PVC: every field set, as the API server would return it.
+	existing := corev1.PersistentVolumeClaimSpec{
+		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+		Resources: corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("1Gi")},
+		},
+		Selector:                  &metav1.LabelSelector{MatchLabels: map[string]string{"tier": "fast"}},
+		VolumeName:                "pv-abc123",
+		StorageClassName:          ptr.To("standard"),
+		VolumeMode:                ptr.To(corev1.PersistentVolumeFilesystem),
+		DataSource:                &corev1.TypedLocalObjectReference{Kind: "PersistentVolumeClaim", Name: "src"},
+		DataSourceRef:             &corev1.TypedObjectReference{Kind: "PersistentVolumeClaim", Name: "src"},
+		VolumeAttributesClassName: ptr.To("silver"),
+	}
+
+	// One conflicting template per field, keyed by the json name it must be reported as.
+	conflicts := map[string]func(*corev1.PersistentVolumeClaimSpec){
+		"accessModes": func(s *corev1.PersistentVolumeClaimSpec) {
+			s.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
+		},
+		"resources": func(s *corev1.PersistentVolumeClaimSpec) {
+			s.Resources.Requests[corev1.ResourceStorage] = resource.MustParse("99Gi")
+		},
+		"selector": func(s *corev1.PersistentVolumeClaimSpec) {
+			s.Selector = &metav1.LabelSelector{MatchLabels: map[string]string{"tier": "slow"}}
+		},
+		"volumeName": func(s *corev1.PersistentVolumeClaimSpec) {
+			s.VolumeName = "some-other-pv"
+		},
+		"storageClassName": func(s *corev1.PersistentVolumeClaimSpec) {
+			s.StorageClassName = ptr.To("premium")
+		},
+		"volumeMode": func(s *corev1.PersistentVolumeClaimSpec) {
+			s.VolumeMode = ptr.To(corev1.PersistentVolumeBlock)
+		},
+		"dataSource": func(s *corev1.PersistentVolumeClaimSpec) {
+			s.DataSource = &corev1.TypedLocalObjectReference{Kind: "PersistentVolumeClaim", Name: "other"}
+		},
+		"dataSourceRef": func(s *corev1.PersistentVolumeClaimSpec) {
+			s.DataSourceRef = &corev1.TypedObjectReference{Kind: "PersistentVolumeClaim", Name: "other"}
+		},
+		"volumeAttributesClassName": func(s *corev1.PersistentVolumeClaimSpec) {
+			s.VolumeAttributesClassName = ptr.To("gold")
+		},
+	}
+
+	specType := reflect.TypeOf(corev1.PersistentVolumeClaimSpec{})
+	require.Equal(t, specType.NumField(), len(conflicts),
+		"PersistentVolumeClaimSpec has %d fields but %d are covered here: decide whether the "+
+			"new field is one the API server populates, adding it to normalizePVCSpec if so, "+
+			"then cover it above", specType.NumField(), len(conflicts))
+
+	for i := range specType.NumField() {
+		f := specType.Field(i)
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		require.NotEmpty(t, name, "field %s has no json tag and would be reported by its Go name", f.Name)
+		require.Contains(t, conflicts, name, "field %s is not covered by this test", f.Name)
+	}
+
+	for name, mutate := range conflicts {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			template := *existing.DeepCopy()
+			mutate(&template)
+			assert.Contains(t, pvcSpecMismatches(&template, existing.DeepCopy()), name,
+				"a template conflicting on %s was not reported", name)
 		})
 	}
 }
