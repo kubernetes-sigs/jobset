@@ -80,6 +80,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                             self_link = '', 
                             uid = '', ), 
                         spec = jobset.models.jobset_v1alpha2_job_set_spec.JobsetV1alpha2JobSetSpec(
+                            active_deadline_seconds = 56, 
                             coordinator = jobset.models.jobset_v1alpha2_coordinator.JobsetV1alpha2Coordinator(
                                 job_index = 56, 
                                 pod_index = 56, 
@@ -189,6 +190,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 ], 
                             restarts = 56, 
                             restarts_count_towards_max = 56, 
+                            start_time = datetime.datetime.strptime('2013-10-20 19:20:30.00', '%Y-%m-%d %H:%M:%S.%f'), 
                             terminal_state = '', ), )
                     ],
                 kind = '',
@@ -246,6 +248,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                             self_link = '', 
                             uid = '', ), 
                         spec = jobset.models.jobset_v1alpha2_job_set_spec.JobsetV1alpha2JobSetSpec(
+                            active_deadline_seconds = 56, 
                             coordinator = jobset.models.jobset_v1alpha2_coordinator.JobsetV1alpha2Coordinator(
                                 job_index = 56, 
                                 pod_index = 56, 
@@ -355,6 +358,7 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                 ], 
                             restarts = 56, 
                             restarts_count_towards_max = 56, 
+                            start_time = datetime.datetime.strptime('2013-10-20 19:20:30.00', '%Y-%m-%d %H:%M:%S.%f'), 
                             terminal_state = '', ), )
                     ],
         )

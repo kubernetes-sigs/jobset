@@ -125,11 +125,15 @@ Notes).
   for startup ordering (`DependsOn`, coordinator, leader readiness) counts
   against the deadline, so a JobSet stuck in startup is failed once the deadline
   passes.
-- `.status.startTime` is a general JobSet start timestamp, matching upstream
+- `.status.startTime` is a JobSet start timestamp modeled on upstream
   `batch/v1.Job`: it is set whenever the JobSet is active (unsuspended), cleared
-  on suspend, and reset on resume, regardless of whether `activeDeadlineSeconds`
-  is set. Ecosystem tools (CLI printers, dashboards) can rely on it as the
-  JobSet's active-start time.
+  on suspend, and reset on resume, **independent of whether
+  `activeDeadlineSeconds` is set**. It is, however, **maintained only while the
+  `JobSetActiveDeadlineSeconds` feature gate is enabled** — the reconcile loop
+  skips `startTime` maintenance entirely when the gate is off, so the alpha
+  feature has no status side effects while disabled (changed in review from the
+  original always-on design). Ecosystem tools (CLI printers, dashboards) can
+  rely on it as the JobSet's active-start time whenever the gate is on.
 - **Externally managed JobSets (`spec.managedBy`).** When `managedBy` names a
   controller other than the built-in `jobset.sigs.k8s.io/jobset-controller`, the
   built-in controller skips reconciliation entirely (it only runs
@@ -182,25 +186,35 @@ Add to `JobSetStatus`:
 
 ```go
 // startTime is the timestamp from which activeDeadlineSeconds is measured, and
-// also serves as the JobSet's general active-start time. It is set when the
-// JobSet first becomes active (unsuspended), cleared when the JobSet is
-// suspended, and reset to the current time when the JobSet resumes. It is
-// populated whenever the JobSet is active, independent of activeDeadlineSeconds,
-// matching batch/v1.Job.status.startTime.
+// also serves as the JobSet's active-start time. It is set when the JobSet
+// first becomes active (unsuspended), cleared when the JobSet is suspended, and
+// reset to the current time when the JobSet resumes, matching
+// batch/v1.Job.status.startTime. It is maintained only while the
+// JobSetActiveDeadlineSeconds feature gate is enabled, independent of whether
+// activeDeadlineSeconds is set.
 // +optional
 StartTime *metav1.Time `json:"startTime,omitempty"`
 ```
 
-For observability, `.status.startTime` is exposed as a printer column:
+For observability, `.status.startTime` is exposed as a printer column. It uses
+`type=date` (not `type=string`) so `kubectl` renders it as a relative age,
+consistent with the existing `Age` column:
 
 ```go
-// +kubebuilder:printcolumn:name="StartTime",type=string,JSONPath=`.status.startTime`,description="Time the JobSet became active"
+// +kubebuilder:printcolumn:name="StartTime",type=date,JSONPath=`.status.startTime`,description="Time the JobSet became active"
 ```
 
 Validation:
 
 - `+kubebuilder:validation:Minimum=1` enforces a positive value at the API
   server; no webhook code is needed for the range check.
+- Feature-gate guard: a validating webhook rejects *setting or changing*
+  `activeDeadlineSeconds` while the `JobSetActiveDeadlineSeconds` gate is
+  disabled, on both create and update. An unchanged value is left alone (so a
+  JobSet created while the gate was on can still be updated), and clearing the
+  field is always allowed. This keeps the alpha field from being introduced
+  while the feature is off. (Added in response to review; see
+  [Implementation History](#implementation-history).)
 - Mutability: the field is mutable, matching `batch/v1.Job`, where
   `activeDeadlineSeconds` is in the allowed set for spec updates
   (`ValidateJobSpecUpdate`). Operators and platform tools may raise or lower the
@@ -330,8 +344,9 @@ policy (early return on completion) → `syncExecutionAttempts` →
 `reconcileReplicatedJobs` → suspend/resume handling. This feature adds
 `startTime` maintenance at the top of the loop (right after the `jobSetFinished`
 early-exit) so `.status.startTime` is populated before any deadline or failure
-evaluation, then reorders the middle so the deadline check sits between the
-success and failure policies: `jobSetFinished` → **`startTime` maintenance** →
+evaluation, then — for JobSets that set `activeDeadlineSeconds` — reorders the
+middle so the deadline check sits between the success and failure policies:
+`jobSetFinished` → **`startTime` maintenance** →
 **success policy** (early return on completion) → **deadline check** (early
 return on expiry) → **failure policy** → `syncExecutionAttempts` → … Running
 `startTime` maintenance first guarantees `StartTime` is set on the first
@@ -347,24 +362,32 @@ below the `managedByExternalController` early-return, so for an externally
 managed JobSet neither `startTime` maintenance nor the deadline check runs (see
 [Notes/Constraints/Caveats](#notesconstraintscaveats)).
 
-**`startTime` maintenance** is general and not gated by `activeDeadlineSeconds`
-or the feature gate: `.status.startTime` tracks the JobSet's active-start time
-whenever the JobSet is active, matching upstream `batch/v1.Job`. `startTime` is
-an idempotent timestamp, so maintenance does not track a suspend→resume
-transition; it derives everything from the current suspend state
+**`startTime` maintenance** is gated by the `JobSetActiveDeadlineSeconds` feature
+gate but not by `activeDeadlineSeconds`: while the gate is on,
+`.status.startTime` tracks the JobSet's active-start time whenever the JobSet is
+active (whether or not `activeDeadlineSeconds` is set), matching upstream
+`batch/v1.Job`; while the gate is off, `startTime` is not touched at all.
+`startTime` is an idempotent timestamp, so maintenance does not track a
+suspend→resume transition; it derives everything from the current suspend state
 (`isSuspended = jobSetSuspended(js)`):
 
 - Not suspended with `StartTime == nil`: set `StartTime = now`. This covers both
   the first unsuspended start and resume after suspend (suspend clears
   `StartTime`, so resume re-sets it on the next reconcile).
 - Suspended (`isSuspended`): set `StartTime = nil`.
-- Global restart: `failurePolicyRecreateAll` (which already increments
-  `Status.Restarts`) also sets `StartTime = now`, since it begins a fresh run.
-  `failurePolicyRecreateJob` (single Job) does not touch it.
+- Global restart: the reconcile loop calls `resetStartTimeOnGlobalRestart`,
+  which sets `StartTime = now` when the failure policy bumped `Status.Restarts`
+  in this reconcile (a global `RestartJobSet`), since it begins a fresh run. A
+  single-Job `RestartJob` (which does not bump `Status.Restarts`) does not touch
+  it.
 
-Because `startTime` is maintained unconditionally, enabling or disabling the
-feature gate never changes it; only the deadline check reads it, and only the
-check is gated.
+Because the gate wraps `startTime` maintenance, disabling the gate makes the
+feature fully inert (no `startTime` writes); only the deadline check reads
+`startTime`, and both are gated. The success→deadline→failure reorder is
+additionally scoped to JobSets that actually set `activeDeadlineSeconds`: a
+JobSet that does not use the field keeps the original failure→success ordering
+even when the gate is on, so enabling the cluster-wide gate never changes the
+terminal outcome of a JobSet that does not use the feature.
 
 All writes go through the existing `statusUpdateOpts` so they are persisted
 atomically with the other status changes in that reconcile.
@@ -385,14 +408,16 @@ if remaining > 0 {
     return false, remaining, nil   // requeue after remaining, wake exactly at expiry
 }
 
-// Deadline exceeded: fail the JobSet and free resources in this reconcile.
-setJobSetFailedCondition(js, DeadlineExceededReason,
-    fmt.Sprintf("JobSet was active for %s, exceeding the %ds deadline",
-        clock.Since(js.Status.StartTime.Time), *js.Spec.ActiveDeadlineSeconds), opts)
-metrics.JobSetActiveDeadlineExceeded(js.Name, js.Namespace)
+// Deadline exceeded: delete active child Jobs first, then record the failure so
+// the condition and metric are emitted only once resources are actually freed.
+// A delete error retries from a not-yet-failed state, avoiding metric inflation.
 if err := r.deleteJobs(ctx, ownedJobs.active); err != nil {
     return true, 0, err
 }
+setJobSetFailedCondition(js, DeadlineExceededReason,
+    fmt.Sprintf("JobSet was active for longer than the specified deadline of %ds",
+        *js.Spec.ActiveDeadlineSeconds), opts)
+metrics.JobSetActiveDeadlineExceeded(js.Name, js.Namespace)
 return true, 0, nil   // expired: caller returns early after the status update
 ```
 
@@ -432,19 +457,29 @@ New metric:
 ### Feature Gate Disabled Behavior
 
 Gated by `JobSetActiveDeadlineSeconds` (`featuregate.Alpha`, default `false`).
-The gate controls only deadline enforcement; `.status.startTime` maintenance is
-general and runs regardless of the gate.
+This follows the same gate-disabled convention as KEP-1282 (execution-attempts),
+which gates its own `JobSet.status` field: the gate wraps the whole feature, so
+both `.status.startTime` maintenance and the deadline check are skipped when the
+gate is off and a disabled feature has no observable side effects. (This is a
+change from the original 1186 design, where `startTime` was maintained
+regardless of the gate; that design was the outlier versus 1282.)
 
-- Gate off: `executeActiveDeadlinePolicy` is a no-op. `.status.startTime` is
-  still maintained (set on active, cleared on suspend, reset on resume) so
-  ecosystem tools keep seeing it. An existing `activeDeadlineSeconds` value is
-  retained in spec (not stripped) but never enforced.
-- Gate on: enforcement resumes against the already-maintained `startTime`.
-  Because `startTime` reflects the JobSet's true active-start time, a JobSet
-  that has been continuously active past its deadline while the gate was off is
-  failed on the first reconcile after enable.
-- Gate on to off downgrade: enforcement stops; a JobSet already failed for the
-  deadline stays failed (terminal state is immutable).
+- Gate off: `executeActiveDeadlinePolicy` is a no-op and `.status.startTime` is
+  not touched — left `nil` for a JobSet that starts while the gate is off, and
+  any existing value **preserved without further updates**. An
+  `activeDeadlineSeconds` value already in the spec is retained (not stripped)
+  but never enforced; the webhook prevents *adding or changing* the field while
+  the gate is off.
+- Gate on (or re-enabled): maintenance and the deadline check resume, and
+  maintenance **resumes from the persisted `startTime`** when one exists.
+  Maintenance derives `startTime` from the current suspend state, so a JobSet
+  that was active (with a `startTime`) before the gate was turned off keeps that
+  timestamp: if it has been continuously active past its deadline it is failed
+  on the first reconcile after re-enable. A JobSet with no persisted `startTime`
+  gets `startTime = now` and measures the deadline from there.
+- Gate on to off downgrade: maintenance and enforcement stop; a JobSet already
+  failed for the deadline stays failed (terminal state is immutable), and
+  `startTime` is left at its last value (no further writes).
 
 ### Test Plan
 
@@ -464,11 +499,19 @@ requeue paths this feature builds on.
   started, suspended, remaining > 0 (requeues, no status change), remaining <= 0
   (sets the `Failed` condition, deletes active child Jobs, and signals early
   return), and future startTime (clock skew) treated as not expired.
-- `pkg/controllers`: `StartTime` is maintained independent of
-  `activeDeadlineSeconds` and the gate: it is set whenever the JobSet is active
-  (including when the field is unset or the gate is off), cleared on suspend,
-  and reset on resume and on the global `failurePolicyRecreateAll` restart path.
-  The gate gates only the deadline check, not `StartTime`.
+- `pkg/controllers`: `StartTime` is maintained whenever the gate is on,
+  independent of `activeDeadlineSeconds`: set whenever the JobSet is active
+  (including when the field is unset), cleared on suspend, reset on resume and on
+  the global `resetStartTimeOnGlobalRestart` path. When the gate is off it is not
+  maintained at all.
+- `pkg/controllers` (reconcile-level): success beats an expired deadline in the
+  same reconcile (Completed, not `DeadlineExceeded`); an expired deadline beats a
+  simultaneous child failure (`DeadlineExceeded`, `Status.Restarts` unchanged);
+  and a JobSet without `activeDeadlineSeconds` keeps the original
+  failure→success ordering with the gate on (the reorder does not apply to
+  non-users).
+- `pkg/metrics` / `pkg/controllers`: `jobset_active_deadline_exceeded_total`
+  increments by one when a JobSet is failed by the deadline.
 - `pkg/controllers`: when a child-Job failure and an elapsed deadline are
   observed in the same reconcile, the JobSet fails with `DeadlineExceeded` (the
   deadline is checked before the failure policy) and is not restarted.
@@ -480,7 +523,10 @@ requeue paths this feature builds on.
   (which runs before the deadline check), not failed by the deadline.
 - `pkg/webhooks` / CEL: `activeDeadlineSeconds` validation covering Minimum=1
   (reject zero and negative), and allowing updates on a running JobSet (raise,
-  lower, add, and remove) to confirm the field is mutable.
+  lower, add, and remove) to confirm the field is mutable when the gate is on.
+- `pkg/webhooks`: the feature-gate guard — setting `activeDeadlineSeconds` on
+  create or update while the gate is off is rejected, while an unchanged value
+  and clearing the field are allowed.
 - Target: cover the new code paths in the failure/ttl-adjacent packages, which
   are currently well covered.
 
@@ -499,8 +545,11 @@ Added under `test/integration/` (envtest):
   next reconcile; raising it extends the deadline.
 - `RestartJobSetAndIgnoreMaxRestarts` resets the timer each attempt (fresh
   per-attempt deadline, unbounded by `maxRestarts`).
-- Feature gate off: `activeDeadlineSeconds` is never enforced; enabling the gate
-  on an already-running JobSet begins enforcement from that point.
+- Feature gate off: `activeDeadlineSeconds` is never enforced and
+  `.status.startTime` is not maintained; enabling the gate on an already-running
+  JobSet resumes `startTime` maintenance and enforcement, from the persisted
+  `startTime` if one exists (matching KEP-1282's re-enable semantics), otherwise
+  from the enable point.
 - Externally managed JobSet (`managedBy` set to a non-built-in controller):
   validates the assumption that the built-in controller skips this feature for
   externally managed JobSets. With the gate on and the deadline elapsed, the
@@ -533,6 +582,16 @@ Added under `test/integration/` (envtest):
 - 2026-08-26: KEP drafted (provisional) from issue #1186 discussion.
 - 2026-09-05: Documented the activeDeadlineSeconds interaction with managedBy
   (follow-up to the #1306 KEP review).
+- 2026-09-05: Alpha implementation (API field, `.status.startTime`, feature gate
+  `JobSetActiveDeadlineSeconds`, controller enforcement, metric, unit and
+  integration tests).
+- 2026-09-07: Review follow-ups. Gate `.status.startTime` maintenance behind the
+  feature gate so a disabled feature has no side effects; scope the
+  success→deadline→failure reorder to JobSets that set `activeDeadlineSeconds`
+  so non-users keep failure→success ordering; add a validating-webhook guard
+  that rejects setting the field while the gate is off (create and update);
+  change the `StartTime` printer column to `type=date`; and add reconcile-level
+  ordering unit tests and a metric-increment test.
 
 ## Drawbacks
 

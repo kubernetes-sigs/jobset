@@ -191,6 +191,20 @@ type JobSetSpec struct {
 	// +optional
 	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
 
+	// activeDeadlineSeconds is the maximum duration in seconds, relative to
+	// status.startTime, that the JobSet may be continuously active before the
+	// JobSet controller marks it Failed and deletes its active Jobs.
+	//
+	// The timer does not accrue while the JobSet is suspended: startTime is
+	// cleared on suspend and reset when the JobSet resumes. The value must be a
+	// positive integer. The field is mutable: operators may raise or lower the
+	// deadline on a running JobSet, matching batch/v1.Job. The controller
+	// recomputes the remaining time from status.startTime on the next reconcile,
+	// so no timer state is reset on update.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,omitempty"`
+
 	// volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed
 	// to reference. JobSet controller automatically adds the required volume claims to the
 	// pod template. Every claim in this list must have at least one matching (by name)
@@ -211,6 +225,16 @@ type JobSetStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// startTime is the timestamp from which activeDeadlineSeconds is measured, and
+	// also serves as the JobSet's active-start time. It is set when the JobSet
+	// first becomes active (unsuspended), cleared when the JobSet is suspended, and
+	// reset to the current time when the JobSet resumes, matching
+	// batch/v1.Job.status.startTime. It is maintained only while the
+	// JobSetActiveDeadlineSeconds feature gate is enabled, independent of whether
+	// activeDeadlineSeconds is set.
+	// +optional
+	StartTime *metav1.Time `json:"startTime,omitempty"`
 
 	// restarts tracks the number of times the JobSet has been globally restarted.
 	// That is, restarts is the number of times the restart action RestartJobSet or RestartJobSetAndIgnoreMaxRestarts have been executed and led to the recreation of all Jobs.
@@ -309,6 +333,7 @@ type ReplicatedJobStatus struct {
 // +kubebuilder:printcolumn:name="Restarts",JSONPath=".status.restarts",type=string,description="Number of restarts"
 // +kubebuilder:printcolumn:name="Completed",type="string",priority=0,JSONPath=".status.conditions[?(@.type==\"Completed\")].status"
 // +kubebuilder:printcolumn:name="Suspended",type="string",JSONPath=".spec.suspend",description="JobSet suspended"
+// +kubebuilder:printcolumn:name="StartTime",type=date,JSONPath=`.status.startTime`,description="Time the JobSet became active"
 // +kubebuilder:printcolumn:name="Age",JSONPath=".metadata.creationTimestamp",type=date,description="Time this JobSet was created"
 
 // JobSet is the Schema for the jobsets API

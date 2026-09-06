@@ -18,6 +18,7 @@ limitations under the License.
 package v1alpha2
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
@@ -28,6 +29,14 @@ import (
 type JobSetStatusApplyConfiguration struct {
 	// conditions track status
 	Conditions []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
+	// startTime is the timestamp from which activeDeadlineSeconds is measured, and
+	// also serves as the JobSet's active-start time. It is set when the JobSet
+	// first becomes active (unsuspended), cleared when the JobSet is suspended, and
+	// reset to the current time when the JobSet resumes, matching
+	// batch/v1.Job.status.startTime. It is maintained only while the
+	// JobSetActiveDeadlineSeconds feature gate is enabled, independent of whether
+	// activeDeadlineSeconds is set.
+	StartTime *metav1.Time `json:"startTime,omitempty"`
 	// restarts tracks the number of times the JobSet has been globally restarted.
 	// That is, restarts is the number of times the restart action RestartJobSet or RestartJobSetAndIgnoreMaxRestarts have been executed and led to the recreation of all Jobs.
 	Restarts *int32 `json:"restarts,omitempty"`
@@ -73,6 +82,14 @@ func (b *JobSetStatusApplyConfiguration) WithConditions(values ...*v1.ConditionA
 		}
 		b.Conditions = append(b.Conditions, *values[i])
 	}
+	return b
+}
+
+// WithStartTime sets the StartTime field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the StartTime field is set to the value of the last call.
+func (b *JobSetStatusApplyConfiguration) WithStartTime(value metav1.Time) *JobSetStatusApplyConfiguration {
+	b.StartTime = &value
 	return b
 }
 

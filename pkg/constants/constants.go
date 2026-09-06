@@ -60,6 +60,10 @@ const (
 	FailedJobsReason  = "FailedJobs"
 	FailedJobsMessage = "jobset failed due to one or more job failures"
 
+	// Condition reason for when a JobSet fails due to exceeding its
+	// spec.activeDeadlineSeconds while continuously active.
+	DeadlineExceededReason = "DeadlineExceeded"
+
 	// Event reason and message for when a Jobset completes successfully.
 	AllJobsCompletedReason  = "AllJobsCompleted"
 	AllJobsCompletedMessage = "jobset completed successfully"

@@ -39,6 +39,14 @@ var (
 			Help:      `The total number of completed JobSets`,
 		}, []string{"jobset_name", "namespace"},
 	)
+
+	ActiveDeadlineExceededTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: constants.JobSetSubsystemName,
+			Name:      "active_deadline_exceeded_total",
+			Help:      `The total number of JobSets failed due to exceeding spec.activeDeadlineSeconds`,
+		}, []string{"jobset_name", "namespace"},
+	)
 )
 
 // JobSetFailed records the failed case
@@ -53,9 +61,16 @@ func JobSetCompleted(name, namespace string) {
 	CompletedTotal.WithLabelValues(name, namespace).Inc()
 }
 
+// JobSetActiveDeadlineExceeded records a JobSet failed due to exceeding its active deadline.
+// label values: name, namespace
+func JobSetActiveDeadlineExceeded(name, namespace string) {
+	ActiveDeadlineExceededTotal.WithLabelValues(name, namespace).Inc()
+}
+
 func Register() {
 	metrics.Registry.MustRegister(
 		FailedTotal,
 		CompletedTotal,
+		ActiveDeadlineExceededTotal,
 	)
 }

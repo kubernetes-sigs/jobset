@@ -17,6 +17,7 @@ import pprint
 import re  # noqa: F401
 import json
 
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from jobset.models.io_k8s_apimachinery_pkg_apis_meta_v1_condition import IoK8sApimachineryPkgApisMetaV1Condition
@@ -35,8 +36,9 @@ class JobsetV1alpha2JobSetStatus(BaseModel):
     replicated_jobs_status: Optional[List[JobsetV1alpha2ReplicatedJobStatus]] = Field(default=None, description="replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.", alias="replicatedJobsStatus")
     restarts: Optional[StrictInt] = Field(default=0, description="restarts tracks the number of times the JobSet has been globally restarted. That is, restarts is the number of times the restart action RestartJobSet or RestartJobSetAndIgnoreMaxRestarts have been executed and led to the recreation of all Jobs.")
     restarts_count_towards_max: Optional[StrictInt] = Field(default=None, description="restartsCountTowardsMax tracks the number of times the JobSet has been globally restarted that counts towards the maximum allowed number of restarts. That is, restartsCountTowardsMax is the number of times the restart action RestartJobSet has been executed and led to the recreation of all Jobs.", alias="restartsCountTowardsMax")
+    start_time: Optional[datetime] = Field(default=None, description="Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.", alias="startTime")
     terminal_state: Optional[StrictStr] = Field(default=None, description="terminalState tracks the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.", alias="terminalState")
-    __properties: ClassVar[List[str]] = ["conditions", "currentInPlaceRestartAttempt", "executionAttempts", "previousInPlaceRestartAttempt", "replicatedJobsStatus", "restarts", "restartsCountTowardsMax", "terminalState"]
+    __properties: ClassVar[List[str]] = ["conditions", "currentInPlaceRestartAttempt", "executionAttempts", "previousInPlaceRestartAttempt", "replicatedJobsStatus", "restarts", "restartsCountTowardsMax", "startTime", "terminalState"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -110,6 +112,7 @@ class JobsetV1alpha2JobSetStatus(BaseModel):
             "replicatedJobsStatus": [JobsetV1alpha2ReplicatedJobStatus.from_dict(_item) for _item in obj["replicatedJobsStatus"]] if obj.get("replicatedJobsStatus") is not None else None,
             "restarts": obj.get("restarts") if obj.get("restarts") is not None else 0,
             "restartsCountTowardsMax": obj.get("restartsCountTowardsMax"),
+            "startTime": obj.get("startTime"),
             "terminalState": obj.get("terminalState")
         })
         return _obj
