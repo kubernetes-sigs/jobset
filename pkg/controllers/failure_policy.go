@@ -192,6 +192,9 @@ func failurePolicyRecreateAll(ctx context.Context, js *jobset.JobSet, shouldCoun
 
 	// Increment JobSet global restarts. This will trigger reconciliation and result in deletions
 	// of old jobs not part of the current jobSet run.
+	// Note: the active-deadline .status.startTime is reset by the reconcile loop when it
+	// observes Status.Restarts increase (see resetStartTimeOnGlobalRestart), so it uses the
+	// controller's injectable clock rather than the wall clock here.
 	js.Status.Restarts += 1
 	if features.Enabled(features.ExecutionAttemptsTracking) {
 		if js.Status.ExecutionAttempts == nil {

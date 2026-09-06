@@ -33,6 +33,7 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
     """
     JobSetSpec defines the desired state of JobSet
     """ # noqa: E501
+    active_deadline_seconds: Optional[StrictInt] = Field(default=None, description="activeDeadlineSeconds is the maximum duration in seconds, relative to status.startTime, that the JobSet may be continuously active before the JobSet controller marks it Failed and deletes its active Jobs.  The timer does not accrue while the JobSet is suspended: startTime is cleared on suspend and reset when the JobSet resumes. The value must be a positive integer. The field is mutable: operators may raise or lower the deadline on a running JobSet, matching batch/v1.Job. The controller recomputes the remaining time from status.startTime on the next reconcile, so no timer state is reset on update.", alias="activeDeadlineSeconds")
     coordinator: Optional[JobsetV1alpha2Coordinator] = None
     failure_policy: Optional[JobsetV1alpha2FailurePolicy] = Field(default=None, alias="failurePolicy")
     managed_by: Optional[StrictStr] = Field(default=None, description="managedBy is used to indicate the controller or entity that manages a JobSet. The built-in JobSet controller reconciles JobSets which don't have this field at all or the field value is the reserved string `jobset.sigs.k8s.io/jobset-controller`, but skips reconciling JobSets with a custom value for this field. Note that ttlSecondsAfterFinished cleanup still applies to externally managed JobSets once the managing controller has recorded a terminal condition.  The value must be a valid domain-prefixed path (e.g. acme.io/foo) - all characters before the first \"/\" must be a valid subdomain as defined by RFC 1123. All characters trailing the first \"/\" must be valid HTTP Path characters as defined by RFC 3986. The value cannot exceed 63 characters. The field is immutable.", alias="managedBy")
@@ -43,7 +44,7 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
     suspend: Optional[StrictBool] = Field(default=None, description="suspend suspends all running child Jobs when set to true.")
     ttl_seconds_after_finished: Optional[StrictInt] = Field(default=None, description="ttlSecondsAfterFinished limits the lifetime of a JobSet that has finished execution (either Complete or Failed). If this field is set, TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be automatically deleted. When the JobSet is being deleted, its lifecycle guarantees (e.g. finalizers) will be honored. If this field is unset, the JobSet won't be automatically deleted. If this field is set to zero, the JobSet becomes eligible to be deleted immediately after it finishes. For JobSets that set managedBy to an external controller, TTL cleanup becomes eligible only after that controller records a terminal (Completed or Failed) condition.", alias="ttlSecondsAfterFinished")
     volume_claim_policies: Optional[List[JobsetV1alpha2VolumeClaimPolicy]] = Field(default=None, description="volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed to reference. JobSet controller automatically adds the required volume claims to the pod template. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template.", alias="volumeClaimPolicies")
-    __properties: ClassVar[List[str]] = ["coordinator", "failurePolicy", "managedBy", "network", "replicatedJobs", "startupPolicy", "successPolicy", "suspend", "ttlSecondsAfterFinished", "volumeClaimPolicies"]
+    __properties: ClassVar[List[str]] = ["activeDeadlineSeconds", "coordinator", "failurePolicy", "managedBy", "network", "replicatedJobs", "startupPolicy", "successPolicy", "suspend", "ttlSecondsAfterFinished", "volumeClaimPolicies"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -125,6 +126,7 @@ class JobsetV1alpha2JobSetSpec(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
+            "activeDeadlineSeconds": obj.get("activeDeadlineSeconds"),
             "coordinator": JobsetV1alpha2Coordinator.from_dict(obj["coordinator"]) if obj.get("coordinator") is not None else None,
             "failurePolicy": JobsetV1alpha2FailurePolicy.from_dict(obj["failurePolicy"]) if obj.get("failurePolicy") is not None else None,
             "managedBy": obj.get("managedBy"),
