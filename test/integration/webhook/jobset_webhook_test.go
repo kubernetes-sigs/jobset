@@ -148,6 +148,19 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				return completionMode != nil && *completionMode == batchv1.NonIndexedCompletion
 			},
 		}),
+		ginkgo.Entry("non-indexed completion mode with exclusive placement is rejected", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return testing.MakeJobSet("nonindexed-exclusive", ns.Name).
+					SetAnnotations(map[string]string{jobset.ExclusiveKey: "topology.kubernetes.io/zone"}).
+					EnableDNSHostnames(false).
+					ReplicatedJob(testing.MakeReplicatedJob("rjob").
+						Job(testing.MakeJobTemplate("job", ns.Name).
+							CompletionMode(batchv1.NonIndexedCompletion).
+							PodSpec(testing.TestPodSpec).Obj()).
+						Obj())
+			},
+			jobSetCreationShouldFail: true,
+		}),
 		ginkgo.Entry("enableDNSHostnames defaults to true if unset", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
 				return testing.MakeJobSet("enablednshostnames-unset", ns.Name).
