@@ -55,8 +55,10 @@ def main():
     device = get_device(int(os.environ["LOCAL_RANK"]))
     torch.cuda.set_device(device)
 
-    # Download the dataset only once, on the main process.
-    if is_main_process():
+    # Each worker pod has its own filesystem, so download the dataset on the
+    # local rank 0 of every pod; the other ranks in the same pod read it from
+    # the shared pod volume after the barrier.
+    if int(os.environ["LOCAL_RANK"]) == 0:
         datasets.CIFAR10(root="/data/cifar10", train=True, download=True)
         datasets.CIFAR10(root="/data/cifar10", train=False, download=True)
     dist.barrier()

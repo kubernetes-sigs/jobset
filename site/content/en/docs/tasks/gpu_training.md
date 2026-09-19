@@ -24,8 +24,11 @@ others before the training ring can start. JobSet provides this out of the box:
 - **Stable hostnames**: JobSet configures a headless service so each pod gets a
   stable DNS name (`<jobset>-<replicatedJob>-<index>-<podIndex>`). Workers keep
   the same address across restarts, even when pod IPs change.
-- **Atomic restarts**: if any worker fails, JobSet restarts the whole workload,
-  so the collective communication group is always consistent.
+- **Atomic restarts**: the manifest sets a
+  [`failurePolicy`](https://jobset.sigs.k8s.io/docs/handbook/restart-semantics/)
+  with `maxRestarts: 1` and the `RestartJobSet` action, so if any worker fails
+  the whole workload is recreated — the collective communication group stays
+  consistent without manual intervention.
 
 ## The manifest at a glance
 
@@ -37,6 +40,10 @@ metadata:
 spec:
   network:
     enableDNSHostnames: true
+  failurePolicy:
+    maxRestarts: 1
+    rules:
+    - action: RestartJobSet
   replicatedJobs:
   - name: workers
     template:
@@ -73,6 +80,8 @@ Key points:
 - The `RANK` environment variable is derived from the
   `batch.kubernetes.io/job-completion-index` annotation and becomes the node
   rank for the training ring.
+- The `failurePolicy` restarts the whole JobSet once if a worker fails, keeping
+  the training ring consistent only if all ranks can restart together.
 - Each pod requests `nvidia.com/gpu: 2`, so the job needs GPU nodes exposing
   the `nvidia.com/gpu` resource.
 
@@ -94,8 +103,10 @@ kubectl logs -f pytorch-gpu-workers-0-0
 ```
 
 When finished, the coordinator pod prints the validation accuracy and saves a
-checkpoint to `/checkpoints`.
+checkpoint to `/checkpoints`. Note that `/checkpoints` (like `/data`) is the
+pod's ephemeral disk, so copy the checkpoint out before deleting the JobSet:
 
 ```bash
+kubectl cp pytorch-gpu-workers-0-0:/checkpoints/resnet18-cifar10.pth ./resnet18-cifar10.pth
 kubectl delete jobset pytorch-gpu
 ```

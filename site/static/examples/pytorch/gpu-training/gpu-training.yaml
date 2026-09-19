@@ -12,6 +12,12 @@ spec:
   # discover the other workers when setting up distributed training.
   network:
     enableDNSHostnames: true
+  # If any child job fails, restart the whole JobSet (once) so the
+  # communication group stays consistent.
+  failurePolicy:
+    maxRestarts: 1
+    rules:
+    - action: RestartJobSet
   replicatedJobs:
   - name: workers
     template:

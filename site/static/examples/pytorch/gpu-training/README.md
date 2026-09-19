@@ -61,12 +61,23 @@ node rank and 2 GPUs per pod (`nproc_per_node=2`).
    The logs show per-epoch loss and test accuracy:
 
    ```
-   Epoch 0 step 0/352 loss=2.2974
+   Epoch 0 step 0/98 loss=2.2974
    Epoch 0 finished in 12.3s
    Epoch 0 test accuracy: 32.45%
    ```
 
-5. Clean up:
+   The batch count (`98` above) is `ceil(50000 / 4 / 128)` — the training data
+   is split across the 4 DDP ranks, and the log only shows the progress of the
+   rank you are tailing.
+
+5. Save the checkpoint. `/checkpoints` lives on the coordinator pod's ephemeral
+   disk, so copy it out before deleting the JobSet:
+
+   ```bash
+   kubectl cp pytorch-gpu-workers-0-0:/checkpoints/resnet18-cifar10.pth ./resnet18-cifar10.pth
+   ```
+
+6. Clean up:
 
    ```bash
    kubectl delete jobset pytorch-gpu
@@ -80,6 +91,8 @@ node rank and 2 GPUs per pod (`nproc_per_node=2`).
 | Azure AKS | Create an AKS cluster with a GPU [node pool](https://docs.microsoft.com/en-us/azure/aks/gpu-cluster) (e.g. Standard_NC* series). |
 | Google GKE | Create a GKE cluster with GPU nodes via the [NVIDIA GPU support](https://cloud.google.com/kubernetes-engine/docs/how-to/gpus) guide (e.g. L4 or A100 machines). |
 
-> **Troubleshooting**: if workers cannot reach each other, ask the cluster
-> admin to check the node network (NCCL uses TCP by default). Set
-> `NCCL_DEBUG=INFO` in the container env to get detailed NCCL logs.
+> **Troubleshooting**: if workers cannot reach each other, set `NCCL_DEBUG=INFO`
+> in the container env to see which transport NCCL selected (it may use
+> InfiniBand/RoCE or TCP sockets) and which interface it binds to. Ask the
+> cluster admin to check the node network and open the rendezvous port (3389
+> by default) between the worker nodes.
