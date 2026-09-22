@@ -30,6 +30,10 @@ spec:
       jsonPath: .spec.suspend
       name: Suspended
       type: string
+    - description: Time the JobSet became active
+      jsonPath: .status.startTime
+      name: StartTime
+      type: date
     - description: Time this JobSet was created
       jsonPath: .metadata.creationTimestamp
       name: Age
@@ -59,6 +63,21 @@ spec:
           spec:
             description: spec is the specification for jobset
             properties:
+              activeDeadlineSeconds:
+                description: |-
+                  activeDeadlineSeconds is the maximum duration in seconds, relative to
+                  status.startTime, that the JobSet may be continuously active before the
+                  JobSet controller marks it Failed and deletes its active Jobs.
+
+                  The timer does not accrue while the JobSet is suspended: startTime is
+                  cleared on suspend and reset when the JobSet resumes. The value must be a
+                  positive integer. The field is mutable: operators may raise or lower the
+                  deadline on a running JobSet, matching batch/v1.Job. The controller
+                  recomputes the remaining time from status.startTime on the next reconcile,
+                  so no timer state is reset on update.
+                format: int64
+                minimum: 1
+                type: integer
               coordinator:
                 description: |-
                   coordinator can be used to assign a specific pod as the coordinator for
@@ -10717,6 +10736,17 @@ spec:
                   That is, restartsCountTowardsMax is the number of times the restart action RestartJobSet has been executed and led to the recreation of all Jobs.
                 format: int32
                 type: integer
+              startTime:
+                description: |-
+                  startTime is the timestamp from which activeDeadlineSeconds is measured, and
+                  also serves as the JobSet's active-start time. It is set when the JobSet
+                  first becomes active (unsuspended), cleared when the JobSet is suspended, and
+                  reset to the current time when the JobSet resumes, matching
+                  batch/v1.Job.status.startTime. It is maintained only while the
+                  JobSetActiveDeadlineSeconds feature gate is enabled, independent of whether
+                  activeDeadlineSeconds is set.
+                format: date-time
+                type: string
               terminalState:
                 description: |-
                   terminalState tracks the state of the JobSet when it finishes execution.

@@ -217,6 +217,11 @@ func (in *JobSetSpec) DeepCopyInto(out *JobSetSpec) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.ActiveDeadlineSeconds != nil {
+		in, out := &in.ActiveDeadlineSeconds, &out.ActiveDeadlineSeconds
+		*out = new(int64)
+		**out = **in
+	}
 	if in.VolumeClaimPolicies != nil {
 		in, out := &in.VolumeClaimPolicies, &out.VolumeClaimPolicies
 		*out = make([]VolumeClaimPolicy, len(*in))
@@ -245,6 +250,10 @@ func (in *JobSetStatus) DeepCopyInto(out *JobSetStatus) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.StartTime != nil {
+		in, out := &in.StartTime, &out.StartTime
+		*out = (*in).DeepCopy()
 	}
 	if in.ExecutionAttempts != nil {
 		in, out := &in.ExecutionAttempts, &out.ExecutionAttempts

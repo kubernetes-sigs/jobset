@@ -72,6 +72,17 @@ type JobSetSpecApplyConfiguration struct {
 	// becomes eligible only after that controller records a terminal
 	// (Completed or Failed) condition.
 	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
+	// activeDeadlineSeconds is the maximum duration in seconds, relative to
+	// status.startTime, that the JobSet may be continuously active before the
+	// JobSet controller marks it Failed and deletes its active Jobs.
+	//
+	// The timer does not accrue while the JobSet is suspended: startTime is
+	// cleared on suspend and reset when the JobSet resumes. The value must be a
+	// positive integer. The field is mutable: operators may raise or lower the
+	// deadline on a running JobSet, matching batch/v1.Job. The controller
+	// recomputes the remaining time from status.startTime on the next reconcile,
+	// so no timer state is reset on update.
+	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,omitempty"`
 	// volumeClaimPolicies is a list of policies for persistent volume claims that pods are allowed
 	// to reference. JobSet controller automatically adds the required volume claims to the
 	// pod template. Every claim in this list must have at least one matching (by name)
@@ -159,6 +170,14 @@ func (b *JobSetSpecApplyConfiguration) WithManagedBy(value string) *JobSetSpecAp
 // If called multiple times, the TTLSecondsAfterFinished field is set to the value of the last call.
 func (b *JobSetSpecApplyConfiguration) WithTTLSecondsAfterFinished(value int32) *JobSetSpecApplyConfiguration {
 	b.TTLSecondsAfterFinished = &value
+	return b
+}
+
+// WithActiveDeadlineSeconds sets the ActiveDeadlineSeconds field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ActiveDeadlineSeconds field is set to the value of the last call.
+func (b *JobSetSpecApplyConfiguration) WithActiveDeadlineSeconds(value int64) *JobSetSpecApplyConfiguration {
+	b.ActiveDeadlineSeconds = &value
 	return b
 }
 

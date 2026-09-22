@@ -176,6 +176,25 @@ to automatically restart the JobSet. A restart is done by recreating all child j
 
 A JobSet is terminally failed when the number of failures reaches `spec.failurePolicy.maxRestarts`
 
+### Active deadline
+
+`spec.activeDeadlineSeconds` bounds how long a JobSet may be *continuously active*.
+When the deadline is exceeded, the JobSet controller marks the JobSet as `Failed`
+with condition reason `DeadlineExceeded` and deletes its active child Jobs, freeing
+their resources. This mirrors `batch/v1.Job.spec.activeDeadlineSeconds` at the
+JobSet level, and is independent of `maxRestarts`: the deadline bounds a single
+active attempt, while `maxRestarts` bounds how many times the JobSet restarts.
+
+The timer is measured from `.status.startTime` and does not accrue while the
+JobSet is suspended: `startTime` is cleared on suspend and reset on resume and on
+a global restart (`RestartJobSet`), so a Kueue-managed JobSet is not penalized for
+queued time. The field is mutable; the controller recomputes the remaining time on
+each reconcile.
+
+This feature is alpha and gated by the `JobSetActiveDeadlineSeconds` feature gate
+(disabled by default). `.status.startTime` is only maintained while the gate is
+enabled; the controller does not set or update it when the gate is off.
+
 ## Coordinator
 
 A specific pod can be assigned as coordinator using `spec.coordinator`. If

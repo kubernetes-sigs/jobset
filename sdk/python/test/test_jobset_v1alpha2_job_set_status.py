@@ -64,6 +64,7 @@ class TestJobsetV1alpha2JobSetStatus(unittest.TestCase):
                     ],
                 restarts = 56,
                 restarts_count_towards_max = 56,
+                start_time = datetime.datetime.strptime('2013-10-20 19:20:30.00', '%Y-%m-%d %H:%M:%S.%f'),
                 terminal_state = ''
             )
         else:

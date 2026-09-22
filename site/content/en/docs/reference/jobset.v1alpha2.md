@@ -392,6 +392,21 @@ becomes eligible only after that controller records a terminal
 (Completed or Failed) condition.</p>
 </td>
 </tr>
+<tr><td><code>activeDeadlineSeconds</code><br/>
+<code>int64</code>
+</td>
+<td>
+   <p>activeDeadlineSeconds is the maximum duration in seconds, relative to
+status.startTime, that the JobSet may be continuously active before the
+JobSet controller marks it Failed and deletes its active Jobs.</p>
+<p>The timer does not accrue while the JobSet is suspended: startTime is
+cleared on suspend and reset when the JobSet resumes. The value must be a
+positive integer. The field is mutable: operators may raise or lower the
+deadline on a running JobSet, matching batch/v1.Job. The controller
+recomputes the remaining time from status.startTime on the next reconcile,
+so no timer state is reset on update.</p>
+</td>
+</tr>
 <tr><td><code>volumeClaimPolicies</code><br/>
 <a href="#jobset-x-k8s-io-v1alpha2-VolumeClaimPolicy"><code>[]VolumeClaimPolicy</code></a>
 </td>
@@ -426,6 +441,19 @@ volumeMount in one container in the template.</p>
 </td>
 <td>
    <p>conditions track status</p>
+</td>
+</tr>
+<tr><td><code>startTime</code><br/>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#time-v1-meta"><code>k8s.io/apimachinery/pkg/apis/meta/v1.Time</code></a>
+</td>
+<td>
+   <p>startTime is the timestamp from which activeDeadlineSeconds is measured, and
+also serves as the JobSet's active-start time. It is set when the JobSet
+first becomes active (unsuspended), cleared when the JobSet is suspended, and
+reset to the current time when the JobSet resumes, matching
+batch/v1.Job.status.startTime. It is maintained only while the
+JobSetActiveDeadlineSeconds feature gate is enabled, independent of whether
+activeDeadlineSeconds is set.</p>
 </td>
 </tr>
 <tr><td><code>restarts</code><br/>

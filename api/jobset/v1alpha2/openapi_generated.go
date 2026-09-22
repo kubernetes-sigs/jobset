@@ -408,6 +408,13 @@ func schema_jobset_api_jobset_v1alpha2_JobSetSpec(ref common.ReferenceCallback) 
 							Format:      "int32",
 						},
 					},
+					"activeDeadlineSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "activeDeadlineSeconds is the maximum duration in seconds, relative to status.startTime, that the JobSet may be continuously active before the JobSet controller marks it Failed and deletes its active Jobs.\n\nThe timer does not accrue while the JobSet is suspended: startTime is cleared on suspend and reset when the JobSet resumes. The value must be a positive integer. The field is mutable: operators may raise or lower the deadline on a running JobSet, matching batch/v1.Job. The controller recomputes the remaining time from status.startTime on the next reconcile, so no timer state is reset on update.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
 					"volumeClaimPolicies": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -462,6 +469,12 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 									},
 								},
 							},
+						},
+					},
+					"startTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "startTime is the timestamp from which activeDeadlineSeconds is measured, and also serves as the JobSet's active-start time. It is set when the JobSet first becomes active (unsuspended), cleared when the JobSet is suspended, and reset to the current time when the JobSet resumes, matching batch/v1.Job.status.startTime. It is maintained only while the JobSetActiveDeadlineSeconds feature gate is enabled, independent of whether activeDeadlineSeconds is set.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
 					"restarts": {
@@ -534,7 +547,7 @@ func schema_jobset_api_jobset_v1alpha2_JobSetStatus(ref common.ReferenceCallback
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition", "sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJobStatus"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition", "k8s.io/apimachinery/pkg/apis/meta/v1.Time", "sigs.k8s.io/jobset/api/jobset/v1alpha2.ReplicatedJobStatus"},
 	}
 }
 
