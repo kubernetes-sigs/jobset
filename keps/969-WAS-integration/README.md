@@ -103,7 +103,8 @@ one `PodGroup` per scheduling template, and maps child Jobs and Pods to those Po
 ### Representative APIs
 
 Each user story above maps to a concrete `spec.scheduling` configuration and a specific set of
-generated `Workload`/`PodGroup` resources.
+generated `Workload`/`PodGroup` resources. In the names below, each `<hash>` is derived from the
+corresponding source object's identity as described in [Naming Convention](#naming-convention).
 
 **Gang-schedule a complete training JobSet**
 
@@ -113,8 +114,8 @@ scheduling:
     gang: {}
 ```
 
-Creates: one `Workload` and one `PodGroup` named `<jobset-name>`, with `minCount` defaulted to
-`parallelism × replicas` summed across all ReplicatedJobs.
+Creates: one `Workload` and one `PodGroup`, each named `<jobset-name>-<hash>`, with `minCount`
+defaulted to `parallelism × replicas` summed across all ReplicatedJobs.
 
 **Schedule groups independently**
 
@@ -129,8 +130,9 @@ scheduling:
         gang: {}
 ```
 
-Creates: one `Workload` containing one `PodGroup` per targeted ReplicatedJob, named
-`<jobset-name>-<replicatedjob-name>` (one PodGroup for `launcher`, one for `worker`).
+Creates: one `Workload` named `<jobset-name>-<hash>` containing one `PodGroup` per targeted
+ReplicatedJob. The PodGroups are named `<jobset-name>-launcher-<hash>` and
+`<jobset-name>-worker-<hash>`.
 
 **Schedule groups together**
 
@@ -142,8 +144,9 @@ scheduling:
         gang: {}
 ```
 
-Creates: one `Workload` containing one `PodGroup` for launcher and worker.
-MinCount for gang of launcher and worker is the number of replicas for each summed.
+Creates: one `Workload` named `<jobset-name>-<hash>` containing one `PodGroup` for launcher and
+worker, named `<jobset-name>-launcher-worker-<hash>`. MinCount for the gang of launcher and
+worker is the sum of the number of replicas for each.
 
 **Independent driver and constrained workers**
 
@@ -160,8 +163,9 @@ scheduling:
         topologyRequest: ...
 ```
 
-Creates: one `Workload` with two independent `PodGroup`s — a Basic `PodGroup` for `driver` and a
-topology-constrained Gang `PodGroup` for `worker`. No composite `PodGroup` links them in alpha.
+Creates: one `Workload` named `<jobset-name>-<hash>` with two independent `PodGroup`s — a Basic
+`PodGroup` named `<jobset-name>-driver-<hash>` and a topology-constrained Gang `PodGroup` named
+`<jobset-name>-worker-<hash>`. No composite `PodGroup` links them in alpha.
 
 **Keep existing JobSets unchanged**
 
@@ -198,9 +202,9 @@ replicatedJobs:
         status: Ready
 ```
 
-Creates: one `Workload` containing one Gang `PodGroup` per ReplicatedJob (`<jobset-name>-leader`,
-`<jobset-name>-worker`) instead of a single JobSet-wide `PodGroup`, avoiding deadlock from
-sequential Job creation.
+Creates: one `Workload` named `<jobset-name>-<hash>` containing one Gang `PodGroup` per
+ReplicatedJob (`<jobset-name>-leader-<hash>`, `<jobset-name>-worker-<hash>`) instead of a single
+JobSet-wide `PodGroup`, avoiding deadlock from sequential Job creation.
 
 **Scale an elastic workload**
 
@@ -331,28 +335,38 @@ JobSet (CPG, basic, zone-level topology)
 
 ```yaml
 scheduling:
-  schedulingPolicy: basic
+  schedulingPolicy:
+    basic: {}
   schedulingConstraints: zone
   disruptionMode: simple
   replicatedJobs:
     - targetReplicatedJobs: [ReplicatedJobA]
+      schedulingPolicy:
+        gang: {}
       disruptionMode:
         all: {}
       job:
-        schedulingPolicy: {}
+        schedulingPolicy:
+          gang: {}
         schedulingConstraints: rack
         resourceClaims: ... #shared claim for all pods within podgroup
     - targetReplicatedJobs: [ReplicatedJobB]
+      schedulingPolicy:
+        gang: {}
       disruptionMode:
         all: {}
       job:
-        schedulingPolicy: {}
+        schedulingPolicy:
+          gang: {}
         schedulingConstraints: rack
     - targetReplicatedJobs: [ReplicatedJobC]
+      schedulingPolicy:
+        gang: {}
       disruptionMode:
         all: {}
       job:
-        schedulingPolicy: {}
+        schedulingPolicy:
+          gang: {}
         schedulingConstraints: rack
         resourceClaims: ... #shared claim for all pods within podgroup
 ```
