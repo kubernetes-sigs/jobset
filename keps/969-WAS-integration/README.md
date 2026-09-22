@@ -336,7 +336,7 @@ JobSet (CPG, basic, zone-level topology)
 ```yaml
 scheduling:
   schedulingPolicy:
-    gang: {}
+    basic: {}
   schedulingConstraints: zone
   disruptionMode: simple
   replicatedJobs:
