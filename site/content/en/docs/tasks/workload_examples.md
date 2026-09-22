@@ -12,6 +12,7 @@ no_list: true
 ## PyTorch Example
 
 - [Distributed Training of a CNN on the MNIST dataset using PyTorch and JobSet](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/pytorch/cnn-mnist/mnist.yaml)
+- [Distributed GPU Training of a ResNet-18 on the CIFAR-10 dataset using PyTorch and JobSet](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/pytorch/gpu-training/README.md)
 
 **Note**: Machine learning container images can be quite large so it may take some time to pull the images.
 
