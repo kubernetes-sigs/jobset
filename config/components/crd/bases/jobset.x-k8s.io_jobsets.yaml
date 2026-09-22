@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.2
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: jobsets.jobset.x-k8s.io
 spec:
   group: jobset.x-k8s.io
@@ -573,6 +573,9 @@ spec:
                                         be disrupted independently from each other.
                                       type: object
                                   type: object
+                                  x-kubernetes-validations:
+                                  - message: field is immutable
+                                    rule: self == oldSelf
                                 resourceClaims:
                                   description: |-
                                     ResourceClaims defines which ResourceClaims may be shared among Pods in
@@ -610,10 +613,14 @@ spec:
                                     required:
                                     - name
                                     type: object
+                                  maxItems: 4
                                   type: array
                                   x-kubernetes-list-map-keys:
                                   - name
                                   x-kubernetes-list-type: map
+                                  x-kubernetes-validations:
+                                  - message: field is immutable
+                                    rule: self == oldSelf
                                 schedulingConstraints:
                                   description: |-
                                     SchedulingConstraints defines scheduling constraints (e.g. topology)
@@ -642,6 +649,9 @@ spec:
                                       type: array
                                       x-kubernetes-list-type: atomic
                                   type: object
+                                  x-kubernetes-validations:
+                                  - message: field is immutable
+                                    rule: self == oldSelf
                                 schedulingPolicy:
                                   description: |-
                                     SchedulingPolicy defines the scheduling policy for this Job.
@@ -672,6 +682,14 @@ spec:
                                       type: object
                                   type: object
                               type: object
+                              x-kubernetes-validations:
+                              - message: field schedulingConstraints is immutable
+                                  once set
+                                rule: '!has(oldSelf.schedulingConstraints) || has(self.schedulingConstraints)'
+                              - message: field disruptionMode is immutable once set
+                                rule: '!has(oldSelf.disruptionMode) || has(self.disruptionMode)'
+                              - message: field resourceClaims is immutable once set
+                                rule: '!has(oldSelf.resourceClaims) || has(self.resourceClaims)'
                             selector:
                               description: |-
                                 A label query over pods that should match the pod count.
@@ -10476,6 +10494,10 @@ spec:
                                             - "Inaccessible": the volume cannot be accessed.
                                             - "DataLoss": data loss has been detected on the volume.
                                             - "Degraded": the volume is functioning with reduced capability.
+                                          enum:
+                                          - DataLoss
+                                          - Degraded
+                                          - Inaccessible
                                           type: string
                                       required:
                                       - reason

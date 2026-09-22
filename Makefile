@@ -109,6 +109,9 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
 		webhook output:webhook:artifacts:config=config/components/webhook\
 		paths="./pkg/..."
+	@# controller-gen does not implement the +k8s:maxItems marker used by
+	@# upstream Kubernetes types. Restore dropped bounds and validate the CRD.
+	$(GO_CMD) run ./hack/crdschema config/components/crd/bases/jobset.x-k8s.io_jobsets.yaml
 	cp -f ./config/components/crd/bases/jobset.x-k8s.io_jobsets.yaml ./charts/jobset/crds/
 
 .PHONY: generate
@@ -345,7 +348,7 @@ $(LOCALBIN):
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.2.1
-CONTROLLER_TOOLS_VERSION ?= v0.17.2
+CONTROLLER_TOOLS_VERSION ?= v0.22.0
 # ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script.
 ENVTEST_VERSION ?= $(shell $(GO_CMD) list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 # ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries.
