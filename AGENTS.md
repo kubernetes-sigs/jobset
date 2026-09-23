@@ -82,6 +82,15 @@ make test-integration
 # Run E2E tests on Kind cluster
 make test-e2e-kind
 
+# Run scheduling-specific E2E tests (WAS feature gates)
+make test-e2e-kind-scheduling
+
+# Create a WAS Kind cluster for interactive dev (no auto-cleanup)
+make kind-cluster-scheduling
+
+# Delete the WAS Kind cluster
+make kind-cluster-scheduling-delete
+
 # Run specific test (use Ginkgo focus)
 GINKGO_ARGS="-focus='specific test pattern'" make test-integration
 

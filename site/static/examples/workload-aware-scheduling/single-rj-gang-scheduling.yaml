@@ -1,0 +1,55 @@
+# Single ReplicatedJob Gang Scheduling Example
+#
+# The simplest possible gang-scheduling configuration: a single ReplicatedJob
+# with one Job that runs multiple parallel pods. All pods must be admitted
+# together or none are scheduled, preventing partial starts that waste resources.
+#
+# This is ideal for simple parallel batch workloads or data-parallel training
+# where every pod performs the same role and all must run simultaneously.
+#
+# Expected results:
+#   - A Workload named "parallel-batch" is created with 1 PodGroupTemplate
+#   - A single PodGroup "parallel-batch" with Gang policy (minCount=4)
+#   - 1 child Job with 4 parallel pods, all gang-scheduled
+#   - The child Job carries scheduling annotations:
+#       scheduling.k8s.io/group-template-name: parallel-batch
+#       scheduling.k8s.io/parent-composite-podgroup: parallel-batch
+#
+# Verify:
+#   kubectl get workloads,podgroups,jobs -n default
+#   kubectl describe workload parallel-batch -n default
+#   kubectl get pods -n default -l job-name -o wide
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: parallel-batch
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  scheduling:
+    policy:
+      gang: {}
+  replicatedJobs:
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          parallelism: 4
+          completions: 4
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: Never
+              containers:
+                - name: worker
+                  image: busybox
+                  command:
+                    - "sleep"
+                  args:
+                    - 3000s
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

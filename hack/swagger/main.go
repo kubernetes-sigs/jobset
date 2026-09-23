@@ -62,10 +62,17 @@ func main() {
 
 	k8sOpenAPISpec := fmt.Sprintf("https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/%s/api/openapi-spec/swagger.json", k8sVersion)
 	refCallback := func(name string) spec.Ref {
+		// Kubernetes' published swagger.json does not contain the composite
+		// scheduling types, even though they are part of k8s.io/api. Keep those
+		// definitions local so SDK generation can resolve them.
+		switch name {
+		case compositeSchedulingPolicy, compositeSchedulingConstraints, compositeDisruptionMode:
+			return localRef(name)
+		}
 		if strings.HasPrefix(name, "k8s.io") {
 			return spec.MustCreateRef(k8sOpenAPISpec + "#/definitions/" + swaggify(name))
 		}
-		return spec.MustCreateRef("#/definitions/" + swaggify(name))
+		return localRef(name)
 	}
 
 	for k, v := range jobset.GetOpenAPIDefinitions(refCallback) {
@@ -75,6 +82,7 @@ func main() {
 	for defName, val := range oAPIDefs {
 		defs[swaggify(defName)] = val.Schema
 	}
+	addCompositeSchedulingDefinitions(defs, k8sOpenAPISpec)
 	swagger := spec.Swagger{
 		SwaggerProps: spec.SwaggerProps{
 			Swagger:     "2.0",
@@ -94,6 +102,67 @@ func main() {
 		klog.Fatal(err.Error())
 	}
 	fmt.Println(string(jsonBytes))
+}
+
+const (
+	compositeSchedulingPolicy      = "k8s.io/api/scheduling/v1alpha3.WorkloadCompositePodGroupSchedulingPolicy"
+	compositeBasicSchedulingPolicy = "k8s.io/api/scheduling/v1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy"
+	compositeGangSchedulingPolicy  = "k8s.io/api/scheduling/v1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy"
+	compositeSchedulingConstraints = "k8s.io/api/scheduling/v1alpha3.WorkloadCompositePodGroupSchedulingConstraints"
+	compositeDisruptionMode        = "k8s.io/api/scheduling/v1alpha3.WorkloadCompositePodGroupDisruptionMode"
+	compositeSingleDisruptionMode  = "k8s.io/api/scheduling/v1alpha3.WorkloadCompositePodGroupSingleDisruptionMode"
+	compositeAllDisruptionMode     = "k8s.io/api/scheduling/v1alpha3.WorkloadCompositePodGroupAllDisruptionMode"
+	topologyConstraint             = "k8s.io/api/scheduling/v1alpha3.TopologyConstraint"
+)
+
+func addCompositeSchedulingDefinitions(defs spec.Definitions, k8sOpenAPISpec string) {
+	defs[swaggify(compositeSchedulingPolicy)] = spec.Schema{SchemaProps: spec.SchemaProps{
+		Type: []string{"object"},
+		Properties: map[string]spec.Schema{
+			"basic": {SchemaProps: spec.SchemaProps{Ref: localRef(compositeBasicSchedulingPolicy)}},
+			"gang":  {SchemaProps: spec.SchemaProps{Ref: localRef(compositeGangSchedulingPolicy)}},
+		},
+	}}
+	defs[swaggify(compositeBasicSchedulingPolicy)] = spec.Schema{SchemaProps: spec.SchemaProps{
+		Type: []string{"object"},
+	}}
+	minimum := float64(1)
+	defs[swaggify(compositeGangSchedulingPolicy)] = spec.Schema{SchemaProps: spec.SchemaProps{
+		Type: []string{"object"},
+		Properties: map[string]spec.Schema{
+			"minGroupCount": {SchemaProps: spec.SchemaProps{
+				Type:    []string{"integer"},
+				Format:  "int32",
+				Minimum: &minimum,
+			}},
+		},
+	}}
+	maxItems := int64(1)
+	defs[swaggify(compositeSchedulingConstraints)] = spec.Schema{SchemaProps: spec.SchemaProps{
+		Type: []string{"object"},
+		Properties: map[string]spec.Schema{
+			"topology": {SchemaProps: spec.SchemaProps{
+				Type:     []string{"array"},
+				MaxItems: &maxItems,
+				Items: &spec.SchemaOrArray{Schema: &spec.Schema{SchemaProps: spec.SchemaProps{
+					Ref: spec.MustCreateRef(k8sOpenAPISpec + "#/definitions/" + swaggify(topologyConstraint)),
+				}}},
+			}},
+		},
+	}}
+	defs[swaggify(compositeDisruptionMode)] = spec.Schema{SchemaProps: spec.SchemaProps{
+		Type: []string{"object"},
+		Properties: map[string]spec.Schema{
+			"single": {SchemaProps: spec.SchemaProps{Ref: localRef(compositeSingleDisruptionMode)}},
+			"all":    {SchemaProps: spec.SchemaProps{Ref: localRef(compositeAllDisruptionMode)}},
+		},
+	}}
+	defs[swaggify(compositeSingleDisruptionMode)] = spec.Schema{SchemaProps: spec.SchemaProps{Type: []string{"object"}}}
+	defs[swaggify(compositeAllDisruptionMode)] = spec.Schema{SchemaProps: spec.SchemaProps{Type: []string{"object"}}}
+}
+
+func localRef(name string) spec.Ref {
+	return spec.MustCreateRef("#/definitions/" + swaggify(name))
 }
 
 func swaggify(name string) string {
