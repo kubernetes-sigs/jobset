@@ -12,6 +12,7 @@ In addition to the [examples in the GitHub repository](https://github.com/kubern
 see the following for examples on how to do common tasks with JobSet:
 
 - [Example Workloads](./workload_examples): Examples of PyTorch and TensorFlow workloads using JobSet
+- [GPU Training](./gpu_training): Running distributed PyTorch training on GPUs with JobSet
 - [Simple Examples](./simple_examples): Simple examples of JobSet core features
 - [Failure Policy](./failure_policy): Configuring JobSet failure policies
 - [Volume Claim Policies](./volume_claim_policies): Managing persistent volumes for stateful JobSets.
