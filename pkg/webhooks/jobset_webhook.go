@@ -26,6 +26,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -583,12 +584,13 @@ func (j *jobSetWebhook) validateVolumeClaimPolicies(ctx context.Context, js *job
 				Namespace: js.Namespace,
 			}, existingPVC)
 			if err == nil {
-				// PVC specs must be the same.
-				if !reflect.DeepEqual(existingPVC.Spec, template.Spec) {
+				// Every field the template sets must match the existing PVC.
+				if mismatches := pvcSpecMismatches(&template.Spec, &existingPVC.Spec); len(mismatches) > 0 {
 					allErrs = append(allErrs, field.Invalid(
 						templateFieldPath.Child("spec"),
 						template.Spec,
-						fmt.Sprintf("spec does not match existing PVC %s in namespace %s", pvcName, js.Namespace),
+						fmt.Sprintf("spec does not match existing PVC %s in namespace %s, differing field(s): %s",
+							pvcName, js.Namespace, strings.Join(mismatches, ", ")),
 					))
 				}
 				// Retention policy must be retain for the existing PVC.
@@ -612,6 +614,96 @@ func (j *jobSetWebhook) validateVolumeClaimPolicies(ctx context.Context, js *job
 		}
 	}
 	return allErrs
+}
+
+// pvcSpecMismatches returns the names of the fields in which a volume claim template
+// disagrees with the spec of an already-existing PVC, or nil if the template is
+// compatible with it.
+//
+// A live PVC carries values the API server populated on the user's behalf, which a
+// template embedded in the JobSet CRD never has: volumeMode and storageClassName are
+// filled in by defaulting and by the DefaultStorageClass admission plugin,
+// volumeAttributesClassName may come from a default VolumeAttributesClass, volumeName is
+// assigned by the binder once the claim binds, dataSourceRef and dataSource are
+// cross-populated from one another, and resource quantities are canonicalized. Comparing
+// the two specs verbatim therefore fails for any PVC that has been through the API
+// server, which is every PVC kept by retentionPolicy.whenDeleted: Retain - the one
+// workflow this validation is meant to allow.
+//
+// Those fields are therefore compared only when the template sets them: leaving one unset
+// expresses no preference, so whatever the API server chose for it is compatible by
+// definition. The remaining fields - accessModes, resources and selector, none of which the
+// API server populates on the user's behalf - are compared as written, so a template that
+// genuinely describes a different claim is still rejected.
+func pvcSpecMismatches(template, existing *corev1.PersistentVolumeClaimSpec) []string {
+	normalized := normalizePVCSpec(template, existing)
+
+	// Comparing field by field rather than comparing the two structs as a whole keeps this
+	// check total - a field added to PersistentVolumeClaimSpec upstream is compared like
+	// any other, rather than being silently dropped - while still naming what differs. That
+	// naming matters here: the template the user wrote is byte-for-byte the one that
+	// created the PVC in the first place, so a bare "spec does not match" gives them
+	// nothing to go on.
+	normalizedValue := reflect.ValueOf(*normalized)
+	existingValue := reflect.ValueOf(*existing)
+	specType := normalizedValue.Type()
+
+	var mismatches []string
+	for i := range specType.NumField() {
+		// Semantic equality compares resource quantities by value rather than by their
+		// cached string representation, and treats nil and empty collections alike.
+		if apiequality.Semantic.DeepEqual(normalizedValue.Field(i).Interface(), existingValue.Field(i).Interface()) {
+			continue
+		}
+		mismatches = append(mismatches, jsonFieldName(specType.Field(i)))
+	}
+	return mismatches
+}
+
+// normalizePVCSpec returns a copy of the volume claim template with every field it leaves
+// unset taken from the existing PVC, so that values the API server chose on the user's
+// behalf do not read as a disagreement. See pvcSpecMismatches for why each field is here.
+func normalizePVCSpec(template, existing *corev1.PersistentVolumeClaimSpec) *corev1.PersistentVolumeClaimSpec {
+	normalized := template.DeepCopy()
+
+	// volumeName is assigned by the binder. An empty template does not pin a specific PV.
+	if normalized.VolumeName == "" {
+		normalized.VolumeName = existing.VolumeName
+	}
+	// storageClassName is defaulted by the DefaultStorageClass admission plugin. Note that
+	// nil ("use the cluster default") is not the same as "" ("use no storage class"), so
+	// only nil is treated as unset here.
+	if normalized.StorageClassName == nil {
+		normalized.StorageClassName = existing.StorageClassName
+	}
+	// volumeMode is defaulted to Filesystem.
+	if normalized.VolumeMode == nil {
+		normalized.VolumeMode = existing.VolumeMode
+	}
+	// volumeAttributesClassName may be defaulted from the cluster default VolumeAttributesClass.
+	if normalized.VolumeAttributesClassName == nil {
+		normalized.VolumeAttributesClassName = existing.VolumeAttributesClassName
+	}
+	// dataSource and dataSourceRef are cross-populated from each other, so a template that
+	// sets only one of them matches an existing PVC that has both.
+	if normalized.DataSource == nil {
+		normalized.DataSource = existing.DataSource
+	}
+	if normalized.DataSourceRef == nil {
+		normalized.DataSourceRef = existing.DataSourceRef
+	}
+
+	return normalized
+}
+
+// jsonFieldName returns the name a struct field is serialized under, for use in user
+// facing messages, falling back to the Go field name for a field without a json tag.
+func jsonFieldName(f reflect.StructField) string {
+	name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+	if name == "" {
+		return f.Name
+	}
+	return name
 }
 
 func validateReplicatedJobsVolumeClaims(rJobs []jobset.ReplicatedJob, volumeClaimName string) []error {
