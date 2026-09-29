@@ -176,6 +176,12 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 		}
 	}
 
+	// Validate JobSetActiveDeadlineSeconds feature gate.
+	// activeDeadlineSeconds should be settable only when the feature gate is enabled.
+	if !features.Enabled(features.JobSetActiveDeadlineSeconds) && js.Spec.ActiveDeadlineSeconds != nil {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "activeDeadlineSeconds"), *js.Spec.ActiveDeadlineSeconds, "cannot be set when JobSetActiveDeadlineSeconds feature gate is disabled"))
+	}
+
 	// Validate that depends On can't be set for the first replicated job.
 	if len(js.Spec.ReplicatedJobs) > 0 && js.Spec.ReplicatedJobs[0].DependsOn != nil {
 		allErrs = append(allErrs, fmt.Errorf("DependsOn can't be set for the first ReplicatedJob"))
@@ -391,6 +397,16 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 			// Pod Scheduling Gates can be updated for batch/v1 Job: https://github.com/kubernetes/kubernetes/blob/ceb58a4dbc671b9d0a2de6d73a1616bc0c299863/pkg/apis/batch/validation/validation.go#L662
 			mungedSpec.ReplicatedJobs[index].Template.Spec.Template.Spec.SchedulingGates = oldRJob.Template.Spec.Template.Spec.SchedulingGates
 		}
+	}
+
+	// Validate JobSetActiveDeadlineSeconds feature gate: activeDeadlineSeconds can be
+	// set or changed only when the feature gate is enabled. An unchanged value is left
+	// alone so a JobSet created while the gate was on can still be updated otherwise,
+	// and clearing the field is always allowed.
+	if !features.Enabled(features.JobSetActiveDeadlineSeconds) &&
+		!ptr.Equal(newJs.Spec.ActiveDeadlineSeconds, oldJs.Spec.ActiveDeadlineSeconds) &&
+		newJs.Spec.ActiveDeadlineSeconds != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "activeDeadlineSeconds"), *newJs.Spec.ActiveDeadlineSeconds, "cannot be set when JobSetActiveDeadlineSeconds feature gate is disabled"))
 	}
 
 	// Note that SucccessPolicy and failurePolicy are made immutable via CEL.

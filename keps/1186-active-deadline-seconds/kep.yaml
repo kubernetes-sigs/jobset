@@ -2,7 +2,7 @@ title: Add ActiveDeadlineSeconds for JobSet
 kep-number: 1186
 authors:
   - "@yindia"
-status: provisional
+status: implementable
 creation-date: 2026-08-26
 reviewers:
   - "@kannon92"

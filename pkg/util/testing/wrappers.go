@@ -164,6 +164,18 @@ func (j *JobSetWrapper) PublishNotReadyAddresses(val bool) *JobSetWrapper {
 	return j
 }
 
+// ActiveDeadlineSeconds sets the value of JobSet.Spec.ActiveDeadlineSeconds
+func (j *JobSetWrapper) ActiveDeadlineSeconds(seconds int64) *JobSetWrapper {
+	j.Spec.ActiveDeadlineSeconds = &seconds
+	return j
+}
+
+// StartTime sets the value of JobSet.Status.StartTime
+func (j *JobSetWrapper) StartTime(t metav1.Time) *JobSetWrapper {
+	j.Status.StartTime = &t
+	return j
+}
+
 // TTLSecondsAfterFinished sets the value of JobSet.Spec.TTLSecondsAfterFinished
 func (j *JobSetWrapper) TTLSecondsAfterFinished(seconds int32) *JobSetWrapper {
 	j.Spec.TTLSecondsAfterFinished = &seconds
