@@ -176,6 +176,36 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
                                 template = jobset.models.io/k8s/api/core/v1/pod_template_spec.io.k8s.api.core.v1.PodTemplateSpec(), 
                                 ttl_seconds_after_finished = 56, ), ), )
                     ],
+                scheduling = jobset.models.jobset_v1alpha2_job_set_scheduling.JobsetV1alpha2JobSetScheduling(
+                    disruption_mode = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_disruption_mode.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupDisruptionMode(
+                        all = jobset.models.all.all(), 
+                        single = jobset.models.single.single(), ), 
+                    replicated_jobs = [
+                        jobset.models.jobset_v1alpha2_replicated_job_scheduling.JobsetV1alpha2ReplicatedJobScheduling(
+                            job = jobset.models.jobset_v1alpha2_job_scheduling.JobsetV1alpha2JobScheduling(
+                                resource_claims = [
+                                    jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_resource_claim.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupResourceClaim(
+                                        name = '', 
+                                        resource_claim_name = '', 
+                                        resource_claim_template_name = '', )
+                                    ], 
+                                scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupSchedulingConstraints(
+                                    topology = [
+                                        jobset.models.io/k8s/api/scheduling/v1alpha3/topology_constraint.io.k8s.api.scheduling.v1alpha3.TopologyConstraint(
+                                            key = '', )
+                                        ], ), 
+                                scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupSchedulingPolicy(
+                                    basic = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_basic_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupBasicSchedulingPolicy(), 
+                                    gang = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_pod_group_gang_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupGangSchedulingPolicy(
+                                        min_count = 56, ), ), ), 
+                            scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingConstraints(), 
+                            scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingPolicy(), 
+                            target_replicated_jobs = [
+                                ''
+                                ], )
+                        ], 
+                    scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingConstraints(), 
+                    scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingPolicy(), ),
                 startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
                     startup_policy_order = '', ),
                 success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(

@@ -8,7 +8,10 @@ description: >
 no_list: true
 ---
 
-JobSet can integrate with the Kubernetes Workload Aware Scheduling (WAS) APIs (`scheduling.k8s.io/v1alpha2`) to enable gang scheduling and coordinated pod placement. This guide shows how to create the WAS resources alongside your JobSet.
+JobSet can integrate with the Kubernetes Workload Aware Scheduling (WAS) APIs (`scheduling.k8s.io/v1alpha3`) to enable gang scheduling and coordinated pod placement. There are two ways to use this integration:
+
+- **Manual**: create `Workload` and `PodGroup` objects yourself and point JobSet pods at them with `schedulingGroup.podGroupName`. This gives you the most control and is what the topics below describe.
+- **Declarative**: set `spec.scheduling` directly on the JobSet and let the JobSet controller create and manage the `Workload`/`PodGroup` objects for you. See [Declarative Scheduling](./declarative_scheduling).
 
 ## Prerequisites
 
@@ -44,3 +47,4 @@ Pods in the JobSet are associated with a PodGroup through the `schedulingGroup.p
 - [Preemption](./preemption): Enable workload-aware preemption to preempt entire pod groups rather than individual pods.
 - [Topology Aware Scheduling](./tas): Co-locate all pods in a gang within the same network topology domain for low-latency communication.
 - [DRA Integration](./dra): Share DRA devices across a gang-scheduled JobSet using PodGroup-level ResourceClaims.
+- [Declarative Scheduling](./declarative_scheduling): Configure gang scheduling, topology constraints, sequenced startup, elastic scaling, and more declaratively via `spec.scheduling`, with JobSet managing the Workload and PodGroup objects for you.
