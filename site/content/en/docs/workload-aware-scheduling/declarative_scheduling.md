@@ -33,7 +33,7 @@ This feature is alpha and off by default, gated by two independent switches:
    - `DRAWorkloadResourceClaims` — required for the shared DRA claim example
    - API server `--runtime-config=scheduling.k8s.io/v1alpha3=true,scheduling.k8s.io/v1beta1=true`
 
-   The `scheduling.k8s.io` API isn't in a released Kubernetes minor yet, so these examples require a cluster built from a recent Kubernetes CI build. See [`hack/kind-config-scheduling.yaml`](https://github.com/kubernetes-sigs/jobset/blob/main/hack/kind-config-scheduling.yaml) and [`hack/e2e-scheduling-cluster.sh`](https://github.com/kubernetes-sigs/jobset/blob/main/hack/e2e-scheduling-cluster.sh) for how CI builds such a cluster with Kind, or run `make kind-cluster-scheduling` to create one locally.
+   The local and E2E Kind setup uses Kubernetes `v1.37.0` release binaries, which include the required `scheduling.k8s.io` APIs. See [`hack/kind-config-scheduling.yaml`](https://github.com/kubernetes-sigs/jobset/blob/main/hack/kind-config-scheduling.yaml) and [`hack/e2e-scheduling-cluster.sh`](https://github.com/kubernetes-sigs/jobset/blob/main/hack/e2e-scheduling-cluster.sh) for the cluster setup, or run `make kind-cluster-scheduling` to create one locally.
 
 ## How It Works
 
@@ -119,7 +119,7 @@ kubectl get podgroups -n default -l jobset.sigs.k8s.io/jobset-name=topo-training
 
 ## Use Case: Sequenced Startup
 
-When `ReplicatedJob`s use `dependsOn` (or an `InOrder` `StartupPolicy`) to create Jobs sequentially, not all pods exist at the same time — so a single JobSet-wide gang could never be satisfied. The controller detects sequenced startup and automatically falls back to one `PodGroup` per `ReplicatedJob`, even if you asked for a single top-level gang.
+When `ReplicatedJob`s use `dependsOn` (or an `InOrder` `StartupPolicy`) to create Jobs sequentially, not all pods exist at the same time — so a single JobSet-wide gang could never be satisfied. An explicit top-level `schedulingPolicy.gang` is therefore rejected. Leave `schedulingPolicy` unset (for example, `scheduling: {}`) to use the default Gang policy independently for each `ReplicatedJob`, or configure Gang policies explicitly under `scheduling.replicatedJobs`, targeting each `ReplicatedJob` separately.
 
 {{< include file="/examples/scheduling/sequenced-startup-gang.yaml" lang="yaml" >}}
 

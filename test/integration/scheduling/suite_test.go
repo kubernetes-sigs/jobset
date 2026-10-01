@@ -15,16 +15,10 @@ limitations under the License.
 // Workload-Aware Scheduling (WAS) integration, i.e. the JobSet controller's
 // creation of scheduling.k8s.io/v1alpha3 Workload and PodGroup objects.
 //
-// The scheduling.k8s.io/v1alpha3 GenericWorkload API this suite exercises
-// has not shipped in any released Kubernetes minor version yet, so the
-// standard `setup-envtest` binaries (built from released Kubernetes
-// versions) do not register it. This suite therefore requires a
-// kube-apiserver binary built from the exact Kubernetes release/pre-release
-// tag matching the repo's pinned k8s.io/api version, which is downloaded by
-// hack/envtest-scheduling-setup.sh and wired up via the
-// `make test-integration-scheduling` target. Running this suite with a
-// standard KUBEBUILDER_ASSETS directory will fail in BeforeSuite with
-// "group version scheduling.k8s.io/v1alpha3 that has not been registered".
+// This suite uses standard `setup-envtest` binaries with WAS feature gates
+// and scheduling API versions enabled in BeforeSuite. Run it via
+// `make test-integration` to use the Kubernetes minor version
+// matching the repo's pinned k8s.io/api version.
 package schedulingtest
 
 import (
@@ -78,16 +72,8 @@ var _ = BeforeSuite(func() {
 	apiServer := &envtest.APIServer{}
 	apiServer.Configure().
 		Append("feature-gates", "GenericWorkload=true,TopologyAwareWorkloadScheduling=true,DRAWorkloadResourceClaims=true,WorkloadWithJob=true").
-		// v1beta1 is also enabled here for parity with hack/kind-config-scheduling.yaml:
-		// newer Kubernetes builds promoted the in-tree Workload/PodGroup API from
-		// v1alpha3 to v1beta1. The kube-apiserver binary pinned by
-		// hack/envtest-scheduling-setup.sh (matching this repo's vendored
-		// k8s.io/api release tag) predates that promotion and does not register
-		// v1beta1, so this is a no-op today, but keeps the two WAS test
-		// environments configured consistently and avoids a repeat of the Kind
-		// cluster's scheduler-never-becomes-Ready failure once the pinned
-		// version catches up. JobSet's own controller and these tests still use
-		// the v1alpha3 client exclusively.
+		// Enable both API versions for parity with hack/kind-config-scheduling.yaml.
+		// JobSet's controller and these tests use the v1alpha3 client.
 		Append("runtime-config", "scheduling.k8s.io/v1alpha3=true,scheduling.k8s.io/v1beta1=true")
 
 	testEnv = &envtest.Environment{

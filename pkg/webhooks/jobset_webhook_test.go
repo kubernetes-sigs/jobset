@@ -3857,7 +3857,7 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy: Invalid value: \"{basic, gang}\": must specify exactly one of: `basic`, `gang`")),
 		},
 		{
-			name:                          "top-level gang minGroupCount is accepted with InOrder startup",
+			name:                          "top-level gang minGroupCount is rejected with InOrder startup",
 			enableWorkloadAwareScheduling: true,
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -3885,10 +3885,10 @@ func TestValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy.gang: Forbidden: cannot be set with DependsOn or InOrder startup; use per-ReplicatedJob gang scheduling instead")),
 		},
 		{
-			name:                          "top-level gang minGroupCount is accepted with DependsOn startup",
+			name:                          "top-level gang minGroupCount is rejected with DependsOn startup",
 			enableWorkloadAwareScheduling: true,
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -3918,7 +3918,7 @@ func TestValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy.gang: Forbidden: cannot be set with DependsOn or InOrder startup; use per-ReplicatedJob gang scheduling instead")),
 		},
 		{
 			name:                          "top-level gang requires matching priority classes",
@@ -4519,7 +4519,7 @@ func TestValidateCreate(t *testing.T) {
 			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy: Invalid value: \"{basic, gang}\": must specify exactly one of: `basic`, `gang`")),
 		},
 		{
-			name:                          "top-level gang minGroupCount is accepted with InOrder startup",
+			name:                          "top-level gang minGroupCount is rejected with InOrder startup",
 			enableWorkloadAwareScheduling: true,
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -4547,10 +4547,10 @@ func TestValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy.gang: Forbidden: cannot be set with DependsOn or InOrder startup; use per-ReplicatedJob gang scheduling instead")),
 		},
 		{
-			name:                          "top-level gang minGroupCount is accepted with DependsOn startup",
+			name:                          "top-level gang minGroupCount is rejected with DependsOn startup",
 			enableWorkloadAwareScheduling: true,
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
@@ -4580,7 +4580,7 @@ func TestValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy.gang: Forbidden: cannot be set with DependsOn or InOrder startup; use per-ReplicatedJob gang scheduling instead")),
 		},
 		{
 			name:                          "top-level gang requires matching priority classes",

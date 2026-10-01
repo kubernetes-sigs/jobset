@@ -47,10 +47,7 @@ ARTIFACTS ?= $(PROJECT_DIR)/bin
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-# Excludes ./test/integration/scheduling/..., which requires a kube-apiserver
-# built from Kubernetes main (see hack/envtest-scheduling-setup.sh) and is
-# run separately via `make test-integration-scheduling`.
-INTEGRATION_TARGET ?= ./test/integration/controller/... ./test/integration/webhook/...
+INTEGRATION_TARGET ?= ./test/integration/...
 
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 JOBSET_CHART_DIR := charts/jobset
@@ -432,11 +429,6 @@ test-integration: manifests fmt vet envtest ginkgo ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
 	$(GINKGO) --junit-report=junit.xml --output-dir=$(ARTIFACTS) $(GINKGO_ARGS) -v $(INTEGRATION_TARGET)
 
-.PHONY: test-integration-scheduling
-test-integration-scheduling: manifests fmt vet envtest ginkgo ## Run WAS/gang scheduling integration tests against a kube-apiserver built from Kubernetes main.
-	KUBEBUILDER_ASSETS="$(shell ./hack/envtest-scheduling-setup.sh $(ENVTEST) $(ENVTEST_K8S_VERSION) $(LOCALBIN))" \
-	$(GINKGO) --junit-report=junit-scheduling.xml --output-dir=$(ARTIFACTS) $(GINKGO_ARGS) -v ./test/integration/scheduling/...
-
 .PHONY: test-e2e-kind
 test-e2e-kind: manifests kustomize fmt vet envtest ginkgo kind-image-build
 	E2E_KIND_VERSION=$(E2E_KIND_VERSION) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) ARTIFACTS=$(ARTIFACTS) IMAGE_TAG=$(IMAGE_TAG) E2E_TARGET_FOLDER=$(E2E_TARGET_FOLDER) E2E_TEST_PATH="$(E2E_TEST_PATH)" ./hack/e2e-test.sh
@@ -446,23 +438,24 @@ test-e2e-kind-customconfigs: E2E_TEST_PATH = ./test/e2e/customconfigs/...
 test-e2e-kind-customconfigs: test-e2e-kind
 
 ## WAS (Workload-Aware Scheduling) Kind cluster management
-# WAS targets build a Kind node image from Kubernetes main (latest CI build)
-# to ensure scheduling.k8s.io APIs are available.
+# WAS targets build a Kind node image from a pinned Kubernetes release
+# with the scheduling.k8s.io APIs.
 WAS_KIND_CLUSTER_NAME ?= was-test
-K8S_MAIN_NODE_IMAGE ?= k8s-main:latest
+WAS_K8S_VERSION ?= v1.37.0
+WAS_NODE_IMAGE ?= jobset/kind-node:$(WAS_K8S_VERSION)
 
-.PHONY: kind-k8s-main-image-build
-kind-k8s-main-image-build: kind ## Build a Kind node image from Kubernetes main (latest CI build).
-	KIND=$(KIND) K8S_MAIN_NODE_IMAGE=$(K8S_MAIN_NODE_IMAGE) \
+.PHONY: kind-scheduling-image-build
+kind-scheduling-image-build: kind ## Build a Kind node image from the pinned WAS Kubernetes release.
+	KIND=$(KIND) WAS_K8S_VERSION=$(WAS_K8S_VERSION) WAS_NODE_IMAGE=$(WAS_NODE_IMAGE) \
 	bash -c 'source ./hack/e2e-scheduling-cluster.sh && build_scheduling_node_image'
 
 .PHONY: test-e2e-kind-scheduling
-test-e2e-kind-scheduling: manifests kustomize fmt vet envtest ginkgo kind-image-build kind-k8s-main-image-build ## Run scheduling-specific E2E tests on Kind with WAS feature gates enabled.
-	K8S_MAIN_NODE_IMAGE=$(K8S_MAIN_NODE_IMAGE) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) ARTIFACTS=$(ARTIFACTS) IMAGE_TAG=$(IMAGE_TAG) ./hack/e2e-scheduling-test.sh
+test-e2e-kind-scheduling: manifests kustomize fmt vet envtest ginkgo kind-image-build kind-scheduling-image-build ## Run scheduling-specific E2E tests on Kind with WAS feature gates enabled.
+	WAS_K8S_VERSION=$(WAS_K8S_VERSION) WAS_NODE_IMAGE=$(WAS_NODE_IMAGE) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) USE_EXISTING_CLUSTER=$(USE_EXISTING_CLUSTER) ARTIFACTS=$(ARTIFACTS) IMAGE_TAG=$(IMAGE_TAG) ./hack/e2e-scheduling-test.sh
 
 .PHONY: kind-cluster-scheduling
 kind-cluster-scheduling: kustomize kind-image-build ## Create a Kind cluster with WAS feature gates and deploy JobSet.
-	KIND=$(KIND) KUSTOMIZE=$(KUSTOMIZE) KIND_CLUSTER_NAME=$(WAS_KIND_CLUSTER_NAME) K8S_MAIN_NODE_IMAGE=$(K8S_MAIN_NODE_IMAGE) IMAGE_TAG=$(IMAGE_TAG) ARTIFACTS=$(ARTIFACTS) \
+	KIND=$(KIND) KUSTOMIZE=$(KUSTOMIZE) KIND_CLUSTER_NAME=$(WAS_KIND_CLUSTER_NAME) WAS_K8S_VERSION=$(WAS_K8S_VERSION) WAS_NODE_IMAGE=$(WAS_NODE_IMAGE) IMAGE_TAG=$(IMAGE_TAG) ARTIFACTS=$(ARTIFACTS) \
 	bash -c 'source ./hack/e2e-scheduling-cluster.sh && build_scheduling_node_image && create_scheduling_cluster && kind_load_image && deploy_scheduling_jobset && verify_scheduling_apis'
 
 .PHONY: kind-cluster-scheduling-delete

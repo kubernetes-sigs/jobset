@@ -27,6 +27,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -76,6 +77,55 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 	ginkgo.BeforeEach(func() {
 		features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.JobSetWorkloadAwareSchedulingAPI, true)
 	})
+
+	// This suite does not install webhooks, so these checks exercise the CRD's
+	// CEL validation independently of the validating webhook.
+	ginkgo.DescribeTable("should reject top-level Gang with sequenced startup",
+		func(inOrder bool, minGroupCount *int32) {
+			nsObj := createTestNamespace(ctx, "sched-invalid-sequence-")
+			defer func() {
+				gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, nsObj)).To(gomega.Succeed())
+			}()
+
+			js := makeSchedulingJobSet("invalid-sequence", nsObj.Name,
+				[]jobset.ReplicatedJob{makeRJob("driver", 1, 1, 1), makeRJob("workers", 1, 1, 1)},
+				&jobset.JobSetScheduling{
+					SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+						Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: minGroupCount},
+					},
+				},
+			)
+			if inOrder {
+				js.Spec.StartupPolicy = &jobset.StartupPolicy{StartupPolicyOrder: jobset.InOrder}
+			} else {
+				js.Spec.ReplicatedJobs[1].DependsOn = []jobset.DependsOn{{Name: "driver", Status: jobset.DependencyReady}}
+			}
+
+			ginkgo.By("rejecting an explicit top-level Gang on create")
+			err := k8sClient.Create(ctx, js)
+			gomega.Expect(apierrors.IsInvalid(err)).To(gomega.BeTrue())
+			gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("spec.scheduling.schedulingPolicy.gang")))
+			gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("cannot be set with DependsOn or InOrder startup")))
+
+			ginkgo.By("rejecting an explicit top-level Gang on a suspended update")
+			invalidScheduling := js.Spec.Scheduling.DeepCopy()
+			js.Spec.Scheduling = &jobset.JobSetScheduling{}
+			js.Spec.Suspend = ptr.To(true)
+			gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+			gomega.Eventually(func(g gomega.Gomega) {
+				var latest jobset.JobSet
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(js), &latest)).To(gomega.Succeed())
+				latest.Spec.Scheduling = invalidScheduling
+				err := k8sClient.Update(ctx, &latest)
+				g.Expect(apierrors.IsInvalid(err)).To(gomega.BeTrue())
+				g.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("cannot be set with DependsOn or InOrder startup")))
+			}, timeout, interval).Should(gomega.Succeed())
+		},
+		ginkgo.Entry("DependsOn without minGroupCount", false, (*int32)(nil)),
+		ginkgo.Entry("DependsOn with minGroupCount", false, ptr.To[int32](1)),
+		ginkgo.Entry("InOrder without minGroupCount", true, (*int32)(nil)),
+		ginkgo.Entry("InOrder with minGroupCount", true, ptr.To[int32](1)),
+	)
 
 	ginkgo.It("should create Workload and per-RJ PodGroups when leaf overrides are present", func() {
 		ctx := context.Background()
@@ -806,7 +856,7 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 		}, timeout, interval).Should(gomega.Succeed())
 	})
 
-	ginkgo.It("should use per-RJ PodGroups when DependsOn is configured with top-level gang", func() {
+	ginkgo.It("should use per-RJ Gang PodGroups when DependsOn is configured without a top-level policy", func() {
 		ctx := context.Background()
 		nsObj := createTestNamespace(ctx, "sched-depends-on-ns-")
 		defer func() {
@@ -822,16 +872,10 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 
 		js := makeSchedulingJobSet("sched-depends", nsObj.Name,
 			[]jobset.ReplicatedJob{driverRJ, workersRJ},
-			&jobset.JobSetScheduling{
-				SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-					Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
-				},
-				// No per-RJ overrides — would normally use top-level gang,
-				// but DependsOn should force per-RJ PodGroups.
-			},
+			&jobset.JobSetScheduling{}, // DependsOn defaults to independent per-RJ gangs.
 		)
 
-		ginkgo.By("creating the JobSet with DependsOn and top-level gang")
+		ginkgo.By("creating the JobSet with DependsOn and default per-RJ gangs")
 		gomega.Eventually(func() error {
 			return k8sClient.Create(ctx, js)
 		}, timeout, interval).Should(gomega.Succeed())
@@ -872,7 +916,7 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 		}, timeout, interval).Should(gomega.Succeed())
 	})
 
-	ginkgo.It("should use per-RJ PodGroups when InOrder StartupPolicy is configured with top-level gang", func() {
+	ginkgo.It("should use per-RJ Gang PodGroups when InOrder StartupPolicy is configured without a top-level policy", func() {
 		ctx := context.Background()
 		nsObj := createTestNamespace(ctx, "sched-startup-ns-")
 		defer func() {
@@ -884,17 +928,13 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 				makeRJob("driver", 1, 1, 1),
 				makeRJob("workers", 2, 2, 2),
 			},
-			&jobset.JobSetScheduling{
-				SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-					Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
-				},
-			},
+			&jobset.JobSetScheduling{},
 		)
 		js.Spec.StartupPolicy = &jobset.StartupPolicy{
 			StartupPolicyOrder: jobset.InOrder,
 		}
 
-		ginkgo.By("creating the JobSet with InOrder StartupPolicy and top-level gang")
+		ginkgo.By("creating the JobSet with InOrder StartupPolicy and default per-RJ gangs")
 		gomega.Eventually(func() error {
 			return k8sClient.Create(ctx, js)
 		}, timeout, interval).Should(gomega.Succeed())

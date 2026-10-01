@@ -396,7 +396,7 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
 	})
 
-	ginkgo.It("should use per-RJ PodGroups when DependsOn is configured with top-level gang", func() {
+	ginkgo.It("should use per-RJ Gang PodGroups when DependsOn is configured without a top-level policy", func() {
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{GenerateName: "e2e-sched-depends-"},
 		}
@@ -413,11 +413,7 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 			Spec: jobset.JobSetSpec{
 				SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
 				Network:       &jobset.Network{EnableDNSHostnames: boolPtr(true)},
-				Scheduling: &jobset.JobSetScheduling{
-					SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-						Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
-					},
-				},
+				Scheduling:    &jobset.JobSetScheduling{},
 				ReplicatedJobs: []jobset.ReplicatedJob{
 					{
 						Name:     "driver",
@@ -470,7 +466,7 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 			},
 		}
 
-		ginkgo.By("creating the JobSet with DependsOn and top-level gang")
+		ginkgo.By("creating the JobSet with DependsOn and default per-RJ gangs")
 		gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
 
 		ginkgo.By("verifying Workload has per-RJ PodGroupTemplates (not a single top-level one)")

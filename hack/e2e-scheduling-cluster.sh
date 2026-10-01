@@ -9,7 +9,8 @@
 # Required environment variables (set defaults via Makefile or caller):
 #   KUSTOMIZE, KIND       — paths to tool binaries
 #   KIND_CLUSTER_NAME     — Kind cluster name (default: was-test)
-#   K8S_MAIN_NODE_IMAGE   — Kind node image name (default: k8s-main:latest)
+#   WAS_K8S_VERSION       — Kubernetes release (default: v1.37.0)
+#   WAS_NODE_IMAGE        — Kind node image name (default: jobset/kind-node:${WAS_K8S_VERSION})
 #   IMAGE_TAG             — JobSet controller image tag
 #   ARTIFACTS             — directory for logs and test artifacts
 #   E2E_TARGET_FOLDER     — kustomize config folder (default: scheduling)
@@ -27,37 +28,27 @@ export KUSTOMIZE
 KIND="$(cd "$PWD" && realpath "${KIND:-$PWD/bin/kind}")"
 export KIND
 export KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-was-test}"
-export K8S_MAIN_NODE_IMAGE="${K8S_MAIN_NODE_IMAGE:-k8s-main:latest}"
+export WAS_K8S_VERSION="${WAS_K8S_VERSION:-v1.37.0}"
+export WAS_NODE_IMAGE="${WAS_NODE_IMAGE:-jobset/kind-node:${WAS_K8S_VERSION}}"
 export E2E_TARGET_FOLDER="${E2E_TARGET_FOLDER:-scheduling}"
 export NAMESPACE="${NAMESPACE:-jobset-system}"
 export ARTIFACTS="${ARTIFACTS:-$PWD/artifacts}"
 
-# build_scheduling_node_image builds a Kind node image from the latest
-# Kubernetes CI build (main branch) to ensure the scheduling.k8s.io API
-# group is present. Follows the same caching pattern as Kueue's
-# build_kind_node_image function: uses a namespaced image tag and reuses
-# an existing image when available.
+# build_scheduling_node_image builds a Kind node image from a pinned
+# Kubernetes release with the scheduling.k8s.io APIs. Use a namespaced
+# image tag to avoid overwriting stock kindest/node images, and reuse an
+# existing image when available.
 function build_scheduling_node_image {
-    echo "==> Fetching latest Kubernetes CI build version..."
-    local k8s_ci_version
-    k8s_ci_version="$(curl -sL https://dl.k8s.io/ci/latest.txt)"
-
-    # Use a namespaced image tag to avoid overwriting stock kindest/node images.
-    # Replace '+' with '-' since '+' is invalid in Docker image tags.
-    local sanitized_version="${k8s_ci_version//+/-}"
-    export K8S_MAIN_NODE_IMAGE="jobset/kind-node:${sanitized_version}"
-
-    # Reuse an existing image if present.
-    if docker image inspect "$K8S_MAIN_NODE_IMAGE" &>/dev/null; then
-        echo "==> Reusing existing node image: $K8S_MAIN_NODE_IMAGE"
+    if docker image inspect "$WAS_NODE_IMAGE" &>/dev/null; then
+        echo "==> Reusing existing node image: $WAS_NODE_IMAGE"
         return 0
     fi
 
-    echo "==> Building Kind node image: $K8S_MAIN_NODE_IMAGE (K8s ${k8s_ci_version})"
+    echo "==> Building Kind node image: $WAS_NODE_IMAGE (K8s ${WAS_K8S_VERSION})"
     local arch
     arch="$(go env GOARCH)"
-    $KIND build node-image --image="${K8S_MAIN_NODE_IMAGE}" \
-        "https://dl.k8s.io/ci/${k8s_ci_version}/kubernetes-server-linux-${arch}.tar.gz"
+    $KIND build node-image --image="${WAS_NODE_IMAGE}" \
+        "https://dl.k8s.io/${WAS_K8S_VERSION}/kubernetes-server-linux-${arch}.tar.gz"
 }
 
 # create_scheduling_cluster creates a Kind cluster with WAS feature gates.
@@ -72,7 +63,7 @@ function create_scheduling_cluster {
     echo "==> Creating Kind cluster '$KIND_CLUSTER_NAME' with WAS feature gates..."
     $KIND create cluster \
         --name "$KIND_CLUSTER_NAME" \
-        --image "${K8S_MAIN_NODE_IMAGE}" \
+        --image "${WAS_NODE_IMAGE}" \
         --config hack/kind-config-scheduling.yaml \
         --wait 2m
 }

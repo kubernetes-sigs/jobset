@@ -10,9 +10,9 @@ Sets up a local Kind cluster with Kubernetes WAS feature gates enabled, deploys 
 ## Prerequisites
 
 - Docker running
-- `go` installed (for building JobSet and the Kind node image from K8s source)
+- `go` installed (for building JobSet and selecting the Kind node image architecture)
 - No existing Kind cluster named `was-test` (or set `WAS_KIND_CLUSTER_NAME` to override)
-- Sufficient disk space and memory for `kind build node-image` (compiles Kubernetes from source)
+- Sufficient disk space for `kind build node-image` (downloads Kubernetes release binaries)
 
 ## Quick Start
 
@@ -48,11 +48,18 @@ backward compatibility:
 
 If you prefer to run steps individually:
 
-### 1. Build the Kind node image from Kubernetes source
+### 1. Build the Kind node image from a pinned Kubernetes release
 
-The WAS (Workload-Aware Scheduling) APIs require Kubernetes 1.36+. The setup
-uses `kind build node-image` to compile a node image from the K8s source tag
-to ensure the `scheduling.k8s.io` API group is available.
+The setup uses `kind build node-image` with Kubernetes `v1.37.0` release
+binaries, which include the required `scheduling.k8s.io` APIs. Existing node
+images are reused.
+
+```bash
+make kind-scheduling-image-build
+```
+
+Override `WAS_K8S_VERSION` to test another release, or `WAS_NODE_IMAGE` to
+use a custom node image name.
 
 ### 2. Build the JobSet image for Kind
 

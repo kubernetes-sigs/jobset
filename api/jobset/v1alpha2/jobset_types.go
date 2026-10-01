@@ -119,6 +119,7 @@ const (
 
 // JobSetSpec defines the desired state of JobSet
 // +kubebuilder:validation:XValidation:rule="!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder == 'InOrder' && self.replicatedJobs.exists(x, has(x.dependsOn)))",message="StartupPolicy and DependsOn APIs are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!(has(self.scheduling) && has(self.scheduling.schedulingPolicy) && has(self.scheduling.schedulingPolicy.gang)) || ((!has(self.startupPolicy) || self.startupPolicy.startupPolicyOrder != 'InOrder') && (!has(self.replicatedJobs) || self.replicatedJobs.all(rj, !has(rj.dependsOn) || size(rj.dependsOn) == 0)))",message="cannot be set with DependsOn or InOrder startup; use per-ReplicatedJob gang scheduling instead",fieldPath=".scheduling.schedulingPolicy.gang"
 type JobSetSpec struct {
 	// replicatedJobs is the group of jobs that will form the set.
 	// +patchMergeKey=name
@@ -613,6 +614,8 @@ type JobSetScheduling struct {
 	// an InOrder StartupPolicy): the composite policy is left unset in that case, and each
 	// ReplicatedJob defaults to its own Gang policy instead, since a single PodGroup
 	// spanning the whole JobSet would deadlock while Jobs are created sequentially.
+	// An explicit top-level Gang policy is forbidden with DependsOn or InOrder startup;
+	// leave this field unset or configure Gang policies under replicatedJobs instead.
 	// Mutually exclusive with replicatedJobs: see the type-level comment.
 	// +optional
 	SchedulingPolicy *schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`

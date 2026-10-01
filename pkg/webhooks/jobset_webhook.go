@@ -813,6 +813,15 @@ func validateScheduling(ctx context.Context, js *jobset.JobSet, rJobNames sets.S
 	scheduling := js.Spec.Scheduling
 	schedulingPath := field.NewPath("spec", "scheduling")
 
+	// A JobSet-wide gang is incompatible with sequential Job creation. Reject
+	// an explicit policy rather than silently replacing it with per-RJ gangs.
+	if controllers.HasSequencedStartup(js) && scheduling.SchedulingPolicy != nil && scheduling.SchedulingPolicy.Gang != nil {
+		allErrs = append(allErrs, field.Forbidden(
+			schedulingPath.Child("schedulingPolicy", "gang"),
+			"cannot be set with DependsOn or InOrder startup; use per-ReplicatedJob gang scheduling instead",
+		))
+	}
+
 	// Composite (Gang-of-Gangs) PodGroup hierarchies are not implemented in
 	// alpha, so top-level schedulingPolicy/schedulingConstraints/disruptionMode
 	// cannot be combined with replicatedJobs: there is no parent PodGroup

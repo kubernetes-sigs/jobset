@@ -45,6 +45,8 @@ type JobSetSchedulingApplyConfiguration struct {
 	// an InOrder StartupPolicy): the composite policy is left unset in that case, and each
 	// ReplicatedJob defaults to its own Gang policy instead, since a single PodGroup
 	// spanning the whole JobSet would deadlock while Jobs are created sequentially.
+	// An explicit top-level Gang policy is forbidden with DependsOn or InOrder startup;
+	// leave this field unset or configure Gang policies under replicatedJobs instead.
 	// Mutually exclusive with replicatedJobs: see the type-level comment.
 	SchedulingPolicy *v1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
 	// schedulingConstraints defines composite-level topology constraints for the entire JobSet.
