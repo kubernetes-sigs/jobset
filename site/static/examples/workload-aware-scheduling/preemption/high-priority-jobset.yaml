@@ -1,5 +1,5 @@
 ---
-apiVersion: scheduling.k8s.io/v1alpha2
+apiVersion: scheduling.k8s.io/v1alpha3
 kind: Workload
 metadata:
   name: hp-abc
@@ -14,18 +14,18 @@ spec:
       gang:
         minCount: 4
 ---
-apiVersion: scheduling.k8s.io/v1alpha2
+apiVersion: scheduling.k8s.io/v1alpha3
 kind: PodGroup
 metadata:
   name: hp-abc-workers-def
   namespace: default
 spec:
-  podGroupTemplateRef:
-    workload:
-      workloadName: hp-abc
-      podGroupTemplateName: workers
+  workloadRef:
+    workloadName: hp-abc
+    templateName: workers
   priorityClassName: high-priority
-  disruptionMode: PodGroup
+  disruptionMode:
+    all: {}
   schedulingPolicy:
     gang:
       minCount: 4

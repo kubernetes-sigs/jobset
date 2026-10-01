@@ -190,9 +190,7 @@ same names/mapping on resume.
 **Combine sequencing with Gang scheduling**
 
 ```yaml
-scheduling:
-  schedulingPolicy:
-    gang: {}
+scheduling: {}
 replicatedJobs:
   - name: leader
     dependsOn: []
@@ -507,8 +505,8 @@ compilation** — the controller computes the represented pod count and writes i
 `JobSet.spec.scheduling`.
 
 For sequenced startup, the composite policy is left unset and the controller applies
-per-ReplicatedJob Gang defaults during compilation. An explicit composite Gang `minCount` is
-not used in that mode.
+per-ReplicatedJob Gang defaults during compilation. An explicit top-level Gang policy is
+rejected; users can instead configure Gang policies for individual ReplicatedJobs.
 
 ### Validation
 
@@ -519,7 +517,8 @@ The validating webhook and `workloadbuilder` enforce that:
 - `spec.scheduling` is immutable after jobset is running.
 - Top-level and per-ReplicatedJob `minCount` values do not exceed their represented pod counts.
 - A single top-level PodGroup uses one `priorityClassName` across all ReplicatedJobs.
-- An explicit top-level Gang `minCount` is rejected with `DependsOn` or `InOrder` startup.
+- An explicit top-level Gang policy is rejected with `DependsOn` or `InOrder` startup,
+  whether or not `minGroupCount` is set.
 - An explicit Gang `minCount` cannot exceed the represented pod count, including after a
   requested downscale; this permanently blocks downscaling
   an ElasticJobSet below that count (see [Scaling](#scaling)) unless `minCount` was left unset.
@@ -648,8 +647,9 @@ instead of silently taking over another controller's resource.
 #### Sequenced Startup
 
 `DependsOn` and `InOrder` create Jobs sequentially, so a single PodGroup requiring all pods could
-never reach its `minCount`. The controller therefore uses one Gang PodGroup per ReplicatedJob.
-`AnyOrder` does not trigger this fallback.
+never reach its `minCount`. An explicit top-level Gang policy is therefore rejected. With
+`scheduling: {}`, the controller uses one Gang PodGroup per ReplicatedJob; explicit per-RJ
+Gang policies are also supported. `AnyOrder` does not trigger this fallback.
 
 #### Scaling
 
@@ -715,9 +715,9 @@ resource changes.
   `batch/v1` Job `spec.scheduling` field directly, since the "no scheduling api on the job api
   itself" rule only applies once `spec.scheduling` is set on the JobSet.
 - **Integration** (`test/integration/scheduling/scheduling_test.go`, run via
-  `make test-integration-scheduling` against an envtest `kube-apiserver` built from a
-  pre-release Kubernetes tag that registers `scheduling.k8s.io/v1alpha3`, since that API has not
-  shipped in a released minor version — see `hack/envtest-scheduling-setup.sh`):
+  `make test-integration` against standard `setup-envtest` binaries with WAS
+  feature gates and the `scheduling.k8s.io/v1alpha3` and `scheduling.k8s.io/v1beta1` API
+  versions enabled):
   - Workload/PodGroup creation for per-RJ leaf overrides, top-level Gang with no overrides, and
     Basic-only top-level and per-RJ modes; child-Job annotation with the owning template name in
     each mode.

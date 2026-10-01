@@ -118,6 +118,19 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     replicas = 56, 
                                     template = jobset.models.io/k8s/api/batch/v1/job_template_spec.io.k8s.api.batch.v1.JobTemplateSpec(), )
                                 ], 
+                            scheduling = jobset.models.jobset_v1alpha2_job_set_scheduling.JobsetV1alpha2JobSetScheduling(
+                                disruption_mode = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_disruption_mode.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupDisruptionMode(
+                                    all = jobset.models.all.all(), 
+                                    single = jobset.models.single.single(), ), 
+                                scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingConstraints(
+                                    topology = [
+                                        jobset.models.io/k8s/api/scheduling/v1alpha3/topology_constraint.io.k8s.api.scheduling.v1alpha3.TopologyConstraint(
+                                            key = '', )
+                                        ], ), 
+                                scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingPolicy(
+                                    basic = jobset.models.basic.basic(), 
+                                    gang = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_gang_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy(
+                                        min_group_count = 1, ), ), ), 
                             startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
                                 startup_policy_order = '', ), 
                             success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
@@ -284,6 +297,19 @@ class TestJobsetV1alpha2JobSetList(unittest.TestCase):
                                     replicas = 56, 
                                     template = jobset.models.io/k8s/api/batch/v1/job_template_spec.io.k8s.api.batch.v1.JobTemplateSpec(), )
                                 ], 
+                            scheduling = jobset.models.jobset_v1alpha2_job_set_scheduling.JobsetV1alpha2JobSetScheduling(
+                                disruption_mode = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_disruption_mode.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupDisruptionMode(
+                                    all = jobset.models.all.all(), 
+                                    single = jobset.models.single.single(), ), 
+                                scheduling_constraints = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_scheduling_constraints.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingConstraints(
+                                    topology = [
+                                        jobset.models.io/k8s/api/scheduling/v1alpha3/topology_constraint.io.k8s.api.scheduling.v1alpha3.TopologyConstraint(
+                                            key = '', )
+                                        ], ), 
+                                scheduling_policy = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingPolicy(
+                                    basic = jobset.models.basic.basic(), 
+                                    gang = jobset.models.io/k8s/api/scheduling/v1alpha3/workload_composite_pod_group_gang_scheduling_policy.io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy(
+                                        min_group_count = 1, ), ), ), 
                             startup_policy = jobset.models.jobset_v1alpha2_startup_policy.JobsetV1alpha2StartupPolicy(
                                 startup_policy_order = '', ), 
                             success_policy = jobset.models.jobset_v1alpha2_success_policy.JobsetV1alpha2SuccessPolicy(
