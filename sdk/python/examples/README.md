@@ -6,7 +6,7 @@ Easiest way to get started is to create a virtual environment.
 
 ```bash
 python3 -m venv jobset-test
-source jobset-test/bin/active
+source jobset-test/bin/activate
 python3 -m pip install sdk/python/.
 ```
 
