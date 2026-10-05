@@ -76,6 +76,10 @@ const (
 	// The event uses the error(s) as the message.
 	HeadlessServiceCreationFailedReason = "HeadlessServiceCreationFailed"
 
+	// Event reason used when reconciling the Workload-Aware Scheduling objects
+	// (Workload/PodGroups) fails. The event uses the error as the message.
+	SchedulingObjectsReconcileFailedReason = "SchedulingObjectsReconcileFailed"
+
 	// Event reason and message for when the pod controller detects a violation
 	// of the JobSet exclusive placment policy (i.e., follower pods not colocated in
 	// the same topology domain as the leader pod for that Job).

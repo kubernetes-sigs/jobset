@@ -48,20 +48,16 @@ func TestSchedulingE2E(t *testing.T) {
 var _ = ginkgo.BeforeSuite(func() {
 	ctx = context.Background()
 	cfg := config.GetConfigOrDie()
-	gomega.Expect(cfg).NotTo(gomega.BeNil())
+	gomega.ExpectWithOffset(1, cfg).NotTo(gomega.BeNil())
 
 	err := jobset.AddToScheme(scheme.Scheme)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	err = batchv1.AddToScheme(scheme.Scheme)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
-	// v1beta1 is the scheduling.k8s.io version actually served by the
-	// WAS-enabled Kind cluster used for these e2e tests (see
-	// hack/kind-config-scheduling.yaml / kind-cluster-scheduling target).
-	// It backs the delegated-PodGroup (WorkloadWithJob) test below.
 	err = schedulingv1beta1.AddToScheme(scheme.Scheme)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())

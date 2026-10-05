@@ -1,0 +1,68 @@
+# Elastic Gang Scheduling Example
+#
+# Mirrors the integration test "should patch Gang minCount in place when
+# ElasticJobSet changes parallelism" (test/integration/scheduling/scheduling_test.go)
+# and the KEP-969 "Scale an elastic workload" representative API.
+#
+# A single ReplicatedJob is gang-scheduled with parallelism/completions=2.
+#
+# Expected results (before scaling):
+#   - One Workload with 1 PodGroupTemplate
+#   - A single PodGroup with Gang policy, minCount=2
+#
+# The generated leaf GangSchedulingPolicy.MinCount field is required. Rather
+# than persisting a derived value in the immutable spec.scheduling, the
+# controller computes it from the live represented pod count whenever it
+# compiles the scheduling objects. On every reconcile it recomputes minCount
+# and patches the Workload/PodGroup in place when scaling changes the value.
+#
+# Because spec.scheduling is immutable, scale it by patching only
+# spec.replicatedJobs (see elastic-gang-scale-patch.yaml) rather than
+# re-applying the whole JobSet with a modified spec.scheduling block.
+#
+# Verify (generated Workload and PodGroup names include identity hashes):
+#   kubectl get workloads,podgroups,jobs -n default
+#   kubectl get podgroups -n default -l jobset.sigs.k8s.io/jobset-name=gang-elastic -o jsonpath='{.items[0].spec.schedulingPolicy.gang.minCount}{"\n"}'
+#   kubectl get workloads -n default -l jobset.sigs.k8s.io/jobset-name=gang-elastic -o jsonpath='{.items[0].metadata.uid}{"\n"}'
+#
+# To reproduce the scale-up and observe minCount update from 2 to 4 in place:
+#   kubectl patch jobset gang-elastic -n default --type=json -p \
+#     '[{"op":"replace","path":"/spec/replicatedJobs/0/template/spec/parallelism","value":4},
+#       {"op":"replace","path":"/spec/replicatedJobs/0/template/spec/completions","value":4}]'
+# (see elastic-gang-scale-patch.yaml for why a plain `kubectl apply` or
+# `--type=merge` patch don't work for this.)
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: gang-elastic
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    schedulingPolicy:
+      gang: {}
+    disruptionMode:
+      all: {}
+  replicatedJobs:
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          parallelism: 2
+          completions: 2
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["sleep", "120s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

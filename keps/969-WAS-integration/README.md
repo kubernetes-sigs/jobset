@@ -160,7 +160,7 @@ scheduling:
       schedulingPolicy:
         gang: {}
       schedulingConstraints:
-        topologyRequest: ...
+        topology: ...
 ```
 
 Creates: one `Workload` named `<jobset-name>-<hash>` with two independent `PodGroup`s — a Basic
@@ -190,9 +190,7 @@ same names/mapping on resume.
 **Combine sequencing with Gang scheduling**
 
 ```yaml
-scheduling:
-  schedulingPolicy:
-    gang: {}
+scheduling: {}
 replicatedJobs:
   - name: leader
     dependsOn: []
@@ -247,7 +245,7 @@ scheduling:
       schedulingPolicy:
         gang: {}
       schedulingConstraints:
-        topologyRequest: ...
+        topology: ...
       disruptionMode:
         all: {}
       resourceClaims:
@@ -391,8 +389,9 @@ type JobSetSpec struct {
 // PodGroup to leaf PodGroups are not implemented in alpha:
 //   - the top-level (level 1 / composite) model: set schedulingPolicy,
 //     schedulingConstraints, and/or disruptionMode to configure a single PodGroup
-//     (or, under sequenced startup, one PodGroup per ReplicatedJob) covering the
-//     whole JobSet, and leave replicatedJobs unset.
+//     covering the whole JobSet, and leave replicatedJobs unset. This model is
+//     rejected with sequenced startup (DependsOn or InOrder); use the
+//     per-ReplicatedJob model in that case.
 //   - the per-ReplicatedJob (level 2 / composite) model: set replicatedJobs and
 //     leave schedulingPolicy, schedulingConstraints, and disruptionMode unset at
 //     the top level. Every ReplicatedJob must then be targeted by exactly one
@@ -506,9 +505,12 @@ compilation** — the controller computes the represented pod count and writes i
 `PodGroup.spec.minCount` — rather than by the mutating webhook writing a value back into
 `JobSet.spec.scheduling`.
 
-For sequenced startup, the composite policy is left unset and the controller applies
-per-ReplicatedJob Gang defaults during compilation. An explicit composite Gang `minCount` is
-not used in that mode.
+Sequenced startup (`DependsOn` or an `InOrder` StartupPolicy) requires the per-ReplicatedJob
+model: top-level scheduling is incompatible with it, so the `spec.scheduling` block (if set)
+must configure `replicatedJobs`. Because an empty `spec.scheduling` block would otherwise
+default to a top-level gang, the empty/top-level case with sequenced startup is rejected at
+admission rather than silently falling back. Users configure Gang (or Basic) policies for
+individual ReplicatedJobs under `spec.scheduling.replicatedJobs` instead.
 
 ### Validation
 
@@ -518,8 +520,14 @@ The validating webhook and `workloadbuilder` enforce that:
 - Policies are Basic or Gang; disruption modes are Single or All.
 - `spec.scheduling` is immutable after jobset is running.
 - Top-level and per-ReplicatedJob `minCount` values do not exceed their represented pod counts.
+- When a single top-level gang PodGroup is used, the total represented pod count across all
+  ReplicatedJobs fits in an `int32`, so the derived `minCount` is well-defined rather than
+  silently saturated.
 - A single top-level PodGroup uses one `priorityClassName` across all ReplicatedJobs.
-- An explicit top-level Gang `minCount` is rejected with `DependsOn` or `InOrder` startup.
+- Top-level scheduling is rejected with `DependsOn` or `InOrder` startup. This covers an
+  explicit top-level `schedulingPolicy` (Basic or Gang, with or without `minGroupCount`) and
+  the defaulted top-level gang represented by a `spec.scheduling` block that sets no
+  `replicatedJobs` entries. Sequenced startup must use per-ReplicatedJob scheduling.
 - An explicit Gang `minCount` cannot exceed the represented pod count, including after a
   requested downscale; this permanently blocks downscaling
   an ElasticJobSet below that count (see [Scaling](#scaling)) unless `minCount` was left unset.
@@ -545,15 +553,17 @@ The validating webhook and `workloadbuilder` enforce that:
 
 When the feature is enabled and `spec.scheduling` is non-nil:
 
-1. **Top-level mode** is selected when startup is not sequenced and there are no targeted
-   overrides, regardless of whether the effective composite policy is Gang or Basic. One
-   WorkloadItem represents the entire JobSet. For a Gang policy, its PodGroup uses the total
-   represented pod count as `minCount`; for a Basic policy, the PodGroup has no `minCount` and
-   each pod is admitted independently.
-2. **Per-ReplicatedJob mode** is selected when overrides exist or startup is sequenced. One
-   WorkloadItem is built for each ReplicatedJob (or, when a `replicatedJobs` entry targets
-   more than one ReplicatedJob, one shared WorkloadItem for that group). A targeted policy takes
-   precedence over composite defaults.
+1. **Top-level mode** is selected when there are no `replicatedJobs` entries, regardless of
+   whether the effective composite policy is Gang or Basic. One WorkloadItem represents the
+   entire JobSet. For a Gang policy, its PodGroup uses the total represented pod count as
+   `minCount`; for a Basic policy, the PodGroup has no `minCount` and each pod is admitted
+   independently. Top-level mode is incompatible with sequenced startup (`DependsOn`/`InOrder`),
+   which is rejected at admission (see [Sequenced Startup](#sequenced-startup)), so a JobSet that
+   reaches this branch is never sequenced.
+2. **Per-ReplicatedJob mode** is selected when `replicatedJobs` entries exist. One WorkloadItem
+   is built for each ReplicatedJob (or, when a `replicatedJobs` entry targets more than one
+   ReplicatedJob, one shared WorkloadItem for that group). A targeted policy takes precedence
+   over composite defaults. Sequenced startup requires this mode.
 3. **Per-Job mode (Gang-of-Gangs)** is selected per `replicatedJobs` entry when that
    entry sets `job`. Each replica (Job) of the targeted ReplicatedJob gets its
    own WorkloadItem and PodGroup instead of sharing one PodGroup across the whole ReplicatedJob,
@@ -582,8 +592,8 @@ produces is built independently and then merged into that one Workload.
 Each WorkloadItem — which compiles to one PodGroupTemplate — is named according to how it was
 produced:
 
-- **Top-level mode** (composite Gang or Basic policy, no sequenced startup, no targeted
-  overrides): the JobSet name, `<jobset-name>-<hash>`.
+- **Top-level mode** (composite Gang or Basic policy, no `replicatedJobs` entries): the JobSet
+  name, `<jobset-name>-<hash>`.
 - **Per-ReplicatedJob mode** (a ReplicatedJob with no `replicatedJobs` entry targeting
   it): the ReplicatedJob's own name, `<replicatedjob-name>-<hash>`.
 - **Grouped ReplicatedJobs** (a `replicatedJobs` entry's `targetReplicatedJobs` names more
@@ -598,8 +608,8 @@ rather than silently merging or overwriting a PodGroupTemplate.
 
 The PodGroup object created for each WorkloadItem follows the same split:
 
-- For the top-level item (composite Gang or Basic policy, no sequenced startup), the PodGroup
-  reuses the JobSet name directly: `<jobset-name>-<hash>`.
+- For the top-level item (composite Gang or Basic policy, no `replicatedJobs` entries), the
+  PodGroup reuses the JobSet name directly: `<jobset-name>-<hash>`.
 - For every other item, the PodGroup is named `<jobset-name>-<item-name>-<hash>`. If that exceeds the
   63-character DNS label limit, the JobSet name is truncated and a 10-character SHA-1 hash of
   `<jobset-name>/<item-name>` is appended instead, so the name stays deterministic and unique:
@@ -647,9 +657,12 @@ instead of silently taking over another controller's resource.
 
 #### Sequenced Startup
 
-`DependsOn` and `InOrder` create Jobs sequentially, so a single PodGroup requiring all pods could
-never reach its `minCount`. The controller therefore uses one Gang PodGroup per ReplicatedJob.
-`AnyOrder` does not trigger this fallback.
+`DependsOn` and `InOrder` create Jobs sequentially, so a single top-level PodGroup requiring all
+pods could never reach its `minCount`. Top-level scheduling is therefore rejected with sequenced
+startup — both an explicit top-level `schedulingPolicy` and the defaulted top-level gang that an
+empty `scheduling: {}` block would otherwise produce. A JobSet using `DependsOn` or `InOrder` must
+instead configure per-ReplicatedJob scheduling under `spec.scheduling.replicatedJobs` (for example
+one Gang policy per ReplicatedJob). `AnyOrder` is unaffected and may use top-level scheduling.
 
 #### Scaling
 
@@ -678,6 +691,7 @@ resource changes.
 | Resume | Recreate them. |
 | Generated template changes | Patch Gang `minCount` for represented pod-count changes; delete and recreate for other immutable template changes. |
 | Restart | Retain scheduling resources; recreated Jobs receive the same mapping. |
+| Complete or fail | Delete the Workload and PodGroups so the scheduler releases their resources. |
 | Delete | OwnerReferences provide cleanup. |
 | No scheduling configuration | Create no WAS resources. |
 | Gate disabled with scheduling configured | Reject the JobSet at admission. |
@@ -687,7 +701,7 @@ resource changes.
 - **Unit** (`pkg/controllers/scheduling_test.go`, `pkg/controllers/scheduling_reconcile_test.go`,
   `pkg/util/scheduling_test.go`): `workloadbuilder` translation for top-level and per-RJ modes,
   per-Job (Gang-of-Gangs) PodGroup templates, group/template naming and collision handling,
-  `minCount` computation and defaulting, sequenced-startup fallback to per-RJ PodGroups,
+  `minCount` computation and defaulting, sequenced startup compiled with per-RJ scheduling,
   immutable-field recreation detection, Gang `minCount` patch-in-place on scale, and rejection of
   reconciling a pre-existing Workload the JobSet does not own.
 - **Webhook** (`pkg/webhooks/jobset_webhook_test.go`): defaulting of the composite and per-RJ/per-Job
@@ -715,9 +729,9 @@ resource changes.
   `batch/v1` Job `spec.scheduling` field directly, since the "no scheduling api on the job api
   itself" rule only applies once `spec.scheduling` is set on the JobSet.
 - **Integration** (`test/integration/scheduling/scheduling_test.go`, run via
-  `make test-integration-scheduling` against an envtest `kube-apiserver` built from a
-  pre-release Kubernetes tag that registers `scheduling.k8s.io/v1alpha3`, since that API has not
-  shipped in a released minor version — see `hack/envtest-scheduling-setup.sh`):
+  `make test-integration` against standard `setup-envtest` binaries with WAS
+  feature gates and the `scheduling.k8s.io/v1alpha3` and `scheduling.k8s.io/v1beta1` API
+  versions enabled):
   - Workload/PodGroup creation for per-RJ leaf overrides, top-level Gang with no overrides, and
     Basic-only top-level and per-RJ modes; child-Job annotation with the owning template name in
     each mode.
@@ -732,7 +746,8 @@ resource changes.
     ordinary, ungrouped pods.
   - Suspend/resume lifecycle: no objects on creation while suspended, deletion on suspend,
     recreation on resume, and repeated suspend-resume cycles.
-  - `DependsOn` and `InOrder` startup falling back to one Gang PodGroup per ReplicatedJob.
+  - `DependsOn` and `InOrder` startup with per-ReplicatedJob scheduling producing one Gang
+    PodGroup per ReplicatedJob, and rejection of top-level scheduling with sequenced startup.
   - Per-Job PodGroups when `job` is set (Gang-of-Gangs per-Job model).
   - Generated PodGroup name exceeding the 63-character DNS label limit at each naming level —
     long JobSet/ReplicatedJob names chosen so `<jobset-name>-<item-name>` overflows — verifying
@@ -828,7 +843,7 @@ The jobset feature gates will discover the API to determine if the feature can b
 ## Implementation History
 
 - 2026-06-28: KEP created and alpha implementation added, including Workload/PodGroup
-  integration, per-ReplicatedJob scheduling, sequenced-startup fallback, lifecycle handling,
+  integration, per-ReplicatedJob scheduling, sequenced-startup handling, lifecycle handling,
   immutable-spec recreation, and DRA resource-claim propagation.
 
 ## Drawbacks
