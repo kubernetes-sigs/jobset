@@ -816,12 +816,13 @@ func TestJobSetDefaulting(t *testing.T) {
 }
 
 type validationTestCase struct {
-	name                 string
-	enableInPlaceRestart bool
-	enableRestartJob     bool
-	js                   *jobset.JobSet
-	want                 error
-	existingObjs         []runtime.Object // objects to pre-populate in the fake client
+	name                        string
+	enableInPlaceRestart        bool
+	enableRestartJob            bool
+	enableActiveDeadlineSeconds bool
+	js                          *jobset.JobSet
+	want                        error
+	existingObjs                []runtime.Object // objects to pre-populate in the fake client
 }
 
 // TestValidateCreate tests the ValidateCreate method of the jobset webhook.
@@ -3216,6 +3217,57 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
+	activeDeadlineSecondsTests := []validationTestCase{
+		{
+			name:                        "activeDeadlineSeconds cannot be set when JobSetActiveDeadlineSeconds feature gate is disabled",
+			enableActiveDeadlineSeconds: false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy:         &jobset.SuccessPolicy{},
+					ActiveDeadlineSeconds: ptr.To[int64](60),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: errors.Join(field.Invalid(field.NewPath("spec", "activeDeadlineSeconds"), int64(60), "cannot be set when JobSetActiveDeadlineSeconds feature gate is disabled")),
+		},
+		{
+			name:                        "activeDeadlineSeconds can be set when JobSetActiveDeadlineSeconds feature gate is enabled",
+			enableActiveDeadlineSeconds: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy:         &jobset.SuccessPolicy{},
+					ActiveDeadlineSeconds: ptr.To[int64](60),
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "job-1",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									Template: validPodTemplateSpec,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+	}
+
 	testGroups := [][]validationTestCase{
 		uncategorizedTests,
 		jobsetControllerNameTests,
@@ -3223,6 +3275,7 @@ func TestValidateCreate(t *testing.T) {
 		dependsOnTests,
 		volumeClaimPolicyTests,
 		inPlaceRestartTests,
+		activeDeadlineSecondsTests,
 	}
 	var testCases []validationTestCase
 	for _, testGroup := range testGroups {
@@ -3236,6 +3289,7 @@ func TestValidateCreate(t *testing.T) {
 			testWebhook := &jobSetWebhook{client: testClient}
 			features.SetFeatureGateDuringTest(t, features.InPlaceRestart, tc.enableInPlaceRestart)
 			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.enableRestartJob)
+			features.SetFeatureGateDuringTest(t, features.JobSetActiveDeadlineSeconds, tc.enableActiveDeadlineSeconds)
 			_, err := testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
 			if err != nil && tc.want != nil {
 				// Verify it's specifically a 422 StatusError
@@ -3312,11 +3366,12 @@ func TestValidateUpdate(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name                string
-		oldJs               *jobset.JobSet
-		js                  *jobset.JobSet
-		want                error
-		enableElasticJobSet bool
+		name                        string
+		oldJs                       *jobset.JobSet
+		js                          *jobset.JobSet
+		want                        error
+		enableElasticJobSet         bool
+		enableActiveDeadlineSeconds bool
 	}{
 		{
 			name: "update suspend",
@@ -4087,6 +4142,64 @@ func TestValidateUpdate(t *testing.T) {
 			}.ToAggregate(),
 			enableElasticJobSet: true,
 		},
+		{
+			name:                        "activeDeadlineSeconds cannot be set on update when JobSetActiveDeadlineSeconds feature gate is disabled",
+			enableActiveDeadlineSeconds: false,
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs:        validReplicatedJobs,
+					ActiveDeadlineSeconds: ptr.To[int64](60),
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "activeDeadlineSeconds"), int64(60), "cannot be set when JobSetActiveDeadlineSeconds feature gate is disabled"),
+			}.ToAggregate(),
+		},
+		{
+			name:                        "activeDeadlineSeconds can be set on update when JobSetActiveDeadlineSeconds feature gate is enabled",
+			enableActiveDeadlineSeconds: true,
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs:        validReplicatedJobs,
+					ActiveDeadlineSeconds: ptr.To[int64](60),
+				},
+			},
+			want: nil,
+		},
+		{
+			name:                        "unchanged activeDeadlineSeconds does not block other updates when gate is disabled",
+			enableActiveDeadlineSeconds: false,
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs:        validReplicatedJobs,
+					ActiveDeadlineSeconds: ptr.To[int64](60),
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs:        validReplicatedJobs,
+					ActiveDeadlineSeconds: ptr.To[int64](60),
+					Suspend:               ptr.To(true),
+				},
+			},
+			want: nil,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -4094,6 +4207,7 @@ func TestValidateUpdate(t *testing.T) {
 			fakeClient := fake.NewFakeClient()
 			webhook := &jobSetWebhook{client: fakeClient}
 			features.SetFeatureGateDuringTest(t, features.ElasticJobSet, tc.enableElasticJobSet)
+			features.SetFeatureGateDuringTest(t, features.JobSetActiveDeadlineSeconds, tc.enableActiveDeadlineSeconds)
 			newObj := tc.js.DeepCopy()
 			oldObj := tc.oldJs.DeepCopy()
 			_, err := webhook.ValidateUpdate(context.TODO(), oldObj, newObj)

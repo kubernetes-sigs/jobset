@@ -35,6 +35,7 @@ class TestJobsetV1alpha2JobSetSpec(unittest.TestCase):
         model = JobsetV1alpha2JobSetSpec()
         if include_optional:
             return JobsetV1alpha2JobSetSpec(
+                active_deadline_seconds = 56,
                 coordinator = jobset.models.jobset_v1alpha2_coordinator.JobsetV1alpha2Coordinator(
                     job_index = 56, 
                     pod_index = 56, 
