@@ -35,3 +35,7 @@ data:
       enable: {{ not .Values.certManager.enable }}
       webhookServiceName: {{ include "jobset.webhook.service.name" . }}
       webhookSecretName: {{ include "jobset.webhook.secret.name" . }}
+    {{- with .Values.controller.featureGates }}
+    featureGates:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
