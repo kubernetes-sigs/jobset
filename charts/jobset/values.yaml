@@ -44,7 +44,10 @@ controller:
   # -- Feature gates of the jobset controller, as a map of feature name to enablement status.
   # See https://github.com/kubernetes-sigs/jobset/blob/main/pkg/features/features.go for the available features.
   featureGates: {}
-  # TLSOptions: true
+  # Uncomment to set specific feature gates.
+  # Otherwise, default feature gate settings will be applied.
+  # featureGates: 
+  #      TLSOptions: true
   # -- Annotations to add to the jobset controller deployment.
   annotations: {}
   # -- Environment variables of the jobset controller container.
