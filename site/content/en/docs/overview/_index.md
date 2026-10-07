@@ -74,6 +74,15 @@ See our github project for our [roadmap](https://github.com/orgs/kubernetes-sigs
 See the [troubleshooting](https://jobset.sigs.k8s.io/docs/troubleshooting/) guide for help resolving common issues.
 
 
+## Talks and Presentations
+
+- KubeCon EU 2026: [WG-Batch Updates: What's New and What Is Next?](https://www.youtube.com/watch?v=H_dfPaDpHHQ) by @tenzen-y @kannon92
+- KubeCon Japan 2025: [WG-Batch Updates: What's New and What Is Next?](https://www.youtube.com/watch?v=tJQjBzfELpM) by @tenzen-y @mimowo
+- KubeCon NA 2024: [Democratizing AI Model Training on Kubernetes with Kubeflow TrainJob and JobSet](https://www.youtube.com/watch?v=Lgy4ir1AhYw) by @andreyvelich @tenzen-y
+- KubeCon EU 2024: [WG-Batch Updates: What's New and What Is Next?](https://www.youtube.com/watch?v=2D2QSzUnS0M) by @mimowo @tenzen-y
+- KubeCon NA 2023: [On-Demand Systems and Scaled Training Using the JobSet API](https://www.youtube.com/watch?v=cwiAW5TZsfo) by @ahg-g @vsoch
+- KubeCon NA 2023: [WG Batch: What's New and What Is Next?](https://www.youtube.com/watch?v=aWxuaEFSarU) by @mwielgus
+
 ## Related projects
 
 - [k8s-CronJobSet](https://github.com/Rx-11/k8s-CronJobSet): a community project that runs JobSets on a cron schedule, similar to how a Kubernetes CronJob runs Jobs. Useful if you want to schedule recurring JobSet workloads such as periodic backups or batch jobs.
