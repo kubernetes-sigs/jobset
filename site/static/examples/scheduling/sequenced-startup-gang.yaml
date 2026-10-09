@@ -1,6 +1,11 @@
 # KEP-969 Representative API: "Combine sequencing with Gang scheduling"
 #
-# scheduling: {}
+# scheduling:
+#   replicatedJobs:
+#     - targetReplicatedJobs: [leader]
+#       schedulingPolicy: {gang: {}}
+#     - targetReplicatedJobs: [worker]
+#       schedulingPolicy: {gang: {}}
 # replicatedJobs:
 #   - name: leader
 #     dependsOn: []
@@ -15,8 +20,8 @@
 # deadlock (a single PodGroup requiring every pod at once could never be
 # satisfied while worker's Job doesn't exist yet). Each PodGroup's minCount is
 # computed independently from its own ReplicatedJob (leader: 1, worker: 2);
-# an explicit top-level schedulingPolicy.gang is rejected with DependsOn or
-# InOrder startup. Leave schedulingPolicy unset to use per-ReplicatedJob defaults.
+# top-level scheduling, including scheduling: {}, is rejected with DependsOn
+# or InOrder startup. Use explicit per-ReplicatedJob scheduling entries instead.
 #
 # Verify:
 #   kubectl get workloads,podgroups,jobs -n default
@@ -32,7 +37,14 @@ spec:
     operator: All
   network:
     enableDNSHostnames: true
-  scheduling: {}
+  scheduling:
+    replicatedJobs:
+      - targetReplicatedJobs: [leader]
+        schedulingPolicy:
+          gang: {}
+      - targetReplicatedJobs: [worker]
+        schedulingPolicy:
+          gang: {}
   replicatedJobs:
     - name: leader
       replicas: 1

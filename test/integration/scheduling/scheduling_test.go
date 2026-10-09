@@ -18,6 +18,8 @@ package schedulingtest
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -33,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
@@ -137,6 +140,43 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 			&jobset.JobSetScheduling{}),
 		ginkgo.Entry("InOrder with defaulted top-level gang (empty scheduling)", true,
 			&jobset.JobSetScheduling{}),
+	)
+
+	ginkgo.DescribeTable("should admit the sequenced-startup example and create independent gangs",
+		func(inOrder bool) {
+			nsObj := createTestNamespace(ctx, "sched-sequenced-example-")
+			defer func() {
+				gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, nsObj)).To(gomega.Succeed())
+			}()
+
+			ginkgo.By("loading the documented sequenced-startup manifest")
+			data, err := os.ReadFile(filepath.Join("..", "..", "..", "site", "static", "examples", "scheduling", "sequenced-startup-gang.yaml"))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var js jobset.JobSet
+			gomega.Expect(yaml.UnmarshalStrict(data, &js)).To(gomega.Succeed())
+			js.Namespace = nsObj.Name
+			if inOrder {
+				js.Spec.ReplicatedJobs[1].DependsOn = nil
+				js.Spec.StartupPolicy = &jobset.StartupPolicy{StartupPolicyOrder: jobset.InOrder}
+			}
+
+			ginkgo.By("admitting the example with per-ReplicatedJob scheduling")
+			gomega.Expect(k8sClient.Create(ctx, &js)).To(gomega.Succeed())
+
+			ginkgo.By("verifying each ReplicatedJob has its own gang sized independently")
+			gomega.Eventually(func(g gomega.Gomega) {
+				workload := getWorkloadForJobSet(ctx, g, nsObj.Name)
+				g.Expect(workload.Spec.PodGroupTemplates).To(gomega.HaveLen(2))
+				leaderPG := getPodGroupByPrefix(ctx, g, nsObj.Name, js.Name+"-leader")
+				g.Expect(leaderPG.Spec.SchedulingPolicy.Gang).NotTo(gomega.BeNil())
+				g.Expect(leaderPG.Spec.SchedulingPolicy.Gang.MinCount).To(gomega.Equal(int32(1)))
+				workerPG := getPodGroupByPrefix(ctx, g, nsObj.Name, js.Name+"-worker")
+				g.Expect(workerPG.Spec.SchedulingPolicy.Gang).NotTo(gomega.BeNil())
+				g.Expect(workerPG.Spec.SchedulingPolicy.Gang.MinCount).To(gomega.Equal(int32(2)))
+			}, timeout, interval).Should(gomega.Succeed())
+		},
+		ginkgo.Entry("DependsOn", false),
+		ginkgo.Entry("InOrder startup policy", true),
 	)
 
 	// These cases exercise the CRD's CEL validation directly (this suite does not
