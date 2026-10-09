@@ -190,7 +190,14 @@ same names/mapping on resume.
 **Combine sequencing with Gang scheduling**
 
 ```yaml
-scheduling: {}
+scheduling:
+  replicatedJobs:
+    - targetReplicatedJobs: [leader]
+      schedulingPolicy:
+        gang: {}
+    - targetReplicatedJobs: [worker]
+      schedulingPolicy:
+        gang: {}
 replicatedJobs:
   - name: leader
     dependsOn: []
@@ -202,7 +209,9 @@ replicatedJobs:
 
 Creates: one `Workload` named `<jobset-name>-<hash>` containing one Gang `PodGroup` per
 ReplicatedJob (`<jobset-name>-leader-<hash>`, `<jobset-name>-worker-<hash>`) instead of a single
-JobSet-wide `PodGroup`, avoiding deadlock from sequential Job creation.
+JobSet-wide `PodGroup`, avoiding deadlock from sequential Job creation. Top-level scheduling,
+including an empty `scheduling: {}`, is rejected with `DependsOn` or `InOrder` startup; each
+ReplicatedJob must be targeted separately under `spec.scheduling.replicatedJobs`.
 
 **Scale an elastic workload**
 

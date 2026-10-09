@@ -8,7 +8,7 @@ description: >
 no_list: true
 ---
 
-The other pages in this section show how to hand-write `Workload` and `PodGroup` objects alongside a JobSet, and point pods at a PodGroup via `schedulingGroup.podGroupName`. JobSet also supports a **declarative** integration: you describe the scheduling behavior you want directly on the JobSet with `spec.scheduling`, and the JobSet controller creates, updates, and deletes the matching `Workload`/`PodGroup` objects for you.
+JobSet supports a **declarative** integration with Kubernetes Workload-Aware Scheduling: you describe the scheduling behavior you want directly on the JobSet with `spec.scheduling`, and the JobSet controller creates, updates, and deletes the matching `Workload`/`PodGroup` objects for you. You do not need to manage those objects or set `schedulingGroup.podGroupName` on pods yourself.
 
 This page walks through that `spec.scheduling` field using the example manifests in [`site/static/examples/scheduling`](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples/scheduling), one use case at a time.
 
@@ -25,23 +25,24 @@ This feature is alpha and off by default, gated by two independent switches:
      JobSetWorkloadAwareSchedulingAPI: true
    ```
 
-2. **The Kubernetes cluster's own WAS feature gates and runtime-config**, same as the [general Workload Aware Scheduling prerequisites](/docs/workload-aware-scheduling/), plus two additional gates needed by some of the use cases below:
+2. **The Kubernetes cluster's own WAS feature gates and runtime-config**, as described in the [general Workload Aware Scheduling prerequisites](/docs/workload-aware-scheduling/):
 
    - `GenericWorkload`
-   - `WorkloadWithJob`
    - `TopologyAwareWorkloadScheduling` — required for the topology-constrained examples
    - `DRAWorkloadResourceClaims` — required for the shared DRA claim example
-   - API server `--runtime-config=scheduling.k8s.io/v1alpha3=true,scheduling.k8s.io/v1beta1=true`
+   - API server `--runtime-config=scheduling.k8s.io/v1beta1=true`
+
+   JobSet does not require `WorkloadWithJob`: the JobSet controller manages the scheduling objects and injects each pod's scheduling group directly.
 
    The local and E2E Kind setup uses Kubernetes `v1.37.0` release binaries, which include the required `scheduling.k8s.io` APIs. See [`hack/kind-config-scheduling.yaml`](https://github.com/kubernetes-sigs/jobset/blob/main/hack/kind-config-scheduling.yaml) and [`hack/e2e-scheduling-cluster.sh`](https://github.com/kubernetes-sigs/jobset/blob/main/hack/e2e-scheduling-cluster.sh) for the cluster setup, or run `make kind-cluster-scheduling` to create one locally.
 
 ## How It Works
 
-`spec.scheduling` is optional and immutable once a JobSet is created. If it is left unset, nothing changes: no `Workload` or `PodGroup` objects are created, and existing JobSets are unaffected. Setting it — even to an empty `{}` — tells the controller to compile exactly one `Workload`, owned by the JobSet, containing one or more `PodGroupTemplate`s, and to keep matching `PodGroup` objects in sync with it.
+`spec.scheduling` is optional and immutable once a JobSet is created. If it is left unset, nothing changes: no `Workload` or `PodGroup` objects are created, and existing JobSets are unaffected. Setting it — even to an empty `{}` when startup is not sequenced — tells the controller to compile exactly one `Workload`, owned by the JobSet, containing one or more `PodGroupTemplate`s, and to keep matching `PodGroup` objects in sync with it.
 
 `spec.scheduling` supports two mutually exclusive models — a JobSet must use exactly one, since composite Gang-of-Gangs PodGroup hierarchies linking a parent PodGroup to leaf PodGroups aren't implemented in alpha:
 
-- **`schedulingPolicy`**, **`schedulingConstraints`**, and **`disruptionMode`** at the top level of `spec.scheduling` configure a single composite PodGroup (or, under sequenced startup, one PodGroup per `ReplicatedJob`) covering the whole JobSet. Leave `replicatedJobs` unset when using this model.
+- **`schedulingPolicy`**, **`schedulingConstraints`**, and **`disruptionMode`** at the top level of `spec.scheduling` configure a single PodGroup covering the whole JobSet. Leave `replicatedJobs` unset when using this model. Top-level scheduling, including an empty `scheduling: {}`, cannot be combined with sequenced startup (`dependsOn` or `InOrder`); use `replicatedJobs` instead.
 - **`replicatedJobs`** lets you target one or more `ReplicatedJob`s by name with their own leaf-level policy, producing one `PodGroup` per policy entry. Every `ReplicatedJob` in the JobSet must be targeted by exactly one entry, since there's no top-level policy for an untargeted `ReplicatedJob` to fall back to. Leave the top-level `schedulingPolicy`, `schedulingConstraints`, and `disruptionMode` unset when using this model.
 - **`job`** nested inside a `replicatedJobs` entry goes one level deeper still, giving each Job *replica* of a `ReplicatedJob` its own `PodGroup` ("gang-of-gangs").
 
@@ -111,7 +112,7 @@ Combine gang scheduling with `schedulingConstraints.topology` to require that al
 
 {{< include file="/examples/scheduling/tpu-topology-gang.yaml" lang="yaml" >}}
 
-Both examples require the `TopologyAwareWorkloadScheduling` feature gate; without it the constraint is silently dropped on write and the controller will continuously try to reconcile the resulting drift.
+Both examples require the `TopologyAwareWorkloadScheduling` feature gate; without it the API server silently drops the constraint on write, so topology-aware placement is not enforced. The controller ignores absent, server-dropped constraints when checking for drift, avoiding a reconcile loop.
 
 ```bash
 kubectl get podgroups -n default -l jobset.sigs.k8s.io/jobset-name=topo-training -o yaml
@@ -119,7 +120,7 @@ kubectl get podgroups -n default -l jobset.sigs.k8s.io/jobset-name=topo-training
 
 ## Use Case: Sequenced Startup
 
-When `ReplicatedJob`s use `dependsOn` (or an `InOrder` `StartupPolicy`) to create Jobs sequentially, not all pods exist at the same time — so a single JobSet-wide gang could never be satisfied. An explicit top-level `schedulingPolicy.gang` is therefore rejected. Leave `schedulingPolicy` unset (for example, `scheduling: {}`) to use the default Gang policy independently for each `ReplicatedJob`, or configure Gang policies explicitly under `scheduling.replicatedJobs`, targeting each `ReplicatedJob` separately.
+When `ReplicatedJob`s use `dependsOn` (or an `InOrder` `StartupPolicy`) to create Jobs sequentially, not all pods exist at the same time — so a single JobSet-wide gang could never be satisfied. Top-level scheduling, including an empty `scheduling: {}`, is therefore rejected at admission. Configure Gang policies under `spec.scheduling.replicatedJobs`, targeting each `ReplicatedJob` separately, and leave the top-level scheduling fields unset. This creates independent PodGroups whose `minCount` values are computed from their own `ReplicatedJob`s.
 
 {{< include file="/examples/scheduling/sequenced-startup-gang.yaml" lang="yaml" >}}
 

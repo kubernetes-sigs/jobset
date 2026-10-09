@@ -616,7 +616,7 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 
 		ginkgo.By("waiting for all low-priority pods to be running")
 		gomega.Eventually(func(g gomega.Gomega) {
-			g.Expect(podsInPhase(g, ns.Name, "lp-js", corev1.PodRunning)).To(gomega.Equal(preemptionPodCount))
+			g.Expect(runningPodCount(g, ns.Name, "lp-js")).To(gomega.Equal(preemptionPodCount))
 		}, timeout, interval).Should(gomega.Succeed())
 
 		ginkgo.By("verifying low-priority PodGroup has disruption mode All and correct priority")
@@ -693,12 +693,12 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 
 		ginkgo.By("waiting for all high-priority pods to be running")
 		gomega.Eventually(func(g gomega.Gomega) {
-			g.Expect(podsInPhase(g, ns.Name, "hp-js", corev1.PodRunning)).To(gomega.Equal(preemptionPodCount))
+			g.Expect(runningPodCount(g, ns.Name, "hp-js")).To(gomega.Equal(preemptionPodCount))
 		}, timeout, interval).Should(gomega.Succeed())
 
 		ginkgo.By("verifying low-priority pods were preempted (no longer all running)")
 		gomega.Eventually(func(g gomega.Gomega) {
-			running := podsInPhase(g, ns.Name, "lp-js", corev1.PodRunning)
+			running := runningPodCount(g, ns.Name, "lp-js")
 			g.Expect(running).To(gomega.BeNumerically("<", preemptionPodCount))
 		}, timeout, interval).Should(gomega.Succeed())
 	})
@@ -790,33 +790,20 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 			g.Expect(pg.Spec.SchedulingPolicy.Gang.MinCount).To(gomega.Equal(int32(4)))
 		}, timeout, interval).Should(gomega.Succeed())
 
-		// TODO(https://github.com/kubernetes/kubernetes/issues/140112): Uncomment once
-		// the Kubernetes API server allows changing parallelism on Jobs referencing
-		// gang-scheduled PodGroups. Currently the API server rejects the patch with:
-		//   "cannot change parallelism for a Job referencing gang-scheduled PodGroup"
-		//
-		// ginkgo.By("verifying child Job parallelism and completions are updated to 4")
-		// gomega.Eventually(func(g gomega.Gomega) {
-		// 	var jobList batchv1.JobList
-		// 	g.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(ns.Name))).To(gomega.Succeed())
-		// 	g.Expect(jobList.Items).To(gomega.HaveLen(1))
-		// 	job := jobList.Items[0]
-		// 	g.Expect(*job.Spec.Parallelism).To(gomega.Equal(int32(4)), "child Job parallelism should be updated to 4")
-		// 	g.Expect(*job.Spec.Completions).To(gomega.Equal(int32(4)), "child Job completions should be updated to 4")
-		// }, timeout, interval).Should(gomega.Succeed())
-		//
-		// ginkgo.By("verifying 4 pods are created for the scaled Job")
-		// gomega.Eventually(func(g gomega.Gomega) {
-		// 	var podList corev1.PodList
-		// 	g.Expect(k8sClient.List(ctx, &podList, client.InNamespace(ns.Name))).To(gomega.Succeed())
-		// 	runningOrPending := 0
-		// 	for _, pod := range podList.Items {
-		// 		if pod.Status.Phase == corev1.PodRunning || pod.Status.Phase == corev1.PodPending {
-		// 			runningOrPending++
-		// 		}
-		// 	}
-		// 	g.Expect(runningOrPending).To(gomega.Equal(4), "expected 4 running/pending pods after scaling")
-		// }, timeout, interval).Should(gomega.Succeed())
+		ginkgo.By("verifying child Job parallelism and completions are updated to 4")
+		gomega.Eventually(func(g gomega.Gomega) {
+			var jobList batchv1.JobList
+			g.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(ns.Name))).To(gomega.Succeed())
+			g.Expect(jobList.Items).To(gomega.HaveLen(1))
+			job := jobList.Items[0]
+			g.Expect(job.Spec.Parallelism).To(gomega.Equal(int32Ptr(4)), "child Job parallelism should be updated to 4")
+			g.Expect(job.Spec.Completions).To(gomega.Equal(int32Ptr(4)), "child Job completions should be updated to 4")
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying 4 pods are running for the scaled Job")
+		gomega.Eventually(func(g gomega.Gomega) {
+			g.Expect(runningPodCount(g, ns.Name, js.Name)).To(gomega.Equal(4))
+		}, timeout, interval).Should(gomega.Succeed())
 	})
 
 	ginkgo.It("should create one PodGroup per Job when job is set (Gang-of-Gangs per-Job model)", func() {
@@ -1074,9 +1061,9 @@ func preemptionResources(nodes []corev1.Node, pods []corev1.Pod) (*corev1.Node, 
 	return nil, resource.Quantity{}, fmt.Errorf("no Ready, untainted node has enough free CPU for the preemption gang")
 }
 
-// podsInPhase returns the number of pods in the given namespace that are in
-// the specified phase and match the given JobSet label.
-func podsInPhase(g gomega.Gomega, ns, jsName string, phase corev1.PodPhase) int {
+// runningPodCount returns the number of running pods in the given namespace
+// that match the given JobSet label.
+func runningPodCount(g gomega.Gomega, ns, jsName string) int {
 	var podList corev1.PodList
 	g.Expect(k8sClient.List(ctx, &podList,
 		client.InNamespace(ns),
@@ -1084,7 +1071,7 @@ func podsInPhase(g gomega.Gomega, ns, jsName string, phase corev1.PodPhase) int 
 	)).To(gomega.Succeed())
 	count := 0
 	for _, p := range podList.Items {
-		if p.Status.Phase == phase {
+		if p.Status.Phase == corev1.PodRunning {
 			count++
 		}
 	}
