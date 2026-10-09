@@ -8,28 +8,31 @@ description: >
 no_list: true
 ---
 
-JobSet can integrate with the Kubernetes Workload Aware Scheduling (WAS) APIs (`scheduling.k8s.io/v1alpha3`) to enable gang scheduling and coordinated pod placement.
+JobSet can integrate with the Kubernetes Workload Aware Scheduling (WAS) APIs (`scheduling.k8s.io/v1beta1`) to enable gang scheduling and coordinated pod placement.
 
 - **Declarative**: set `spec.scheduling` directly on the JobSet and let the JobSet controller create and manage the `Workload`/`PodGroup` objects for you. See [Declarative Scheduling](./declarative_scheduling).
 
 ## Prerequisites
 
-The Workload Aware Scheduling APIs require a Kubernetes 1.36+ cluster with the following alpha feature gates enabled:
+The JobSet WAS integration requires Kubernetes 1.37+ with the following feature gates enabled for the examples in this section:
 
 - `GenericWorkload`
-- `GangScheduling`
-- `TopologyAwareWorkloadScheduling`
-- `WorkloadAwarePreemption`
+- `TopologyAwareWorkloadScheduling` — required for topology constraints
+- `DRAWorkloadResourceClaims` — required for shared DRA resource claims
 
-The API server must also have alpha APIs enabled via `--runtime-config=api/alpha=true`.
+The API server must also enable the WAS APIs via `--runtime-config=scheduling.k8s.io/v1beta1=true`. JobSet does not require the `WorkloadWithJob` feature gate.
 
 You can use [Kind](https://kind.sigs.k8s.io/) to create a local cluster with these feature gates enabled:
 
 {{< include file="/examples/workload-aware-scheduling/kind.yaml" lang="yaml" >}}
 
 ```bash
-kind create cluster --image=kindest/node:latest --config kind.yaml
+kind build node-image --image=jobset/kind-node:v1.37.0 \
+  https://dl.k8s.io/v1.37.0/kubernetes-server-linux-amd64.tar.gz
+kind create cluster --image=jobset/kind-node:v1.37.0 --config kind.yaml
 ```
+
+Use `kubernetes-server-linux-arm64.tar.gz` instead on ARM64 hosts. From a JobSet repository checkout, `make kind-cluster-scheduling` builds the pinned Kubernetes `v1.37.0` node image, creates the cluster, and deploys JobSet with `JobSetWorkloadAwareSchedulingAPI` enabled. See [Declarative Scheduling](./declarative_scheduling) for the controller feature gate configuration.
 
 ## Overview
 
