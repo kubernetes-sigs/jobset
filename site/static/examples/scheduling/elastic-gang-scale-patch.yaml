@@ -1,0 +1,61 @@
+# Scale patch for elastic-gang.yaml
+#
+# Apply this after elastic-gang.yaml to scale the "workers" ReplicatedJob's
+# parallelism/completions from 2 to 4. See elastic-gang.yaml for how the
+# controller keeps the PodGroup's minCount in sync with the live pod count
+# across this kind of scale-up.
+#
+# NOTE: this manifest must keep spec.scheduling byte-for-byte identical to
+# elastic-gang.yaml (including disruptionMode). spec.scheduling as a whole is
+# immutable (enforced by a CEL rule), so a `kubectl apply` that changes it
+# even incidentally (e.g. by omitting a field the live object has) is
+# rejected with "spec.scheduling: Invalid value: Value is immutable" even
+# though minCount itself is not what's being edited here.
+#
+# Usage:
+#   kubectl apply -f site/static/examples/scheduling/elastic-gang.yaml
+#   kubectl apply -f site/static/examples/scheduling/elastic-gang-scale-patch.yaml
+#
+# Or, without a full re-apply, patch just the scaled fields directly. Use a
+# JSON patch (--type=json) rather than a merge patch (--type=merge): a merge
+# patch replaces the whole replicatedJobs[0] list entry and therefore
+# requires every required field (including the pod template) to be repeated,
+# not just the two fields being changed.
+#   kubectl patch jobset gang-elastic -n default --type=json -p \
+#     '[{"op":"replace","path":"/spec/replicatedJobs/0/template/spec/parallelism","value":4},
+#       {"op":"replace","path":"/spec/replicatedJobs/0/template/spec/completions","value":4}]'
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: gang-elastic
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  network:
+    enableDNSHostnames: true
+  scheduling:
+    schedulingPolicy:
+      gang: {}
+    disruptionMode:
+      all: {}
+  replicatedJobs:
+    - name: workers
+      replicas: 1
+      template:
+        spec:
+          parallelism: 4
+          completions: 4
+          completionMode: Indexed
+          template:
+            spec:
+              restartPolicy: OnFailure
+              containers:
+                - name: worker
+                  image: gcr.io/k8s-staging-perf-tests/sleep:v0.1.0
+                  command: ["sleep", "120s"]
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 64Mi

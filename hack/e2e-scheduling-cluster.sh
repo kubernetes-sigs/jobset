@@ -9,36 +9,46 @@
 # Required environment variables (set defaults via Makefile or caller):
 #   KUSTOMIZE, KIND       — paths to tool binaries
 #   KIND_CLUSTER_NAME     — Kind cluster name (default: was-test)
-#   WAS_NODE_IMAGE        — Kind node image (default: kindest/node:v1.36.1)
+#   WAS_K8S_VERSION       — Kubernetes release (default: v1.37.0)
+#   WAS_NODE_IMAGE        — Kind node image name (default: jobset/kind-node:${WAS_K8S_VERSION})
 #   IMAGE_TAG             — JobSet controller image tag
 #   ARTIFACTS             — directory for logs and test artifacts
-#   E2E_TARGET_FOLDER     — kustomize config folder (default: default)
+#   E2E_TARGET_FOLDER     — kustomize config folder (default: scheduling)
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
 # Resolve tool paths to absolute to survive subshell cd operations.
+# Assignments are split from `export` (SC2155) so a failing `realpath` (e.g.
+# a nonexistent binary) trips `errexit` instead of silently exporting an
+# empty value.
 KUSTOMIZE="$(cd "$PWD" && realpath "${KUSTOMIZE:-$PWD/bin/kustomize}")"
 export KUSTOMIZE
 KIND="$(cd "$PWD" && realpath "${KIND:-$PWD/bin/kind}")"
 export KIND
 export KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-was-test}"
-export WAS_NODE_IMAGE="${WAS_NODE_IMAGE:-kindest/node:v1.36.1}"
-export E2E_TARGET_FOLDER="${E2E_TARGET_FOLDER:-default}"
+export WAS_K8S_VERSION="${WAS_K8S_VERSION:-v1.37.0}"
+export WAS_NODE_IMAGE="${WAS_NODE_IMAGE:-jobset/kind-node:${WAS_K8S_VERSION}}"
+export E2E_TARGET_FOLDER="${E2E_TARGET_FOLDER:-scheduling}"
 export NAMESPACE="${NAMESPACE:-jobset-system}"
 export ARTIFACTS="${ARTIFACTS:-$PWD/artifacts}"
 
-# ensure_scheduling_node_image pulls the WAS node image if it is not
-# already present locally.
-function ensure_scheduling_node_image {
+# build_scheduling_node_image builds a Kind node image from a pinned
+# Kubernetes release with the scheduling.k8s.io APIs. Use a namespaced
+# image tag to avoid overwriting stock kindest/node images, and reuse an
+# existing image when available.
+function build_scheduling_node_image {
     if docker image inspect "$WAS_NODE_IMAGE" &>/dev/null; then
         echo "==> Reusing existing node image: $WAS_NODE_IMAGE"
         return 0
     fi
 
-    echo "==> Pulling node image: $WAS_NODE_IMAGE"
-    docker pull "$WAS_NODE_IMAGE"
+    echo "==> Building Kind node image: $WAS_NODE_IMAGE (K8s ${WAS_K8S_VERSION})"
+    local arch
+    arch="$(go env GOARCH)"
+    $KIND build node-image --image="${WAS_NODE_IMAGE}" \
+        "https://dl.k8s.io/${WAS_K8S_VERSION}/kubernetes-server-linux-${arch}.tar.gz"
 }
 
 # create_scheduling_cluster creates a Kind cluster with WAS feature gates.
@@ -56,24 +66,6 @@ function create_scheduling_cluster {
         --image "${WAS_NODE_IMAGE}" \
         --config hack/kind-config-scheduling.yaml \
         --wait 2m
-}
-
-# label_scheduling_nodes applies topology labels to worker nodes so that
-# topology-aware scheduling tests can verify co-location constraints.
-function label_scheduling_nodes {
-    echo "==> Labelling worker nodes with topology.kubernetes.io/rack..."
-    local workers=()
-    while IFS= read -r node; do
-        workers+=("$node")
-    done < <(kubectl get nodes --no-headers -l '!node-role.kubernetes.io/control-plane' -o custom-columns=NAME:.metadata.name)
-    local half=$(( ${#workers[@]} / 2 ))
-    for i in "${!workers[@]}"; do
-        if [ "$i" -lt "$half" ]; then
-            kubectl label node "${workers[$i]}" topology.kubernetes.io/rack=rack1 --overwrite
-        else
-            kubectl label node "${workers[$i]}" topology.kubernetes.io/rack=rack2 --overwrite
-        fi
-    done
 }
 
 # kind_load_image loads the JobSet controller image into the Kind cluster.
@@ -95,36 +87,37 @@ function kind_load_image {
     return 1
 }
 
-# deploy_scheduling_jobset deploys the JobSet controller via the
-# e2e kustomize overlay.
+# deploy_scheduling_jobset deploys the JobSet controller with
+# JobSetWorkloadAwareSchedulingAPI=true via the scheduling kustomize overlay.
 function deploy_scheduling_jobset {
-    echo "==> Deploying JobSet controller..."
-    (cd config/components/manager && $KUSTOMIZE edit set image controller="$IMAGE_TAG")
-
-    local deploy_status=0
-    kubectl apply --server-side -k "test/e2e/config/$E2E_TARGET_FOLDER" || deploy_status=$?
-    if [ "$deploy_status" -eq 0 ]; then
+    echo "==> Deploying JobSet controller with JobSetWorkloadAwareSchedulingAPI=true..."
+    # Run the mutation in a subshell so this helper does not overwrite an EXIT
+    # trap installed by the script that sourced it. Restore the actual image,
+    # rather than assuming the repository's default has not changed.
+    (
+        local original_image
+        original_image="$(awk '/^- name: controller$/{getline; name=$2; getline; tag=$2; print name ":" tag; exit}' config/components/manager/kustomization.yaml)"
+        trap 'cd config/components/manager && "$KUSTOMIZE" edit set image controller="$original_image"' EXIT
+        (cd config/components/manager && "$KUSTOMIZE" edit set image controller="$IMAGE_TAG")
+        kubectl apply --server-side -k "test/e2e/config/$E2E_TARGET_FOLDER"
         echo "==> Waiting for JobSet controller to be ready..."
-        kubectl rollout status deployment/jobset-controller-manager -n "$NAMESPACE" --timeout=120s || deploy_status=$?
-    fi
-
-    # Reset kustomize image to default so the working tree stays clean,
-    # regardless of whether the deployment succeeded.
-    (cd config/components/manager && $KUSTOMIZE edit set image controller=us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset:main)
-
-    return "$deploy_status"
+        kubectl rollout status deployment/jobset-controller-manager -n "$NAMESPACE" --timeout=120s
+    )
 }
 
 # verify_scheduling_apis checks that the scheduling.k8s.io API types are
 # registered in the cluster.
 function verify_scheduling_apis {
     echo "==> Verifying scheduling.k8s.io API types..."
-    if kubectl api-resources 2>/dev/null | grep -q 'scheduling.k8s.io'; then
-        kubectl api-resources | grep 'scheduling.k8s.io'
+    # Every cluster exposes the built-in v1 priorityclasses.scheduling.k8s.io
+    # resource, so checking for the API group alone isn't enough to confirm
+    # the alpha Workload/PodGroup resources are enabled.
+    if kubectl api-resources --api-group=scheduling.k8s.io 2>/dev/null | grep -Eq '(^|[[:space:]])(workloads|podgroups)([[:space:]]|$)'; then
+        kubectl api-resources --api-group=scheduling.k8s.io | grep -E 'workloads|podgroups'
         echo ""
         echo "✅ Kind cluster '$KIND_CLUSTER_NAME' is ready with WAS feature gates enabled."
     else
-        echo "⚠️  scheduling.k8s.io API types not found."
+        echo "⚠️  scheduling.k8s.io Workload/PodGroup API types not found."
         echo "   The cluster is running but WAS features may not work."
         return 1
     fi

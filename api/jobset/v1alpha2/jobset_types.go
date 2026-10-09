@@ -17,6 +17,7 @@ package v1alpha2
 import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -118,6 +119,7 @@ const (
 
 // JobSetSpec defines the desired state of JobSet
 // +kubebuilder:validation:XValidation:rule="!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder == 'InOrder' && self.replicatedJobs.exists(x, has(x.dependsOn)))",message="StartupPolicy and DependsOn APIs are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!(has(self.scheduling) && (!has(self.scheduling.replicatedJobs) || size(self.scheduling.replicatedJobs) == 0)) || ((!has(self.startupPolicy) || self.startupPolicy.startupPolicyOrder != 'InOrder') && (!has(self.replicatedJobs) || self.replicatedJobs.all(rj, !has(rj.dependsOn) || size(rj.dependsOn) == 0)))",message="top-level scheduling (spec.scheduling without per-ReplicatedJob replicatedJobs entries, including the defaulted top-level gang) cannot be set with DependsOn or InOrder startup; configure per-ReplicatedJob scheduling under spec.scheduling.replicatedJobs instead",fieldPath=".scheduling"
 type JobSetSpec struct {
 	// replicatedJobs is the group of jobs that will form the set.
 	// +patchMergeKey=name
@@ -214,6 +216,15 @@ type JobSetSpec struct {
 	// +listType=atomic
 	// +kubebuilder:validation:MaxItems=50
 	VolumeClaimPolicies []VolumeClaimPolicy `json:"volumeClaimPolicies,omitempty"`
+
+	// scheduling defines the Workload-Aware Scheduling configuration for this JobSet.
+	// When nil, no scheduling objects are created and behavior is unchanged.
+	// When set (even to {}), the controller compiles a Workload resource
+	// (containing PodGroupTemplates) and materializes the corresponding
+	// PodGroup objects for the scheduler.
+	// Requires the JobSetWorkloadAwareSchedulingAPI feature gate.
+	// +optional
+	Scheduling *JobSetScheduling `json:"scheduling,omitempty"`
 }
 
 // JobSetStatus defines the observed state of JobSet
@@ -605,6 +616,137 @@ type Coordinator struct {
 
 	// podIndex is the Job completion index of the coordinator pod.
 	PodIndex int `json:"podIndex,omitempty"`
+}
+
+// JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet.
+// A JobSet must configure scheduling using exactly one of two mutually exclusive
+// models, since composite Gang-of-Gangs PodGroup hierarchies linking a parent
+// PodGroup to leaf PodGroups are not implemented in alpha:
+//   - the top-level (composite) model: set schedulingPolicy,
+//     schedulingConstraints, and/or disruptionMode to configure a single PodGroup
+//     covering the whole JobSet, and leave replicatedJobs unset.
+//   - the per-ReplicatedJob (composite) model: set replicatedJobs and leave
+//     schedulingPolicy, schedulingConstraints, and disruptionMode unset at the top
+//     level. Every ReplicatedJob must then be targeted by exactly one
+//     replicatedJobs entry, since there is no top-level policy for an
+//     untargeted ReplicatedJob to fall back to.
+//
+// Sequenced startup (DependsOn or an InOrder StartupPolicy) creates Jobs
+// sequentially, so a single top-level PodGroup could never reach its minCount. A
+// JobSet using sequenced startup must therefore use the per-ReplicatedJob model;
+// top-level scheduling (including the defaulted top-level gang) is rejected with
+// sequenced startup.
+//
+// +kubebuilder:validation:XValidation:rule="!has(self.replicatedJobs) || size(self.replicatedJobs) == 0 || (!has(self.schedulingPolicy) && !has(self.schedulingConstraints) && !has(self.disruptionMode))",message="schedulingPolicy, schedulingConstraints, and disruptionMode cannot be set together with replicatedJobs"
+type JobSetScheduling struct {
+	// schedulingPolicy defines the composite-level scheduling policy for the entire JobSet.
+	// Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and
+	// replicatedJobs is not set.
+	// Top-level scheduling, including this defaulted top-level gang, is forbidden with
+	// sequenced startup (DependsOn or an InOrder StartupPolicy), since a single PodGroup
+	// spanning the whole JobSet could never reach its minCount while Jobs are created
+	// sequentially. Configure Gang policies under replicatedJobs instead in that case.
+	// Mutually exclusive with replicatedJobs: see the type-level comment.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="has(self.basic) != has(self.gang)",message="exactly one of basic or gang must be set"
+	// +kubebuilder:validation:XValidation:rule="!has(self.gang) || !has(self.gang.minGroupCount)",message="minGroupCount is not supported until composite PodGroups are implemented"
+	SchedulingPolicy *schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
+
+	// schedulingConstraints defines composite-level topology constraints for the entire JobSet.
+	// Mutually exclusive with replicatedJobs: see the type-level comment.
+	// +optional
+	SchedulingConstraints *schedulingv1alpha3.WorkloadCompositePodGroupSchedulingConstraints `json:"schedulingConstraints,omitempty"`
+
+	// disruptionMode defines how the entire composite group can be disrupted.
+	// Mutually exclusive with replicatedJobs: see the type-level comment.
+	// +optional
+	DisruptionMode *schedulingv1alpha3.WorkloadCompositePodGroupDisruptionMode `json:"disruptionMode,omitempty"`
+
+	// replicatedJobs specifies per-ReplicatedJob composite-level scheduling overrides.
+	// Each entry targets one or more named ReplicatedJobs. Mutually exclusive with the
+	// top-level schedulingPolicy, schedulingConstraints, and disruptionMode fields: see
+	// the type-level comment. When set, every ReplicatedJob in the JobSet must be
+	// targeted by exactly one entry.
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=50
+	ReplicatedJobs []ReplicatedJobScheduling `json:"replicatedJobs,omitempty"`
+}
+
+// ReplicatedJobScheduling targets one or more named ReplicatedJobs with
+// composite-level scheduling configuration.
+//
+// +kubebuilder:validation:XValidation:rule="!has(self.job) || (size(self.targetReplicatedJobs) == 1 && !has(self.schedulingPolicy) && !has(self.schedulingConstraints) && !has(self.disruptionMode))",message="when job is set, targetReplicatedJobs must contain exactly one name and schedulingPolicy, schedulingConstraints, and disruptionMode must not be set"
+type ReplicatedJobScheduling struct {
+	// targetReplicatedJobs is the list of ReplicatedJob names this policy applies to.
+	// When more than one name is listed, the targeted ReplicatedJobs share a single
+	// PodGroup. Every name must be unique across all replicatedJobs entries.
+	// The list is limited to a maximum of 50 jobs
+	// and the length of each replicatedJobName can not exceed 256 characters.
+	// +required
+	// +listType=set
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=50
+	// +kubebuilder:validation:items:MaxLength=256
+	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
+
+	// schedulingPolicy defines the composite-level scheduling policy (basic or gang) for
+	// jobs created by the targeted ReplicatedJobs.
+	// Defaults to Gang when not specified.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="has(self.basic) != has(self.gang)",message="exactly one of basic or gang must be set"
+	// +kubebuilder:validation:XValidation:rule="!has(self.gang) || !has(self.gang.minGroupCount)",message="minGroupCount is not supported until composite PodGroups are implemented"
+	SchedulingPolicy *schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
+
+	// schedulingConstraints defines composite-level topology constraints for the targeted
+	// ReplicatedJobs' pods.
+	// +optional
+	SchedulingConstraints *schedulingv1alpha3.WorkloadCompositePodGroupSchedulingConstraints `json:"schedulingConstraints,omitempty"`
+
+	// disruptionMode defines how pods within the targeted ReplicatedJobs can be disrupted.
+	// +optional
+	DisruptionMode *schedulingv1alpha3.WorkloadCompositePodGroupDisruptionMode `json:"disruptionMode,omitempty"`
+
+	// job defines job-level (replica-level) scheduling configuration,
+	// where each replica of the targeted ReplicatedJobs forms its own independent gang
+	// (i.e. one PodGroup per Job) instead of sharing a single PodGroup across every
+	// replica of the targeted ReplicatedJobs. This is part of the Gang-of-Gangs model.
+	// When set, targetReplicatedJobs must contain exactly one ReplicatedJob name, and
+	// the composite-level schedulingPolicy, schedulingConstraints, and disruptionMode
+	// fields on this ReplicatedJobScheduling must not be set, since they configure
+	// a shared PodGroup that job replaces with one PodGroup per Job.
+	// +optional
+	Job *JobScheduling `json:"job,omitempty"`
+}
+
+// JobScheduling defines scheduling configuration applied at the individual
+// Job (ReplicatedJob replica) level, enabling each replica to be scheduled as its
+// own independent gang. This is part of the Gang-of-Gangs model: the JobSet
+// controller compiles one PodGroupTemplate/PodGroup per Job (replica) of the
+// targeted ReplicatedJob, sized to that Job's own parallelism, rather than one
+// PodGroup shared across all of the ReplicatedJob's replicas.
+type JobScheduling struct {
+	// schedulingPolicy defines the scheduling policy (basic or gang) applied to each
+	// replica of the targeted ReplicatedJobs.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="has(self.basic) != has(self.gang)",message="exactly one of basic or gang must be set"
+	// +kubebuilder:validation:XValidation:rule="!has(self.gang) || !has(self.gang.minCount) || self.gang.minCount >= 1",message="minCount must be a positive integer"
+	SchedulingPolicy *schedulingv1alpha3.WorkloadPodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
+
+	// schedulingConstraints defines topology constraints applied to each replica of
+	// the targeted ReplicatedJobs.
+	// +optional
+	SchedulingConstraints *schedulingv1alpha3.WorkloadPodGroupSchedulingConstraints `json:"schedulingConstraints,omitempty"`
+
+	// disruptionMode defines how pods within a single replica can be disrupted.
+	// +optional
+	DisruptionMode *schedulingv1alpha3.WorkloadPodGroupDisruptionMode `json:"disruptionMode,omitempty"`
+
+	// resourceClaims defines claims shared by all pods in each Job's PodGroup.
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=4
+	ResourceClaims []schedulingv1alpha3.WorkloadPodGroupResourceClaim `json:"resourceClaims,omitempty"`
 }
 
 // volumeClaimPolicy defines volume claim templates and lifecycle management for shared PVCs.
