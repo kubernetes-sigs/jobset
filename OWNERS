@@ -3,9 +3,9 @@
 reviewers:
   - jianqiaol
 approvers:
-  - ahg-g
   - andreyvelich
-  - GiuseppeTT
   - kannon92
 emeritus_approvers:
   - danielvegamyhre  # 2026-01-16
+  - ahg-g # 2026-10-09
+  - GiuseppeTT # 2026-10-09
