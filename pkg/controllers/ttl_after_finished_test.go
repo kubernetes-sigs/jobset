@@ -30,7 +30,7 @@ func TestExecuteTTLAfterFinishedPolicy(t *testing.T) {
 		ns         = "default"
 	)
 
-	now := metav1.Now()
+	now := metav1.NewTime(time.Now().Truncate(time.Second))
 
 	tests := []struct {
 		name               string
@@ -78,6 +78,9 @@ func TestExecuteTTLAfterFinishedPolicy(t *testing.T) {
 			utilruntime.Must(corev1.AddToScheme(scheme))
 			utilruntime.Must(batchv1.AddToScheme(scheme))
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.jobset).Build()
+			if err := fakeClient.Get(ctx, client.ObjectKeyFromObject(tc.jobset), tc.jobset); err != nil {
+				t.Fatal(err)
+			}
 			fakeClock := clocktesting.NewFakeClock(now.Time)
 			gotRequeueAfter, gotErr := executeTTLAfterFinishedPolicy(ctx, fakeClient, fakeClock, tc.jobset)
 			if tc.expectErr != (gotErr != nil) {
@@ -353,6 +356,39 @@ func TestRequeueJobSetAfter(t *testing.T) {
 			if gotRequeueAfter != tc.expectRequeueAfter {
 				t.Errorf("expected requeueAfter to be %v, got %v", tc.expectRequeueAfter, gotRequeueAfter)
 			}
+		})
+	}
+}
+
+func TestExecuteTTLAfterFinishedPolicyStaleObject(t *testing.T) {
+	now := metav1.Now()
+	for _, tc := range []struct {
+		name string
+		ttl  *int32
+	}{
+		{name: "TTL extended", ttl: ptr.To[int32](60)},
+		{name: "TTL removed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
+			scheme := runtime.NewScheme()
+			utilruntime.Must(jobset.AddToScheme(scheme))
+			js := testutils.MakeJobSet("test-jobset", "default").TTLSecondsAfterFinished(0).CompletedCondition(now).Obj()
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(js).Build()
+			if err := c.Get(ctx, client.ObjectKeyFromObject(js), js); err != nil {
+				t.Fatal(err)
+			}
+			cached := js.DeepCopy()
+			js.Spec.TTLSecondsAfterFinished = tc.ttl
+			if err := c.Update(ctx, js); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := executeTTLAfterFinishedPolicy(ctx, c, clocktesting.NewFakeClock(now.Time), cached)
+			if !apierrors.IsConflict(err) {
+				t.Errorf("expected conflict for an outdated TTL decision, got %v", err)
+			}
+			expectJobSetNotDeleted(ctx, t, c, js)
 		})
 	}
 }
