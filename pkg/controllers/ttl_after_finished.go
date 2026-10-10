@@ -127,7 +127,11 @@ func deleteJobSet(ctx context.Context, c client.Client, js *jobset.JobSet) error
 	log := ctrl.LoggerFrom(ctx)
 
 	policy := metav1.DeletePropagationForeground
-	options := []client.DeleteOption{client.PropagationPolicy(policy)}
+	// A cached TTL decision must not delete an updated or recreated JobSet.
+	options := []client.DeleteOption{
+		client.PropagationPolicy(policy),
+		client.Preconditions{UID: &js.UID, ResourceVersion: &js.ResourceVersion},
+	}
 	log.V(2).Info("Cleaning up JobSet", "jobset", klog.KObj(js))
 
 	return c.Delete(ctx, js, options...)
