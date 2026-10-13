@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -78,9 +80,7 @@ func TestExecuteTTLAfterFinishedPolicy(t *testing.T) {
 			utilruntime.Must(corev1.AddToScheme(scheme))
 			utilruntime.Must(batchv1.AddToScheme(scheme))
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.jobset).Build()
-			if err := fakeClient.Get(ctx, client.ObjectKeyFromObject(tc.jobset), tc.jobset); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(tc.jobset), tc.jobset))
 			fakeClock := clocktesting.NewFakeClock(now.Time)
 			gotRequeueAfter, gotErr := executeTTLAfterFinishedPolicy(ctx, fakeClient, fakeClock, tc.jobset)
 			if tc.expectErr != (gotErr != nil) {
@@ -375,19 +375,13 @@ func TestExecuteTTLAfterFinishedPolicyStaleObject(t *testing.T) {
 			utilruntime.Must(jobset.AddToScheme(scheme))
 			js := testutils.MakeJobSet("test-jobset", "default").TTLSecondsAfterFinished(0).CompletedCondition(now).Obj()
 			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(js).Build()
-			if err := c.Get(ctx, client.ObjectKeyFromObject(js), js); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(js), js))
 			cached := js.DeepCopy()
 			js.Spec.TTLSecondsAfterFinished = tc.ttl
-			if err := c.Update(ctx, js); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, c.Update(ctx, js))
 
 			_, err := executeTTLAfterFinishedPolicy(ctx, c, clocktesting.NewFakeClock(now.Time), cached)
-			if !apierrors.IsConflict(err) {
-				t.Errorf("expected conflict for an outdated TTL decision, got %v", err)
-			}
+			assert.True(t, apierrors.IsConflict(err), "expected conflict for an outdated TTL decision, got %v", err)
 			expectJobSetNotDeleted(ctx, t, c, js)
 		})
 	}

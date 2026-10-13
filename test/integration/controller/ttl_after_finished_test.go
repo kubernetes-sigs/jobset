@@ -16,9 +16,9 @@ package controllertest
 import (
 	"context"
 	"path/filepath"
-	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,86 +48,111 @@ func (c *ttlCachedClient) Get(ctx context.Context, key client.ObjectKey, obj cli
 	return c.Client.Get(ctx, key, obj, opts...)
 }
 
-func TestTTLAfterFinishedStaleReconcile(t *testing.T) {
-	// No background controller runs in this environment: the stale read and
-	// concurrent API update must occur in a deterministic order.
-	env := &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "config", "components", "crd", "bases")},
-		ErrorIfCRDPathMissing: true,
-	}
-	config, err := env.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, env.Stop()) })
-
-	scheme := runtime.NewScheme()
-	require.NoError(t, corev1.AddToScheme(scheme))
-	require.NoError(t, jobset.AddToScheme(scheme))
-	c, err := client.New(config, client.Options{Scheme: scheme})
-	require.NoError(t, err)
-	ctx := context.Background()
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "ttl-stale-"}}
-	require.NoError(t, c.Create(ctx, ns))
-
-	for _, tc := range []struct {
-		name         string
-		change       func(*testing.T, *jobset.JobSet)
-		wantConflict bool
-	}{
-		{name: "unchanged expired object"},
-		{name: "TTL extended", change: func(t *testing.T, js *jobset.JobSet) { js.Spec.TTLSecondsAfterFinished = ptr.To[int32](3600) }, wantConflict: true},
-		{name: "metadata updated", change: func(t *testing.T, js *jobset.JobSet) { js.Labels = map[string]string{"test": "updated"} }, wantConflict: true},
-		{name: "TTL removed", change: func(t *testing.T, js *jobset.JobSet) { js.Spec.TTLSecondsAfterFinished = nil }, wantConflict: true},
-		{name: "same name recreated", change: func(t *testing.T, js *jobset.JobSet) {
-			require.NoError(t, c.Delete(ctx, js))
-			require.Eventually(t, func() bool {
-				err := c.Get(ctx, client.ObjectKeyFromObject(js), &jobset.JobSet{})
-				return apierrors.IsNotFound(err)
-			}, timeout, interval)
-			replacement := testutils.MakeJobSet(js.Name, js.Namespace).ManagedBy("other-controller").Obj()
-			require.NoError(t, c.Create(ctx, replacement))
-		}, wantConflict: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			js := testutils.MakeJobSet("", ns.Name).ManagedBy("other-controller").TTLSecondsAfterFinished(0).Obj()
-			js.GenerateName = "expired-"
-			require.NoError(t, c.Create(ctx, js))
-			js.Status.Conditions = []metav1.Condition{{Type: string(jobset.JobSetCompleted), Status: metav1.ConditionTrue, Reason: "ByTest", LastTransitionTime: metav1.Now()}}
-			require.NoError(t, c.Status().Update(ctx, js))
-			cached := js.DeepCopy()
-			if tc.change != nil {
-				tc.change(t, js)
-				if tc.name != "same name recreated" {
-					require.NoError(t, c.Update(ctx, js))
-				}
-			}
-			cachedClient := &ttlCachedClient{Client: c, cached: cached}
-			r := controllers.NewJobSetReconciler(cachedClient, scheme, nil)
-			_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(cached)})
-			if tc.wantConflict {
-				require.True(t, apierrors.IsConflict(err), "expected a conflict, got %v", err)
-				fresh := &jobset.JobSet{}
-				require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(cached), fresh))
-				require.True(t, fresh.DeletionTimestamp.IsZero(), "latest JobSet must be retained")
-				cachedClient.cached = fresh
-				result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(fresh)})
-				require.NoError(t, err)
-				if tc.name == "TTL extended" {
-					require.Positive(t, result.RequeueAfter, "the latest TTL must be honored")
-				}
-				latest := &jobset.JobSet{}
-				err = c.Get(ctx, client.ObjectKeyFromObject(fresh), latest)
-				if tc.name == "metadata updated" {
-					require.True(t, apierrors.IsNotFound(err) || (err == nil && !latest.DeletionTimestamp.IsZero()), "still-expired JobSet must be deleted on retry")
-				} else {
-					require.NoError(t, err)
-					require.True(t, latest.DeletionTimestamp.IsZero(), "JobSet must also be retained on retry")
-				}
-			} else {
-				require.NoError(t, err)
-				fresh := &jobset.JobSet{}
-				err = c.Get(ctx, client.ObjectKeyFromObject(cached), fresh)
-				require.True(t, apierrors.IsNotFound(err) || (err == nil && !fresh.DeletionTimestamp.IsZero()), "expired JobSet must be deleted")
-			}
-		})
-	}
+type ttlStaleReconcileCase struct {
+	change             func(*jobset.JobSet)
+	recreate           bool
+	wantConflict       bool
+	wantDeletedOnRetry bool
+	wantRequeue        bool
 }
+
+var _ = ginkgo.Describe("TTLStaleReconcile", ginkgo.Ordered, ginkgo.ContinueOnFailure, func() {
+	var (
+		ttlCtx    context.Context
+		ttlClient client.Client
+		ttlScheme *runtime.Scheme
+		ns        *corev1.Namespace
+	)
+
+	ginkgo.BeforeAll(func() {
+		// The suite's background controller still honors TTL for externally
+		// managed JobSets. Keep this environment isolated so that stale reads
+		// and concurrent API updates occur in a deterministic order.
+		ttlEnv := &envtest.Environment{
+			CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "config", "components", "crd", "bases")},
+			ErrorIfCRDPathMissing: true,
+		}
+		config, err := ttlEnv.Start()
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		ginkgo.DeferCleanup(func() {
+			gomega.Expect(ttlEnv.Stop()).To(gomega.Succeed())
+		})
+
+		ttlScheme = runtime.NewScheme()
+		gomega.Expect(corev1.AddToScheme(ttlScheme)).To(gomega.Succeed())
+		gomega.Expect(jobset.AddToScheme(ttlScheme)).To(gomega.Succeed())
+		ttlClient, err = client.New(config, client.Options{Scheme: ttlScheme})
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		ttlCtx = context.Background()
+		ns = &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "ttl-stale-"}}
+		gomega.Expect(ttlClient.Create(ttlCtx, ns)).To(gomega.Succeed())
+	})
+
+	ginkgo.DescribeTable("reconciles using an outdated expiration decision", func(tc ttlStaleReconcileCase) {
+		js := testutils.MakeJobSet("", ns.Name).ManagedBy("other-controller").TTLSecondsAfterFinished(0).Obj()
+		js.GenerateName = "expired-"
+		gomega.Expect(ttlClient.Create(ttlCtx, js)).To(gomega.Succeed())
+		js.Status.Conditions = []metav1.Condition{{Type: string(jobset.JobSetCompleted), Status: metav1.ConditionTrue, Reason: "ByTest", LastTransitionTime: metav1.Now()}}
+		gomega.Expect(ttlClient.Status().Update(ttlCtx, js)).To(gomega.Succeed())
+		cached := js.DeepCopy()
+		if tc.recreate {
+			gomega.Expect(ttlClient.Delete(ttlCtx, js)).To(gomega.Succeed())
+			gomega.Eventually(func() bool {
+				return apierrors.IsNotFound(ttlClient.Get(ttlCtx, client.ObjectKeyFromObject(js), &jobset.JobSet{}))
+			}, timeout, interval).Should(gomega.BeTrue())
+			replacement := testutils.MakeJobSet(js.Name, js.Namespace).ManagedBy("other-controller").Obj()
+			gomega.Expect(ttlClient.Create(ttlCtx, replacement)).To(gomega.Succeed())
+		} else if tc.change != nil {
+			tc.change(js)
+			gomega.Expect(ttlClient.Update(ttlCtx, js)).To(gomega.Succeed())
+		}
+
+		cachedClient := &ttlCachedClient{Client: ttlClient, cached: cached}
+		r := controllers.NewJobSetReconciler(cachedClient, ttlScheme, nil)
+		_, err := r.Reconcile(ttlCtx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(cached)})
+		if !tc.wantConflict {
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			fresh := &jobset.JobSet{}
+			err = ttlClient.Get(ttlCtx, client.ObjectKeyFromObject(cached), fresh)
+			gomega.Expect(apierrors.IsNotFound(err) || (err == nil && !fresh.DeletionTimestamp.IsZero())).To(gomega.BeTrue(), "expired JobSet must be deleted")
+			return
+		}
+
+		gomega.Expect(apierrors.IsConflict(err)).To(gomega.BeTrue(), "expected a conflict, got %v", err)
+		fresh := &jobset.JobSet{}
+		gomega.Expect(ttlClient.Get(ttlCtx, client.ObjectKeyFromObject(cached), fresh)).To(gomega.Succeed())
+		gomega.Expect(fresh.DeletionTimestamp.IsZero()).To(gomega.BeTrue(), "latest JobSet must be retained")
+		cachedClient.cached = fresh
+		result, err := r.Reconcile(ttlCtx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(fresh)})
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		gomega.Expect(result.RequeueAfter > 0).To(gomega.Equal(tc.wantRequeue), "the latest TTL must be honored")
+		latest := &jobset.JobSet{}
+		err = ttlClient.Get(ttlCtx, client.ObjectKeyFromObject(fresh), latest)
+		if tc.wantDeletedOnRetry {
+			gomega.Expect(apierrors.IsNotFound(err) || (err == nil && !latest.DeletionTimestamp.IsZero())).To(gomega.BeTrue(), "still-expired JobSet must be deleted on retry")
+		} else {
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(latest.DeletionTimestamp.IsZero()).To(gomega.BeTrue(), "JobSet must also be retained on retry")
+		}
+	},
+		ginkgo.Entry("unchanged expired object", ttlStaleReconcileCase{}),
+		ginkgo.Entry("TTL extended", ttlStaleReconcileCase{
+			change:       func(js *jobset.JobSet) { js.Spec.TTLSecondsAfterFinished = ptr.To[int32](3600) },
+			wantConflict: true,
+			wantRequeue:  true,
+		}),
+		ginkgo.Entry("metadata updated", ttlStaleReconcileCase{
+			change:             func(js *jobset.JobSet) { js.Labels = map[string]string{"test": "updated"} },
+			wantConflict:       true,
+			wantDeletedOnRetry: true,
+		}),
+		ginkgo.Entry("TTL removed", ttlStaleReconcileCase{
+			change:       func(js *jobset.JobSet) { js.Spec.TTLSecondsAfterFinished = nil },
+			wantConflict: true,
+		}),
+		ginkgo.Entry("same name recreated", ttlStaleReconcileCase{
+			recreate:     true,
+			wantConflict: true,
+		}),
+	)
+})
