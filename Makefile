@@ -111,9 +111,6 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 		rbac:roleName=manager-role output:rbac:artifacts:config=config/components/rbac\
 		webhook output:webhook:artifacts:config=config/components/webhook\
 		paths="./pkg/..."
-	@# controller-gen does not implement the +k8s:maxItems marker used by
-	@# upstream Kubernetes types. Restore dropped bounds and validate the CRD.
-	$(GO_CMD) run ./hack/crdschema config/components/crd/bases/jobset.x-k8s.io_jobsets.yaml
 	cp -f ./config/components/crd/bases/jobset.x-k8s.io_jobsets.yaml ./charts/jobset/crds/
 
 .PHONY: generate
@@ -324,7 +321,7 @@ GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
 GOLANGCI_LINT_KAL = $(PROJECT_DIR)/bin/golangci-lint-kube-api-linter
 .PHONY: golangci-lint
 golangci-lint: ## Download golangci-lint locally if necessary.
-	GOBIN=$(PROJECT_DIR)/bin $(GO_CMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
+	GOBIN=$(PROJECT_DIR)/bin $(GO_CMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 
 .PHONY: golangci-lint-kal
 golangci-lint-kal: golangci-lint ## Build golangci-lint-kal from custom configuration.
@@ -354,7 +351,7 @@ $(LOCALBIN):
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.2.1
-CONTROLLER_TOOLS_VERSION ?= v0.22.0
+CONTROLLER_TOOLS_VERSION ?= v0.23.0
 # ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script.
 ENVTEST_VERSION ?= $(shell $(GO_CMD) list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 # ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries.
