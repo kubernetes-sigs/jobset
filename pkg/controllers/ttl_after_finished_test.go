@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,7 +32,7 @@ func TestExecuteTTLAfterFinishedPolicy(t *testing.T) {
 		ns         = "default"
 	)
 
-	now := metav1.Now()
+	now := metav1.NewTime(time.Now().Truncate(time.Second))
 
 	tests := []struct {
 		name               string
@@ -78,6 +80,7 @@ func TestExecuteTTLAfterFinishedPolicy(t *testing.T) {
 			utilruntime.Must(corev1.AddToScheme(scheme))
 			utilruntime.Must(batchv1.AddToScheme(scheme))
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.jobset).Build()
+			require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(tc.jobset), tc.jobset))
 			fakeClock := clocktesting.NewFakeClock(now.Time)
 			gotRequeueAfter, gotErr := executeTTLAfterFinishedPolicy(ctx, fakeClient, fakeClock, tc.jobset)
 			if tc.expectErr != (gotErr != nil) {
@@ -353,6 +356,33 @@ func TestRequeueJobSetAfter(t *testing.T) {
 			if gotRequeueAfter != tc.expectRequeueAfter {
 				t.Errorf("expected requeueAfter to be %v, got %v", tc.expectRequeueAfter, gotRequeueAfter)
 			}
+		})
+	}
+}
+
+func TestExecuteTTLAfterFinishedPolicyStaleObject(t *testing.T) {
+	now := metav1.Now()
+	for _, tc := range []struct {
+		name string
+		ttl  *int32
+	}{
+		{name: "TTL extended", ttl: ptr.To[int32](60)},
+		{name: "TTL removed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
+			scheme := runtime.NewScheme()
+			utilruntime.Must(jobset.AddToScheme(scheme))
+			js := testutils.MakeJobSet("test-jobset", "default").TTLSecondsAfterFinished(0).CompletedCondition(now).Obj()
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(js).Build()
+			require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(js), js))
+			cached := js.DeepCopy()
+			js.Spec.TTLSecondsAfterFinished = tc.ttl
+			require.NoError(t, c.Update(ctx, js))
+
+			_, err := executeTTLAfterFinishedPolicy(ctx, c, clocktesting.NewFakeClock(now.Time), cached)
+			assert.True(t, apierrors.IsConflict(err), "expected conflict for an outdated TTL decision, got %v", err)
+			expectJobSetNotDeleted(ctx, t, c, js)
 		})
 	}
 }
