@@ -118,6 +118,12 @@ Both examples require the `TopologyAwareWorkloadScheduling` feature gate; withou
 kubectl get podgroups -n default -l jobset.sigs.k8s.io/jobset-name=topo-training -o yaml
 ```
 
+## Exclusive Placement and Gang Scheduling
+
+The [`alpha.jobset.sigs.k8s.io/exclusive-topology`](/docs/concepts/#exclusive-job-to-topology-placement) annotation is not supported together with `spec.scheduling`, and JobSet rejects the combination at admission. For example, with the default placement strategy and a Gang policy the Job would never start: follower pods are admitted only after the leader pod is scheduled, while the gang does not schedule the leader until the followers exist.
+
+To keep each Job's pods in one topology domain under a gang, set `schedulingConstraints.topology` under a `job` entry (see the Gang-of-Gangs use case above). This keeps each gang inside one domain, but unlike exclusive placement it does not keep other Jobs out of that domain.
+
 ## Use Case: Sequenced Startup
 
 When `ReplicatedJob`s use `dependsOn` (or an `InOrder` `StartupPolicy`) to create Jobs sequentially, not all pods exist at the same time — so a single JobSet-wide gang could never be satisfied. Top-level scheduling, including an empty `scheduling: {}`, is therefore rejected at admission. Configure Gang policies under `spec.scheduling.replicatedJobs`, targeting each `ReplicatedJob` separately, and leave the top-level scheduling fields unset. This creates independent PodGroups whose `minCount` values are computed from their own `ReplicatedJob`s.
