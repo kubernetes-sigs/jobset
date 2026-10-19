@@ -76,6 +76,20 @@ const (
 	// building blocks from scheduling.k8s.io, allowing users to configure gang scheduling,
 	// topology constraints, and disruption policies on JobSets.
 	JobSetWorkloadAwareSchedulingAPI featuregate.Feature = "JobSetWorkloadAwareSchedulingAPI"
+
+	// owner: @kehannon
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/969-WAS-integration/README.md
+	//
+	// JobSetGangOfGangs enables the composite PodGroup (gang of gangs) scheduling model,
+	// allowing a top-level JobSet scheduling policy and per-ReplicatedJob policies to be
+	// combined into one CompositePodGroup tree instead of being mutually exclusive.
+	// Requires JobSetWorkloadAwareSchedulingAPI.
+	//
+	// The gate is currently inert: it is declared ahead of the Alpha 2 controller work
+	// that materializes the CompositePodGroup tree. Until that lands, the combined model
+	// is still rejected at admission so an enabled gate cannot admit a spec the controller
+	// would silently mis-compile into a flat set of PodGroups.
+	JobSetGangOfGangs featuregate.Feature = "JobSetGangOfGangs"
 )
 
 func init() {
@@ -102,6 +116,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	JobSetActiveDeadlineSeconds: {Default: false, PreRelease: featuregate.Alpha},
 
 	JobSetWorkloadAwareSchedulingAPI: {Default: false, PreRelease: featuregate.Alpha},
+
+	JobSetGangOfGangs: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {
