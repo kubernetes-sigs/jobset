@@ -317,6 +317,22 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 				}},
 			},
 			"when job is set"),
+		ginkgo.Entry("replicatedJobs exceeding MaxItems=8 is rejected",
+			func() []jobset.ReplicatedJob {
+				rjobs := make([]jobset.ReplicatedJob, 9)
+				for i := range rjobs {
+					rjobs[i] = makeRJob(fmt.Sprintf("rjob-%d", i), 1, 1, 1)
+				}
+				return rjobs
+			}(),
+			func() *jobset.JobSetScheduling {
+				entries := make([]jobset.ReplicatedJobScheduling, 9)
+				for i := range entries {
+					entries[i] = jobset.ReplicatedJobScheduling{TargetReplicatedJobs: []string{fmt.Sprintf("rjob-%d", i)}}
+				}
+				return &jobset.JobSetScheduling{ReplicatedJobs: entries}
+			}(),
+			"must have at most 8 items"),
 	)
 
 	// The valid counterparts of the CEL rules above: each config satisfies every
