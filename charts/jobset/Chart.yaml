@@ -23,6 +23,8 @@ type: application
 
 version: 0.13.0
 
+appVersion: "0.13.0"
+
 keywords:
 - kubernetes
 - batch
