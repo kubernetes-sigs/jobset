@@ -637,7 +637,11 @@ type Coordinator struct {
 // top-level scheduling (including the defaulted top-level gang) is rejected with
 // sequenced startup.
 //
-// +kubebuilder:validation:XValidation:rule="!has(self.replicatedJobs) || size(self.replicatedJobs) == 0 || (!has(self.schedulingPolicy) && !has(self.schedulingConstraints) && !has(self.disruptionMode))",message="schedulingPolicy, schedulingConstraints, and disruptionMode cannot be set together with replicatedJobs"
+// The top-level fields (schedulingPolicy, schedulingConstraints, disruptionMode)
+// and replicatedJobs are mutually exclusive unless the JobSetGangOfGangs feature
+// gate is enabled, in which case they combine into a composite PodGroup tree.
+// Because CEL cannot read feature gates, that mutual exclusion is enforced in the
+// validating webhook (validateScheduling) rather than as a type-level CEL rule.
 type JobSetScheduling struct {
 	// schedulingPolicy defines the composite-level scheduling policy for the entire JobSet.
 	// Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and
@@ -647,9 +651,11 @@ type JobSetScheduling struct {
 	// spanning the whole JobSet could never reach its minCount while Jobs are created
 	// sequentially. Configure Gang policies under replicatedJobs instead in that case.
 	// Mutually exclusive with replicatedJobs: see the type-level comment.
+	// minGroupCount is only honored in gang-of-gangs composite mode and is
+	// otherwise rejected by the validating webhook (gate-aware; CEL cannot read
+	// feature gates).
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="has(self.basic) != has(self.gang)",message="exactly one of basic or gang must be set"
-	// +kubebuilder:validation:XValidation:rule="!has(self.gang) || !has(self.gang.minGroupCount)",message="minGroupCount is not supported until composite PodGroups are implemented"
 	SchedulingPolicy *schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
 
 	// schedulingConstraints defines composite-level topology constraints for the entire JobSet.
@@ -695,9 +701,10 @@ type ReplicatedJobScheduling struct {
 	// schedulingPolicy defines the composite-level scheduling policy (basic or gang) for
 	// jobs created by the targeted ReplicatedJobs.
 	// Defaults to Gang when not specified.
+	// minGroupCount is only honored in gang-of-gangs composite mode and is
+	// otherwise rejected by the validating webhook (gate-aware).
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="has(self.basic) != has(self.gang)",message="exactly one of basic or gang must be set"
-	// +kubebuilder:validation:XValidation:rule="!has(self.gang) || !has(self.gang.minGroupCount)",message="minGroupCount is not supported until composite PodGroups are implemented"
 	SchedulingPolicy *schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
 
 	// schedulingConstraints defines composite-level topology constraints for the targeted
