@@ -25,7 +25,7 @@
     - [Scaling](#scaling)
   - [Workload Lifecycle](#workload-lifecycle)
   - [Test Plan](#test-plan)
-  - [Kueue Integration](#kueue-integration)
+  - [Downstream Integrations](#downstream-integrations)
   - [Graduation Criteria](#graduation-criteria)
     - [Alpha (1.37)](#alpha-137)
     - [Alpha 2 (1.38)](#alpha-2-138)
@@ -59,24 +59,57 @@ can compile into `Workload` and `PodGroup` resources.
 - Add optional, centralized scheduling configuration to `JobSetSpec`.
 - Support Basic and Gang policies, topology constraints, disruption modes, and shared
   ReplicatedJob-level resource claims.
-- Make the scheduling configuration available to integrations such as Kueue, so they can
-  select the appropriate workload representation and admission behavior.
+- Make the scheduling configuration available to external schedulers and queueing systems, so
+  they can select the appropriate workload representation and admission behavior.
 - Adopt the workload builder library for Workload/PodGroup creation and validation.
+- Support a composite PodGroup hierarchy (gang of gangs) so a top-level JobSet policy and
+  per-ReplicatedJob policies can be used together instead of one or the other. This is
+  behind the `JobSetGangOfGangs` feature gate (see
+  [Gang of Gangs Support](#gang-of-gangs-support)).
+
+Composite PodGroup is alpha in 1.37, so it sits behind its own feature gate rather than the
+stable Workload/PodGroup path. A cluster that only has the beta Workload/PodGroup APIs can
+still use JobSet scheduling without turning on an alpha dependency.
 
 ### Future Goals
 
-- Creating a composite/parent PodGroup hierarchy in the alpha implementation.
-
-Moving this to a future goal because Composite PodGroup is alpha in 1.37.
-A goal of this KEP is to pave an integration path with Kueue and JobSet users.
-Alpha apis are difficult to support for many users
-so want to limit the use of alpha features under a separate feature gate.
+- Partial eviction and rescheduling of a single ReplicatedJob or replica within a composite
+  hierarchy.
+- Always build the full composite tree once CompositePodGroup is available, so that whenever
+  `spec.scheduling` is set the shape is uniform (`CompositePodGroup` for the whole JobSet, a
+  `CompositePodGroup` per ReplicatedJob group, and a leaf `PodGroup` per independent Job)
+  regardless of how `spec.scheduling` is configured. Alpha builds flat PodGroups in the
+  non-composite modes; a uniform tree gives a higher-level controller (for example Kubeflow
+  Trainer) one tree structure to reason about and a one-to-one ReplicatedJob-to-group mapping
+  instead of a varying number of levels. The WAS working group leans toward this direction; it
+  is to be validated with a proof-of-concept and example use cases, and finalized at the WAS
+  summit before it replaces the conditional Alpha behavior.
+- Separate "manage the runtime objects" from "manage the Workload". A controller that composes
+  JobSets (depth-3 actuation, such as Trainer over JobSet over Jobs) should not have to
+  understand per-Job PodGroup lifecycle, so JobSet should be able to materialize the CPG/PG
+  subtree even when it does not own the top-level Workload. This gives three modes rather than
+  two: create nothing, manage only the runtime PodGroups/CompositePodGroups, or manage
+  everything including the Workload. LWS already supports this mode: a parent that owns the
+  Workload sets the `scheduling.k8s.io/group-template-name` annotation, and LWS creates only the
+  runtime PodGroups from that template (`pkg/schedulerprovider`; kubernetes-sigs/lws#1144 makes
+  the annotations immutable, kubernetes-sigs/lws#1162 handles the parent changing `minCount`).
+  JobSet already sets this same annotation on child Jobs, so adopting the parent-driven contract
+  would let a controller such as Trainer drive JobSet and LWS the same way.
+- First-class support for dependency-ordered scheduling (`DependsOn`) within the composite
+  hierarchy. Alpha works around ordering by excluding a `DependsOn`-deferred member from the
+  shared gang `minCount` (the deferred Pods join opportunistically with no reserved capacity)
+  and by rejecting a full-quorum Gang root with sequenced startup. A first-class mechanism would
+  let a gang or CompositePodGroup account for members its controller creates later, instead of
+  that workaround. The open questions are tracked upstream in
+  [kubernetes/kubernetes#142855](https://github.com/kubernetes/kubernetes/issues/142855).
 
 ### Non-Goals
 
-- Implementing Kueue admission or queue management. Kueue integration is limited to exposing
-  enough scheduling configuration for Kueue to understand the JobSet's workload shape; a
-  follow-up Kueue design must define queueing and partial-eviction behavior.
+- Implementing Kueue admission or queue management. Kueue integration is out of scope for this
+  KEP and is owned by a follow-up Kueue-side design.
+- Always creating WAS objects regardless of `spec.scheduling`. By current agreement a nil
+  `spec.scheduling` creates no WAS resources; JobSet does not compile an empty configuration
+  into a Basic-policy tree.
 
 ## Proposal
 
@@ -210,8 +243,11 @@ replicatedJobs:
 Creates: one `Workload` named `<jobset-name>-<hash>` containing one Gang `PodGroup` per
 ReplicatedJob (`<jobset-name>-leader-<hash>`, `<jobset-name>-worker-<hash>`) instead of a single
 JobSet-wide `PodGroup`, avoiding deadlock from sequential Job creation. Top-level scheduling,
-including an empty `scheduling: {}`, is rejected with `DependsOn` or `InOrder` startup; each
-ReplicatedJob must be targeted separately under `spec.scheduling.replicatedJobs`.
+including an empty `scheduling: {}`, is rejected with `DependsOn` or `InOrder` startup; the
+ReplicatedJobs are configured under `spec.scheduling.replicatedJobs` instead. This example gives
+each ReplicatedJob its own gang; dependent ReplicatedJobs can also share one gang in a single
+entry, in which case the deferred member is excluded from `minCount` (see
+[Sequenced Startup](#sequenced-startup)).
 
 **Scale an elastic workload**
 
@@ -307,7 +343,9 @@ to use resourceClaims.
 
 ### Gang of Gangs Support
 
-> **Note (future work, Alpha 2):** This API is a sketch and not yet finalized.
+> This lands in Alpha 2 (1.38) behind the `JobSetGangOfGangs` gate, which also needs
+> `JobSetWorkloadAwareSchedulingAPI`. With the gate off, the top-level and per-ReplicatedJob
+> models stay mutually exclusive, same as Alpha.
 
 At a high level, the API looks like:
 
@@ -332,6 +370,70 @@ With compositePodGroups, the top level policy would be a CPG object.
 The group of replicated jobs within a `replicatedJobs` entry would correspond to a CPG also.
 
 And then at the job level, these would be separate PodGroups.
+
+With the gate on, the controller compiles the JobSet into one `Workload` with a CPG tree. The
+top-level policy becomes a root `CompositePodGroup`, and each `replicatedJobs` entry becomes a
+child `CompositePodGroup` that points at the root through the real API field
+`spec.parentCompositePodGroupName`. Composite objects follow the same
+`<jobset-name>-<template-name>-<hash>` naming scheme as leaf PodGroups, with a `-cpg` suffix on
+the composite template name so a composite node never collides with the shared leaf beneath it.
+Under each child CPG are the leaf `PodGroup`s: one per Job replica when `job` is set, otherwise
+one shared PodGroup for the targeted ReplicatedJobs. The leaves set the same
+`spec.parentCompositePodGroupName` field to point at their parent CPG.
+
+A ReplicatedJob that no `replicatedJobs` entry targets attaches its leaf PodGroup directly to the
+root CPG and schedules under the top-level policy. The root CPG is the fallback, so the Alpha rule
+that every ReplicatedJob must be targeted does not apply in this mode; it only holds when the gate
+is off and there is no top-level policy to fall back to.
+
+This is the one case where a top-level policy and `replicatedJobs` can be set together. In Alpha
+that combination is rejected (see [Validation](#validation)) because nothing links the two levels;
+with the gate on the root CompositePodGroup is that link, so the restriction is dropped.
+
+This stays out of the initial Alpha because CompositePodGroup is alpha in 1.37. This KEP covers
+the design; the `JobSetGangOfGangs` gate and the controller that compiles the multi-level CPG
+tree are delivered by the companion implementation PR tracked under #1365. The controller uses
+the upstream `workloadbuilder` for composite-tree support; because that builder exposes no API to
+materialize nested leaf PodGroups, the leaves are built directly from their templates. If the gate is enabled on a
+cluster that does not serve the CompositePodGroup API, admission does not pre-check the API; the
+controller skips the CompositePodGroup watch so the manager stays healthy, and gang-of-gangs
+reconciles surface a clear per-JobSet error until the API is available. Enable the gate only on
+clusters that serve the API.
+
+**Interaction with sequenced startup (`DependsOn`/`InOrder`).** The composite tree keeps per-entry
+gangs as separate children, so sequencing is expressed by `DependsOn` ordering child creation. This
+converges only under a `Basic` root: a `Basic` root imposes no cross-child quorum, so a child whose
+Jobs are deferred is fine. A `Gang` root whose `minGroupCount` spans a `DependsOn`-deferred child
+can never reach quorum and deadlocks — the same failure a single top-level gang hits with sequenced
+startup, one level up. With sequenced startup the webhook therefore allows only two root shapes: an
+explicit `Basic` root, or a `Gang` root with an explicit `minGroupCount`. Every other shape is a
+full-quorum Gang root and is rejected, including a root that sets only `schedulingConstraints` or
+`disruptionMode` and no `schedulingPolicy`, since the controller
+defaults a composite node to Gang. An explicit `minGroupCount` is accepted as the user opting
+into partial quorum; the webhook does not check that the value is actually reachable before the
+deferred children, so setting it equal to the full child count is still full quorum and can
+deadlock. Keeping that responsibility with the user avoids the controller reasoning about
+DependsOn order at admission; tightening it to reject unreachable explicit quorums is possible
+future hardening.
+
+**Representative use case (MPI / KEP-4064, from the Kubeflow Trainer integration).** Each MPI node
+group is its own ReplicatedJob; listing the launcher and all groups in one `replicatedJobs` entry
+puts them in a single gang, while distinct entries gang-schedule independently:
+
+```yaml
+scheduling:
+  schedulingPolicy: { basic: {} }   # root: groups scheduled independently
+  replicatedJobs:
+    - targetReplicatedJobs: [launcher, cpu, l40s, w7900]  # one shared gang
+      schedulingPolicy: { gang: {} }
+```
+
+The two caps differ on purpose: `replicatedJobs` **entries** are capped at 8 (each entry compiles
+into at least one PodGroupTemplate and the Workload API allows at most 8 templates per node), while
+`targetReplicatedJobs` **within** one entry is capped at 50 (for a shared gang the whole list
+collapses into a single leaf PodGroup, so it adds one template regardless of target count). This
+cap applies to the shared-gang grouping; the per-Job model (`job`) requires exactly one target and
+instead produces one leaf PodGroup per Job replica.
 
 For a jobset, with three replicated jobs with 2 replicas each, gang of gangs could be represented:
 
@@ -393,9 +495,9 @@ type JobSetSpec struct {
 }
 
 // JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet.
-// A JobSet must configure scheduling using exactly one of two mutually exclusive
-// models, since composite Gang-of-Gangs PodGroup hierarchies linking a parent
-// PodGroup to leaf PodGroups are not implemented in alpha:
+// With the JobSetGangOfGangs feature gate disabled (alpha default), a JobSet must
+// configure scheduling using exactly one of two mutually exclusive models (with
+// the gate enabled, a composite Gang-of-Gangs PodGroup hierarchy links the two):
 //   - the top-level (level 1 / composite) model: set schedulingPolicy,
 //     schedulingConstraints, and/or disruptionMode to configure a single PodGroup
 //     covering the whole JobSet, and leave replicatedJobs unset. This model is
@@ -406,6 +508,14 @@ type JobSetSpec struct {
 //     the top level. Every ReplicatedJob must then be targeted by exactly one
 //     replicatedJobs entry, since there is no top-level policy for an
 //     untargeted ReplicatedJob to fall back to.
+//
+// With JobSetGangOfGangs enabled, these two models may be combined: a top-level
+// policy and replicatedJobs entries are composed into a Gang-of-Gangs hierarchy,
+// and any ReplicatedJob not targeted by a replicatedJobs entry falls back to the
+// root CompositePodGroup under the top-level policy, linked through the
+// spec.parentCompositePodGroupName field. Because CEL cannot read feature gates,
+// this gate-aware mutual exclusion is enforced in the validating webhook
+// (validateScheduling) rather than as a type-level CEL rule.
 type JobSetScheduling struct {
     // schedulingPolicy defines the composite-level (level 1) scheduling policy for
     // the entire JobSet. Defaults to Gang when spec.scheduling is set but
@@ -426,10 +536,12 @@ type JobSetScheduling struct {
     DisruptionMode *schedulingv1alpha3.WorkloadCompositePodGroupDisruptionMode `json:"disruptionMode,omitempty"`
 
     // replicatedJobs specifies per-ReplicatedJob composite-level (level 2)
-    // scheduling overrides. Mutually exclusive with the top-level schedulingPolicy,
-    // schedulingConstraints, and disruptionMode fields: see the type-level comment.
-    // When set, every ReplicatedJob in the JobSet must be targeted by exactly one
-    // entry.
+    // scheduling overrides. With JobSetGangOfGangs disabled, mutually exclusive
+    // with the top-level schedulingPolicy, schedulingConstraints, and
+    // disruptionMode fields, and every ReplicatedJob must be targeted by exactly
+    // one entry: see the type-level comment. With JobSetGangOfGangs enabled, may
+    // be combined with a top-level policy, and untargeted ReplicatedJobs fall back
+    // to the root CompositePodGroup.
     // The list is limited to a maximum of 8 entries, since each entry compiles into
     // at least one PodGroupTemplate and the Workload API allows at most 8 templates.
     // +optional
@@ -510,6 +622,9 @@ Defaulting applies only when `spec.scheduling` is present:
   ReplicatedJobs.
 - Per-ReplicatedJob Gang `minCount` defaults to `parallelism × replicas` for that
   ReplicatedJob.
+- A shared Gang `minCount` (one `replicatedJobs` entry targeting several ReplicatedJobs) defaults
+  to the sum across those ReplicatedJobs, excluding any whose Jobs a sibling in the same entry
+  defers through `DependsOn` (see [Sequenced Startup](#sequenced-startup)).
 
 Gang `minCount` defaulting is performed **dynamically by the JobSet controller during
 compilation** — the controller computes the represented pod count and writes it to
@@ -539,22 +654,29 @@ The validating webhook and `workloadbuilder` enforce that:
   explicit top-level `schedulingPolicy` (Basic or Gang, with or without `minGroupCount`) and
   the defaulted top-level gang represented by a `spec.scheduling` block that sets no
   `replicatedJobs` entries. Sequenced startup must use per-ReplicatedJob scheduling.
+- In gang-of-gangs mode (`JobSetGangOfGangs` on), a full-quorum Gang root is rejected with
+  `DependsOn`/`InOrder`, since its derived quorum could never be met while a dependent child's
+  Jobs are deferred. Only two root shapes are allowed with sequenced startup: an explicit `Basic`
+  root, or a `Gang` root with an explicit `minGroupCount`. A root with no `schedulingPolicy` (only
+  `schedulingConstraints`/`disruptionMode`) defaults to Gang and is therefore also rejected.
 - An explicit Gang `minCount` cannot exceed the represented pod count, including after a
   requested downscale; this permanently blocks downscaling
   an ElasticJobSet below that count (see [Scaling](#scaling)) unless `minCount` was left unset.
 - If scheduling api is specified then there can be no scheduling api on the job api itself.
-- `spec.scheduling` supports exactly one of the two models above: setting a top-level
-  (level 1) `schedulingPolicy`, `schedulingConstraints`, or `disruptionMode` together
-  with `replicatedJobs` (level 2) is rejected, since alpha does not implement a
-  composite PodGroup to link a level 1 policy to level 2 policies. This is unconditional
-  in alpha — there is no `JobSetGangOfGangs` feature gate yet to relax it — because
-  composite PodGroups do not exist to reconcile the two levels; that gate and the
-  composite-PodGroup-backed hierarchy are Alpha 2 (1.38) work (see
-  [Gang of Gangs Support](#gang-of-gangs-support) and
-  [Graduation Criteria](#graduation-criteria)).
+- `spec.scheduling` supports exactly one of the two models above, unless the
+  `JobSetGangOfGangs` gate is on. With the gate off, setting a top-level (level 1)
+  `schedulingPolicy`, `schedulingConstraints`, or `disruptionMode` together with
+  `replicatedJobs` (level 2) is rejected, since there is no composite PodGroup to link a
+  level 1 policy to level 2 policies. With the gate on that combination is accepted and
+  compiled into the composite hierarchy from
+  [Gang of Gangs Support](#gang-of-gangs-support). The two-model restriction is Alpha
+  behavior only.
 - When only `replicatedJobs` (level 2) is set and no top-level (level 1) field
   is set, every ReplicatedJob must be targeted by exactly one `replicatedJobs`
   entry, since there is no level 1 policy for an untargeted ReplicatedJob to fall back to.
+  With `JobSetGangOfGangs` on and a top-level policy set, this rule does not apply: an
+  untargeted ReplicatedJob falls back to the root CompositePodGroup and schedules under the
+  top-level policy.
 - Per-ReplicatedJob mode produces one PodGroup per resulting template. The upstream Workload
   API caps `podGroupTemplates` at 8 per Workload, while `JobSetSpec.ReplicatedJobs` has no such
   cap; the webhook rejects a JobSet in per-ReplicatedJob mode whose resulting PodGroup count
@@ -590,9 +712,13 @@ When the feature is enabled and `spec.scheduling` is non-nil:
    - `scheduling.k8s.io/group-template-name`, identifying the template; and
    - a pod-template `schedulingGroup.podGroupName` pointing to the PodGroup.
 
-The alpha implementation does not create a `CompositePodGroup`. It therefore does not set
-`scheduling.k8s.io/parent-composite-podgroup`; that annotation refers to a
-`CompositePodGroup`, not to the owning JobSet.
+With the `JobSetGangOfGangs` gate **off**, the controller creates no `CompositePodGroup`: child
+Jobs carry only `scheduling.k8s.io/group-template-name` and no parent linkage is set. With the
+gate **on**, the controller builds the CompositePodGroup tree from
+[Gang of Gangs Support](#gang-of-gangs-support) and sets the real field
+`spec.parentCompositePodGroupName` on each child CPG and leaf PodGroup so it points at its
+parent (composite node names carry a `-cpg` suffix). Child Jobs are still mapped to their leaf
+via `scheduling.k8s.io/group-template-name`.
 
 #### Naming Convention
 
@@ -611,6 +737,26 @@ produced:
   than one ReplicatedJob): the target names joined with `-`, e.g. `<target-1>-<target-2>`.
 - **Per-Job mode / Gang-of-Gangs** (a `replicatedJobs` entry sets `job`):
   one item per replica, `<replicatedjob-name>-<job-index>-<hash>`.
+
+With the `JobSetGangOfGangs` gate on, the composite nodes are named the same way with a `-cpg`
+suffix so a composite node never collides with the shared leaf beneath it. For a JobSet `js` with
+a top-level Basic policy and two entries, `[driver]` and `[workers]`, the tree is:
+
+```
+Workload:            js-<hash>
+  root CPG:          js-<hash>-cpg                 (top-level policy)
+    child CPG:       js-driver-<hash>-cpg          (entry [driver])
+      leaf PodGroup: js-driver-<hash>              (driver pods)
+    child CPG:       js-workers-<hash>-cpg         (entry [workers])
+      leaf PodGroup: js-workers-<hash>             (workers pods)
+```
+
+This scheme carries a source-identity hash on every node. A cleaner alternative, aligned with the
+Kubeflow Trainer proposal, is to drop the per-template hash and prefix level-2 entries with their
+index (`0-driver`, `1-workers`), which keeps names unique without a hash (ReplicatedJob names
+cannot start with a digit) and avoids the repeated JobSet segment in composite nodes. Naming is for
+readability and logical linking only, so it can change while this is alpha; aligning the convention
+with the index-prefix model is a tracked beta item.
 
 Generated WorkloadItem names must be unique within a Workload — for example, a ReplicatedJob
 literally named `leader-worker` could collide with a group formed from `leader` and `worker`.
@@ -672,8 +818,23 @@ instead of silently taking over another controller's resource.
 pods could never reach its `minCount`. Top-level scheduling is therefore rejected with sequenced
 startup — both an explicit top-level `schedulingPolicy` and the defaulted top-level gang that an
 empty `scheduling: {}` block would otherwise produce. A JobSet using `DependsOn` or `InOrder` must
-instead configure per-ReplicatedJob scheduling under `spec.scheduling.replicatedJobs` (for example
-one Gang policy per ReplicatedJob). `AnyOrder` is unaffected and may use top-level scheduling.
+instead configure per-ReplicatedJob scheduling under `spec.scheduling.replicatedJobs`. `AnyOrder`
+is unaffected and may use top-level scheduling.
+
+A `replicatedJobs` entry may still target several ReplicatedJobs that `DependsOn` one another and
+share one Gang PodGroup. In that case the shared Gang `minCount` excludes the pods of any targeted
+ReplicatedJob that another targeted ReplicatedJob in the same entry depends on, since those Jobs
+are created only after their dependency is Ready. The dependent Job's Pods join the already-admitted
+PodGroup afterward; the kube-scheduler does not reserve capacity for them, so they schedule
+opportunistically into the space the gang already holds and remain Pending if none is left.
+
+For example, an MPI JobSet with a `launcher` ReplicatedJob (1 Pod) that `dependsOn` a `node`
+ReplicatedJob (49 Pods), both targeted by one `replicatedJobs` entry, produces a single Gang
+PodGroup with `minCount: 49`. The 49 workers gang-schedule together; the launcher Pod joins the
+same PodGroup once the workers are Ready. Including the launcher in `minCount` would deadlock: the
+workers could not schedule until the launcher Pod existed, while the launcher is created only after
+the workers are Ready. This is the shape the Kubeflow Trainer MPI runtime (KEP-3015) delegates to
+JobSet.
 
 #### Scaling
 
@@ -706,6 +867,25 @@ resource changes.
 | Delete | OwnerReferences provide cleanup. |
 | No scheduling configuration | Create no WAS resources. |
 | Gate disabled with scheduling configured | Reject the JobSet at admission. |
+
+In gang-of-gangs mode (`JobSetGangOfGangs` enabled), "Workload and PodGroups" above includes the
+root and child `CompositePodGroup` objects: they are created with the Workload, deleted on
+suspend, complete, or fail, and recreated on resume, with the same OwnerReference-based cleanup.
+
+Two lifecycle choices above are Alpha decisions with open long-term questions, raised in WG
+Workload-Aware Scheduling:
+
+- **Nil `spec.scheduling` creates nothing.** This is a declarative opt-out: a composing controller
+  (for example Kubeflow Trainer) or a queueing integration can keep JobSet from creating WAS
+  objects by leaving the field unset, which is simpler than detecting owner references. Always
+  creating WAS objects is a Non-Goal: by current agreement a nil field stays "create nothing".
+- **Suspend deletes the Workload, not just the PodGroups.** A suspended JobSet can be mutated
+  before it resumes (today its Jobs' resource requests, and potentially replicas or TPU slice
+  shape in the future), and such changes can alter the Workload structure itself, not only a
+  gang `minCount`. Deleting and recreating the Workload on resume avoids reconciling an
+  incompatible structure in place. Whether to keep this, or retain the Workload across suspend,
+  is being aligned with the Job WAS controller KEPs (kubernetes/enhancements KEP-6089 and
+  KEP-5547) so JobSet and Job behave consistently.
 
 ### Test Plan
 
@@ -759,6 +939,10 @@ resource changes.
     recreation on resume, and repeated suspend-resume cycles.
   - `DependsOn` and `InOrder` startup with per-ReplicatedJob scheduling producing one Gang
     PodGroup per ReplicatedJob, and rejection of top-level scheduling with sequenced startup.
+  - A shared Gang PodGroup from one `replicatedJobs` entry targeting several ReplicatedJobs that
+    `DependsOn` one another (the MPI launcher + node shape): the gang `minCount` excludes the
+    deferred member's pods, and the deferred Job's Pods join the PodGroup once its dependency is
+    Ready.
   - Per-Job PodGroups when `job` is set (Gang-of-Gangs per-Job model).
   - Generated PodGroup name exceeding the 63-character DNS label limit at each naming level —
     long JobSet/ReplicatedJob names chosen so `<jobset-name>-<item-name>` overflows — verifying
@@ -797,33 +981,26 @@ resource changes.
     resources.
   - Gang `minCount` patched in place on ElasticJobSet scaling.
   - Per-Job PodGroups when `job` is set (Gang-of-Gangs per-Job model).
+  - Gang-of-Gangs (`JobSetGangOfGangs` gate) combined with `DependsOn`:
+    - A `Basic` root over per-child `Gang`s with `DependsOn: Ready` builds the composite tree
+      (root + per-entry child `CompositePodGroup`s, leaf `PodGroup`s linked via
+      `spec.parentCompositePodGroupName`, correct leaf `minCount`s) and the JobSet completes.
+    - `DependsOn: Complete` sequencing: worker Jobs are not created until the driver completes,
+      and the composite tree still converges.
+    - An untargeted ReplicatedJob falls back to the root composite (its leaf links straight to
+      the root `CompositePodGroup`) while a targeted sibling uses `DependsOn`.
+    - A full-quorum `Gang` root combined with `DependsOn` is rejected at admission.
 
   DRA resource-claim propagation and feature-gate-disabled behavior are covered at the
   integration level only; the E2E suite does not re-test them on a live cluster.
 
-### Kueue Integration
+### Downstream Integrations
 
-Kueue integration is tracked separately in [issue-13707](https://github.com/kubernetes-sigs/kueue/issues/13707)
-and is planned in two phases:
-
-- **Phase 1** (this KEP): JobSet exposes the WAS `scheduling` configuration described here.
-  Kueue has two options for queueing JobSets on top of it:
-  a. admitting the JobSet as a single, all-or-nothing gang, or
-  b. admitting each ReplicatedJob separately via the existing Job integration in kueue.
-  Solving the top-level JobSet as a single gang is the simplest option, since it means all pods
-  within the JobSet are scheduled together; once this API stabilizes, Kueue's integration should
-  read the `scheduling` API to build a representative aggregate `KueueWorkload`.
-- **Phase 2** (tracked in [issue-13707](https://github.com/kubernetes-sigs/kueue/issues/13707),
-  design owned by Kueue): finer-grained behaviors such as partial eviction, restarting a single
-  failed ReplicatedJob instead of the entire JobSet, or shape-aware preemption simulation that
-  reads the distinct per-ReplicatedJob `PodGroups` are out of scope for this KEP. This KEP only
-  exposes the scheduling shape (Basic/Gang, per-ReplicatedJob PodGroups) that a follow-up
-  Kueue-side KEP would need to consume in order to implement that granular behavior; that design
-  is expected to be proposed separately in Kueue.
-
-For b in Phase 1, this may need to be handled in Kueue. 
-Kueue will have multiple `KueueWorkloads`, but JobSet will create a single workload with multiple PodGroups.
-A design will be needed in Kueue to figure out how we want to map this.
+Queueing systems such as Kueue are downstream consumers of the WAS `scheduling` configuration
+exposed by this KEP. How they consume it — single all-or-nothing gang admission vs. per-
+ReplicatedJob admission, partial eviction, or shape-aware preemption — is out of scope here and
+is owned by a follow-up Kueue-side design, tracked separately in
+[kueue#13707](https://github.com/kubernetes-sigs/kueue/issues/13707).
 
 ### Graduation Criteria
 
@@ -840,7 +1017,19 @@ The jobset feature gates will discover the API to determine if the feature can b
 
 #### Alpha 2 (1.38)
 
-- JobSetGangOfGangs enabled with compositePodGroups
+- `JobSetGangOfGangs` feature gate added (off by default, Alpha), needs
+  `JobSetWorkloadAwareSchedulingAPI`.
+- With the gate on and the CompositePodGroup API present, the controller compiles the
+  top-level, per-ReplicatedJob, and optional per-Job policies into a CompositePodGroup tree
+  rooted at one composite PodGroup (see [Gang of Gangs Support](#gang-of-gangs-support)).
+- The Alpha rule rejecting a top-level policy together with `replicatedJobs` is dropped when
+  the gate is on.
+- Unit, integration, and E2E coverage for the tree, including parent/leaf linkage, the
+  gang-of-gangs + `DependsOn` cases above, and a reconcile error (not admission rejection) when
+  the CompositePodGroup API is not served.
+- The webhook rejects a full-quorum `Gang` root combined with `DependsOn`/`InOrder` (which would
+  deadlock); a `Basic` root, or a `Gang` root with an explicit `minGroupCount`, is required with
+  sequenced startup.
 
 #### Beta (1.38)
 
@@ -856,6 +1045,11 @@ The jobset feature gates will discover the API to determine if the feature can b
 - 2026-06-28: KEP created and alpha implementation added, including Workload/PodGroup
   integration, per-ReplicatedJob scheduling, sequenced-startup handling, lifecycle handling,
   immutable-spec recreation, and DRA resource-claim propagation.
+- 2026-10-13: Added the gang of gangs (CompositePodGroup) design for Alpha 2, gated by the
+  `JobSetGangOfGangs` feature gate.
+- 2026-10-24: Implemented the gang of gangs controller and validation. Parent linkage uses the
+  `spec.parentCompositePodGroupName` field rather than the annotation the original design named,
+  and a full-quorum Gang root is rejected with `DependsOn`/`InOrder` startup.
 
 ## Drawbacks
 
