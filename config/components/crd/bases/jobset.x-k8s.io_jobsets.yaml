@@ -10194,6 +10194,8 @@ spec:
                             schedulingPolicy defines the composite-level scheduling policy (basic or gang) for
                             jobs created by the targeted ReplicatedJobs.
                             Defaults to Gang when not specified.
+                            minGroupCount is only honored in gang-of-gangs composite mode and is
+                            otherwise rejected by the validating webhook (gate-aware).
                           properties:
                             basic:
                               description: |-
@@ -10222,9 +10224,6 @@ spec:
                           x-kubernetes-validations:
                           - message: exactly one of basic or gang must be set
                             rule: has(self.basic) != has(self.gang)
-                          - message: minGroupCount is not supported until composite
-                              PodGroups are implemented
-                            rule: '!has(self.gang) || !has(self.gang.minGroupCount)'
                         targetReplicatedJobs:
                           description: |-
                             targetReplicatedJobs is the list of ReplicatedJob names this policy applies to.
@@ -10291,6 +10290,9 @@ spec:
                       spanning the whole JobSet could never reach its minCount while Jobs are created
                       sequentially. Configure Gang policies under replicatedJobs instead in that case.
                       Mutually exclusive with replicatedJobs: see the type-level comment.
+                      minGroupCount is only honored in gang-of-gangs composite mode and is
+                      otherwise rejected by the validating webhook (gate-aware; CEL cannot read
+                      feature gates).
                     properties:
                       basic:
                         description: |-
@@ -10319,16 +10321,7 @@ spec:
                     x-kubernetes-validations:
                     - message: exactly one of basic or gang must be set
                       rule: has(self.basic) != has(self.gang)
-                    - message: minGroupCount is not supported until composite PodGroups
-                        are implemented
-                      rule: '!has(self.gang) || !has(self.gang.minGroupCount)'
                 type: object
-                x-kubernetes-validations:
-                - message: schedulingPolicy, schedulingConstraints, and disruptionMode
-                    cannot be set together with replicatedJobs
-                  rule: '!has(self.replicatedJobs) || size(self.replicatedJobs) ==
-                    0 || (!has(self.schedulingPolicy) && !has(self.schedulingConstraints)
-                    && !has(self.disruptionMode))'
               startupPolicy:
                 description: |-
                   startupPolicy configures in what order jobs must be started

@@ -194,25 +194,9 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 			gomega.Expect(apierrors.IsInvalid(err)).To(gomega.BeTrue(), "expected an Invalid error, got %v", err)
 			gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring(wantSubstring)))
 		},
-		ginkgo.Entry("top-level composite gang minGroupCount is not supported",
-			[]jobset.ReplicatedJob{makeRJob("workers", 1, 1, 1)},
-			&jobset.JobSetScheduling{
-				SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-					Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](2)},
-				},
-			},
-			"minGroupCount is not supported"),
-		ginkgo.Entry("per-ReplicatedJob composite gang minGroupCount is not supported",
-			[]jobset.ReplicatedJob{makeRJob("workers", 1, 1, 1)},
-			&jobset.JobSetScheduling{
-				ReplicatedJobs: []jobset.ReplicatedJobScheduling{{
-					TargetReplicatedJobs: []string{"workers"},
-					SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-						Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](2)},
-					},
-				}},
-			},
-			"minGroupCount is not supported"),
+		// Note: composite gang minGroupCount is no longer a CEL rule. It is allowed
+		// only in gang-of-gangs mode and otherwise rejected (gate- and mode-aware) by
+		// the validating webhook; see the webhook integration/unit suites.
 		ginkgo.Entry("top-level composite policy with both basic and gang",
 			[]jobset.ReplicatedJob{makeRJob("workers", 1, 1, 1)},
 			&jobset.JobSetScheduling{
@@ -287,15 +271,9 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 				}},
 			},
 			"exactly one of basic or gang must be set"),
-		ginkgo.Entry("top-level policy cannot be combined with replicatedJobs",
-			[]jobset.ReplicatedJob{makeRJob("workers", 1, 1, 1)},
-			&jobset.JobSetScheduling{
-				SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-					Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
-				},
-				ReplicatedJobs: []jobset.ReplicatedJobScheduling{{TargetReplicatedJobs: []string{"workers"}}},
-			},
-			"cannot be set together with replicatedJobs"),
+		// Note: top-level policy combined with replicatedJobs is no longer a CEL
+		// rule. It is enforced (gate-aware) by the validating webhook so the
+		// JobSetGangOfGangs gate can relax it; see the webhook integration suite.
 		ginkgo.Entry("job requires exactly one targetReplicatedJobs",
 			[]jobset.ReplicatedJob{makeRJob("workers", 1, 1, 1), makeRJob("driver", 1, 1, 1)},
 			&jobset.JobSetScheduling{
@@ -1183,6 +1161,49 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling integration", func() {
 		}, timeout, interval).Should(gomega.Succeed())
 	})
 
+	ginkgo.It("should exclude a DependsOn-deferred member from a shared gang PodGroup minCount", func() {
+		ctx := context.Background()
+		nsObj := createTestNamespace(ctx, "sched-shared-depends-ns-")
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, nsObj)).To(gomega.Succeed())
+		}()
+
+		// One replicatedJobs entry targets both workers and launcher, so they share a
+		// single Gang PodGroup. launcher dependsOn workers, so its Jobs are deferred;
+		// the shared gang minCount must therefore exclude the launcher (2 worker pods,
+		// not 3) or the gang would deadlock.
+		workersRJ := makeRJob("workers", 1, 2, 2)
+		launcherRJ := makeRJob("launcher", 1, 1, 1)
+		launcherRJ.DependsOn = []jobset.DependsOn{{Name: "workers", Status: jobset.DependencyReady}}
+
+		js := makeSchedulingJobSet("shared-depends", nsObj.Name,
+			[]jobset.ReplicatedJob{workersRJ, launcherRJ},
+			&jobset.JobSetScheduling{
+				ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+					{TargetReplicatedJobs: []string{"workers", "launcher"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+				},
+			},
+		)
+
+		ginkgo.By("creating the JobSet with a shared gang and a DependsOn-deferred launcher")
+		gomega.Eventually(func() error {
+			return k8sClient.Create(ctx, js)
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying the Workload has one shared PodGroupTemplate")
+		gomega.Eventually(func(g gomega.Gomega) {
+			workload := getWorkloadForJobSet(ctx, g, nsObj.Name)
+			g.Expect(workload.Spec.PodGroupTemplates).To(gomega.HaveLen(1))
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying the shared gang minCount excludes the deferred launcher (2, not 3)")
+		gomega.Eventually(func(g gomega.Gomega) {
+			pg := getPodGroupByPrefix(ctx, g, nsObj.Name, fmt.Sprintf("%s-workers-launcher", js.Name))
+			g.Expect(pg.Spec.SchedulingPolicy.Gang).NotTo(gomega.BeNil())
+			g.Expect(pg.Spec.SchedulingPolicy.Gang.MinCount).To(gomega.Equal(int32(2)))
+		}, timeout, interval).Should(gomega.Succeed())
+	})
+
 	ginkgo.It("should use per-RJ Gang PodGroups when InOrder StartupPolicy is configured with per-RJ scheduling", func() {
 		ctx := context.Background()
 		nsObj := createTestNamespace(ctx, "sched-startup-ns-")
@@ -2029,6 +2050,176 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling DRA ResourceClaims integratio
 			g.Expect(workersPG.Spec.ResourceClaims[0].Name).To(gomega.Equal("tpu-slice"))
 			g.Expect(workersPG.Spec.ResourceClaims[0].ResourceClaimTemplateName).NotTo(gomega.BeNil())
 			g.Expect(*workersPG.Spec.ResourceClaims[0].ResourceClaimTemplateName).To(gomega.Equal("tpu-slice-template"))
+		}, timeout, interval).Should(gomega.Succeed())
+	})
+})
+
+var _ = ginkgo.Describe("Workload-Aware Scheduling gang of gangs integration", func() {
+	ginkgo.It("materializes a CompositePodGroup tree with parent links", func() {
+		nsObj := createTestNamespace(ctx, "sched-gog-")
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, nsObj)).To(gomega.Succeed())
+		}()
+
+		// Top-level Basic policy combined with a per-ReplicatedJob gang entry for
+		// "workers"; "leader" is untargeted and falls back to the root.
+		js := makeSchedulingJobSet("gog", nsObj.Name,
+			[]jobset.ReplicatedJob{makeRJob("leader", 1, 1, 1), makeRJob("workers", 2, 2, 2)},
+			&jobset.JobSetScheduling{
+				SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+					Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
+				},
+				ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+					{
+						TargetReplicatedJobs: []string{"workers"},
+						SchedulingPolicy:     &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}},
+					},
+				},
+			})
+		gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+
+		ginkgo.By("verifying the Workload carries a composite template tree")
+		gomega.Eventually(func(g gomega.Gomega) {
+			wl := getWorkloadForJobSet(ctx, g, nsObj.Name)
+			g.Expect(wl.Spec.CompositePodGroupTemplates).To(gomega.HaveLen(1))
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying CompositePodGroups and leaf PodGroups are created with parent links")
+		gomega.Eventually(func(g gomega.Gomega) {
+			var cpgList schedulingv1alpha3.CompositePodGroupList
+			g.Expect(k8sClient.List(ctx, &cpgList, client.InNamespace(nsObj.Name))).To(gomega.Succeed())
+			// root + one child (workers).
+			g.Expect(cpgList.Items).To(gomega.HaveLen(2))
+
+			var root, child *schedulingv1alpha3.CompositePodGroup
+			for i := range cpgList.Items {
+				if cpgList.Items[i].Spec.ParentCompositePodGroupName == nil {
+					root = &cpgList.Items[i]
+				} else {
+					child = &cpgList.Items[i]
+				}
+			}
+			g.Expect(root).NotTo(gomega.BeNil(), "expected one root CompositePodGroup")
+			g.Expect(child).NotTo(gomega.BeNil(), "expected one child CompositePodGroup")
+			g.Expect(*child.Spec.ParentCompositePodGroupName).To(gomega.Equal(root.Name))
+			g.Expect(root.Spec.SchedulingPolicy.Basic).NotTo(gomega.BeNil())
+			g.Expect(child.Spec.SchedulingPolicy.Gang).NotTo(gomega.BeNil())
+
+			var pgList schedulingv1alpha3.PodGroupList
+			g.Expect(k8sClient.List(ctx, &pgList, client.InNamespace(nsObj.Name))).To(gomega.Succeed())
+			// leaf for the workers group + leaf for the untargeted leader.
+			g.Expect(pgList.Items).To(gomega.HaveLen(2))
+			for i := range pgList.Items {
+				g.Expect(pgList.Items[i].Spec.ParentCompositePodGroupName).NotTo(gomega.BeNil(), "leaf PodGroup %s must link to a parent CompositePodGroup", pgList.Items[i].Name)
+			}
+		}, timeout, interval).Should(gomega.Succeed())
+	})
+
+	ginkgo.It("applies nested topology and independent disruption knobs per group", func() {
+		nsObj := createTestNamespace(ctx, "sched-gog-nested-")
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, nsObj)).To(gomega.Succeed())
+		}()
+
+		// Root: zone-level topology. workers: gang, rack-level topology, disrupted
+		// all-together. leader: untargeted, independently disruptable (falls back
+		// to the root).
+		js := makeSchedulingJobSet("gognest", nsObj.Name,
+			[]jobset.ReplicatedJob{makeRJob("leader", 1, 1, 1), makeRJob("workers", 2, 2, 2)},
+			&jobset.JobSetScheduling{
+				SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+					Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
+				},
+				SchedulingConstraints: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingConstraints{
+					Topology: []schedulingv1alpha3.TopologyConstraint{{Key: "topology.kubernetes.io/zone"}},
+				},
+				ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+					{
+						TargetReplicatedJobs: []string{"workers"},
+						SchedulingPolicy:     &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}},
+						SchedulingConstraints: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingConstraints{
+							Topology: []schedulingv1alpha3.TopologyConstraint{{Key: "topology.kubernetes.io/rack"}},
+						},
+						DisruptionMode: &schedulingv1alpha3.WorkloadCompositePodGroupDisruptionMode{All: &schedulingv1alpha3.WorkloadCompositePodGroupAllDisruptionMode{}},
+					},
+				},
+			})
+		gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+
+		gomega.Eventually(func(g gomega.Gomega) {
+			var cpgList schedulingv1alpha3.CompositePodGroupList
+			g.Expect(k8sClient.List(ctx, &cpgList, client.InNamespace(nsObj.Name))).To(gomega.Succeed())
+			g.Expect(cpgList.Items).To(gomega.HaveLen(2))
+
+			var root, child *schedulingv1alpha3.CompositePodGroup
+			for i := range cpgList.Items {
+				if cpgList.Items[i].Spec.ParentCompositePodGroupName == nil {
+					root = &cpgList.Items[i]
+				} else {
+					child = &cpgList.Items[i]
+				}
+			}
+			g.Expect(root).NotTo(gomega.BeNil())
+			g.Expect(child).NotTo(gomega.BeNil())
+
+			// Nested topology: zone at the root, rack at the workers group.
+			g.Expect(root.Spec.SchedulingConstraints).NotTo(gomega.BeNil())
+			g.Expect(root.Spec.SchedulingConstraints.Topology).To(gomega.HaveLen(1))
+			g.Expect(root.Spec.SchedulingConstraints.Topology[0].Key).To(gomega.Equal("topology.kubernetes.io/zone"))
+			g.Expect(child.Spec.SchedulingConstraints).NotTo(gomega.BeNil())
+			g.Expect(child.Spec.SchedulingConstraints.Topology[0].Key).To(gomega.Equal("topology.kubernetes.io/rack"))
+
+			// Independent disruption: workers group is disrupted all-together.
+			g.Expect(child.Spec.DisruptionMode).NotTo(gomega.BeNil())
+			g.Expect(child.Spec.DisruptionMode.All).NotTo(gomega.BeNil())
+		}, timeout, interval).Should(gomega.Succeed())
+	})
+
+	ginkgo.It("carries per-Job topology and resourceClaims on each per-Job leaf PodGroup", func() {
+		nsObj := createTestNamespace(ctx, "sched-gog-perjob-")
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, nsObj)).To(gomega.Succeed())
+		}()
+
+		// workers sets job: each of its 2 replicas becomes its own leaf PodGroup,
+		// carrying the per-Job rack topology and a shared resourceClaim.
+		js := makeSchedulingJobSet("gogpj", nsObj.Name,
+			[]jobset.ReplicatedJob{makeRJob("leader", 1, 1, 1), makeRJob("workers", 2, 2, 2)},
+			&jobset.JobSetScheduling{
+				SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+					Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
+				},
+				ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+					{
+						// When job is set, entry-level schedulingPolicy must be unset; the
+						// child CompositePodGroup defaults to Gang and each replica becomes
+						// its own leaf carrying the job's policy/constraints/claims.
+						TargetReplicatedJobs: []string{"workers"},
+						Job: &jobset.JobScheduling{
+							SchedulingPolicy: &schedulingv1alpha3.WorkloadPodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadPodGroupGangSchedulingPolicy{}},
+							SchedulingConstraints: &schedulingv1alpha3.WorkloadPodGroupSchedulingConstraints{
+								Topology: []schedulingv1alpha3.TopologyConstraint{{Key: "topology.kubernetes.io/rack"}},
+							},
+							ResourceClaims: []schedulingv1alpha3.WorkloadPodGroupResourceClaim{
+								{Name: "tpu-slice", ResourceClaimTemplateName: ptr.To("tpu-template")},
+							},
+						},
+					},
+				},
+			})
+		gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+
+		gomega.Eventually(func(g gomega.Gomega) {
+			for _, idx := range []int{0, 1} {
+				leaf := getPodGroupByPrefix(ctx, g, nsObj.Name, fmt.Sprintf("%s-workers-%d", js.Name, idx))
+				g.Expect(leaf.Spec.ParentCompositePodGroupName).NotTo(gomega.BeNil(), "per-Job leaf must link to its child CompositePodGroup")
+				g.Expect(leaf.Spec.SchedulingPolicy.Gang).NotTo(gomega.BeNil())
+				g.Expect(leaf.Spec.SchedulingConstraints).NotTo(gomega.BeNil())
+				g.Expect(leaf.Spec.SchedulingConstraints.Topology).To(gomega.HaveLen(1))
+				g.Expect(leaf.Spec.SchedulingConstraints.Topology[0].Key).To(gomega.Equal("topology.kubernetes.io/rack"))
+				g.Expect(leaf.Spec.ResourceClaims).To(gomega.HaveLen(1))
+				g.Expect(leaf.Spec.ResourceClaims[0].Name).To(gomega.Equal("tpu-slice"))
+			}
 		}, timeout, interval).Should(gomega.Succeed())
 	})
 })
