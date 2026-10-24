@@ -324,7 +324,7 @@ GOLANGCI_LINT = $(PROJECT_DIR)/bin/golangci-lint
 GOLANGCI_LINT_KAL = $(PROJECT_DIR)/bin/golangci-lint-kube-api-linter
 .PHONY: golangci-lint
 golangci-lint: ## Download golangci-lint locally if necessary.
-	GOBIN=$(PROJECT_DIR)/bin $(GO_CMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
+	GOBIN=$(PROJECT_DIR)/bin $(GO_CMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 
 .PHONY: golangci-lint-kal
 golangci-lint-kal: golangci-lint ## Build golangci-lint-kal from custom configuration.
