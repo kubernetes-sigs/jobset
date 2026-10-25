@@ -679,9 +679,12 @@ one Gang policy per ReplicatedJob). `AnyOrder` is unaffected and may use top-lev
 #### Exclusive Placement
 
 Exclusive placement (the `alpha.jobset.sigs.k8s.io/exclusive-topology` annotation) is not
-supported together with `spec.scheduling`. The webhook rejects the annotation on the JobSet, a
-ReplicatedJob's Job template, or its pod template. On update, only annotations newly combined
-with `spec.scheduling` are rejected, so an existing JobSet can still be suspended or fixed.
+supported together with `spec.scheduling`. With the default placement strategy and a Gang
+policy, the Job would never start: follower pods are admitted only after the leader pod is
+scheduled, while the gang does not schedule the leader until the followers exist. The webhook
+rejects the annotation on the JobSet, a ReplicatedJob's Job template, or its pod template. On
+update, only annotations newly combined with `spec.scheduling` are rejected, so an existing
+JobSet can still be suspended or fixed.
 
 #### Scaling
 
