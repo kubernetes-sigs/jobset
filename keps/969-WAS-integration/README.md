@@ -93,8 +93,11 @@ still use JobSet scheduling without turning on an alpha dependency.
   Workload sets the `scheduling.k8s.io/group-template-name` annotation, and LWS creates only the
   runtime PodGroups from that template (`pkg/schedulerprovider`; kubernetes-sigs/lws#1144 makes
   the annotations immutable, kubernetes-sigs/lws#1162 handles the parent changing `minCount`).
-  JobSet already sets this same annotation on child Jobs, so adopting the parent-driven contract
-  would let a controller such as Trainer drive JobSet and LWS the same way. Define separate parent-delegation integrations for flat `PodGroup` and hierarchical `CompositePodGroup` runtime objects while sharing this annotation contract.
+  JobSet already sets this same annotation on child Jobs, so adopting the same parent-driven contract
+  would let a controller such as Trainer drive JobSet and LWS in a consistent way. The exact role of
+  `scheduling.k8s.io/workload-name` still needs to be aligned with the LWS integration. We should also
+  define how parent delegation works for both flat `PodGroup` and hierarchical `CompositePodGroup`
+  objects while keeping the contract consistent.
 - First-class support for dependency-ordered scheduling (`DependsOn`) within the composite
   hierarchy. Alpha works around ordering by excluding a `DependsOn`-deferred member from the
   shared gang `minCount` (the deferred Pods join opportunistically with no reserved capacity)
@@ -390,9 +393,9 @@ This is the one case where a top-level policy and `replicatedJobs` can be set to
 that combination is rejected (see [Validation](#validation)) because nothing links the two levels;
 with the gate on the root CompositePodGroup is that link, so the restriction is dropped.
 
-This stays out of the initial Alpha because CompositePodGroup is alpha in 1.37. This KEP covers
-the design; the `JobSetGangOfGangs` gate and the controller that compiles the multi-level CPG
-tree are delivered by the companion implementation PR tracked under #1365. The controller uses
+This stays out of the initial Alpha because CompositePodGroup is alpha in 1.37. This KEP proposes
+the Alpha 2 design; the `JobSetGangOfGangs` gate and the controller that compiles the multi-level
+CPG tree require a separate implementation change tracked under #1365. The controller uses
 the upstream `workloadbuilder` for composite-tree support; because that builder exposes no API to
 materialize nested leaf PodGroups, the leaves are built directly from their templates. If the gate is enabled on a
 cluster that does not serve the CompositePodGroup API, admission does not pre-check the API; the
@@ -405,8 +408,8 @@ gangs as separate children, so sequencing is expressed by `DependsOn` ordering c
 converges only under a `Basic` root: a `Basic` root imposes no cross-child quorum, so a child whose
 Jobs are deferred is fine. A `Gang` root whose `minGroupCount` spans a `DependsOn`-deferred child
 can never reach quorum and deadlocks — the same failure a single top-level gang hits with sequenced
-startup, one level up. With sequenced startup the webhook therefore allows only two root shapes: an
-explicit `Basic` root, or a `Gang` root with an explicit `minGroupCount`. Every other shape is a
+startup, one level up. With sequenced startup, the proposed Alpha 2 webhook behavior therefore allows only two root
+shapes: an explicit `Basic` root, or a `Gang` root with an explicit `minGroupCount`. Every other shape is a
 full-quorum Gang root and is rejected, including a root that sets only `schedulingConstraints` or
 `disruptionMode` and no `schedulingPolicy`, since the controller
 defaults a composite node to Gang. An explicit `minGroupCount` is accepted as the user opting
@@ -428,8 +431,9 @@ scheduling:
       schedulingPolicy: { gang: {} }
 ```
 
-The two caps differ on purpose: `replicatedJobs` **entries** are capped at 8 (each entry compiles
-into at least one PodGroupTemplate and the Workload API allows at most 8 templates per node), while
+The proposed Alpha 2 limits are intentionally separate: `replicatedJobs` **entries** are capped
+at 8 (each entry compiles into at least one PodGroupTemplate and the Workload API allows at most 8
+templates per node), while
 `targetReplicatedJobs` **within** one entry is capped at 50 (for a shared gang the whole list
 collapses into a single leaf PodGroup, so it adds one template regardless of target count). This
 cap applies to the shared-gang grouping; the per-Job model (`job`) requires exactly one target and
