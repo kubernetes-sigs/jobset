@@ -94,7 +94,7 @@ still use JobSet scheduling without turning on an alpha dependency.
   runtime PodGroups from that template (`pkg/schedulerprovider`; kubernetes-sigs/lws#1144 makes
   the annotations immutable, kubernetes-sigs/lws#1162 handles the parent changing `minCount`).
   JobSet already sets this same annotation on child Jobs, so adopting the parent-driven contract
-  would let a controller such as Trainer drive JobSet and LWS the same way.
+  would let a controller such as Trainer drive JobSet and LWS the same way. Define separate parent-delegation integrations for flat `PodGroup` and hierarchical `CompositePodGroup` runtime objects while sharing this annotation contract.
 - First-class support for dependency-ordered scheduling (`DependsOn`) within the composite
   hierarchy. Alpha works around ordering by excluding a `DependsOn`-deferred member from the
   shared gang `minCount` (the deferred Pods join opportunistically with no reserved capacity)
