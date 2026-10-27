@@ -97,7 +97,8 @@ still use JobSet scheduling without turning on an alpha dependency.
   would let a controller such as Trainer drive JobSet and LWS in a consistent way. The exact role of
   `scheduling.k8s.io/workload-name` still needs to be aligned with the LWS integration. We should also
   define how parent delegation works for both flat `PodGroup` and hierarchical `CompositePodGroup`
-  objects while keeping the contract consistent.
+  objects while keeping the contract consistent. The detailed API, ownership, lifecycle, and
+  reconciliation rules should be defined in a follow-up design.
 - First-class support for dependency-ordered scheduling (`DependsOn`) within the composite
   hierarchy. Alpha works around ordering by excluding a `DependsOn`-deferred member from the
   shared gang `minCount` (the deferred Pods join opportunistically with no reserved capacity)
