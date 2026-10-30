@@ -139,6 +139,9 @@ spec:
       tolerations:
       {{- toYaml . | nindent 6 }}
       {{- end }}
+      {{- with .Values.controller.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       {{- with .Values.controller.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}

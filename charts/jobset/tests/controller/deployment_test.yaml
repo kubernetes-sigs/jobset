@@ -259,6 +259,22 @@ tests:
           path: spec.template.spec.nodeSelector.key2
           value: value2
 
+  - it: Should add priorityClassName if `controller.priorityClassName` is set
+    set:
+      controller:
+        priorityClassName: system-cluster-critical
+    template: controller/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: system-cluster-critical
+
+  - it: Should not set priorityClassName by default
+    template: controller/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+
   - it: Should add affinity if `controller.affinity` is set
     set:
       controller:
