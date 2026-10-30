@@ -4034,6 +4034,109 @@ func TestValidateCreate(t *testing.T) {
 			},
 			want: errors.Join(fmt.Errorf("spec.scheduling.replicatedJobs[0].job.schedulingPolicy.gang.minCount: Invalid value: 5: cannot exceed the per-Job pod count (parallelism) of replicatedJob \"workers\" (2)")),
 		},
+		{
+			name:                          "exclusive-topology on the JobSet is rejected with spec.scheduling",
+			enableWorkloadAwareScheduling: true,
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "js",
+					Annotations: map[string]string{jobset.ExclusiveKey: "rack"},
+				},
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "workers",
+							GroupName: "default",
+							Replicas:  2,
+							Template:  batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](4), Template: validPodTemplateSpec}},
+						},
+					},
+					Scheduling: &jobset.JobSetScheduling{},
+				},
+			},
+			want: errors.Join(fmt.Errorf("metadata.annotations[alpha.jobset.sigs.k8s.io/exclusive-topology]: Forbidden: %s", exclusivePlacementWithSchedulingErrMsg)),
+		},
+		{
+			name:                          "exclusive-topology on a replicatedJob template is rejected with spec.scheduling",
+			enableWorkloadAwareScheduling: true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "workers",
+							GroupName: "default",
+							Replicas:  2,
+							Template: batchv1.JobTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{jobset.ExclusiveKey: "rack"}},
+								Spec:       batchv1.JobSpec{Parallelism: ptr.To[int32](4), Template: validPodTemplateSpec},
+							},
+						},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, Job: &jobset.JobScheduling{}},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec.replicatedJobs[0].template.metadata.annotations[alpha.jobset.sigs.k8s.io/exclusive-topology]: Forbidden: %s", exclusivePlacementWithSchedulingErrMsg)),
+		},
+		{
+			name:                          "exclusive-topology with the node-selector strategy is rejected with spec.scheduling",
+			enableWorkloadAwareScheduling: true,
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "js",
+					Annotations: map[string]string{
+						jobset.ExclusiveKey:            "rack",
+						jobset.NodeSelectorStrategyKey: "true",
+					},
+				},
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "workers",
+							GroupName: "default",
+							Replicas:  2,
+							Template:  batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](4), Template: validPodTemplateSpec}},
+						},
+					},
+					Scheduling: &jobset.JobSetScheduling{},
+				},
+			},
+			want: errors.Join(fmt.Errorf("metadata.annotations[alpha.jobset.sigs.k8s.io/exclusive-topology]: Forbidden: %s", exclusivePlacementWithSchedulingErrMsg)),
+		},
+		{
+			name:                          "exclusive-topology is rejected with top-level basic scheduling",
+			enableWorkloadAwareScheduling: true,
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "js",
+					Annotations: map[string]string{jobset.ExclusiveKey: "rack"},
+				},
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "workers",
+							GroupName: "default",
+							Replicas:  2,
+							Template:  batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](4), Template: validPodTemplateSpec}},
+						},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+							Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("metadata.annotations[alpha.jobset.sigs.k8s.io/exclusive-topology]: Forbidden: %s", exclusivePlacementWithSchedulingErrMsg)),
+		},
 	}
 
 	testGroups := [][]validationTestCase{
@@ -4432,6 +4535,127 @@ func TestValidateUpdate(t *testing.T) {
 				}}},
 			},
 			want: field.ErrorList{field.Invalid(field.NewPath("spec").Child("scheduling"), "", "field is immutable")}.ToAggregate(),
+		},
+		{
+			name: "adding exclusive-topology to a JobSet with spec.scheduling is rejected",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "js",
+					Annotations: map[string]string{jobset.ExclusiveKey: "rack"},
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+					Scheduling:     &jobset.JobSetScheduling{SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+					Scheduling:     &jobset.JobSetScheduling{SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+				},
+			},
+			enableSchedulingAPI: true,
+			want: field.ErrorList{field.Forbidden(
+				field.NewPath("metadata", "annotations").Key(jobset.ExclusiveKey),
+				exclusivePlacementWithSchedulingErrMsg,
+			)}.ToAggregate(),
+		},
+		{
+			name: "setting spec.scheduling while suspended is rejected with exclusive-topology",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "js",
+					Annotations: map[string]string{jobset.ExclusiveKey: "rack"},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+					Scheduling:     &jobset.JobSetScheduling{SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "js",
+					Annotations: map[string]string{jobset.ExclusiveKey: "rack"},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+				},
+				Status: jobset.JobSetStatus{Conditions: []metav1.Condition{{
+					Type:   string(jobset.JobSetSuspended),
+					Status: metav1.ConditionTrue,
+				}}},
+			},
+			enableSchedulingAPI: true,
+			want: field.ErrorList{field.Forbidden(
+				field.NewPath("metadata", "annotations").Key(jobset.ExclusiveKey),
+				exclusivePlacementWithSchedulingErrMsg,
+			)}.ToAggregate(),
+		},
+		{
+			// A JobSet admitted before the combination was rejected must stay
+			// updatable, for example so it can be suspended.
+			name: "JobSet that already combines exclusive-topology with spec.scheduling can still be updated",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "js",
+					Annotations: map[string]string{jobset.ExclusiveKey: "rack"},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+					Scheduling:     &jobset.JobSetScheduling{SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "js",
+					Annotations: map[string]string{jobset.ExclusiveKey: "rack"},
+				},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: validReplicatedJobs,
+					Scheduling:     &jobset.JobSetScheduling{SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+				},
+			},
+			enableSchedulingAPI: true,
+		},
+		{
+			// Keeping an annotation the JobSet already had does not allow adding
+			// another one.
+			name: "adding exclusive-topology to a pod template of a JobSet that already has it is rejected",
+			js: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "js",
+					Annotations: map[string]string{jobset.ExclusiveKey: "rack"},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend: ptr.To(true),
+					ReplicatedJobs: func() []jobset.ReplicatedJob {
+						rjobs := []jobset.ReplicatedJob{*validReplicatedJobs[0].DeepCopy(), *validReplicatedJobs[1].DeepCopy()}
+						rjobs[1].Template.Spec.Template.Annotations = map[string]string{jobset.ExclusiveKey: "rack"}
+						return rjobs
+					}(),
+					Scheduling: &jobset.JobSetScheduling{SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+				},
+			},
+			oldJs: &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "js",
+					Annotations: map[string]string{jobset.ExclusiveKey: "rack"},
+				},
+				Spec: jobset.JobSetSpec{
+					Suspend:        ptr.To(true),
+					ReplicatedJobs: validReplicatedJobs,
+					Scheduling:     &jobset.JobSetScheduling{SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+				},
+			},
+			enableSchedulingAPI: true,
+			want: field.ErrorList{field.Forbidden(
+				field.NewPath("spec", "replicatedJobs").Index(1).Child("template", "spec", "template", "metadata", "annotations").Key(jobset.ExclusiveKey),
+				exclusivePlacementWithSchedulingErrMsg,
+			)}.ToAggregate(),
 		},
 		{
 			name: "replicated job pod template can be updated for suspended jobset",
@@ -5404,6 +5628,121 @@ func TestValidateUpdate(t *testing.T) {
 			} else if err == nil && tc.want != nil {
 				t.Errorf("missing expected error: %v", tc.want)
 			}
+		})
+	}
+}
+
+func TestValidateExclusivePlacementWithScheduling(t *testing.T) {
+	basic := &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{}}
+	exclusive := map[string]string{jobset.ExclusiveKey: "rack"}
+	exclusiveWithNodeSelector := map[string]string{jobset.ExclusiveKey: "rack", jobset.NodeSelectorStrategyKey: "true"}
+	rjob := func(name string, jobAnnotations, podAnnotations map[string]string) jobset.ReplicatedJob {
+		return jobset.ReplicatedJob{
+			Name:     name,
+			Replicas: 2,
+			Template: batchv1.JobTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Annotations: jobAnnotations},
+				Spec: batchv1.JobSpec{
+					Parallelism: ptr.To[int32](4),
+					Template:    corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Annotations: podAnnotations}},
+				},
+			},
+		}
+	}
+	jobSetPath := field.NewPath("metadata", "annotations").Key(jobset.ExclusiveKey)
+	rjobPath := func(i int) *field.Path {
+		return field.NewPath("spec", "replicatedJobs").Index(i).Child("template", "metadata", "annotations").Key(jobset.ExclusiveKey)
+	}
+	podPath := func(i int) *field.Path {
+		return field.NewPath("spec", "replicatedJobs").Index(i).Child("template", "spec", "template", "metadata", "annotations").Key(jobset.ExclusiveKey)
+	}
+
+	testCases := []struct {
+		name                 string
+		disableSchedulingAPI bool
+		annotations          map[string]string
+		replicatedJobs       []jobset.ReplicatedJob
+		scheduling           *jobset.JobSetScheduling
+		want                 field.ErrorList
+	}{
+		{
+			name:           "no scheduling",
+			annotations:    exclusive,
+			replicatedJobs: []jobset.ReplicatedJob{rjob("workers", exclusive, exclusive)},
+		},
+		{
+			name:                 "feature gate disabled",
+			disableSchedulingAPI: true,
+			annotations:          exclusive,
+			replicatedJobs:       []jobset.ReplicatedJob{rjob("workers", nil, nil)},
+			scheduling:           &jobset.JobSetScheduling{},
+		},
+		{
+			name:           "scheduling without exclusive placement",
+			replicatedJobs: []jobset.ReplicatedJob{rjob("workers", nil, nil)},
+			scheduling:     &jobset.JobSetScheduling{},
+		},
+		{
+			name:           "JobSet annotation is reported once",
+			annotations:    exclusive,
+			replicatedJobs: []jobset.ReplicatedJob{rjob("driver", nil, nil), rjob("workers", nil, nil)},
+			scheduling:     &jobset.JobSetScheduling{},
+			want:           field.ErrorList{field.Forbidden(jobSetPath, exclusivePlacementWithSchedulingErrMsg)},
+		},
+		{
+			name:           "JobSet annotation with top-level basic",
+			annotations:    exclusive,
+			replicatedJobs: []jobset.ReplicatedJob{rjob("workers", nil, nil)},
+			scheduling:     &jobset.JobSetScheduling{SchedulingPolicy: basic},
+			want:           field.ErrorList{field.Forbidden(jobSetPath, exclusivePlacementWithSchedulingErrMsg)},
+		},
+		{
+			name:           "JobSet annotation with the node-selector strategy",
+			annotations:    exclusiveWithNodeSelector,
+			replicatedJobs: []jobset.ReplicatedJob{rjob("workers", nil, nil)},
+			scheduling:     &jobset.JobSetScheduling{},
+			want:           field.ErrorList{field.Forbidden(jobSetPath, exclusivePlacementWithSchedulingErrMsg)},
+		},
+		{
+			name:           "ReplicatedJob annotation",
+			replicatedJobs: []jobset.ReplicatedJob{rjob("driver", nil, nil), rjob("workers", exclusive, nil)},
+			scheduling: &jobset.JobSetScheduling{
+				ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+					{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: basic},
+				},
+			},
+			want: field.ErrorList{field.Forbidden(rjobPath(1), exclusivePlacementWithSchedulingErrMsg)},
+		},
+		{
+			name:           "pod template annotation",
+			replicatedJobs: []jobset.ReplicatedJob{rjob("workers", nil, exclusiveWithNodeSelector)},
+			scheduling:     &jobset.JobSetScheduling{},
+			want:           field.ErrorList{field.Forbidden(podPath(0), exclusivePlacementWithSchedulingErrMsg)},
+		},
+		{
+			name:           "every annotation is reported",
+			annotations:    exclusive,
+			replicatedJobs: []jobset.ReplicatedJob{rjob("driver", exclusive, nil), rjob("workers", nil, exclusive)},
+			scheduling:     &jobset.JobSetScheduling{},
+			want: field.ErrorList{
+				field.Forbidden(jobSetPath, exclusivePlacementWithSchedulingErrMsg),
+				field.Forbidden(rjobPath(0), exclusivePlacementWithSchedulingErrMsg),
+				field.Forbidden(podPath(1), exclusivePlacementWithSchedulingErrMsg),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			features.SetFeatureGateDuringTest(t, features.JobSetWorkloadAwareSchedulingAPI, !tc.disableSchedulingAPI)
+			js := &jobset.JobSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "js", Annotations: tc.annotations},
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: tc.replicatedJobs,
+					Scheduling:     tc.scheduling,
+				},
+			}
+			assert.Equal(t, tc.want, validateExclusivePlacementWithScheduling(js))
 		})
 	}
 }

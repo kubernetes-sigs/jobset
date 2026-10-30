@@ -22,6 +22,7 @@
     - [Naming Convention](#naming-convention)
     - [Conflict detection](#conflict-detection)
     - [Sequenced Startup](#sequenced-startup)
+    - [Exclusive Placement](#exclusive-placement)
     - [Scaling](#scaling)
   - [Workload Lifecycle](#workload-lifecycle)
   - [Test Plan](#test-plan)
@@ -559,6 +560,8 @@ The validating webhook and `workloadbuilder` enforce that:
   API caps `podGroupTemplates` at 8 per Workload, while `JobSetSpec.ReplicatedJobs` has no such
   cap; the webhook rejects a JobSet in per-ReplicatedJob mode whose resulting PodGroup count
   would exceed 8, rather than partitioning across multiple Workloads or merging PodGroups.
+- The `alpha.jobset.sigs.k8s.io/exclusive-topology` annotation is rejected when `spec.scheduling`
+  is set. See [Exclusive Placement](#exclusive-placement).
 
 ### Controller Integration
 
@@ -674,6 +677,16 @@ startup — both an explicit top-level `schedulingPolicy` and the defaulted top-
 empty `scheduling: {}` block would otherwise produce. A JobSet using `DependsOn` or `InOrder` must
 instead configure per-ReplicatedJob scheduling under `spec.scheduling.replicatedJobs` (for example
 one Gang policy per ReplicatedJob). `AnyOrder` is unaffected and may use top-level scheduling.
+
+#### Exclusive Placement
+
+Exclusive placement (the `alpha.jobset.sigs.k8s.io/exclusive-topology` annotation) is not
+supported together with `spec.scheduling`. With the default placement strategy and a Gang
+policy, the Job would never start: follower pods are admitted only after the leader pod is
+scheduled, while the gang does not schedule the leader until the followers exist. The webhook
+rejects the annotation on the JobSet, a ReplicatedJob's Job template, or its pod template. On
+update, only annotations newly combined with `spec.scheduling` are rejected, so an existing
+JobSet can still be suspended or fixed.
 
 #### Scaling
 
