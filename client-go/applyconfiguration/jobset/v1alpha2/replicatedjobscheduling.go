@@ -36,6 +36,8 @@ type ReplicatedJobSchedulingApplyConfiguration struct {
 	// schedulingPolicy defines the composite-level scheduling policy (basic or gang) for
 	// jobs created by the targeted ReplicatedJobs.
 	// Defaults to Gang when not specified.
+	// minGroupCount is only honored in gang-of-gangs composite mode and is
+	// otherwise rejected by the validating webhook (gate-aware).
 	SchedulingPolicy *v1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
 	// schedulingConstraints defines composite-level topology constraints for the targeted
 	// ReplicatedJobs' pods.

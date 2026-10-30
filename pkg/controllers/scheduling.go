@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
+	"sigs.k8s.io/jobset/pkg/features"
 	jobsetutil "sigs.k8s.io/jobset/pkg/util"
 )
 
@@ -54,6 +55,21 @@ const SchedulingGroupTemplateNameKey = "scheduling.k8s.io/group-template-name"
 // rejected at admission by a CEL rule on the JobSet CRD, which directs users to
 // configure per-ReplicatedJob scheduling under spec.scheduling.replicatedJobs
 // instead, so this predicate does not need to re-check for it.
+// UseGangOfGangs reports whether the JobSet should compile into a composite
+// CompositePodGroup tree: the JobSetGangOfGangs gate is enabled and the JobSet
+// combines a top-level policy with per-ReplicatedJob entries. Otherwise the flat
+// single-PodGroup-per-template models are used.
+func UseGangOfGangs(js *jobset.JobSet) bool {
+	if !features.Enabled(features.JobSetGangOfGangs) {
+		return false
+	}
+	scheduling := js.Spec.Scheduling
+	if scheduling == nil || len(scheduling.ReplicatedJobs) == 0 {
+		return false
+	}
+	return scheduling.SchedulingPolicy != nil || scheduling.SchedulingConstraints != nil || scheduling.DisruptionMode != nil
+}
+
 func UseTopLevelGang(scheduling *jobset.JobSetScheduling) bool {
 	if scheduling == nil {
 		return false
@@ -82,6 +98,9 @@ func totalMinCount(js *jobset.JobSet) int32 {
 // buildWorkload compiles a JobSet's scheduling configuration into a Workload resource
 // using the workloadbuilder library.
 func buildWorkload(js *jobset.JobSet) (*schedulingv1beta1.Workload, error) {
+	if UseGangOfGangs(js) {
+		return buildCompositeWorkload(js)
+	}
 	builders, err := newBuildersForJobSet(js)
 	if err != nil {
 		return nil, err
@@ -94,12 +113,65 @@ func computeMinCount(rjob *jobset.ReplicatedJob) int32 {
 	return jobsetutil.ReplicatedJobPodCount(rjob)
 }
 
+// sharedGroupMinCount sums the represented pod count across the members of a
+// shared PodGroup, excluding any member whose Jobs are deferred by a DependsOn on
+// another member of the same group. Counting a deferred member would deadlock the
+// gang: the group could never reach quorum while that member's Jobs do not yet
+// exist (DependsOn creates them only after the dependency is Ready). The deferred
+// member's Pods join the already-admitted PodGroup afterward. This matches the MPI
+// launcher + node shape the Kubeflow Trainer runtime delegates to JobSet.
+//
+// This applies to a shared gang in both the flat per-ReplicatedJob mode and the
+// gang-of-gangs tree, independent of the JobSetGangOfGangs gate: a flat shared gang
+// with an in-group DependsOn would deadlock just the same, so the exclusion must not
+// be gated.
+func sharedGroupMinCount(members []*jobset.ReplicatedJob) int32 {
+	groupNames := make(map[string]bool, len(members))
+	for _, m := range members {
+		groupNames[m.Name] = true
+	}
+	var total int32
+	for _, m := range members {
+		if dependsOnMemberInGroup(m, groupNames) {
+			continue
+		}
+		total += computeMinCount(m)
+	}
+	return total
+}
+
+// dependsOnMemberInGroup reports whether rjob has a DependsOn entry naming another
+// ReplicatedJob in the same shared PodGroup.
+func dependsOnMemberInGroup(rjob *jobset.ReplicatedJob, groupNames map[string]bool) bool {
+	for _, d := range rjob.DependsOn {
+		if groupNames[d.Name] {
+			return true
+		}
+	}
+	return false
+}
+
 // workloadNeedsRecreation returns true if the existing Workload's
 // PodGroupTemplates differ from the desired state in any field other than
 // Gang.MinCount, which is the only field the upstream API allows to change
 // after creation.
 func workloadNeedsRecreation(existing, desired *schedulingv1beta1.Workload) bool {
+	// Gang-of-gangs Workloads nest every template under CompositePodGroupTemplates
+	// and leave the top-level PodGroupTemplates empty, so this loop is a no-op for
+	// them. That is correct: spec.scheduling is immutable after the JobSet runs and
+	// ElasticJobSet only mutates parallelism/completions (not replicas), so a
+	// composite tree's structure (names, policies, leaf count) never changes. Only
+	// the mutable gang min counts change, which workloadWithPatchedMinCounts patches
+	// in place.
 	if len(existing.Spec.PodGroupTemplates) != len(desired.Spec.PodGroupTemplates) {
+		return true
+	}
+	// Composite trees nest templates under CompositePodGroupTemplates. If the existing
+	// tree's shape (child/leaf counts or names) differs from desired, recreate rather
+	// than patch in place: workloadWithPatchedMinCounts indexes the two trees in
+	// lockstep, so a mismatched shape (for example a stale Workload from an earlier
+	// build) would otherwise panic or patch the wrong node.
+	if compositeTreeShapeDiffers(existing.Spec.CompositePodGroupTemplates, desired.Spec.CompositePodGroupTemplates) {
 		return true
 	}
 	for i := range existing.Spec.PodGroupTemplates {
@@ -115,6 +187,32 @@ func workloadNeedsRecreation(existing, desired *schedulingv1beta1.Workload) bool
 	return false
 }
 
+// compositeTreeShapeDiffers reports whether two CompositePodGroupTemplate trees
+// differ in structure (node/leaf counts or names), ignoring the mutable gang min
+// counts. It guards the in-place min-count patch, which walks both trees by index.
+func compositeTreeShapeDiffers(a, b []schedulingv1beta1.CompositePodGroupTemplate) bool {
+	if len(a) != len(b) {
+		return true
+	}
+	for i := range a {
+		if a[i].Name != b[i].Name {
+			return true
+		}
+		if len(a[i].PodGroupTemplates) != len(b[i].PodGroupTemplates) {
+			return true
+		}
+		for j := range a[i].PodGroupTemplates {
+			if a[i].PodGroupTemplates[j].Name != b[i].PodGroupTemplates[j].Name {
+				return true
+			}
+		}
+		if compositeTreeShapeDiffers(a[i].CompositePodGroupTemplates, b[i].CompositePodGroupTemplates) {
+			return true
+		}
+	}
+	return false
+}
+
 // workloadWithPatchedMinCounts returns a copy of existing with each
 // PodGroupTemplate's Gang.MinCount updated to match desired, and whether any
 // change was made. Callers must first confirm workloadNeedsRecreation is
@@ -122,6 +220,10 @@ func workloadNeedsRecreation(existing, desired *schedulingv1beta1.Workload) bool
 // position.
 func workloadWithPatchedMinCounts(existing, desired *schedulingv1beta1.Workload) (*schedulingv1beta1.Workload, bool) {
 	patched := existing.DeepCopy()
+	if len(patched.Spec.CompositePodGroupTemplates) > 0 {
+		changed := patchCompositeTreeMinCounts(patched.Spec.CompositePodGroupTemplates, desired.Spec.CompositePodGroupTemplates)
+		return patched, changed
+	}
 	changed := false
 	for i := range patched.Spec.PodGroupTemplates {
 		e := &patched.Spec.PodGroupTemplates[i]
@@ -247,6 +349,13 @@ func (r *JobSetReconciler) reconcileSchedulingObjects(ctx context.Context, js *j
 				return fmt.Errorf("patching Workload minCount: %w", err)
 			}
 		}
+	}
+
+	// Gang-of-gangs mode materializes a CompositePodGroup tree (root and child
+	// CompositePodGroups plus their leaf PodGroups) instead of a flat set of
+	// PodGroups.
+	if UseGangOfGangs(js) {
+		return r.materializeCompositeTree(ctx, js, workload)
 	}
 
 	// Create a builder from the existing compiled Workload to materialize PodGroups.
@@ -428,6 +537,12 @@ func (r *JobSetReconciler) schedulingObjectsReady(ctx context.Context, js *jobse
 		return false, nil
 	}
 
+	// Gang-of-gangs mode nests every leaf under CompositePodGroups, so the flat
+	// PodGroupTemplates slice is empty; check the composite tree instead.
+	if UseGangOfGangs(js) {
+		return r.compositeObjectsReady(ctx, js, workload)
+	}
+
 	// Every PodGroup the Jobs will reference must also exist and not be
 	// terminating, or the Jobs would point at a PodGroup that is about to vanish.
 	for _, tmpl := range workload.Spec.PodGroupTemplates {
@@ -450,6 +565,15 @@ func (r *JobSetReconciler) schedulingObjectsReady(ctx context.Context, js *jobse
 
 func (r *JobSetReconciler) deleteSchedulingObjects(ctx context.Context, js *jobset.JobSet) error {
 	log := ctrl.LoggerFrom(ctx)
+
+	// In gang-of-gangs mode the leaf PodGroups are parented to CompositePodGroups;
+	// delete the CompositePodGroups too (leaf PodGroups are removed by the
+	// label-selected loop below, same as the flat mode).
+	if features.Enabled(features.JobSetGangOfGangs) {
+		if err := r.deleteCompositePodGroups(ctx, js); err != nil {
+			return err
+		}
+	}
 
 	// Delete PodGroups owned by this JobSet. This runs on every reconcile of a
 	// suspended or finished JobSet, so select on the owning-JobSet label rather

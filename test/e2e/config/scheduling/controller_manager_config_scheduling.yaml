@@ -6,4 +6,5 @@ internalCertManagement:
   enable: true
 featureGates:
   JobSetWorkloadAwareSchedulingAPI: true
+  JobSetGangOfGangs: true
   ElasticJobSet: true

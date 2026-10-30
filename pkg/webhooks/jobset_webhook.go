@@ -842,6 +842,73 @@ func validateScheduling(ctx context.Context, js *jobset.JobSet, rJobNames sets.S
 
 	usesTopLevelAPI := scheduling.SchedulingPolicy != nil || scheduling.SchedulingConstraints != nil || scheduling.DisruptionMode != nil
 
+	// Top-level scheduling and per-ReplicatedJob overrides are mutually exclusive
+	// unless the JobSetGangOfGangs gate is enabled. With the gate off there is no
+	// composite PodGroup to link the two levels, so the combination is rejected
+	// (previously a type-level CEL rule, moved here because the relaxation is
+	// gate-aware and CEL cannot read feature gates). With the gate on the
+	// combination compiles into the CompositePodGroup tree where the top-level
+	// policy is the root and untargeted ReplicatedJobs fall back to it.
+	if !features.Enabled(features.JobSetGangOfGangs) && usesTopLevelAPI && len(scheduling.ReplicatedJobs) > 0 {
+		allErrs = append(allErrs, field.Forbidden(
+			schedulingPath.Child("replicatedJobs"),
+			"cannot be set together with top-level schedulingPolicy, schedulingConstraints, or disruptionMode unless the JobSetGangOfGangs feature gate is enabled",
+		))
+	}
+
+	// A composite gang minGroupCount is only honored when the JobSet compiles into
+	// a CompositePodGroup tree (gang-of-gangs mode). In every other mode the
+	// composite policy is flattened to a leaf PodGroup and minGroupCount would be
+	// silently dropped, so reject it (moved from type-level CEL because the rule is
+	// gate- and mode-aware and CEL cannot read feature gates).
+	if !controllers.UseGangOfGangs(js) {
+		if p := scheduling.SchedulingPolicy; p != nil && p.Gang != nil && p.Gang.MinGroupCount != nil {
+			allErrs = append(allErrs, field.Forbidden(
+				schedulingPath.Child("schedulingPolicy", "gang", "minGroupCount"),
+				"is only supported in gang-of-gangs mode (JobSetGangOfGangs enabled with both a top-level policy and replicatedJobs)",
+			))
+		}
+		for i := range scheduling.ReplicatedJobs {
+			if p := scheduling.ReplicatedJobs[i].SchedulingPolicy; p != nil && p.Gang != nil && p.Gang.MinGroupCount != nil {
+				allErrs = append(allErrs, field.Forbidden(
+					schedulingPath.Child("replicatedJobs").Index(i).Child("schedulingPolicy", "gang", "minGroupCount"),
+					"is only supported in gang-of-gangs mode (JobSetGangOfGangs enabled with both a top-level policy and replicatedJobs)",
+				))
+			}
+		}
+	}
+
+	// Gang-of-gangs with sequenced startup deadlocks under a full-quorum Gang root.
+	// DependsOn (or an InOrder StartupPolicy) creates a targeted child's Jobs only after
+	// its dependency is satisfied, so a root Gang whose minGroupCount spans that deferred
+	// child can never reach quorum. Only two root shapes are safe: an explicit Basic root
+	// (no cross-child quorum), or a Gang root with an explicit minGroupCount (the user
+	// opting into partial quorum). Every other shape is a full-quorum Gang root and is
+	// rejected -- including a root with no schedulingPolicy set, because the controller
+	// defaults a composite node to Gang (see defaultCompositeConfig). This is the
+	// gang-of-gangs analogue of the top-level-gang + sequenced-startup rejection, enforced
+	// in the webhook because it is gate- and mode-aware.
+	if controllers.UseGangOfGangs(js) {
+		sequenced := js.Spec.StartupPolicy != nil && js.Spec.StartupPolicy.StartupPolicyOrder == jobset.InOrder
+		for i := range js.Spec.ReplicatedJobs {
+			if len(js.Spec.ReplicatedJobs[i].DependsOn) > 0 {
+				sequenced = true
+				break
+			}
+		}
+		if sequenced {
+			p := scheduling.SchedulingPolicy
+			rootIsBasic := p != nil && p.Basic != nil
+			rootGangWithExplicitQuorum := p != nil && p.Gang != nil && p.Gang.MinGroupCount != nil
+			if !rootIsBasic && !rootGangWithExplicitQuorum {
+				allErrs = append(allErrs, field.Forbidden(
+					schedulingPath.Child("schedulingPolicy"),
+					"a full-quorum Gang root cannot be combined with sequenced startup (DependsOn or InOrder) in gang-of-gangs mode: its gang quorum could never be met while a dependent ReplicatedJob's Jobs are deferred. Use a Basic root, or set an explicit schedulingPolicy.gang.minGroupCount to opt into partial quorum",
+				))
+			}
+		}
+	}
+
 	// When only the per-ReplicatedJob API is used (no top-level scheduling
 	// fields set), every ReplicatedJob must be targeted by a replicatedJobs
 	// entry: there is no top-level policy for an untargeted ReplicatedJob to fall

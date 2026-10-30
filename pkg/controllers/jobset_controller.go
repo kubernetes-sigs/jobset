@@ -31,6 +31,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	schedulingv1beta1 "k8s.io/api/scheduling/v1beta1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -110,6 +111,7 @@ func NewJobSetReconciler(client client.Client, scheme *runtime.Scheme, record ev
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=scheduling.k8s.io,resources=workloads,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=scheduling.k8s.io,resources=podgroups,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=scheduling.k8s.io,resources=compositepodgroups,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch;create
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -399,6 +401,22 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		controllerBuilder = controllerBuilder.
 			Owns(&schedulingv1beta1.Workload{}).
 			Owns(&schedulingv1beta1.PodGroup{})
+		if features.Enabled(features.JobSetGangOfGangs) {
+			// Only watch CompositePodGroup when the cluster actually serves the
+			// scheduling.k8s.io/v1alpha3 API. Adding the watch when the API is absent
+			// fails the informer cache sync and takes the whole manager down (and with
+			// it the webhook). Skipping it keeps the manager healthy and lets
+			// gang-of-gangs reconciles surface a clear per-JobSet error instead.
+			served, err := compositePodGroupAPIServed(mgr.GetScheme(), mgr.GetRESTMapper())
+			if err != nil {
+				return err
+			}
+			if served {
+				controllerBuilder = controllerBuilder.Owns(&schedulingv1alpha3.CompositePodGroup{})
+			} else {
+				mgr.GetLogger().Info("JobSetGangOfGangs is enabled but the CompositePodGroup API (scheduling.k8s.io/v1alpha3) is not served; skipping the CompositePodGroup watch. Gang-of-gangs scheduling will fail at reconcile until the API is available.")
+			}
+		}
 	}
 
 	// Watch Pods if in-place restart feature is enabled.
@@ -423,6 +441,25 @@ func (r *JobSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controllerBuilder.Complete(r)
+}
+
+// compositePodGroupAPIServed reports whether the cluster serves the
+// scheduling.k8s.io/v1alpha3 CompositePodGroup API. A no-match from the
+// RESTMapper means the API is not served and is not an error; any other mapper
+// failure is returned to the caller.
+func compositePodGroupAPIServed(scheme *runtime.Scheme, mapper apimeta.RESTMapper) (bool, error) {
+	gvks, _, err := scheme.ObjectKinds(&schedulingv1alpha3.CompositePodGroup{})
+	if err != nil {
+		return false, err
+	}
+	gvk := gvks[0]
+	if _, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version); err != nil {
+		if apimeta.IsNoMatchError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func SetupJobSetIndexes(ctx context.Context, indexer client.FieldIndexer) error {

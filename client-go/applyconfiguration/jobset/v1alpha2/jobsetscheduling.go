@@ -42,6 +42,12 @@ import (
 // JobSet using sequenced startup must therefore use the per-ReplicatedJob model;
 // top-level scheduling (including the defaulted top-level gang) is rejected with
 // sequenced startup.
+//
+// The top-level fields (schedulingPolicy, schedulingConstraints, disruptionMode)
+// and replicatedJobs are mutually exclusive unless the JobSetGangOfGangs feature
+// gate is enabled, in which case they combine into a composite PodGroup tree.
+// Because CEL cannot read feature gates, that mutual exclusion is enforced in the
+// validating webhook (validateScheduling) rather than as a type-level CEL rule.
 type JobSetSchedulingApplyConfiguration struct {
 	// schedulingPolicy defines the composite-level scheduling policy for the entire JobSet.
 	// Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and
@@ -51,6 +57,9 @@ type JobSetSchedulingApplyConfiguration struct {
 	// spanning the whole JobSet could never reach its minCount while Jobs are created
 	// sequentially. Configure Gang policies under replicatedJobs instead in that case.
 	// Mutually exclusive with replicatedJobs: see the type-level comment.
+	// minGroupCount is only honored in gang-of-gangs composite mode and is
+	// otherwise rejected by the validating webhook (gate-aware; CEL cannot read
+	// feature gates).
 	SchedulingPolicy *v1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
 	// schedulingConstraints defines composite-level topology constraints for the entire JobSet.
 	// Mutually exclusive with replicatedJobs: see the type-level comment.
