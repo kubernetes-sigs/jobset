@@ -89,6 +89,7 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | controller.nodeSelector | object | `{}` | Node selector of the jobset controller pods. |
 | controller.affinity | object | `{}` | Affinity of the jobset controller pods. |
 | controller.tolerations | list | `[]` | Tolerations of the jobset controller pods. |
+| controller.priorityClassName | string | `""` | Priority class name of the jobset controller pods. |
 | controller.podAnnotations | object | `{}` | Annotations to add to the jobset controller pods. |
 | controller.podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Security context of all jobset controller containers. |
 | controller.hostNetwork | bool | `false` | Run the controller/webhook Pods on the node's network namespace instead of the overlay CNI. |
