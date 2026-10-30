@@ -79,6 +79,8 @@ controller:
   affinity: {}
   # -- Tolerations of the jobset controller pods.
   tolerations: []
+  # -- Priority class name of the jobset controller pods.
+  priorityClassName: ""
   # -- Annotations to add to the jobset controller pods.
   podAnnotations: {}
   # -- Security context of all jobset controller containers.
