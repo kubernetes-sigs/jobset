@@ -269,6 +269,16 @@ tests:
           path: spec.template.spec.priorityClassName
           value: system-cluster-critical
 
+  - it: Should render a numeric-looking `controller.priorityClassName` as a string
+    set:
+      controller:
+        priorityClassName: "123"
+    template: controller/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: "123"
+
   - it: Should not set priorityClassName by default
     template: controller/deployment.yaml
     asserts:
