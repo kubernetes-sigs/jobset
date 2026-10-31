@@ -26,6 +26,11 @@ import (
 //
 // ReplicatedJobScheduling targets one or more named ReplicatedJobs with
 // composite-level scheduling configuration.
+//
+// When job is set, schedulingPolicy, schedulingConstraints, and disruptionMode
+// cannot be set unless the JobSetGangOfGangs feature gate is enabled. Because
+// CEL cannot read feature gates, that rule is enforced in the validating
+// webhook; only the gate-independent single-target rule is a CEL rule here.
 type ReplicatedJobSchedulingApplyConfiguration struct {
 	// targetReplicatedJobs is the list of ReplicatedJob names this policy applies to.
 	// When more than one name is listed, the targeted ReplicatedJobs share a single
@@ -36,8 +41,9 @@ type ReplicatedJobSchedulingApplyConfiguration struct {
 	// schedulingPolicy defines the composite-level scheduling policy (basic or gang) for
 	// jobs created by the targeted ReplicatedJobs.
 	// Defaults to Gang when not specified.
-	// minGroupCount is only honored in gang-of-gangs composite mode and is
-	// otherwise rejected by the validating webhook (gate-aware).
+	// gang.minGroupCount requires JobSetGangOfGangs, is only allowed when job is set
+	// (one child per Job replica), and cannot exceed the number of replicas; it is
+	// otherwise rejected by the validating webhook.
 	SchedulingPolicy *v1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
 	// schedulingConstraints defines composite-level topology constraints for the targeted
 	// ReplicatedJobs' pods.
@@ -49,9 +55,12 @@ type ReplicatedJobSchedulingApplyConfiguration struct {
 	// (i.e. one PodGroup per Job) instead of sharing a single PodGroup across every
 	// replica of the targeted ReplicatedJobs. This is part of the Gang-of-Gangs model.
 	// When set, targetReplicatedJobs must contain exactly one ReplicatedJob name, and
-	// the composite-level schedulingPolicy, schedulingConstraints, and disruptionMode
-	// fields on this ReplicatedJobScheduling must not be set, since they configure
-	// a shared PodGroup that job replaces with one PodGroup per Job.
+	// the targeted ReplicatedJob may have at most 8 replicas (one PodGroupTemplate
+	// each). With JobSetGangOfGangs disabled, the composite-level schedulingPolicy,
+	// schedulingConstraints, and disruptionMode fields on this
+	// ReplicatedJobScheduling must not be set, since there is no CompositePodGroup to
+	// hold them above the per-Job PodGroups. With JobSetGangOfGangs enabled they
+	// configure the entry's CompositePodGroup above the per-Job PodGroups.
 	Job *JobSchedulingApplyConfiguration `json:"job,omitempty"`
 }
 

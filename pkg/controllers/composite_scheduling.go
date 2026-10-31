@@ -22,6 +22,7 @@ import (
 
 	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	schedulingv1beta1 "k8s.io/api/scheduling/v1beta1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	workloadbuilder "k8s.io/component-helpers/scheduling/schedulingv1/workloadbuilder"
@@ -33,17 +34,15 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
-// patchCompositeTreeMinCounts updates every mutable gang min count in the
-// existing composite tree to match desired, returning whether anything changed.
+// patchCompositeTreeMinCounts updates every leaf PodGroupTemplate gang minCount
+// in the existing composite tree to match desired, returning whether anything
+// changed. A CompositePodGroup's minGroupCount cannot be changed after creation
+// upstream, so it is not patched here: compositeTreeNeedsRecreation treats a
+// minGroupCount change as drift and the Workload and tree are recreated.
 func patchCompositeTreeMinCounts(existing, desired []schedulingv1beta1.CompositePodGroupTemplate) bool {
 	changed := false
 	for i := range existing {
 		e, d := &existing[i], &desired[i]
-		if e.SchedulingPolicy.Gang != nil && d.SchedulingPolicy.Gang != nil &&
-			e.SchedulingPolicy.Gang.MinGroupCount != d.SchedulingPolicy.Gang.MinGroupCount {
-			e.SchedulingPolicy.Gang.MinGroupCount = d.SchedulingPolicy.Gang.MinGroupCount
-			changed = true
-		}
 		for j := range e.PodGroupTemplates {
 			le, ld := &e.PodGroupTemplates[j], &d.PodGroupTemplates[j]
 			if le.SchedulingPolicy.Gang != nil && ld.SchedulingPolicy.Gang != nil &&
@@ -57,6 +56,50 @@ func patchCompositeTreeMinCounts(existing, desired []schedulingv1beta1.Composite
 		}
 	}
 	return changed
+}
+
+// compositeTreeNeedsRecreation reports whether the existing composite template
+// tree differs from desired in anything other than a leaf gang minCount, the
+// only field the upstream API allows to change in place. Any other difference
+// (shape, names, policies including minGroupCount, constraints, disruption mode)
+// requires deleting and recreating the Workload and its tree.
+//
+// Like podGroupTemplatesEqualIgnoringMinCount, constraints that the API server
+// dropped because their feature gate is off are not treated as drift.
+func compositeTreeNeedsRecreation(existing, desired []schedulingv1beta1.CompositePodGroupTemplate) bool {
+	if len(existing) != len(desired) {
+		return true
+	}
+	for i := range existing {
+		e, d := &existing[i], &desired[i]
+		if len(e.PodGroupTemplates) != len(d.PodGroupTemplates) {
+			return true
+		}
+		for j := range e.PodGroupTemplates {
+			if !podGroupTemplatesEqualIgnoringMinCount(&e.PodGroupTemplates[j], &d.PodGroupTemplates[j]) {
+				return true
+			}
+		}
+		if compositeTreeNeedsRecreation(e.CompositePodGroupTemplates, d.CompositePodGroupTemplates) {
+			return true
+		}
+		if !compositeNodesEqual(e, d) {
+			return true
+		}
+	}
+	return false
+}
+
+// compositeNodesEqual compares two CompositePodGroupTemplates without their
+// children, which compositeTreeNeedsRecreation compares separately.
+func compositeNodesEqual(existing, desired *schedulingv1beta1.CompositePodGroupTemplate) bool {
+	e, d := existing.DeepCopy(), desired.DeepCopy()
+	e.PodGroupTemplates, d.PodGroupTemplates = nil, nil
+	e.CompositePodGroupTemplates, d.CompositePodGroupTemplates = nil, nil
+	if e.SchedulingConstraints == nil {
+		d.SchedulingConstraints = nil
+	}
+	return apiequality.Semantic.DeepEqual(*e, *d)
 }
 
 // materializeCompositeTree creates the CompositePodGroup objects (root and
@@ -81,7 +124,7 @@ func (r *JobSetReconciler) materializeCompositeTree(ctx context.Context, js *job
 // CompositePodGroup object, then recurses into its child CompositePodGroups and
 // materializes its leaf PodGroups, linking each to this node.
 func (r *JobSetReconciler) materializeCompositeNode(ctx context.Context, js *jobset.JobSet, builder *workloadbuilder.Builder, workload *schedulingv1beta1.Workload, tmpl *schedulingv1beta1.CompositePodGroupTemplate, parentName string) error {
-	cpgName := schedulingPodGroupName(js, tmpl.Name)
+	cpgName := compositeObjectName(js, tmpl.Name)
 
 	cpg, err := builder.NewCompositePodGroup(cpgName, tmpl.Name)
 	if err != nil {
@@ -102,7 +145,7 @@ func (r *JobSetReconciler) materializeCompositeNode(ctx context.Context, js *job
 	}
 	for i := range tmpl.PodGroupTemplates {
 		leaf := &tmpl.PodGroupTemplates[i]
-		pg := leafPodGroupFromTemplate(workload, leaf, schedulingPodGroupName(js, leaf.Name))
+		pg := leafPodGroupFromTemplate(workload, leaf, compositeObjectName(js, leaf.Name))
 		pg.Spec.ParentCompositePodGroupName = ptr.To(cpgName)
 		if err := r.ensureLeafPodGroup(ctx, js, pg); err != nil {
 			return err
@@ -161,16 +204,13 @@ func (r *JobSetReconciler) ensureCompositePodGroup(ctx context.Context, js *jobs
 	if !metav1.IsControlledBy(existing, js) {
 		return fmt.Errorf("compositePodGroup %s already exists and is not controlled by JobSet %s", klog.KObj(existing), klog.KObj(js))
 	}
-	// Gang minGroupCount is the one mutable field; patch it in place when scaling
-	// changed it. All other spec drift is handled by the Workload-level
-	// delete-and-recreate path.
-	if existing.Spec.SchedulingPolicy.Gang != nil && cpg.Spec.SchedulingPolicy.Gang != nil &&
-		existing.Spec.SchedulingPolicy.Gang.MinGroupCount != cpg.Spec.SchedulingPolicy.Gang.MinGroupCount {
-		patched := existing.DeepCopy()
-		patched.Spec.SchedulingPolicy.Gang.MinGroupCount = cpg.Spec.SchedulingPolicy.Gang.MinGroupCount
-		if err := r.Update(ctx, patched); err != nil {
-			return fmt.Errorf("patching CompositePodGroup %s minGroupCount: %w", cpg.Name, err)
-		}
+	// A CompositePodGroup's spec cannot be changed in place (minGroupCount is
+	// immutable upstream). Drift is detected on the Workload by
+	// compositeTreeNeedsRecreation, which deletes and recreates the whole tree.
+	// A CompositePodGroup still terminating from such a recreation, or from a
+	// suspend, is left alone; the owned-object watch requeues once it is gone.
+	if !existing.DeletionTimestamp.IsZero() {
+		log.V(2).Info("CompositePodGroup is terminating, waiting for deletion", "compositePodGroup", klog.KObj(existing))
 	}
 	return nil
 }
@@ -199,6 +239,10 @@ func (r *JobSetReconciler) ensureLeafPodGroup(ctx context.Context, js *jobset.Jo
 	}
 	if !metav1.IsControlledBy(existing, js) {
 		return fmt.Errorf("podgroup %s already exists and is not controlled by JobSet %s", klog.KObj(existing), klog.KObj(js))
+	}
+	if !existing.DeletionTimestamp.IsZero() {
+		log.V(2).Info("Leaf PodGroup is terminating, waiting for deletion", "podGroup", klog.KObj(existing))
+		return nil
 	}
 	// Gang minCount is mutable; patch it in place when scaling changed it, matching
 	// the flat PodGroup reconcile path.
@@ -261,7 +305,7 @@ func (r *JobSetReconciler) compositeObjectsReady(ctx context.Context, js *jobset
 	var walk func(tmpls []schedulingv1beta1.CompositePodGroupTemplate) bool
 	walk = func(tmpls []schedulingv1beta1.CompositePodGroupTemplate) bool {
 		for i := range tmpls {
-			cpgName := schedulingPodGroupName(js, tmpls[i].Name)
+			cpgName := compositeObjectName(js, tmpls[i].Name)
 			if !visit(func() (metav1.Object, error) {
 				o := &schedulingv1alpha3.CompositePodGroup{}
 				return o, r.Get(ctx, client.ObjectKey{Name: cpgName, Namespace: js.Namespace}, o)
@@ -269,7 +313,7 @@ func (r *JobSetReconciler) compositeObjectsReady(ctx context.Context, js *jobset
 				return false
 			}
 			for j := range tmpls[i].PodGroupTemplates {
-				pgName := schedulingPodGroupName(js, tmpls[i].PodGroupTemplates[j].Name)
+				pgName := compositeObjectName(js, tmpls[i].PodGroupTemplates[j].Name)
 				if !visit(func() (metav1.Object, error) {
 					o := &schedulingv1beta1.PodGroup{}
 					return o, r.Get(ctx, client.ObjectKey{Name: pgName, Namespace: js.Namespace}, o)

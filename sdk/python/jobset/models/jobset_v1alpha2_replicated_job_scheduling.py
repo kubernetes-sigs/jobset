@@ -28,7 +28,7 @@ from typing_extensions import Self
 
 class JobsetV1alpha2ReplicatedJobScheduling(BaseModel):
     """
-    ReplicatedJobScheduling targets one or more named ReplicatedJobs with composite-level scheduling configuration.
+    ReplicatedJobScheduling targets one or more named ReplicatedJobs with composite-level scheduling configuration.  When job is set, schedulingPolicy, schedulingConstraints, and disruptionMode cannot be set unless the JobSetGangOfGangs feature gate is enabled. Because CEL cannot read feature gates, that rule is enforced in the validating webhook; only the gate-independent single-target rule is a CEL rule here.
     """ # noqa: E501
     disruption_mode: Optional[IoK8sApiSchedulingV1alpha3WorkloadCompositePodGroupDisruptionMode] = Field(default=None, alias="disruptionMode")
     job: Optional[JobsetV1alpha2JobScheduling] = None

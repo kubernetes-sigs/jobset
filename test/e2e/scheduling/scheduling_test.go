@@ -37,6 +37,12 @@ import (
 	testutil "sigs.k8s.io/jobset/test/util"
 )
 
+// gangOfGangsLabel marks specs that need the controller running with the
+// JobSetGangOfGangs feature gate on. hack/e2e-scheduling-test.sh runs the
+// unlabeled specs against the default (gate off) deployment first, then
+// redeploys with the gate on and runs only the labeled specs.
+const gangOfGangsLabel = "gang-of-gangs"
+
 var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 
 	ginkgo.It("should create per-RJ PodGroups when leaf overrides are present", func() {
@@ -519,7 +525,7 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
 	})
 
-	ginkgo.It("should build a CompositePodGroup tree and converge when gang-of-gangs is combined with DependsOn", func() {
+	ginkgo.It("should build a CompositePodGroup tree and converge when gang-of-gangs is combined with DependsOn", ginkgo.Label(gangOfGangsLabel), func() {
 		// Gang-of-gangs (JobSetGangOfGangs gate) + DependsOn: a Basic root over
 		// per-child Gangs. DependsOn sequences child creation (workers only after
 		// driver is Ready); a Basic root imposes no cross-child quorum, so the tree
@@ -646,9 +652,10 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 				g.Expect(leaves[i].Spec.ParentCompositePodGroupName).NotTo(gomega.BeNil())
 				g.Expect(leaves[i].Spec.SchedulingPolicy.Gang).NotTo(gomega.BeNil())
 			}
-			driverPG := getPodGroupByPrefix(g, ns.Name, fmt.Sprintf("%s-driver", js.Name))
+			// Leaf templates use the index-prefix naming: <entry-index>-<targets>.
+			driverPG := getPodGroupByTemplate(g, ns.Name, "0-driver")
 			g.Expect(driverPG.Spec.SchedulingPolicy.Gang.MinCount).To(gomega.Equal(int32(1)))
-			workersPG := getPodGroupByPrefix(g, ns.Name, fmt.Sprintf("%s-workers", js.Name))
+			workersPG := getPodGroupByTemplate(g, ns.Name, "1-workers")
 			g.Expect(workersPG.Spec.SchedulingPolicy.Gang.MinCount).To(gomega.Equal(int32(2)))
 		}, timeout, interval).Should(gomega.Succeed())
 
@@ -658,9 +665,12 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 			g.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(ns.Name))).To(gomega.Succeed())
 			g.Expect(len(jobList.Items)).To(gomega.BeNumerically(">=", 1))
 			for _, job := range jobList.Items {
-				rjName := job.Labels[jobset.ReplicatedJobNameKey]
+				// Each Job points at the leaf template of its group, and its Pods at
+				// the PodGroup materialized from that template.
 				g.Expect(job.Annotations).To(gomega.HaveKey(controllers.SchedulingGroupTemplateNameKey))
-				g.Expect(job.Annotations[controllers.SchedulingGroupTemplateNameKey]).To(gomega.HavePrefix(rjName + "-"))
+				leaf := getPodGroupByTemplate(g, ns.Name, job.Annotations[controllers.SchedulingGroupTemplateNameKey])
+				g.Expect(job.Spec.Template.Spec.SchedulingGroup).NotTo(gomega.BeNil())
+				g.Expect(job.Spec.Template.Spec.SchedulingGroup.PodGroupName).To(gomega.HaveValue(gomega.Equal(leaf.Name)))
 			}
 		}, timeout, interval).Should(gomega.Succeed())
 
@@ -668,7 +678,7 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
 	})
 
-	ginkgo.It("should sequence gang-of-gangs child creation with DependsOn Complete status", func() {
+	ginkgo.It("should sequence gang-of-gangs child creation with DependsOn Complete status", ginkgo.Label(gangOfGangsLabel), func() {
 		// DependsOn Complete exercises a distinct branch from Ready in
 		// depends_on.go (Succeeded counter, not Ready+Failed+Succeeded): the worker
 		// child's Jobs are not created until the driver has actually completed.
@@ -728,10 +738,10 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
 	})
 
-	ginkgo.It("should fall back an untargeted ReplicatedJob to the root while another uses DependsOn", func() {
-		// An untargeted ReplicatedJob attaches its leaf directly to the root
-		// CompositePodGroup (no child composite). This exercises the root-fallback
-		// path combined with DependsOn sequencing on the targeted sibling.
+	ginkgo.It("should put an untargeted ReplicatedJob in the fallback group while another uses DependsOn", ginkgo.Label(gangOfGangsLabel), func() {
+		// Untargeted ReplicatedJobs form one fallback group under the root, using the
+		// root's policy. This exercises the fallback path combined with DependsOn
+		// sequencing on the targeted sibling.
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{GenerateName: "e2e-sched-gog-fallback-"},
 		}
@@ -749,8 +759,8 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 					SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
 						Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
 					},
-					// Only workers is targeted; driver is untargeted and falls back to
-					// the root composite.
+					// Only workers is targeted; driver is untargeted and lands in the
+					// fallback group (index 1) under the Basic root.
 					ReplicatedJobs: []jobset.ReplicatedJobScheduling{
 						{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
 					},
@@ -765,32 +775,27 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 		ginkgo.By("creating the JobSet with an untargeted driver and a DependsOn worker")
 		gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
 
-		ginkgo.By("verifying one child composite (workers) plus the untargeted driver leaf under the root")
+		ginkgo.By("verifying the workers group and the fallback driver group sit under the root")
 		gomega.Eventually(func(g gomega.Gomega) {
-			cpgs := listCompositePodGroups(g, ns.Name, js.Name)
-			// Root + one child composite for the targeted workers entry only.
-			g.Expect(cpgs).To(gomega.HaveLen(2))
-			var rootName string
-			for i := range cpgs {
-				if cpgs[i].Spec.ParentCompositePodGroupName == nil {
-					rootName = cpgs[i].Name
-				}
-			}
-			g.Expect(rootName).NotTo(gomega.BeEmpty())
+			// Root + the workers group + the fallback group for the untargeted driver.
+			g.Expect(listCompositePodGroups(g, ns.Name, js.Name)).To(gomega.HaveLen(3))
+			root := getCompositePodGroupByTemplate(g, ns.Name, js.Name+"-cpg")
+			g.Expect(root.Spec.ParentCompositePodGroupName).To(gomega.BeNil())
 
-			leaves := listLeafPodGroups(g, ns.Name, js.Name)
-			g.Expect(leaves).To(gomega.HaveLen(2))
-			// The untargeted driver leaf links straight to the root composite.
-			driverPG := getPodGroupByPrefix(g, ns.Name, fmt.Sprintf("%s-driver", js.Name))
-			g.Expect(driverPG.Spec.ParentCompositePodGroupName).NotTo(gomega.BeNil())
-			g.Expect(*driverPG.Spec.ParentCompositePodGroupName).To(gomega.Equal(rootName))
+			fallback := getCompositePodGroupByTemplate(g, ns.Name, "1-driver-cpg")
+			g.Expect(fallback.Spec.ParentCompositePodGroupName).To(gomega.HaveValue(gomega.Equal(root.Name)))
+			g.Expect(fallback.Spec.SchedulingPolicy.Basic).NotTo(gomega.BeNil(), "the fallback group inherits the Basic root")
+
+			g.Expect(listLeafPodGroups(g, ns.Name, js.Name)).To(gomega.HaveLen(2))
+			driverPG := getPodGroupByTemplate(g, ns.Name, "1-driver")
+			g.Expect(driverPG.Spec.ParentCompositePodGroupName).To(gomega.HaveValue(gomega.Equal(fallback.Name)))
 		}, timeout, interval).Should(gomega.Succeed())
 
 		ginkgo.By("verifying the JobSet completes successfully")
 		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
 	})
 
-	ginkgo.It("should reject a Gang root combined with DependsOn in gang-of-gangs mode", func() {
+	ginkgo.It("should reject a Gang root combined with DependsOn in gang-of-gangs mode", ginkgo.Label(gangOfGangsLabel), func() {
 		// A full-quorum Gang root over a DependsOn-deferred child deadlocks, so the
 		// webhook rejects it at admission. A Basic root is the supported combination.
 		ns := &corev1.Namespace{
@@ -1427,6 +1432,36 @@ func listLeafPodGroups(g gomega.Gomega, ns, jsName string) []schedulingv1beta1.P
 	g.Expect(k8sClient.List(ctx, &pgList, client.InNamespace(ns),
 		client.MatchingLabels{jobset.JobSetNameKey: jsName})).To(gomega.Succeed())
 	return pgList.Items
+}
+
+// getPodGroupByTemplate returns the single PodGroup in the namespace that was
+// materialized from the named template (spec.workloadRef.templateName).
+func getPodGroupByTemplate(g gomega.Gomega, ns, template string) schedulingv1beta1.PodGroup {
+	var pgList schedulingv1beta1.PodGroupList
+	g.Expect(k8sClient.List(ctx, &pgList, client.InNamespace(ns))).To(gomega.Succeed())
+	var matches []schedulingv1beta1.PodGroup
+	for i := range pgList.Items {
+		if ref := pgList.Items[i].Spec.WorkloadRef; ref != nil && ref.TemplateName == template {
+			matches = append(matches, pgList.Items[i])
+		}
+	}
+	g.Expect(matches).To(gomega.HaveLen(1), "expected exactly one PodGroup for template %q, got %d", template, len(matches))
+	return matches[0]
+}
+
+// getCompositePodGroupByTemplate returns the single CompositePodGroup in the
+// namespace that was materialized from the named template.
+func getCompositePodGroupByTemplate(g gomega.Gomega, ns, template string) schedulingv1alpha3.CompositePodGroup {
+	var cpgList schedulingv1alpha3.CompositePodGroupList
+	g.Expect(k8sClient.List(ctx, &cpgList, client.InNamespace(ns))).To(gomega.Succeed())
+	var matches []schedulingv1alpha3.CompositePodGroup
+	for i := range cpgList.Items {
+		if ref := cpgList.Items[i].Spec.WorkloadRef; ref != nil && ref.TemplateName == template {
+			matches = append(matches, cpgList.Items[i])
+		}
+	}
+	g.Expect(matches).To(gomega.HaveLen(1), "expected exactly one CompositePodGroup for template %q, got %d", template, len(matches))
+	return matches[0]
 }
 
 // getPodGroupByPrefix lists PodGroups in the namespace and returns the single

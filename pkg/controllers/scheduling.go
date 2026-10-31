@@ -43,6 +43,16 @@ import (
 // refers to a CompositePodGroup, not to the owning JobSet.
 const SchedulingGroupTemplateNameKey = "scheduling.k8s.io/group-template-name"
 
+// UseGangOfGangs reports whether the JobSet compiles into the uniform
+// CompositePodGroup tree: the JobSetGangOfGangs gate is enabled and
+// spec.scheduling is set. With the gate on every JobSet with spec.scheduling
+// uses the same root -> group -> leaf tree, regardless of which levels it
+// configures (KEP-969, Gang of Gangs Support). Otherwise the flat
+// single-PodGroup-per-template models are used.
+func UseGangOfGangs(js *jobset.JobSet) bool {
+	return features.Enabled(features.JobSetGangOfGangs) && js.Spec.Scheduling != nil
+}
+
 // UseTopLevelGang returns true when the top-level scheduling model is used
 // (Basic, Gang, or the default Gang policy) and there are no per-ReplicatedJob
 // policy overrides.
@@ -55,21 +65,6 @@ const SchedulingGroupTemplateNameKey = "scheduling.k8s.io/group-template-name"
 // rejected at admission by a CEL rule on the JobSet CRD, which directs users to
 // configure per-ReplicatedJob scheduling under spec.scheduling.replicatedJobs
 // instead, so this predicate does not need to re-check for it.
-// UseGangOfGangs reports whether the JobSet should compile into a composite
-// CompositePodGroup tree: the JobSetGangOfGangs gate is enabled and the JobSet
-// combines a top-level policy with per-ReplicatedJob entries. Otherwise the flat
-// single-PodGroup-per-template models are used.
-func UseGangOfGangs(js *jobset.JobSet) bool {
-	if !features.Enabled(features.JobSetGangOfGangs) {
-		return false
-	}
-	scheduling := js.Spec.Scheduling
-	if scheduling == nil || len(scheduling.ReplicatedJobs) == 0 {
-		return false
-	}
-	return scheduling.SchedulingPolicy != nil || scheduling.SchedulingConstraints != nil || scheduling.DisruptionMode != nil
-}
-
 func UseTopLevelGang(scheduling *jobset.JobSetScheduling) bool {
 	if scheduling == nil {
 		return false
@@ -118,8 +113,8 @@ func computeMinCount(rjob *jobset.ReplicatedJob) int32 {
 // another member of the same group. Counting a deferred member would deadlock the
 // gang: the group could never reach quorum while that member's Jobs do not yet
 // exist (DependsOn creates them only after the dependency is Ready). The deferred
-// member's Pods join the already-admitted PodGroup afterward. This matches the MPI
-// launcher + node shape the Kubeflow Trainer runtime delegates to JobSet.
+// member's Pods join the already-admitted PodGroup afterward. This is the same MPI
+// launcher + node rule the Kubeflow Trainer integration (KEP-3015) uses.
 //
 // This applies to a shared gang in both the flat per-ReplicatedJob mode and the
 // gang-of-gangs tree, independent of the JobSetGangOfGangs gate: a flat shared gang
@@ -156,22 +151,14 @@ func dependsOnMemberInGroup(rjob *jobset.ReplicatedJob, groupNames map[string]bo
 // Gang.MinCount, which is the only field the upstream API allows to change
 // after creation.
 func workloadNeedsRecreation(existing, desired *schedulingv1beta1.Workload) bool {
-	// Gang-of-gangs Workloads nest every template under CompositePodGroupTemplates
-	// and leave the top-level PodGroupTemplates empty, so this loop is a no-op for
-	// them. That is correct: spec.scheduling is immutable after the JobSet runs and
-	// ElasticJobSet only mutates parallelism/completions (not replicas), so a
-	// composite tree's structure (names, policies, leaf count) never changes. Only
-	// the mutable gang min counts change, which workloadWithPatchedMinCounts patches
-	// in place.
 	if len(existing.Spec.PodGroupTemplates) != len(desired.Spec.PodGroupTemplates) {
 		return true
 	}
-	// Composite trees nest templates under CompositePodGroupTemplates. If the existing
-	// tree's shape (child/leaf counts or names) differs from desired, recreate rather
-	// than patch in place: workloadWithPatchedMinCounts indexes the two trees in
-	// lockstep, so a mismatched shape (for example a stale Workload from an earlier
-	// build) would otherwise panic or patch the wrong node.
-	if compositeTreeShapeDiffers(existing.Spec.CompositePodGroupTemplates, desired.Spec.CompositePodGroupTemplates) {
+	// Gang-of-gangs Workloads nest every template under CompositePodGroupTemplates
+	// and leave the top-level PodGroupTemplates empty. Compare the composite tree:
+	// anything but a leaf gang minCount (including a CompositePodGroup's
+	// minGroupCount, which upstream does not allow to change) is drift.
+	if compositeTreeNeedsRecreation(existing.Spec.CompositePodGroupTemplates, desired.Spec.CompositePodGroupTemplates) {
 		return true
 	}
 	for i := range existing.Spec.PodGroupTemplates {
@@ -181,32 +168,6 @@ func workloadNeedsRecreation(existing, desired *schedulingv1beta1.Workload) bool
 			return true
 		}
 		if !podGroupTemplatesEqualIgnoringMinCount(e, d) {
-			return true
-		}
-	}
-	return false
-}
-
-// compositeTreeShapeDiffers reports whether two CompositePodGroupTemplate trees
-// differ in structure (node/leaf counts or names), ignoring the mutable gang min
-// counts. It guards the in-place min-count patch, which walks both trees by index.
-func compositeTreeShapeDiffers(a, b []schedulingv1beta1.CompositePodGroupTemplate) bool {
-	if len(a) != len(b) {
-		return true
-	}
-	for i := range a {
-		if a[i].Name != b[i].Name {
-			return true
-		}
-		if len(a[i].PodGroupTemplates) != len(b[i].PodGroupTemplates) {
-			return true
-		}
-		for j := range a[i].PodGroupTemplates {
-			if a[i].PodGroupTemplates[j].Name != b[i].PodGroupTemplates[j].Name {
-				return true
-			}
-		}
-		if compositeTreeShapeDiffers(a[i].CompositePodGroupTemplates, b[i].CompositePodGroupTemplates) {
 			return true
 		}
 	}
@@ -698,6 +659,9 @@ func perJobTemplateName(js *jobset.JobSet, rjobName string, jobIdx int) string {
 // truncating and re-hashing if the combined name would exceed the DNS label
 // limit.
 func schedulingPodGroupName(js *jobset.JobSet, templateName string) string {
+	if UseGangOfGangs(js) {
+		return compositeObjectName(js, templateName)
+	}
 	if UseTopLevelGang(js.Spec.Scheduling) {
 		return templateName
 	}
@@ -754,6 +718,9 @@ func schedulingJobsNeedRecreation(js *jobset.JobSet, jobs []*batchv1.Job) bool {
 // or the ReplicatedJob's own template otherwise.
 func schedulingGroupTemplateName(js *jobset.JobSet, rjobName string, jobIdx int) string {
 	scheduling := js.Spec.Scheduling
+	if UseGangOfGangs(js) {
+		return compositeLeafTemplateName(js, rjobName, jobIdx)
+	}
 	if UseTopLevelGang(js.Spec.Scheduling) {
 		return topLevelTemplateName(js)
 	}
