@@ -403,6 +403,7 @@ code-generator:
 openapi-gen:
 	@GOBIN=$(PROJECT_DIR)/bin GO111MODULE=on $(GO_CMD) install k8s.io/kube-openapi/cmd/openapi-gen@latest
 	$(PROJECT_DIR)/bin/openapi-gen --go-header-file hack/boilerplate.go.txt --output-dir api/jobset/v1alpha2 --output-pkg api/jobset/v1alpha2 --output-file openapi_generated.go --alsologtostderr ./api/jobset/v1alpha2
+	$(PROJECT_DIR)/bin/openapi-gen --go-header-file hack/boilerplate.go.txt --output-dir api/jobset/v1 --output-pkg api/jobset/v1 --output-file openapi_generated.go --alsologtostderr ./api/jobset/v1
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
