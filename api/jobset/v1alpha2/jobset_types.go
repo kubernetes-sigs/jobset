@@ -464,23 +464,23 @@ const (
 	// Fail the JobSet immediately.
 	FailJobSet FailurePolicyAction = "FailJobSet"
 
-	// Restart the JobSet globally (i.e., recreate all Jobs) if `jobSet.status.restartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) < jobSet.spec.failurePolicy.maxRestarts`.
+	// Restart the JobSet globally (i.e., recreate all Jobs) if `jobSet.status.restartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) < jobSet.spec.maxRestarts`.
 	// Otherwise, fail the JobSet.
 	// Bumps `jobSet.status.restarts += 1` and `jobSet.status.restartsCountTowardsMax += 1`
 	RestartJobSet FailurePolicyAction = "RestartJobSet"
 
-	// Same as RestartJobSet, but does not check `jobSet.spec.failurePolicy.maxRestarts`.
+	// Same as RestartJobSet, but does not check `jobSet.spec.maxRestarts`.
 	// Bumps `jobSet.status.restarts += 1`.
 	RestartJobSetAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobSetAndIgnoreMaxRestarts"
 
-	// Restart the Job individually (i.e., recreate only the failed Job without touching the other Jobs) if `jobSet.status.restartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) < jobSet.spec.failurePolicy.maxRestarts`.
+	// Restart the Job individually (i.e., recreate only the failed Job without touching the other Jobs) if `jobSet.status.restartsCountTowardsMax + sum(jobSet.status.replicatedJobsStatus[].jobRestartsCountTowardsMax[]) < jobSet.spec.maxRestarts`.
 	// Otherwise, fail the JobSet.
-	// Bumps `jobSet.status.replicatedJobsStatus[replicatedJobName].jobRestarts[jobIndex] += 1` and `jobSet.status.replicatedJobsStatus[replicatedJobName].jobRestartsCountTowardsMax[jobIndex] += 1`.
+	// Bumps `jobSet.status.replicatedJobsStatus[replicatedJobName].restarts[jobIndex] += 1` and `jobSet.status.replicatedJobsStatus[replicatedJobName].jobRestartsCountTowardsMax[jobIndex] += 1`.
 	// Importantly, if this action is used, all `jobSet.spec.replicatedJobs[].replicas` must be less than or equal to 1024.
 	RestartJob FailurePolicyAction = "RestartJob"
 
-	// Same as RestartJob, but does not check `jobSet.spec.failurePolicy.maxRestarts`.
-	// Bumps `jobSet.status.replicatedJobsStatus[replicatedJobName].jobRestarts[jobIndex] += 1`
+	// Same as RestartJob, but does not check `jobSet.spec.maxRestarts`.
+	// Bumps `jobSet.status.replicatedJobsStatus[replicatedJobName].restarts[jobIndex] += 1`
 	// Importantly, if this action is used, all `jobSet.spec.replicatedJobs[].replicas` must be less than or equal to 1024.
 	RestartJobAndIgnoreMaxRestarts FailurePolicyAction = "RestartJobAndIgnoreMaxRestarts"
 )
