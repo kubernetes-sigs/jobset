@@ -70,142 +70,142 @@ linters:
     ## These are grandfathered in to maintain API compatibility
 
     # JobSetSpec.ReplicatedJobs - all violations for this field
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field JobSetSpec\\.ReplicatedJobs"
       linters:
         - kubeapilinter
 
     # JobSetSpec policy fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field JobSetSpec\\.(SuccessPolicy|FailurePolicy|StartupPolicy)"
       linters:
         - kubeapilinter
 
     # JobSetSpec.ManagedBy - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field JobSetSpec\\.ManagedBy"
       linters:
         - kubeapilinter
 
     # JobSetStatus.Conditions - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field JobSetStatus\\.Conditions"
       linters:
         - kubeapilinter
 
     # JobSetStatus fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field JobSetStatus\\.(Restarts|RestartsCountTowardsMax|TerminalState|ReplicatedJobsStatus)"
       linters:
         - kubeapilinter
 
     # ReplicatedJobStatus fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "type ReplicatedJobStatus"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field ReplicatedJobStatus\\.(Name|Ready|Succeeded|Failed|Active|Suspended)"
       linters:
         - kubeapilinter
 
     # JobSet embedded metav1 types - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field (ObjectMeta|Spec|Status)"
       linters:
         - kubeapilinter
     # JobSet.Spec and JobSet.Status - specific field violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field JobSet\\.(Spec|Status)"
       linters:
         - kubeapilinter
 
     # ReplicatedJob fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "type ReplicatedJob"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field ReplicatedJob\\.(Name|GroupName|Template|Replicas)"
       linters:
         - kubeapilinter
 
     # DependsOn fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "type DependsOn"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field DependsOn\\.(Name|Status)"
       linters:
         - kubeapilinter
 
     # Network.Subdomain - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field Network\\.Subdomain"
       linters:
         - kubeapilinter
 
     # FailurePolicyRule fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "type FailurePolicyRule"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field FailurePolicyRule\\.(Name|Action|OnJobFailureReasons|OnJobFailureMessagePatterns|TargetReplicatedJobs)"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "(OnJobFailureReasons|OnJobFailureMessagePatterns) should have a listType marker"
       linters:
         - kubeapilinter
 
     # FailurePolicy fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "type FailurePolicy"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field FailurePolicy\\.(MaxRestarts|RestartStrategy|Rules)"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "Rules should have a listType marker"
       linters:
         - kubeapilinter
 
     # SuccessPolicy fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "type SuccessPolicy"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field SuccessPolicy\\.(Operator|TargetReplicatedJobs)"
       linters:
         - kubeapilinter
 
     # StartupPolicy fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "type StartupPolicy"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field StartupPolicy\\.StartupPolicyOrder"
       linters:
         - kubeapilinter
 
     # Coordinator fields - all violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "type Coordinator"
       linters:
         - kubeapilinter
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "field Coordinator\\.(ReplicatedJob|JobIndex|PodIndex)"
       linters:
         - kubeapilinter
 
     # Embedded metav1.ObjectMeta - handle both embedded field and regular field violations
-    - path: "api/jobset/v1alpha2/jobset_types.go"
+    - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
       text: "embedded field"
       linters:
         - kubeapilinter
