@@ -26,7 +26,7 @@ spec:
               # Default failure policy is to recreate all jobs if any jobs fails. 
               # The bash script provides a simple demonstration of it by failing
               # the pod with completion index 0, which will trigger job failure
-              # and the jobset controller wil recreate all jobs. 
+              # and the jobset controller will recreate all jobs.
               command:
               - bash
               - -xc

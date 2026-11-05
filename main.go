@@ -263,9 +263,9 @@ func setupHealthzAndReadyzCheck(mgr ctrl.Manager, certsReady <-chan struct{}) {
 	}
 
 	// Wait for the webhook server to be listening before advertising the
-	// Jobset deployment replica as ready. This allows users to wait with sending
-	// the first requests, requiring webhooks, until the Jobset deployment is
-	// available, so that the early requests are not rejected during the Jobset's
+	// JobSet deployment replica as ready. This allows users to wait with sending
+	// the first requests, requiring webhooks, until the JobSet deployment is
+	// available, so that the early requests are not rejected during the JobSet's
 	// startup. We wrap the call to GetWebhookServer in a closure to delay calling
 	// the function, otherwise a not fully-initialized webhook server (without
 	// ready certs) fails the start of the manager.

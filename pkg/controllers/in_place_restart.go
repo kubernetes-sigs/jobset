@@ -90,7 +90,7 @@ func (r *JobSetReconciler) reconcileInPlaceRestart(ctx context.Context, js *jobs
 		return nil
 	}
 
-	// Otherwise, there is a mistmatch in the Pod in-place restart attempts, so set the previous in-place restart attempt to the maximum value minus one
+	// Otherwise, there is a mismatch in the Pod in-place restart attempts, so set the previous in-place restart attempt to the maximum value minus one
 	// This is done to make sure Pods not in the latest in-place restart attempt are restarted in-place to reach the latest in-place restart attempt
 	// This is idempotent
 	updatePreviousInPlaceRestartAttempt(log, js, podInPlaceRestartAttempts, updateStatusOpts)

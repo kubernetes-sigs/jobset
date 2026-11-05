@@ -313,7 +313,7 @@ func podScheduled(pod *corev1.Pod) bool {
 	return pod.Spec.NodeName != ""
 }
 
-// podDeleted returns true if hte pod has been marked for deletion, otherwise it returns false.
+// podDeleted returns true if the pod has been marked for deletion, otherwise it returns false.
 func podDeleted(pod *corev1.Pod) bool {
 	return pod.DeletionTimestamp != nil
 }

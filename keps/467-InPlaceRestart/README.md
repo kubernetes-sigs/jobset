@@ -64,7 +64,7 @@ tags, and then generate with `hack/update-toc.sh`.
 This section is incredibly important for producing high-quality, user-focused
 documentation such as release notes or a development roadmap. It should be
 possible to collect this information before implementation begins, in order to
-avoid requiring implementors to split their attention between writing release
+avoid requiring implementers to split their attention between writing release
 notes and implementing the feature itself. KEP editors and SIG Docs
 should help to ensure that the tone and content of the `Summary` section is
 useful for a wide audience.
@@ -817,7 +817,7 @@ milestones with these graduation criteria:
 #### Alpha
 
 - Add the agent code and image to the JobSet repo to support Pods being restarted in-place on demand
-- Change the JobSet controller to orchestrate in-place restarts. Implemented behing a feature flag
+- Change the JobSet controller to orchestrate in-place restarts. Implemented behind a feature flag
 - Add extra validation to the JobSet webhook to validate JobSet manifests that have in-place restart enabled
 - Add tests for in-place restart
 - Add documentation for in-place restart

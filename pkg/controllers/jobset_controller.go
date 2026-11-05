@@ -1070,7 +1070,7 @@ func (r *JobSetReconciler) createHeadlessSvcIfNecessary(ctx context.Context, js 
 	log := ctrl.LoggerFrom(ctx)
 
 	// Headless service is only necessary for indexed jobs whose pods need to communicate with
-	// eachother via pod hostnames.
+	// each other via pod hostnames.
 	if !dnsHostnamesEnabled(js) {
 		return nil
 	}
@@ -1317,7 +1317,7 @@ func shouldCreateJob(jobName string, ownedJobs *childJobs) bool {
 // The same set of labels are also as added as annotations for simplicity's sake.
 // The two exceptions to this are:
 //  1. "alpha.jobset.sigs.k8s.io/exclusive-topology" which is
-//     a JobSet annoation optionally added by the user, so we only add it as an annotation
+//     a JobSet annotation optionally added by the user, so we only add it as an annotation
 //     to child Jobs and pods if it is defined, and do not add it as a label.
 //  2. "alpha.jobset.sigs.k8s.io/node-selector" which is another optional
 //     annotation applied by the user to indicate they are using the
@@ -1701,7 +1701,7 @@ func CoordinatorEndpoint(js *jobset.JobSet) string {
 // index to our running sum of total jobs seen so far, in order to arrive at
 // the final job global index value.
 //
-// Below is a diagram illustrating how job global indexs differ from job indexes.
+// Below is a diagram illustrating how job global indexes differ from job indexes.
 //
 // |                             my-jobset                             |
 // |        replicated job A         |        replicated job B         |

@@ -56,7 +56,7 @@ or when the JobSet should be failed immediately without going through the allowe
 
 This will allow users to make more efficient use of their computing resources, by avoiding `maxRestarts` number of unnecessary 
 JobSet restarts in the case of a non-retriable failure (e.g., an application code bug), while still restarting in the event of
-retriable failures (e.g., a host maintenace event).
+retriable failures (e.g., a host maintenance event).
 
 This is especially important for large scale distributed training workloads on expensive hardware accelerators. Recreating the 
 entire JobSet may take ~1 minute or so (per latest scale tests on ~15k nodes), and if `maxRestarts`
@@ -832,11 +832,11 @@ extending the production code to implement this enhancement.
 
 Integration test cases will be added for:
 
-- Failure policy targetting all replicated jobs, a job fails, ensure the failure policy is triggered.
+- Failure policy targeting all replicated jobs, a job fails, ensure the failure policy is triggered.
   - Repeat this test for all 4 FailurePolicyAction types, checking the action was executed correctly.
-- Failure policy targetting a specific replicated job, a child job of that replicated job fails,
+- Failure policy targeting a specific replicated job, a child job of that replicated job fails,
 ensure the failure policy is triggered.
-- Failure policy targetting a specific replicated job, a child job of a different replicated job fails,
+- Failure policy targeting a specific replicated job, a child job of a different replicated job fails,
 ensure we don't trigger the failure policy and instead fall back to default behavior.
 
 ### Graduation Criteria

@@ -38,12 +38,12 @@ This feature is alpha and off by default, gated by two independent switches:
 
 ## How It Works
 
-`spec.scheduling` is optional and immutable once a JobSet is created. If it is left unset, nothing changes: no `Workload` or `PodGroup` objects are created, and existing JobSets are unaffected. Setting it — even to an empty `{}` when startup is not sequenced — tells the controller to compile exactly one `Workload`, owned by the JobSet, containing one or more `PodGroupTemplate`s, and to keep matching `PodGroup` objects in sync with it.
+`spec.scheduling` is optional and immutable once a JobSet is created. If it is left unset, nothing changes: no `Workload` or `PodGroup` objects are created, and existing JobSets are unaffected. Setting it — even to an empty `{}` when startup is not sequenced — tells the controller to compile exactly one `Workload`, owned by the JobSet, containing one or more `PodGroupTemplates`, and to keep matching `PodGroup` objects in sync with it.
 
 `spec.scheduling` supports two mutually exclusive models — a JobSet must use exactly one, since composite Gang-of-Gangs PodGroup hierarchies linking a parent PodGroup to leaf PodGroups aren't implemented in alpha:
 
 - **`schedulingPolicy`**, **`schedulingConstraints`**, and **`disruptionMode`** at the top level of `spec.scheduling` configure a single PodGroup covering the whole JobSet. Leave `replicatedJobs` unset when using this model. Top-level scheduling, including an empty `scheduling: {}`, cannot be combined with sequenced startup (`dependsOn` or `InOrder`); use `replicatedJobs` instead.
-- **`replicatedJobs`** lets you target one or more `ReplicatedJob`s by name with their own leaf-level policy, producing one `PodGroup` per policy entry. Every `ReplicatedJob` in the JobSet must be targeted by exactly one entry, since there's no top-level policy for an untargeted `ReplicatedJob` to fall back to. Leave the top-level `schedulingPolicy`, `schedulingConstraints`, and `disruptionMode` unset when using this model.
+- **`replicatedJobs`** lets you target one or more `ReplicatedJobs` by name with their own leaf-level policy, producing one `PodGroup` per policy entry. Every `ReplicatedJob` in the JobSet must be targeted by exactly one entry, since there's no top-level policy for an untargeted `ReplicatedJob` to fall back to. Leave the top-level `schedulingPolicy`, `schedulingConstraints`, and `disruptionMode` unset when using this model.
 - **`job`** nested inside a `replicatedJobs` entry goes one level deeper still, giving each Job *replica* of a `ReplicatedJob` its own `PodGroup` ("gang-of-gangs").
 
 Child Jobs are annotated with `scheduling.k8s.io/group-template-name` so you can trace which `PodGroupTemplate` each Job belongs to.
@@ -76,7 +76,7 @@ kubectl get podgroups -n default   # should not list no-sched-baseline
 
 ## Use Case: Independent PodGroups per ReplicatedJob
 
-Sometimes different `ReplicatedJob`s should be scheduled independently of one another rather than as one giant gang — for example, a driver that can start on its own while workers are gang-scheduled among themselves. Give each `ReplicatedJob` its own entry in `replicatedJobs`, and each gets its own `PodGroup`, sized from its own parallelism × replicas.
+Sometimes different `ReplicatedJobs` should be scheduled independently of one another rather than as one giant gang — for example, a driver that can start on its own while workers are gang-scheduled among themselves. Give each `ReplicatedJob` its own entry in `replicatedJobs`, and each gets its own `PodGroup`, sized from its own parallelism × replicas.
 
 {{< include file="/examples/scheduling/per-rj-independent.yaml" lang="yaml" >}}
 
@@ -86,7 +86,7 @@ kubectl get podgroups -n default -o custom-columns=NAME:.metadata.name,MINCOUNT:
 
 ## Use Case: One Shared PodGroup Across Multiple ReplicatedJobs
 
-The opposite grouping: multiple `ReplicatedJob`s that must be admitted together as a single gang. List them all in one `targetReplicatedJobs` entry, and the controller creates one `PodGroup` whose `minCount` is the sum of both `ReplicatedJob`s' pod counts.
+The opposite grouping: multiple `ReplicatedJobs` that must be admitted together as a single gang. List them all in one `targetReplicatedJobs` entry, and the controller creates one `PodGroup` whose `minCount` is the sum of both `ReplicatedJobs'` pod counts.
 
 {{< include file="/examples/scheduling/per-rj-grouped.yaml" lang="yaml" >}}
 
@@ -120,7 +120,7 @@ kubectl get podgroups -n default -l jobset.sigs.k8s.io/jobset-name=topo-training
 
 ## Use Case: Sequenced Startup
 
-When `ReplicatedJob`s use `dependsOn` (or an `InOrder` `StartupPolicy`) to create Jobs sequentially, not all pods exist at the same time — so a single JobSet-wide gang could never be satisfied. Top-level scheduling, including an empty `scheduling: {}`, is therefore rejected at admission. Configure Gang policies under `spec.scheduling.replicatedJobs`, targeting each `ReplicatedJob` separately, and leave the top-level scheduling fields unset. This creates independent PodGroups whose `minCount` values are computed from their own `ReplicatedJob`s.
+When `ReplicatedJobs` use `dependsOn` (or an `InOrder` `StartupPolicy`) to create Jobs sequentially, not all pods exist at the same time — so a single JobSet-wide gang could never be satisfied. Top-level scheduling, including an empty `scheduling: {}`, is therefore rejected at admission. Configure Gang policies under `spec.scheduling.replicatedJobs`, targeting each `ReplicatedJob` separately, and leave the top-level scheduling fields unset. This creates independent PodGroups whose `minCount` values are computed from their own `ReplicatedJobs`.
 
 {{< include file="/examples/scheduling/sequenced-startup-gang.yaml" lang="yaml" >}}
 

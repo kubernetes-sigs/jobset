@@ -4,11 +4,11 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
-// dependencyReachedStatus checks if dependant ReplicatedJob reaches Ready or Complete status.
+// dependencyReachedStatus checks if dependent ReplicatedJob reaches Ready or Complete status.
 // func dependencyReachedStatus(dependsOnJob jobset.DependsOn, dependsOnJobReplicas int32, rJobsStatuses []jobset.ReplicatedJobStatus) bool {
 func dependencyReachedStatus(rJob jobset.ReplicatedJob, rJobReplicas map[string]int32, rJobsStatuses []jobset.ReplicatedJobStatus) bool {
 	for _, dependsOnJob := range rJob.DependsOn {
-		// If the actual status of dependant ReplicatedJob is empty, return false.
+		// If the actual status of dependent ReplicatedJob is empty, return false.
 		actualStatus := findReplicatedJobStatus(rJobsStatuses, dependsOnJob.Name)
 		if actualStatus == nil {
 			return false

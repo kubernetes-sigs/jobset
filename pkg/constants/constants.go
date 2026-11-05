@@ -64,7 +64,7 @@ const (
 	// spec.activeDeadlineSeconds while continuously active.
 	DeadlineExceededReason = "DeadlineExceeded"
 
-	// Event reason and message for when a Jobset completes successfully.
+	// Event reason and message for when a JobSet completes successfully.
 	AllJobsCompletedReason  = "AllJobsCompleted"
 	AllJobsCompletedMessage = "jobset completed successfully"
 
@@ -81,7 +81,7 @@ const (
 	SchedulingObjectsReconcileFailedReason = "SchedulingObjectsReconcileFailed"
 
 	// Event reason and message for when the pod controller detects a violation
-	// of the JobSet exclusive placment policy (i.e., follower pods not colocated in
+	// of the JobSet exclusive placement policy (i.e., follower pods not colocated in
 	// the same topology domain as the leader pod for that Job).
 	ExclusivePlacementViolationReason  = "ExclusivePlacementViolation"
 	ExclusivePlacementViolationMessage = "Pod violated JobSet exclusive placement policy"

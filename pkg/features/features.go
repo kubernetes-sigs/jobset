@@ -82,9 +82,9 @@ func init() {
 	runtime.Must(utilfeature.DefaultMutableFeatureGate.Add(defaultFeatureGates))
 }
 
-// defaultFeatureGates consists of all known Jobset-specific feature keys.
+// defaultFeatureGates consists of all known JobSet-specific feature keys.
 // To add a new feature, define a key for it above and add it here. The features will be
-// available throughout Jobset binaries.
+// available throughout JobSet binaries.
 //
 // Entries are separated from each other with blank lines to avoid sweeping gofmt changes
 // when adding or removing one entry.

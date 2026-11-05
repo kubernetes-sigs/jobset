@@ -290,7 +290,7 @@ spec:
 #### Story 5
 
 As a user, I want to fine-tune LLM using torchtune with JobSet. I have the first
-ReplicatedJob for dataset initialization, second ReplicatedJob for pretrained model intialization,
+ReplicatedJob for dataset initialization, second ReplicatedJob for pretrained model initialization,
 and the third ReplicatedJob for distributed fine-tuning.
 
 I want to execute the third ReplicatedJob only after both the first and second ReplicatedJobs are completed, so that we can avoid wasting GPU / TPU resources for the third ReplicatedJob.
@@ -498,7 +498,7 @@ We will add this functionality to the startup_policy API for the functionality.
 
 - Using "ready" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
 - Using "complete" ReplicatedJobs status for JobSet with 2+ ReplicatedJobs
-- Using "complete" ReplicatedJobs status for Jobset with mutiple DependsOn target ReplicatedJobs
+- Using "complete" ReplicatedJobs status for JobSet with multiple DependsOn target ReplicatedJobs
 - Validate that if the first ReplicatedJob fails, the second ReplicatedJob does not execute.
 - Ensure that when DependsOn and FailurePolicy sets together, the JobSet will restart
   the job sequence from the beginning in case of failure.
@@ -527,7 +527,7 @@ milestones with these graduation criteria:
 
 - Draft KEP: September 25th 2024
 - KEP Merge: December 13th 2024
-- Implementation Merge: Janurary 27th 2025
+- Implementation Merge: January 27th 2025
 - Add Support for Multiple `DependsOn` Target: April 13th 2025
 
 ## Drawbacks

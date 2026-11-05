@@ -3,7 +3,7 @@ title: "Contribution Guidelines"
 linkTitle: "Contribution Guidelines"
 weight: 9
 description: >
-  How to contribute to Jobset
+  How to contribute to JobSet
 ---
 
 Welcome to Kubernetes. We are excited about the prospect of you joining our [community](https://git.k8s.io/community)! The Kubernetes community abides by the CNCF [code of conduct](https://github.com/kubernetes/community/blob/master/code-of-conduct.md). Here is an excerpt:
