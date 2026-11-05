@@ -100,7 +100,7 @@ See [helm uninstall](https://helm.sh/docs/helm/helm_uninstall) for command docum
 | certManager.issuerRef | object | `{}` | The reference to the issuer. If empty, self-signed issuer will be created and used. |
 | prometheus.enable | bool | `false` | Whether to enable Prometheus metrics exporting. |
 | prometheus.prometheusNamespace | string | `"monitoring"` |  |
-| prometheus.prometheusClientCertSecretName | string | `"jobset-metrics-server-cert"` |  |
+| prometheus.prometheusClientCertSecretName | string | `""` |  |
 
 ## Maintainers
 
