@@ -1329,7 +1329,7 @@ func TestUpdateConditions(t *testing.T) {
 					Replicas(1).
 					Obj()).
 				Conditions([]metav1.Condition{
-					// JobSet is currrently suspended.
+					// JobSet is currently suspended.
 					{
 						Type:    string(jobset.JobSetSuspended),
 						Reason:  constants.JobSetSuspendedReason,

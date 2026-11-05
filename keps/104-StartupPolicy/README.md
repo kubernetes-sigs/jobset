@@ -52,7 +52,7 @@ This KEP adds a StartupPolicy for JobSets.  A StartupPolicy allows for some flex
 This section is incredibly important for producing high-quality, user-focused
 documentation such as release notes or a development roadmap. It should be
 possible to collect this information before implementation begins, in order to
-avoid requiring implementors to split their attention between writing release
+avoid requiring implementers to split their attention between writing release
 notes and implementing the feature itself. KEP editors and SIG Docs
 should help to ensure that the tone and content of the `Summary` section is
 useful for a wide audience.
@@ -79,7 +79,7 @@ A Startup policy would allow a user to specify which status a replicated job sho
 ### Non-Goals
 
 - Comprehensive workflow specifications
-  - This means that we will support simple dependecies rather than processing a full DAG.
+  - This means that we will support simple dependencies rather than processing a full DAG.
   - Projects like argo-workflows are a better use case for this.
 - Allowing for a percentage of jobs in a ReplicatedJob to be ready to consider the whole ReplicatedJob to ready
 

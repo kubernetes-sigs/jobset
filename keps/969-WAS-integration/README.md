@@ -163,7 +163,7 @@ scheduling:
         topology: ...
 ```
 
-Creates: one `Workload` named `<jobset-name>-<hash>` with two independent `PodGroup`s — a Basic
+Creates: one `Workload` named `<jobset-name>-<hash>` with two independent `PodGroups` — a Basic
 `PodGroup` named `<jobset-name>-driver-<hash>` and a topology-constrained Gang `PodGroup` named
 `<jobset-name>-worker-<hash>`. No composite `PodGroup` links them in alpha.
 
@@ -299,7 +299,7 @@ For the ReplicatedJobs level, the goal is to control the podgroups for each Repl
 One podgroup will be created for the entire replicated job and their replicas.
 This is useful when you want to control disruption or gang scheduling at the replicated job level.
 
-For MVP, the top layer and replicatedJobs level are mutally exclusive.
+For MVP, the top layer and replicatedJobs level are mutually exclusive.
 
 For the last level, the goal would be that each replica of a ReplicatedJob should be a separate gang.
 This enables the use of preemption at the replica level and provides a way for individual jobs within a JobSet
@@ -873,4 +873,4 @@ that model because it splits configuration across API levels, depends on upstrea
 changes, and does not match JobSet's existing targeted-policy pattern. Centralized configuration
 keeps the API in one place and avoids that dependency.
 
-Setting scheduling configruation within a Job Template will be rejected at validation time.
+Setting scheduling configuration within a Job Template will be rejected at validation time.

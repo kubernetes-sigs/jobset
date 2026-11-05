@@ -49,7 +49,7 @@ def fix_test_files() -> None:
     test_folder_dir = os.path.join(sdk_dir, "test")
     test_files = [f for f in os.listdir(test_folder_dir) if f.endswith('.py')]
     for test_file in test_files:
-        print(f"Precessing file {test_file}")
+        print(f"Processing file {test_file}")
         if test_file.endswith(".py"):
             with fileinput.FileInput(
                 os.path.join(test_folder_dir, test_file), inplace=True

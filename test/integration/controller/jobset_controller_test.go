@@ -376,7 +376,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 			},
 			steps: []*step{
 				{
-					// Jobset has 2 replicated jobs, but only 1 is selected in the success policy.
+					// JobSet has 2 replicated jobs, but only 1 is selected in the success policy.
 					// Complete all the jobs in the other replicated job and ensure the jobset is still active.
 					jobUpdateFn: func(jobList *batchv1.JobList) {
 						ginkgo.By("completing all jobs from different replicated job")

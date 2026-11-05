@@ -417,11 +417,11 @@ type DependsOnStatus string
 
 const (
 	// DependencyReady means the Ready + Succeeded + Failed counter
-	// equals the number of child Jobs of the dependant ReplicatedJob.
+	// equals the number of child Jobs of the dependent ReplicatedJob.
 	DependencyReady DependsOnStatus = "Ready"
 
 	// DependencyComplete means the Succeeded counter
-	// equals the number of child Jobs of the dependant ReplicatedJob.
+	// equals the number of child Jobs of the dependent ReplicatedJob.
 	DependencyComplete DependsOnStatus = "Complete"
 )
 

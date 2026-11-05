@@ -58,7 +58,7 @@ Changes since `v0.8.0`.
 - chore(manifests): Set SeccompProfile in the default JobSet manifests ([#974](https://github.com/kubernetes-sigs/jobset/pull/974) by [@andreyvelich](https://github.com/andreyvelich))
 - update helm CRD to include ReplicatedJob groupName ([#870](https://github.com/kubernetes-sigs/jobset/pull/870) by [@atiratree](https://github.com/atiratree))
 - move subcharts to nested level ([#842](https://github.com/kubernetes-sigs/jobset/pull/842) by [@kannon92](https://github.com/kannon92))
-- Add .helmignore file to ignore files when packging the Helm chart ([#823](https://github.com/kubernetes-sigs/jobset/pull/823) by [@ChenYi015](https://github.com/ChenYi015))
+- Add .helmignore file to ignore files when packaging the Helm chart ([#823](https://github.com/kubernetes-sigs/jobset/pull/823) by [@ChenYi015](https://github.com/ChenYi015))
 
 ### Dependencies & Build
 

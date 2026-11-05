@@ -3,11 +3,11 @@ title: "Concepts"
 linkTitle: "Concepts"
 weight: 4
 description: >
-  Core Jobset Concepts
+  Core JobSet Concepts
 no_list: true
 ---
 
-## Jobset
+## JobSet
 
 A JobSet creates one or more Jobs. It allows you to create sets of jobs of different or identical templates, and control their lifecycle together.
 

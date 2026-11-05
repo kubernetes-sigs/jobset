@@ -3,7 +3,7 @@ title: "Prometheus Metrics"
 linkTitle: "Prometheus Metrics"
 date: 2022-02-14
 description: >
-  Prometheus metrics exported by Jobset
+  Prometheus metrics exported by JobSet
 ---
 
 ## Prometheus Metrics

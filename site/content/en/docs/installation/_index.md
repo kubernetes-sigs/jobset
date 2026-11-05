@@ -3,7 +3,7 @@ title: "Installation"
 linkTitle: "Installation"
 weight: 2
 description: >
-  Installing Jobset to a Kubernetes Cluster
+  Installing JobSet to a Kubernetes Cluster
 ---
 
 <!-- toc -->
@@ -44,7 +44,7 @@ machine type for your nodes.**
 
 # Install a released version
 
-To install a released version of Jobset in your cluster, run the following command:
+To install a released version of JobSet in your cluster, run the following command:
 
 ```shell
 VERSION={{< param "version" >}}
@@ -214,7 +214,7 @@ helm uninstall jobset --namespace jobset-system
 
 # Install the latest development version
 
-To install the latest development version of Jobset in your cluster, run the
+To install the latest development version of JobSet in your cluster, run the
 following command:
 
 ```shell
@@ -245,7 +245,7 @@ kubectl delete -k github.com/kubernetes-sigs/jobset/config/default
 
 # Build and install from source
 
-To build Jobset from source and install Jobset in your cluster, run the following
+To build JobSet from source and install JobSet in your cluster, run the following
 commands:
 
 ```sh

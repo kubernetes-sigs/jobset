@@ -655,7 +655,7 @@ var _ = ginkgo.Describe("JobSet", func() {
 // getPingCommand returns ping command for 4 hostnames
 // This bash script loops infinitely until it successfully pings all pods by hostname.
 // Once successful, it sleeps for a short period to reduce flakiness, since occasionally
-// all pods but one will successfully ping eachother and complete before the last one
+// all pods but one will successfully ping each other and complete before the last one
 // successfully pings them all, resulting in a failed test run.
 func getPingCommand(hostnames []string) string {
 	return fmt.Sprintf(`for pod in {"%s","%s","%s","%s"}
