@@ -249,7 +249,6 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 	// Validate each replicatedJob.
 	for rJobIdx, rJob := range js.Spec.ReplicatedJobs {
 		fieldPath := field.NewPath("spec", "replicatedJobs").Index(rJobIdx)
-		rJobNames.Insert(rJob.Name)
 
 		var parallelism int32 = 1
 		if rJob.Template.Spec.Parallelism != nil {
@@ -296,6 +295,9 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 				allErrs = append(allErrs, fmt.Errorf("replicatedJob: %s cannot depend on replicatedJob: %s", rJob.Name, dependOnItem.Name))
 			}
 		}
+		// Record the name only after checking DependsOn, so a ReplicatedJob
+		// cannot depend on itself.
+		rJobNames.Insert(rJob.Name)
 
 		// Validate in-place restart.
 		if features.Enabled(features.InPlaceRestart) && js.Spec.FailurePolicy != nil && js.Spec.FailurePolicy.RestartStrategy == jobset.InPlaceRestart {
