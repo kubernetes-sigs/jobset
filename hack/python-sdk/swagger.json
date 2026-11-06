@@ -41,7 +41,7 @@
           "type": "array",
           "maxItems": 1,
           "items": {
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.TopologyConstraint"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.TopologyConstraint"
           }
         }
       }
@@ -139,7 +139,7 @@
           "default": ""
         },
         "name": {
-          "description": "name of the failure policy rule. The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule. The name must match the regular expression \"^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$\".",
+          "description": "name of the failure policy rule. The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule. The name must match the regular expression `^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`.",
           "type": "string",
           "default": ""
         },
@@ -173,23 +173,23 @@
       "properties": {
         "disruptionMode": {
           "description": "disruptionMode defines how pods within a single replica can be disrupted.",
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupDisruptionMode"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupDisruptionMode"
         },
         "resourceClaims": {
           "description": "resourceClaims defines claims shared by all pods in each Job's PodGroup.",
           "type": "array",
           "items": {
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupResourceClaim"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupResourceClaim"
           },
           "x-kubernetes-list-type": "atomic"
         },
         "schedulingConstraints": {
           "description": "schedulingConstraints defines topology constraints applied to each replica of the targeted ReplicatedJobs.",
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupSchedulingConstraints"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupSchedulingConstraints"
         },
         "schedulingPolicy": {
           "description": "schedulingPolicy defines the scheduling policy (basic or gang) applied to each replica of the targeted ReplicatedJobs.",
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupSchedulingPolicy"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadPodGroupSchedulingPolicy"
         }
       }
     },
@@ -208,7 +208,7 @@
         "metadata": {
           "description": "metadata is the object metadata for JobSet",
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
         },
         "spec": {
           "description": "spec is the specification for jobset",
@@ -245,7 +245,7 @@
         },
         "metadata": {
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
         }
       }
     },
@@ -352,7 +352,7 @@
           "description": "conditions track status",
           "type": "array",
           "items": {
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
           },
           "x-kubernetes-list-map-keys": [
             "type"
@@ -402,7 +402,7 @@
         },
         "startTime": {
           "description": "startTime is the timestamp from which activeDeadlineSeconds is measured, and also serves as the JobSet's active-start time. It is set when the JobSet first becomes active (unsuspended), cleared when the JobSet is suspended, and reset to the current time when the JobSet resumes, matching batch/v1.Job.status.startTime. It is maintained only while the JobSetActiveDeadlineSeconds feature gate is enabled (and cleared while the gate is off), independent of whether activeDeadlineSeconds is set.",
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
         },
         "terminalState": {
           "description": "terminalState tracks the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",
@@ -464,7 +464,7 @@
         "template": {
           "description": "template defines the template of the Job that will be created.",
           "default": {},
-          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.api.batch.v1.JobTemplateSpec"
+          "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.batch.v1.JobTemplateSpec"
         }
       }
     },
@@ -614,7 +614,7 @@
           "description": "templates is a list of shared PVC claims that ReplicatedJobs are allowed to reference. The JobSet controller is responsible for creating shared PVCs that can be mounted by multiple ReplicatedJobs. Every claim in this list must have a matching (by name) volumeMount in one container or initContainer in at least one ReplicatedJob template. ReplicatedJob template must not have volumes with the same name as defined in this template. PVC template must not have the namespace parameter. Generated PVC naming convention: \u003cclaim-name\u003e-\u003cjobset-name\u003e Example: \"model-cache-trainjob\" (shared volume across all ReplicatedJobs).",
           "type": "array",
           "items": {
-            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.1/api/openapi-spec/swagger.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
+            "$ref": "https://raw.githubusercontent.com/kubernetes/kubernetes/refs/tags/v1.37.2/api/openapi-spec/swagger.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
           },
           "x-kubernetes-list-type": "atomic"
         }

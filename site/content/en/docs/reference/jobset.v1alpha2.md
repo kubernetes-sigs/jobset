@@ -223,7 +223,7 @@ order and the first matching rule is executed.</p>
 <td>
    <p>name of the failure policy rule.
 The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
-The name must match the regular expression &quot;^<a href="%5BA-Za-z0-9_,:%5D*%5BA-Za-z0-9_%5D">A-Za-z</a>?$&quot;.</p>
+The name must match the regular expression <code>^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$</code>.</p>
 </td>
 </tr>
 <tr><td><code>action</code> <B>[Required]</B><br/>
@@ -408,7 +408,9 @@ Mutually exclusive with replicatedJobs: see the type-level comment.</p>
 Each entry targets one or more named ReplicatedJobs. Mutually exclusive with the
 top-level schedulingPolicy, schedulingConstraints, and disruptionMode fields: see
 the type-level comment. When set, every ReplicatedJob in the JobSet must be
-targeted by exactly one entry.</p>
+targeted by exactly one entry.
+The list is limited to a maximum of 8 entries, since each entry compiles into
+at least one PodGroupTemplate and the Workload API allows at most 8 templates.</p>
 </td>
 </tr>
 </tbody>

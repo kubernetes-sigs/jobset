@@ -26,7 +26,11 @@ Throw a compile error or print an error on the page if the file is not found */}
 
 {{ if fileExists ($.Scratch.Get "filepath") }}
   {{ $filename := (path.Split ($.Scratch.Get "filepath")).File }}
-  {{ $link := printf "/%s"  ($.Scratch.Get "fparameter") | safeURL }}
+  {{/* Trim any leading slashes from the file parameter before prepending one,
+       so the link is root-relative (e.g. "/examples/foo.yaml") and never
+       protocol-relative ("//examples/foo.yaml"), which browsers would resolve
+       against a bogus host. */}}
+  {{ $link := printf "/%s" (strings.TrimLeft "/" ($.Scratch.Get "fparameter")) | safeURL }}
   <div class="highlight">
     <a href="{{ $link }}" download="{{ $filename }}" class="d-flex flex-row-reverse p-2"> <button class="btn btn-outline-primary btn-sm position-absolute"> <i class="fa-solid fa-file-arrow-down"></i> {{ $filename }}   </button> </a>
   {{ if eq ($.Scratch.Get "iscode") "true" }}

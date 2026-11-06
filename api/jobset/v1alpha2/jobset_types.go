@@ -492,7 +492,7 @@ const (
 type FailurePolicyRule struct {
 	// name of the failure policy rule.
 	// The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
-	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
+	// The name must match the regular expression `^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`.
 	Name string `json:"name"`
 	// action to take if the rule is matched.
 	// Valid values are FailJobSet, RestartJobSet, RestartJobSetAndIgnoreMaxRestarts, RestartJob, RestartJobAndIgnoreMaxRestarts.

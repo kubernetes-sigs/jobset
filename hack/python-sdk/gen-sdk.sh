@@ -48,7 +48,7 @@ CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
 # Install the sdk using the chosen container engine,
 # using the user that is running the container engine so that files can still be removed
 user="$(id -u):$(id -g)"
-volume_mapping="${repo_root}:/local"
+volume_mapping="${repo_root}:/local:z"
 
 if [[ "$CONTAINER_ENGINE" == podman ]]; then
   # In rootless Podman, root is remapped to the current user.
@@ -61,7 +61,7 @@ ${CONTAINER_ENGINE} run --user "${user}" --rm \
   -i /local/hack/python-sdk/swagger.json \
   -g python \
   -o /local/sdk/python \
-  -c local/hack/python-sdk/swagger_config.json \
+  -c /local/hack/python-sdk/swagger_config.json \
   --global-property modelDocs=false
 
 echo "Running post-generation script ..."
