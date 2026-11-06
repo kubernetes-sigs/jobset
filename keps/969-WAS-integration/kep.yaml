@@ -13,10 +13,12 @@ replaces: "NA"
 
 see-also:
   - "https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/6089-was-controller-apis"
+  - "https://github.com/kubernetes/enhancements/tree/master/keps/sig-apps/5547-integrate-workload-with-job"
+  - "https://github.com/kubeflow/trainer/tree/master/proposals/3015-workload-aware-scheduling"
 
 stage: alpha
 
-latest-milestone: "v0.13.0"
+latest-milestone: "v0.14.0"
 
 milestone:
   alpha: "v0.13.0"
