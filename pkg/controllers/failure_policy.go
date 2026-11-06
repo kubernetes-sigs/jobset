@@ -233,7 +233,8 @@ var failJobSetActionApplier failurePolicyActionApplier = func(ctx context.Contex
 
 // restartJobSetActionApplier applies the RestartJobSet FailurePolicyAction
 var restartJobSetActionApplier failurePolicyActionApplier = func(ctx context.Context, js *jobset.JobSet, matchingFailedJob *batchv1.Job, rule *jobset.FailurePolicyRule, updateStatusOpts *statusUpdateOpts) error {
-	if (features.Enabled(features.RestartJob) && totalRestartsCountTowardsMax(js) >= js.Spec.FailurePolicy.MaxRestarts) || (js.Status.RestartsCountTowardsMax >= js.Spec.FailurePolicy.MaxRestarts) {
+	if (features.Enabled(features.RestartJob) && totalRestartsCountTowardsMax(js) >= js.Spec.FailurePolicy.MaxRestarts) ||
+		(js.Status.RestartsCountTowardsMax+inPlaceRestartsCountTowardsMax(js) >= js.Spec.FailurePolicy.MaxRestarts) {
 		failureBaseMessage := constants.ReachedMaxRestartsMessage
 		failureMessage := messageWithFirstFailedJob(failureBaseMessage, matchingFailedJob.Name)
 
@@ -553,8 +554,37 @@ func sumJobRestartsCountTowardsMax(js *jobset.JobSet) int32 {
 	return total
 }
 
-// totalRestartsCountTowardsMax calculates the total number of restarts that count towards the max, including both global and individual job restarts.
-// That is, this is equal to the total number of times the restart actions RestartJobSet and RestartJob have been applied.
+// sumJobRestarts calculates the sum of all individual job restarts across all replicated jobs.
+func sumJobRestarts(js *jobset.JobSet) int32 {
+	var total int32
+	for _, rjs := range js.Status.ReplicatedJobsStatus {
+		for _, r := range rjs.JobRestarts {
+			total += r
+		}
+	}
+	return total
+}
+
+// inPlaceRestartsCountTowardsMax returns the number of in-place restarts of a JobSet using the
+// InPlaceRestart strategy. All in-place restarts count towards max restarts.
+//
+// The current in-place restart attempt is never reset: Pods recreated by a JobSet or Job restart
+// start at the next attempt, so every recreation also uses up one attempt. Those are subtracted
+// here because they are already tracked by the restart counters.
+//
+// Restarts are counted as soon as a recreation is triggered, while the current in-place restart
+// attempt only catches up once the recreated Pods are in sync, so the result is clamped at zero.
+func inPlaceRestartsCountTowardsMax(js *jobset.JobSet) int32 {
+	if !isInPlaceRestartStrategy(js) || js.Status.CurrentInPlaceRestartAttempt == nil {
+		return 0
+	}
+	return max(0, *js.Status.CurrentInPlaceRestartAttempt-js.Status.Restarts-sumJobRestarts(js))
+}
+
+// totalRestartsCountTowardsMax calculates the total number of restarts that count towards the max, including global, individual job
+// and in-place restarts.
+// That is, this is equal to the number of times the restart actions RestartJobSet and RestartJob have been applied plus the number
+// of in-place restarts.
 func totalRestartsCountTowardsMax(js *jobset.JobSet) int32 {
-	return js.Status.RestartsCountTowardsMax + sumJobRestartsCountTowardsMax(js)
+	return js.Status.RestartsCountTowardsMax + sumJobRestartsCountTowardsMax(js) + inPlaceRestartsCountTowardsMax(js)
 }

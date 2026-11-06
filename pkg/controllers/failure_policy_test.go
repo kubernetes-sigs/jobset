@@ -750,6 +750,195 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			},
 		},
 		{
+			name:             "RestartJobSet with InPlaceRestart fails the jobset when in-place restarts reached maxRestarts",
+			enableRestartJob: true,
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1, RestartStrategy: jobset.InPlaceRestart}).
+				SetStatus(jobset.JobSetStatus{
+					CurrentInPlaceRestartAttempt: ptr.To[int32](1),
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				CurrentInPlaceRestartAttempt: ptr.To[int32](1),
+				TerminalState:                string(jobset.JobSetFailed),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetFailed),
+						Status: metav1.ConditionTrue,
+						Reason: constants.ReachedMaxRestartsReason,
+					},
+				},
+			},
+		},
+		{
+			name:             "RestartJobSet with InPlaceRestart and RestartJob disabled fails the jobset when in-place restarts reached maxRestarts",
+			enableRestartJob: false,
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1, RestartStrategy: jobset.InPlaceRestart}).
+				SetStatus(jobset.JobSetStatus{
+					CurrentInPlaceRestartAttempt: ptr.To[int32](1),
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				CurrentInPlaceRestartAttempt: ptr.To[int32](1),
+				TerminalState:                string(jobset.JobSetFailed),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetFailed),
+						Status: metav1.ConditionTrue,
+						Reason: constants.ReachedMaxRestartsReason,
+					},
+				},
+			},
+		},
+		{
+			name:             "RestartJobSet with InPlaceRestart restarts the jobset when in-place restarts are below maxRestarts",
+			enableRestartJob: true,
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 2, RestartStrategy: jobset.InPlaceRestart}).
+				SetStatus(jobset.JobSetStatus{
+					CurrentInPlaceRestartAttempt: ptr.To[int32](1),
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                     1,
+				RestartsCountTowardsMax:      1,
+				CurrentInPlaceRestartAttempt: ptr.To[int32](1),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetRestarting),
+						Status: metav1.ConditionTrue,
+						Reason: constants.RestartingJobSetReasonDefaultFailurePolicy,
+					},
+				},
+			},
+		},
+		{
+			// The pods recreated by the previous restart started at in-place restart attempt 2,
+			// so that attempt is the recreation itself and must not be counted again.
+			name:             "RestartJobSet with InPlaceRestart does not count a recreation twice",
+			enableRestartJob: true,
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 3, RestartStrategy: jobset.InPlaceRestart}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                     1,
+					RestartsCountTowardsMax:      1,
+					CurrentInPlaceRestartAttempt: ptr.To[int32](2),
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                     2,
+				RestartsCountTowardsMax:      2,
+				CurrentInPlaceRestartAttempt: ptr.To[int32](2),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetRestarting),
+						Status: metav1.ConditionTrue,
+						Reason: constants.RestartingJobSetReasonDefaultFailurePolicy,
+					},
+				},
+			},
+		},
+		{
+			// Restarts is incremented before the recreated pods report their in-place restart
+			// attempt, so the in-place count must not go negative and offset the counted restart.
+			name:             "RestartJobSet with InPlaceRestart fails the jobset while the in-place restart attempt lags behind a restart",
+			enableRestartJob: true,
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1, RestartStrategy: jobset.InPlaceRestart}).
+				SetStatus(jobset.JobSetStatus{
+					Restarts:                     1,
+					RestartsCountTowardsMax:      1,
+					CurrentInPlaceRestartAttempt: ptr.To[int32](0),
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                     1,
+				RestartsCountTowardsMax:      1,
+				CurrentInPlaceRestartAttempt: ptr.To[int32](0),
+				TerminalState:                string(jobset.JobSetFailed),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetFailed),
+						Status: metav1.ConditionTrue,
+						Reason: constants.ReachedMaxRestartsReason,
+					},
+				},
+			},
+		},
+		{
+			name:             "RestartJobSet with Recreate ignores a leftover in-place restart attempt",
+			enableRestartJob: true,
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 2}).
+				SetStatus(jobset.JobSetStatus{
+					CurrentInPlaceRestartAttempt: ptr.To[int32](5),
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJob,
+			failurePolicyAction: jobset.RestartJobSet,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				Restarts:                     1,
+				RestartsCountTowardsMax:      1,
+				CurrentInPlaceRestartAttempt: ptr.To[int32](5),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetRestarting),
+						Status: metav1.ConditionTrue,
+						Reason: constants.RestartingJobSetReasonDefaultFailurePolicy,
+					},
+				},
+			},
+		},
+		{
+			name:             "RestartJob with InPlaceRestart fails the jobset when in-place restarts reached maxRestarts",
+			enableRestartJob: true,
+			jobSet: testutils.MakeJobSet("test-js", "default").
+				ReplicatedJob(testutils.MakeReplicatedJob("rjob").Replicas(1).Obj()).
+				FailurePolicy(&jobset.FailurePolicy{MaxRestarts: 1, RestartStrategy: jobset.InPlaceRestart}).
+				SetStatus(jobset.JobSetStatus{
+					CurrentInPlaceRestartAttempt: ptr.To[int32](1),
+					ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+						{
+							Name:                       "rjob",
+							JobRestarts:                []int32{0},
+							JobRestartsCountTowardsMax: []int32{0},
+						},
+					},
+				}).
+				Obj(),
+			matchingFailedJob:   matchingFailedJobWithLabels,
+			failurePolicyAction: jobset.RestartJob,
+			expectedJobSetStatus: jobset.JobSetStatus{
+				CurrentInPlaceRestartAttempt: ptr.To[int32](1),
+				ReplicatedJobsStatus: []jobset.ReplicatedJobStatus{
+					{
+						Name:                       "rjob",
+						JobRestarts:                []int32{0},
+						JobRestartsCountTowardsMax: []int32{0},
+					},
+				},
+				TerminalState: string(jobset.JobSetFailed),
+				Conditions: []metav1.Condition{
+					{
+						Type:   string(jobset.JobSetFailed),
+						Status: metav1.ConditionTrue,
+						Reason: constants.ReachedMaxRestartsReason,
+					},
+				},
+			},
+		},
+		{
 			name:             "RestartJobAndIgnoreMaxRestarts action does not count toward max restarts",
 			enableRestartJob: true,
 			jobSet: testutils.MakeJobSet("test-js", "default").
@@ -806,6 +995,81 @@ func TestApplyFailurePolicyRuleAction(t *testing.T) {
 			if diff := cmp.Diff(tc.expectedJobSetStatus, jobSetCopy.Status, opts...); diff != "" {
 				t.Errorf("unexpected JobSetStatus value after applying failure policy rule action (+got/-want): %s", diff)
 			}
+		})
+	}
+}
+
+func TestInPlaceRestartsCountTowardsMax(t *testing.T) {
+	inPlace := &jobset.FailurePolicy{RestartStrategy: jobset.InPlaceRestart}
+	rjobStatus := func(jobRestarts ...int32) []jobset.ReplicatedJobStatus {
+		return []jobset.ReplicatedJobStatus{{Name: "rjob", JobRestarts: jobRestarts}}
+	}
+
+	testCases := []struct {
+		name          string
+		failurePolicy *jobset.FailurePolicy
+		status        jobset.JobSetStatus
+		want          int32
+	}{
+		{
+			name:   "no failure policy",
+			status: jobset.JobSetStatus{CurrentInPlaceRestartAttempt: ptr.To[int32](3)},
+			want:   0,
+		},
+		{
+			name:          "Recreate strategy ignores the in-place restart attempt",
+			failurePolicy: &jobset.FailurePolicy{RestartStrategy: jobset.Recreate},
+			status:        jobset.JobSetStatus{CurrentInPlaceRestartAttempt: ptr.To[int32](3)},
+			want:          0,
+		},
+		{
+			name:          "in-place restart attempt not set yet",
+			failurePolicy: inPlace,
+			want:          0,
+		},
+		{
+			name:          "only in-place restarts",
+			failurePolicy: inPlace,
+			status:        jobset.JobSetStatus{CurrentInPlaceRestartAttempt: ptr.To[int32](2)},
+			want:          2,
+		},
+		{
+			name:          "JobSet and Job recreations are not counted as in-place restarts",
+			failurePolicy: inPlace,
+			status: jobset.JobSetStatus{
+				Restarts:                     1,
+				CurrentInPlaceRestartAttempt: ptr.To[int32](4),
+				ReplicatedJobsStatus:         rjobStatus(1, 1),
+			},
+			want: 1,
+		},
+		{
+			name:          "recreations that do not count towards max are still subtracted",
+			failurePolicy: inPlace,
+			status: jobset.JobSetStatus{
+				Restarts:                     2,
+				RestartsCountTowardsMax:      0,
+				CurrentInPlaceRestartAttempt: ptr.To[int32](3),
+			},
+			want: 1,
+		},
+		{
+			name:          "in-place restart attempt lagging behind a recreation is clamped to zero",
+			failurePolicy: inPlace,
+			status: jobset.JobSetStatus{
+				Restarts:                     1,
+				RestartsCountTowardsMax:      1,
+				CurrentInPlaceRestartAttempt: ptr.To[int32](0),
+			},
+			want: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			js := testutils.MakeJobSet("test-js", "default").SetStatus(tc.status).Obj()
+			js.Spec.FailurePolicy = tc.failurePolicy
+			assert.Equal(t, tc.want, inPlaceRestartsCountTowardsMax(js))
 		})
 	}
 }
