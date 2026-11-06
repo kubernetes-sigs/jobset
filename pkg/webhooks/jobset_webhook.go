@@ -73,6 +73,10 @@ const (
 	// will be longer than 63 characters.
 	subdomainTooLongErrMsg = ".spec.network.subdomain is too long, must be less than 63 characters"
 
+	// Error message returned by JobSet validation if exclusive placement is
+	// combined with spec.scheduling.
+	exclusivePlacementWithSchedulingErrMsg = "cannot be used together with spec.scheduling"
+
 	// maxReplicasPerReplicatedJob limits the number of replicas when using the RestartJob action.
 	// The limit is based on the 1024 MaxItems of the JobRestarts field in ReplicatedJobStatus.
 	// See api/jobset/v1alpha2/jobset_types.go for more details.
@@ -342,6 +346,9 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 
 	// Validate scheduling configuration.
 	allErrs = append(allErrs, validateScheduling(ctx, js, rJobNames)...)
+	for _, fe := range validateExclusivePlacementWithScheduling(js) {
+		allErrs = append(allErrs, fe)
+	}
 
 	return nil, invalidError(js.Name, allErrs)
 }
@@ -477,6 +484,18 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 			// resume is a way around all of them, and the controller would compile
 			// a configuration the webhook would never have admitted.
 			errs = append(errs, toFieldErrorList(validateScheduling(ctx, newJs, replicatedJobNames(newJs)))...)
+		}
+	}
+
+	// Reject exclusive-topology annotations newly combined with spec.scheduling,
+	// but keep existing ones so the JobSet can still be suspended or fixed.
+	oldExclusivePaths := sets.New[string]()
+	for _, fe := range validateExclusivePlacementWithScheduling(oldJs) {
+		oldExclusivePaths.Insert(fe.Field)
+	}
+	for _, fe := range validateExclusivePlacementWithScheduling(newJs) {
+		if !oldExclusivePaths.Has(fe.Field) {
+			errs = append(errs, fe)
 		}
 	}
 
@@ -1021,6 +1040,30 @@ func validateSchedulingGangMinCounts(js *jobset.JobSet) field.ErrorList {
 		}
 	}
 
+	return allErrs
+}
+
+// validateExclusivePlacementWithScheduling rejects the exclusive-topology
+// annotation on the JobSet, a ReplicatedJob's Job template or its pod template
+// when spec.scheduling is set.
+func validateExclusivePlacementWithScheduling(js *jobset.JobSet) field.ErrorList {
+	if !features.Enabled(features.JobSetWorkloadAwareSchedulingAPI) || js.Spec.Scheduling == nil {
+		return nil
+	}
+	var allErrs field.ErrorList
+	if _, ok := js.Annotations[jobset.ExclusiveKey]; ok {
+		allErrs = append(allErrs, field.Forbidden(field.NewPath("metadata", "annotations").Key(jobset.ExclusiveKey), exclusivePlacementWithSchedulingErrMsg))
+	}
+	for i := range js.Spec.ReplicatedJobs {
+		rjob := &js.Spec.ReplicatedJobs[i]
+		templatePath := field.NewPath("spec", "replicatedJobs").Index(i).Child("template")
+		if _, ok := rjob.Template.Annotations[jobset.ExclusiveKey]; ok {
+			allErrs = append(allErrs, field.Forbidden(templatePath.Child("metadata", "annotations").Key(jobset.ExclusiveKey), exclusivePlacementWithSchedulingErrMsg))
+		}
+		if _, ok := rjob.Template.Spec.Template.Annotations[jobset.ExclusiveKey]; ok {
+			allErrs = append(allErrs, field.Forbidden(templatePath.Child("spec", "template", "metadata", "annotations").Key(jobset.ExclusiveKey), exclusivePlacementWithSchedulingErrMsg))
+		}
+	}
 	return allErrs
 }
 

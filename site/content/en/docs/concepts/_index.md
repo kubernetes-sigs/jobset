@@ -167,6 +167,10 @@ spec:
           ...
 ```
 
+The annotation cannot be used together with
+[`spec.scheduling`](/docs/workload-aware-scheduling/declarative_scheduling/#exclusive-placement-and-gang-scheduling),
+and the JobSet webhook rejects the combination.
+
 ## JobSet termination
 
 A JobSet is marked as successful when ALL the Jobs it created completes successfully. 
