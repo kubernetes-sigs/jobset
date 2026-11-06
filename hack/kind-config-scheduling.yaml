@@ -11,6 +11,12 @@ featureGates:
   # it to continuously delete and recreate the Workload/PodGroup.
   TopologyAwareWorkloadScheduling: true
   DRAWorkloadResourceClaims: true
+  # CompositePodGroup (alpha, off by default, depends on
+  # TopologyAwareWorkloadScheduling) serves the scheduling.k8s.io/v1alpha3
+  # CompositePodGroup API that gang-of-gangs needs. Without it the apiserver does
+  # not register the kind, and the JobSet controller's CompositePodGroup watch
+  # fails its cache sync and the manager exits.
+  CompositePodGroup: true
 nodes:
   - role: control-plane
     kubeadmConfigPatches:
@@ -34,7 +40,8 @@ nodes:
             # creates Workload/PodGroup objects via the v1beta1 client, so
             # v1beta1 storage must be enabled. v1alpha3 may additionally be
             # necessary once CompositePodGroup support is added.
-            value: "scheduling.k8s.io/v1beta1=true"
+            # v1alpha3 is enabled for CompositePodGroup (gang-of-gangs) storage.
+            value: "scheduling.k8s.io/v1beta1=true,scheduling.k8s.io/v1alpha3=true"
           - name: v
             value: "3"
       - |

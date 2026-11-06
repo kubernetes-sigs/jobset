@@ -1039,6 +1039,7 @@ type validationTestCase struct {
 	enableRestartJob              bool
 	enableActiveDeadlineSeconds   bool
 	enableWorkloadAwareScheduling bool
+	enableGangOfGangs             bool
 	js                            *jobset.JobSet
 	want                          error
 	existingObjs                  []runtime.Object // objects to pre-populate in the fake client
@@ -3527,6 +3528,356 @@ func TestValidateCreate(t *testing.T) {
 
 	schedulingTests := []validationTestCase{
 		{
+			name:                          "top-level policy combined with replicatedJobs is rejected (JobSetGangOfGangs gate off)",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "workers", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+							Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
+						},
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec.scheduling.replicatedJobs: Forbidden: cannot be set together with top-level schedulingPolicy, schedulingConstraints, or disruptionMode unless the JobSetGangOfGangs feature gate is enabled")),
+		},
+		{
+			// With JobSetGangOfGangs on, the combination compiles into a composite
+			// PodGroup tree: the top-level policy is the root and the untargeted
+			// leader falls back to it.
+			name:                          "top-level policy combined with replicatedJobs is accepted (JobSetGangOfGangs gate on)",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "leader", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "workers", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+							Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
+						},
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{
+								TargetReplicatedJobs: []string{"workers"},
+								SchedulingPolicy:     &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}},
+							},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
+			name:                          "gang of gangs: composite minGroupCount accepted in composite mode",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "leader", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "workers", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+							Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](2)},
+						},
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
+			name:                          "gang of gangs: Gang root rejected with DependsOn (deadlock)",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "leader", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "workers", GroupName: "default", Replicas: 1, DependsOn: []jobset.DependsOn{{Name: "leader", Status: jobset.DependencyReady}}, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+							Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
+						},
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy: Forbidden: a full-quorum Gang root cannot be combined with sequenced startup (DependsOn or InOrder) in gang-of-gangs mode: its gang quorum could never be met while a dependent ReplicatedJob's Jobs are deferred. Use a Basic root, or set an explicit schedulingPolicy.gang.minGroupCount to opt into partial quorum")),
+		},
+		{
+			name:                          "gang of gangs: default (constraints-only) root rejected with DependsOn",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "leader", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "workers", GroupName: "default", Replicas: 1, DependsOn: []jobset.DependsOn{{Name: "leader", Status: jobset.DependencyReady}}, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						// No schedulingPolicy: the controller defaults the composite root to
+						// Gang, so this is still a full-quorum Gang root and must be rejected.
+						DisruptionMode: &schedulingv1alpha3.WorkloadCompositePodGroupDisruptionMode{
+							All: &schedulingv1alpha3.WorkloadCompositePodGroupAllDisruptionMode{},
+						},
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy: Forbidden: a full-quorum Gang root cannot be combined with sequenced startup (DependsOn or InOrder) in gang-of-gangs mode: its gang quorum could never be met while a dependent ReplicatedJob's Jobs are deferred. Use a Basic root, or set an explicit schedulingPolicy.gang.minGroupCount to opt into partial quorum")),
+		},
+		{
+			name:                          "gang of gangs: Basic root accepted with DependsOn",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "leader", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "workers", GroupName: "default", Replicas: 1, DependsOn: []jobset.DependsOn{{Name: "leader", Status: jobset.DependencyReady}}, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+							Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
+						},
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
+			name:                          "gang of gangs: Gang root with explicit minGroupCount accepted with DependsOn",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "leader", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "workers", GroupName: "default", Replicas: 1, DependsOn: []jobset.DependsOn{{Name: "leader", Status: jobset.DependencyReady}}, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+							Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](1)},
+						},
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
+			name:                          "gang of gangs: composite minGroupCount rejected with the JobSetGangOfGangs gate off",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             false,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "workers", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](2)}},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy.gang.minGroupCount: Forbidden: is only supported with the JobSetGangOfGangs feature gate enabled")),
+		},
+		{
+			name:                          "gang of gangs: root minGroupCount cannot exceed the number of groups",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "workers", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](2)}},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec.scheduling.schedulingPolicy.gang.minGroupCount: Invalid value: 2: cannot exceed the number of ReplicatedJob groups under the root (1)")),
+		},
+		{
+			name:                          "gang of gangs: entry minGroupCount rejected without job",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "workers", GroupName: "default", Replicas: 2, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](1)}}},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec.scheduling.replicatedJobs[0].schedulingPolicy.gang.minGroupCount: Forbidden: is only supported on an entry that sets job")),
+		},
+		{
+			name:                          "gang of gangs: entry minGroupCount with job cannot exceed replicas",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "workers", GroupName: "default", Replicas: 2, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](3)}}, Job: &jobset.JobScheduling{SchedulingPolicy: &schedulingv1alpha3.WorkloadPodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadPodGroupGangSchedulingPolicy{}}}},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec.scheduling.replicatedJobs[0].schedulingPolicy.gang.minGroupCount: Invalid value: 3: cannot exceed the number of Jobs (replicas) of replicatedJob \"workers\" (2)")),
+		},
+		{
+			name:                          "gang of gangs: entry-level fields with job accepted with the gate on",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "workers", GroupName: "default", Replicas: 2, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](1)}}, Job: &jobset.JobScheduling{SchedulingPolicy: &schedulingv1alpha3.WorkloadPodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadPodGroupGangSchedulingPolicy{}}}},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
+			name:                          "gang of gangs: replicatedJobs-only JobSet may leave a ReplicatedJob untargeted",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "driver", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "workers", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
+			name:                          "gang of gangs: replicatedJobs-only JobSet gets a Basic root and is accepted with DependsOn",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "leader", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "workers", GroupName: "default", Replicas: 1, DependsOn: []jobset.DependsOn{{Name: "leader", Status: jobset.DependencyReady}}, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"leader"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+							{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
+			name:                          "gang of gangs: 8 entries plus an untargeted ReplicatedJob exceed the root's group cap",
+			enableWorkloadAwareScheduling: true,
+			enableGangOfGangs:             true,
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{Name: "a", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "b", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "c", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "d", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "e", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "f", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "g", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "h", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+						{Name: "extra", GroupName: "default", Replicas: 1, Template: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{Parallelism: ptr.To[int32](1), Template: validPodTemplateSpec}}},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{}},
+						ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+							{TargetReplicatedJobs: []string{"a"}},
+							{TargetReplicatedJobs: []string{"b"}},
+							{TargetReplicatedJobs: []string{"c"}},
+							{TargetReplicatedJobs: []string{"d"}},
+							{TargetReplicatedJobs: []string{"e"}},
+							{TargetReplicatedJobs: []string{"f"}},
+							{TargetReplicatedJobs: []string{"g"}},
+							{TargetReplicatedJobs: []string{"h"}},
+						},
+					},
+				},
+			},
+			want: errors.Join(fmt.Errorf("spec.scheduling.replicatedJobs: Too many: 9: must have at most 8 items")),
+		},
+		{
 			name:                          "scheduling rejected when feature gate disabled",
 			enableWorkloadAwareScheduling: false,
 			js: &jobset.JobSet{
@@ -3563,7 +3914,7 @@ func TestValidateCreate(t *testing.T) {
 					},
 					Scheduling: &jobset.JobSetScheduling{
 						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-							Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](1)},
+							Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
 						},
 					},
 				},
@@ -3718,13 +4069,13 @@ func TestValidateCreate(t *testing.T) {
 							{
 								TargetReplicatedJobs: []string{"driver"},
 								SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-									Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](1)},
+									Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
 								},
 							},
 							{
 								TargetReplicatedJobs: []string{"workers"},
 								SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-									Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](1)},
+									Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
 								},
 							},
 						},
@@ -4098,6 +4449,7 @@ func TestValidateCreate(t *testing.T) {
 			features.SetFeatureGateDuringTest(t, features.RestartJob, tc.enableRestartJob)
 			features.SetFeatureGateDuringTest(t, features.JobSetActiveDeadlineSeconds, tc.enableActiveDeadlineSeconds)
 			features.SetFeatureGateDuringTest(t, features.JobSetWorkloadAwareSchedulingAPI, tc.enableWorkloadAwareScheduling)
+			features.SetFeatureGateDuringTest(t, features.JobSetGangOfGangs, tc.enableGangOfGangs)
 			_, err := testWebhook.ValidateCreate(context.TODO(), tc.js.DeepCopy())
 			if err != nil && tc.want != nil {
 				// Verify it's specifically a 422 StatusError

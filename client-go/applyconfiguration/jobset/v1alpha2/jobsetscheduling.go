@@ -25,9 +25,8 @@ import (
 // with apply.
 //
 // JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet.
-// A JobSet must configure scheduling using exactly one of two mutually exclusive
-// models, since composite Gang-of-Gangs PodGroup hierarchies linking a parent
-// PodGroup to leaf PodGroups are not implemented in alpha:
+// With the JobSetGangOfGangs feature gate disabled (alpha default), a JobSet must
+// configure scheduling using exactly one of two mutually exclusive models:
 // - the top-level (composite) model: set schedulingPolicy,
 // schedulingConstraints, and/or disruptionMode to configure a single PodGroup
 // covering the whole JobSet, and leave replicatedJobs unset.
@@ -42,6 +41,14 @@ import (
 // JobSet using sequenced startup must therefore use the per-ReplicatedJob model;
 // top-level scheduling (including the defaulted top-level gang) is rejected with
 // sequenced startup.
+//
+// With JobSetGangOfGangs enabled, every JobSet that sets spec.scheduling compiles
+// into one CompositePodGroup tree: a root CompositePodGroup from the top-level
+// fields, one CompositePodGroup per replicatedJobs entry plus one fallback group
+// for ReplicatedJobs no entry targets, and leaf PodGroups beneath them. The two
+// models may then be combined, and untargeted ReplicatedJobs are allowed.
+// Because CEL cannot read feature gates, these gate-aware rules are enforced in
+// the validating webhook (validateScheduling) rather than as type-level CEL rules.
 type JobSetSchedulingApplyConfiguration struct {
 	// schedulingPolicy defines the composite-level scheduling policy for the entire JobSet.
 	// Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and
@@ -50,19 +57,28 @@ type JobSetSchedulingApplyConfiguration struct {
 	// sequenced startup (DependsOn or an InOrder StartupPolicy), since a single PodGroup
 	// spanning the whole JobSet could never reach its minCount while Jobs are created
 	// sequentially. Configure Gang policies under replicatedJobs instead in that case.
-	// Mutually exclusive with replicatedJobs: see the type-level comment.
+	// Mutually exclusive with replicatedJobs unless JobSetGangOfGangs is enabled:
+	// see the type-level comment. With JobSetGangOfGangs enabled it configures the
+	// root CompositePodGroup and, when nil, defaults to Basic if only replicatedJobs
+	// is set and to Gang otherwise.
+	// gang.minGroupCount requires JobSetGangOfGangs and cannot exceed the number of
+	// groups under the root; it is otherwise rejected by the validating webhook.
 	SchedulingPolicy *v1alpha3.WorkloadCompositePodGroupSchedulingPolicy `json:"schedulingPolicy,omitempty"`
 	// schedulingConstraints defines composite-level topology constraints for the entire JobSet.
-	// Mutually exclusive with replicatedJobs: see the type-level comment.
+	// Mutually exclusive with replicatedJobs unless JobSetGangOfGangs is enabled:
+	// see the type-level comment.
 	SchedulingConstraints *v1alpha3.WorkloadCompositePodGroupSchedulingConstraints `json:"schedulingConstraints,omitempty"`
 	// disruptionMode defines how the entire composite group can be disrupted.
-	// Mutually exclusive with replicatedJobs: see the type-level comment.
+	// Mutually exclusive with replicatedJobs unless JobSetGangOfGangs is enabled:
+	// see the type-level comment.
 	DisruptionMode *v1alpha3.WorkloadCompositePodGroupDisruptionMode `json:"disruptionMode,omitempty"`
 	// replicatedJobs specifies per-ReplicatedJob composite-level scheduling overrides.
-	// Each entry targets one or more named ReplicatedJobs. Mutually exclusive with the
-	// top-level schedulingPolicy, schedulingConstraints, and disruptionMode fields: see
-	// the type-level comment. When set, every ReplicatedJob in the JobSet must be
-	// targeted by exactly one entry.
+	// Each entry targets one or more named ReplicatedJobs. With JobSetGangOfGangs
+	// disabled, mutually exclusive with the top-level schedulingPolicy,
+	// schedulingConstraints, and disruptionMode fields, and every ReplicatedJob in the
+	// JobSet must be targeted by exactly one entry: see the type-level comment. With
+	// JobSetGangOfGangs enabled, may be combined with the top-level fields, and
+	// untargeted ReplicatedJobs fall back to one shared group under the root.
 	// The list is limited to a maximum of 8 entries, since each entry compiles into
 	// at least one PodGroupTemplate and the Workload API allows at most 8 templates.
 	ReplicatedJobs []ReplicatedJobSchedulingApplyConfiguration `json:"replicatedJobs,omitempty"`
