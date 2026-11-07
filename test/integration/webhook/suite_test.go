@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	jobsetv1 "sigs.k8s.io/jobset/api/jobset/v1"
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/webhooks"
@@ -80,6 +81,9 @@ var _ = BeforeSuite(func() {
 
 	//	scheme := runtime.NewScheme()
 	err = jobset.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = jobsetv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = admissionv1beta1.AddToScheme(scheme.Scheme)
