@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 // +k8s:openapi-gen=true
+// +k8s:conversion-gen=sigs.k8s.io/jobset/api/jobset/v1alpha2
 // +kubebuilder:object:generate=true
 // +groupName=jobset.x-k8s.io
 
