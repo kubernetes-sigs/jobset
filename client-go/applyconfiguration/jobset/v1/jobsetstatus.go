@@ -49,7 +49,7 @@ type JobSetStatusApplyConfiguration struct {
 	// subsequent execution attempts triggered by failure policy restarts or suspend/resume cycles.
 	ExecutionAttempts *int32 `json:"executionAttempts,omitempty"`
 	// terminalState tracks the state of the JobSet when it finishes execution.
-	// It can be either Completed or Failed. Otherwise, it is empty by default.
+	// It can be either Complete or Failed. Otherwise, it is empty by default.
 	TerminalState *string `json:"terminalState,omitempty"`
 	// replicatedJobsStatus tracks the number of JobsReady for each replicatedJob.
 	ReplicatedJobsStatus []ReplicatedJobStatusApplyConfiguration `json:"replicatedJobsStatus,omitempty"`

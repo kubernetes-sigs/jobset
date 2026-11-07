@@ -23,6 +23,7 @@ package v1
 // JobSetSpec defines the desired state of JobSet
 type JobSetSpecApplyConfiguration struct {
 	// replicatedJobs is the group of jobs that will form the set.
+	// At least one ReplicatedJob is required.
 	ReplicatedJobs []ReplicatedJobApplyConfiguration `json:"replicatedJobs,omitempty"`
 	// network defines the networking options for the jobset.
 	Network *NetworkApplyConfiguration `json:"network,omitempty"`
@@ -36,9 +37,6 @@ type JobSetSpecApplyConfiguration struct {
 	// The JobSet is always declared failed if any job in the set
 	// finished with status failed.
 	FailurePolicy *FailurePolicyApplyConfiguration `json:"failurePolicy,omitempty"`
-	// startupPolicy configures in what order jobs must be started
-	// Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
-	StartupPolicy *StartupPolicyApplyConfiguration `json:"startupPolicy,omitempty"`
 	// suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"`
 	// coordinator can be used to assign a specific pod as the coordinator for
@@ -70,7 +68,7 @@ type JobSetSpecApplyConfiguration struct {
 	// the JobSet becomes eligible to be deleted immediately after it finishes.
 	// For JobSets that set managedBy to an external controller, TTL cleanup
 	// becomes eligible only after that controller records a terminal
-	// (Completed or Failed) condition.
+	// (Complete or Failed) condition.
 	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
 	// activeDeadlineSeconds is the maximum duration in seconds, relative to
 	// status.startTime, that the JobSet may be continuously active before the
@@ -137,14 +135,6 @@ func (b *JobSetSpecApplyConfiguration) WithSuccessPolicy(value *SuccessPolicyApp
 // If called multiple times, the FailurePolicy field is set to the value of the last call.
 func (b *JobSetSpecApplyConfiguration) WithFailurePolicy(value *FailurePolicyApplyConfiguration) *JobSetSpecApplyConfiguration {
 	b.FailurePolicy = value
-	return b
-}
-
-// WithStartupPolicy sets the StartupPolicy field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the StartupPolicy field is set to the value of the last call.
-func (b *JobSetSpecApplyConfiguration) WithStartupPolicy(value *StartupPolicyApplyConfiguration) *JobSetSpecApplyConfiguration {
-	b.StartupPolicy = value
 	return b
 }
 

@@ -31,9 +31,9 @@ type FailurePolicyApplyConfiguration struct {
 	// in which a container keeps failing too fast to complete a JobSet
 	// restart.
 	MaxRestarts *int32 `json:"maxRestarts,omitempty"`
-	// restartStrategy defines the strategy to use when restarting the JobSet.
+	// restartPolicy defines the policy to use when restarting the JobSet.
 	// Defaults to Recreate.
-	RestartStrategy *jobsetv1.JobSetRestartStrategy `json:"restartStrategy,omitempty"`
+	RestartPolicy *jobsetv1.JobSetRestartPolicy `json:"restartPolicy,omitempty"`
 	// rules is a list of failure policy rules for this JobSet.
 	// For a given Job failure, the rules will be evaluated in order,
 	// and only the first matching rule will be executed.
@@ -55,11 +55,11 @@ func (b *FailurePolicyApplyConfiguration) WithMaxRestarts(value int32) *FailureP
 	return b
 }
 
-// WithRestartStrategy sets the RestartStrategy field in the declarative configuration to the given value
+// WithRestartPolicy sets the RestartPolicy field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the RestartStrategy field is set to the value of the last call.
-func (b *FailurePolicyApplyConfiguration) WithRestartStrategy(value jobsetv1.JobSetRestartStrategy) *FailurePolicyApplyConfiguration {
-	b.RestartStrategy = &value
+// If called multiple times, the RestartPolicy field is set to the value of the last call.
+func (b *FailurePolicyApplyConfiguration) WithRestartPolicy(value jobsetv1.JobSetRestartPolicy) *FailurePolicyApplyConfiguration {
+	b.RestartPolicy = &value
 	return b
 }
 

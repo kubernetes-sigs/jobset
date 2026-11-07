@@ -41,7 +41,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"sigs.k8s.io/jobset/api/jobset/v1.ReplicatedJob":           schema_jobset_api_jobset_v1_ReplicatedJob(ref),
 		"sigs.k8s.io/jobset/api/jobset/v1.ReplicatedJobScheduling": schema_jobset_api_jobset_v1_ReplicatedJobScheduling(ref),
 		"sigs.k8s.io/jobset/api/jobset/v1.ReplicatedJobStatus":     schema_jobset_api_jobset_v1_ReplicatedJobStatus(ref),
-		"sigs.k8s.io/jobset/api/jobset/v1.StartupPolicy":           schema_jobset_api_jobset_v1_StartupPolicy(ref),
 		"sigs.k8s.io/jobset/api/jobset/v1.SuccessPolicy":           schema_jobset_api_jobset_v1_SuccessPolicy(ref),
 		"sigs.k8s.io/jobset/api/jobset/v1.VolumeClaimPolicy":       schema_jobset_api_jobset_v1_VolumeClaimPolicy(ref),
 		"sigs.k8s.io/jobset/api/jobset/v1.VolumeRetentionPolicy":   schema_jobset_api_jobset_v1_VolumeRetentionPolicy(ref),
@@ -127,9 +126,9 @@ func schema_jobset_api_jobset_v1_FailurePolicy(ref common.ReferenceCallback) com
 							Format:      "int32",
 						},
 					},
-					"restartStrategy": {
+					"restartPolicy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "restartStrategy defines the strategy to use when restarting the JobSet. Defaults to Recreate.",
+							Description: "restartPolicy defines the policy to use when restarting the JobSet. Defaults to Recreate.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -164,7 +163,7 @@ func schema_jobset_api_jobset_v1_FailurePolicyRule(ref common.ReferenceCallback)
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "name of the failure policy rule. The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule. The name must match the regular expression \"^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$\".",
+							Description: "name of the failure policy rule. The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule. The name must match the regular expression `^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -385,12 +384,12 @@ func schema_jobset_api_jobset_v1_JobSetScheduling(ref common.ReferenceCallback) 
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet. A JobSet must configure scheduling using exactly one of two mutually exclusive models, since composite Gang-of-Gangs PodGroup hierarchies linking a parent PodGroup to leaf PodGroups are not implemented in alpha:\n  - the top-level (composite) model: set schedulingPolicy,\n    schedulingConstraints, and/or disruptionMode to configure a single PodGroup\n    covering the whole JobSet, and leave replicatedJobs unset.\n  - the per-ReplicatedJob (composite) model: set replicatedJobs and leave\n    schedulingPolicy, schedulingConstraints, and disruptionMode unset at the top\n    level. Every ReplicatedJob must then be targeted by exactly one\n    replicatedJobs entry, since there is no top-level policy for an\n    untargeted ReplicatedJob to fall back to.\n\nSequenced startup (DependsOn or an InOrder StartupPolicy) creates Jobs sequentially, so a single top-level PodGroup could never reach its minCount. A JobSet using sequenced startup must therefore use the per-ReplicatedJob model; top-level scheduling (including the defaulted top-level gang) is rejected with sequenced startup.",
+				Description: "JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet. A JobSet must configure scheduling using exactly one of two mutually exclusive models, since composite Gang-of-Gangs PodGroup hierarchies linking a parent PodGroup to leaf PodGroups are not implemented in alpha:\n  - the top-level (composite) model: set schedulingPolicy,\n    schedulingConstraints, and/or disruptionMode to configure a single PodGroup\n    covering the whole JobSet, and leave replicatedJobs unset.\n  - the per-ReplicatedJob (composite) model: set replicatedJobs and leave\n    schedulingPolicy, schedulingConstraints, and disruptionMode unset at the top\n    level. Every ReplicatedJob must then be targeted by exactly one\n    replicatedJobs entry, since there is no top-level policy for an\n    untargeted ReplicatedJob to fall back to.\n\nSequenced startup (DependsOn) creates Jobs sequentially, so a single top-level PodGroup could never reach its minCount. A JobSet using sequenced startup must therefore use the per-ReplicatedJob model; top-level scheduling (including the defaulted top-level gang) is rejected with sequenced startup.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"schedulingPolicy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "schedulingPolicy defines the composite-level scheduling policy for the entire JobSet. Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and replicatedJobs is not set. Top-level scheduling, including this defaulted top-level gang, is forbidden with sequenced startup (DependsOn or an InOrder StartupPolicy), since a single PodGroup spanning the whole JobSet could never reach its minCount while Jobs are created sequentially. Configure Gang policies under replicatedJobs instead in that case. Mutually exclusive with replicatedJobs: see the type-level comment.",
+							Description: "schedulingPolicy defines the composite-level scheduling policy for the entire JobSet. Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and replicatedJobs is not set. Top-level scheduling, including this defaulted top-level gang, is forbidden with sequenced startup (DependsOn), since a single PodGroup spanning the whole JobSet could never reach its minCount while Jobs are created sequentially. Configure Gang policies under replicatedJobs instead in that case. Mutually exclusive with replicatedJobs: see the type-level comment.",
 							Ref:         ref("k8s.io/api/scheduling/v1alpha3.WorkloadCompositePodGroupSchedulingPolicy"),
 						},
 					},
@@ -451,7 +450,7 @@ func schema_jobset_api_jobset_v1_JobSetSpec(ref common.ReferenceCallback) common
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "replicatedJobs is the group of jobs that will form the set.",
+							Description: "replicatedJobs is the group of jobs that will form the set. At least one ReplicatedJob is required.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -480,12 +479,6 @@ func schema_jobset_api_jobset_v1_JobSetSpec(ref common.ReferenceCallback) common
 							Ref:         ref("sigs.k8s.io/jobset/api/jobset/v1.FailurePolicy"),
 						},
 					},
-					"startupPolicy": {
-						SchemaProps: spec.SchemaProps{
-							Description: "startupPolicy configures in what order jobs must be started Deprecated: StartupPolicy is deprecated, please use the DependsOn API.",
-							Ref:         ref("sigs.k8s.io/jobset/api/jobset/v1.StartupPolicy"),
-						},
-					},
 					"suspend": {
 						SchemaProps: spec.SchemaProps{
 							Description: "suspend suspends all running child Jobs when set to true.",
@@ -508,7 +501,7 @@ func schema_jobset_api_jobset_v1_JobSetSpec(ref common.ReferenceCallback) common
 					},
 					"ttlSecondsAfterFinished": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ttlSecondsAfterFinished limits the lifetime of a JobSet that has finished execution (either Complete or Failed). If this field is set, TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be automatically deleted. When the JobSet is being deleted, its lifecycle guarantees (e.g. finalizers) will be honored. If this field is unset, the JobSet won't be automatically deleted. If this field is set to zero, the JobSet becomes eligible to be deleted immediately after it finishes. For JobSets that set managedBy to an external controller, TTL cleanup becomes eligible only after that controller records a terminal (Completed or Failed) condition.",
+							Description: "ttlSecondsAfterFinished limits the lifetime of a JobSet that has finished execution (either Complete or Failed). If this field is set, TTLSecondsAfterFinished after the JobSet finishes, it is eligible to be automatically deleted. When the JobSet is being deleted, its lifecycle guarantees (e.g. finalizers) will be honored. If this field is unset, the JobSet won't be automatically deleted. If this field is set to zero, the JobSet becomes eligible to be deleted immediately after it finishes. For JobSets that set managedBy to an external controller, TTL cleanup becomes eligible only after that controller records a terminal (Complete or Failed) condition.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -545,10 +538,11 @@ func schema_jobset_api_jobset_v1_JobSetSpec(ref common.ReferenceCallback) common
 						},
 					},
 				},
+				Required: []string{"replicatedJobs"},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/jobset/api/jobset/v1.Coordinator", "sigs.k8s.io/jobset/api/jobset/v1.FailurePolicy", "sigs.k8s.io/jobset/api/jobset/v1.JobSetScheduling", "sigs.k8s.io/jobset/api/jobset/v1.Network", "sigs.k8s.io/jobset/api/jobset/v1.ReplicatedJob", "sigs.k8s.io/jobset/api/jobset/v1.StartupPolicy", "sigs.k8s.io/jobset/api/jobset/v1.SuccessPolicy", "sigs.k8s.io/jobset/api/jobset/v1.VolumeClaimPolicy"},
+			"sigs.k8s.io/jobset/api/jobset/v1.Coordinator", "sigs.k8s.io/jobset/api/jobset/v1.FailurePolicy", "sigs.k8s.io/jobset/api/jobset/v1.JobSetScheduling", "sigs.k8s.io/jobset/api/jobset/v1.Network", "sigs.k8s.io/jobset/api/jobset/v1.ReplicatedJob", "sigs.k8s.io/jobset/api/jobset/v1.SuccessPolicy", "sigs.k8s.io/jobset/api/jobset/v1.VolumeClaimPolicy"},
 	}
 }
 
@@ -612,7 +606,7 @@ func schema_jobset_api_jobset_v1_JobSetStatus(ref common.ReferenceCallback) comm
 					},
 					"terminalState": {
 						SchemaProps: spec.SchemaProps{
-							Description: "terminalState tracks the state of the JobSet when it finishes execution. It can be either Completed or Failed. Otherwise, it is empty by default.",
+							Description: "terminalState tracks the state of the JobSet when it finishes execution. It can be either Complete or Failed. Otherwise, it is empty by default.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -742,7 +736,7 @@ func schema_jobset_api_jobset_v1_ReplicatedJob(ref common.ReferenceCallback) com
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "dependsOn is an optional list that specifies the preceding ReplicatedJobs upon which the current ReplicatedJob depends. If specified, the ReplicatedJob will be created only after the referenced ReplicatedJobs reach their desired state. The Order of ReplicatedJobs is defined by their enumeration in the slice. Note, that the first ReplicatedJob in the slice cannot use the DependsOn API. Currently, only a single item is supported in the DependsOn list. If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is resumed the Job sequence starts again. This API is mutually exclusive with the StartupPolicy API.",
+							Description: "dependsOn is an optional list that specifies the preceding ReplicatedJobs upon which the current ReplicatedJob depends. If specified, the ReplicatedJob will be created only after the referenced ReplicatedJobs reach their desired state. The Order of ReplicatedJobs is defined by their enumeration in the slice. Note, that the first ReplicatedJob in the slice cannot use the DependsOn API. Currently, only a single item is supported in the DependsOn list. If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is resumed the Job sequence starts again.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -844,9 +838,9 @@ func schema_jobset_api_jobset_v1_ReplicatedJobStatus(ref common.ReferenceCallbac
 							Format:      "int32",
 						},
 					},
-					"succeeded": {
+					"complete": {
 						SchemaProps: spec.SchemaProps{
-							Description: "succeeded is the number of successfully completed child Jobs.",
+							Description: "complete is the number of successfully completed child Jobs.",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -915,28 +909,7 @@ func schema_jobset_api_jobset_v1_ReplicatedJobStatus(ref common.ReferenceCallbac
 						},
 					},
 				},
-				Required: []string{"name", "ready", "succeeded", "failed", "active", "suspended"},
-			},
-		},
-	}
-}
-
-func schema_jobset_api_jobset_v1_StartupPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"startupPolicyOrder": {
-						SchemaProps: spec.SchemaProps{
-							Description: "startupPolicyOrder determines the startup order of the ReplicatedJobs. AnyOrder means to start replicated jobs in any order. InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only when all the jobs of the previous one are ready.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"startupPolicyOrder"},
+				Required: []string{"name", "ready", "complete", "failed", "active", "suspended"},
 			},
 		},
 	}

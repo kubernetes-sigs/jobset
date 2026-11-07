@@ -28,8 +28,8 @@ type ReplicatedJobStatusApplyConfiguration struct {
 	// is greater than or equal to the total expected pod count for the Job (i.e., the minimum
 	// of job.spec.parallelism and job.spec.completions).
 	Ready *int32 `json:"ready,omitempty"`
-	// succeeded is the number of successfully completed child Jobs.
-	Succeeded *int32 `json:"succeeded,omitempty"`
+	// complete is the number of successfully completed child Jobs.
+	Complete *int32 `json:"complete,omitempty"`
 	// failed is the number of failed child Jobs.
 	Failed *int32 `json:"failed,omitempty"`
 	// active is the number of child Jobs with at least 1 pod in a running or pending state
@@ -67,11 +67,11 @@ func (b *ReplicatedJobStatusApplyConfiguration) WithReady(value int32) *Replicat
 	return b
 }
 
-// WithSucceeded sets the Succeeded field in the declarative configuration to the given value
+// WithComplete sets the Complete field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Succeeded field is set to the value of the last call.
-func (b *ReplicatedJobStatusApplyConfiguration) WithSucceeded(value int32) *ReplicatedJobStatusApplyConfiguration {
-	b.Succeeded = &value
+// If called multiple times, the Complete field is set to the value of the last call.
+func (b *ReplicatedJobStatusApplyConfiguration) WithComplete(value int32) *ReplicatedJobStatusApplyConfiguration {
+	b.Complete = &value
 	return b
 }
 

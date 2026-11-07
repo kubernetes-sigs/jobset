@@ -103,25 +103,23 @@ type JobSetConditionType string
 
 // These are built-in conditions of a JobSet.
 const (
-	// JobSetCompleted means the job has completed its execution.
-	JobSetCompleted JobSetConditionType = "Completed"
+	// JobSetComplete means the job has completed its execution.
+	JobSetComplete JobSetConditionType = "Complete"
 	// JobSetFailed means the job has failed its execution.
 	JobSetFailed JobSetConditionType = "Failed"
 	// JobSetSuspended means the job is suspended.
 	JobSetSuspended JobSetConditionType = "Suspended"
 	// JobSetRestarting means the JobSet is restarting.
 	JobSetRestarting JobSetConditionType = "RestartingJobSet"
-	// JobSetStartupPolicyInProgress means the StartupPolicy is in progress.
-	JobSetStartupPolicyInProgress JobSetConditionType = "StartupPolicyInProgress"
-	// JobSetStartupPolicyCompleted means the StartupPolicy has completed.
-	JobSetStartupPolicyCompleted JobSetConditionType = "StartupPolicyCompleted"
 )
 
 // JobSetSpec defines the desired state of JobSet
-// +kubebuilder:validation:XValidation:rule="!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder == 'InOrder' && self.replicatedJobs.exists(x, has(x.dependsOn)))",message="StartupPolicy and DependsOn APIs are mutually exclusive"
-// +kubebuilder:validation:XValidation:rule="!(has(self.scheduling) && (!has(self.scheduling.replicatedJobs) || size(self.scheduling.replicatedJobs) == 0)) || ((!has(self.startupPolicy) || self.startupPolicy.startupPolicyOrder != 'InOrder') && (!has(self.replicatedJobs) || self.replicatedJobs.all(rj, !has(rj.dependsOn) || size(rj.dependsOn) == 0)))",message="top-level scheduling (spec.scheduling without per-ReplicatedJob replicatedJobs entries, including the defaulted top-level gang) cannot be set with DependsOn or InOrder startup; configure per-ReplicatedJob scheduling under spec.scheduling.replicatedJobs instead",fieldPath=".scheduling"
+// +kubebuilder:validation:XValidation:rule="!(has(self.scheduling) && (!has(self.scheduling.replicatedJobs) || size(self.scheduling.replicatedJobs) == 0)) || !has(self.replicatedJobs) || self.replicatedJobs.all(rj, !has(rj.dependsOn) || size(rj.dependsOn) == 0)",message="top-level scheduling (spec.scheduling without per-ReplicatedJob replicatedJobs entries, including the defaulted top-level gang) cannot be set with DependsOn; configure per-ReplicatedJob scheduling under spec.scheduling.replicatedJobs instead",fieldPath=".scheduling"
 type JobSetSpec struct {
 	// replicatedJobs is the group of jobs that will form the set.
+	// At least one ReplicatedJob is required.
+	// +required
+	// +kubebuilder:validation:MinItems=1
 	// +patchMergeKey=name
 	// +patchStrategy=merge
 	// +listType=map
@@ -146,11 +144,6 @@ type JobSetSpec struct {
 	// finished with status failed.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"`
-
-	// startupPolicy configures in what order jobs must be started
-	// Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	StartupPolicy *StartupPolicy `json:"startupPolicy,omitempty"`
 
 	// suspend suspends all running child Jobs when set to true.
 	Suspend *bool `json:"suspend,omitempty"` //nolint
@@ -188,7 +181,7 @@ type JobSetSpec struct {
 	// the JobSet becomes eligible to be deleted immediately after it finishes.
 	// For JobSets that set managedBy to an external controller, TTL cleanup
 	// becomes eligible only after that controller records a terminal
-	// (Completed or Failed) condition.
+	// (Complete or Failed) condition.
 	// +kubebuilder:validation:Minimum=0
 	// +optional
 	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
@@ -266,7 +259,7 @@ type JobSetStatus struct {
 	ExecutionAttempts *int32 `json:"executionAttempts,omitempty"`
 
 	// terminalState tracks the state of the JobSet when it finishes execution.
-	// It can be either Completed or Failed. Otherwise, it is empty by default.
+	// It can be either Complete or Failed. Otherwise, it is empty by default.
 	// +optional
 	TerminalState string `json:"terminalState,omitempty"`
 
@@ -308,8 +301,8 @@ type ReplicatedJobStatus struct {
 	// of job.spec.parallelism and job.spec.completions).
 	Ready int32 `json:"ready"`
 
-	// succeeded is the number of successfully completed child Jobs.
-	Succeeded int32 `json:"succeeded"`
+	// complete is the number of successfully completed child Jobs.
+	Complete int32 `json:"complete"`
 
 	// failed is the number of failed child Jobs.
 	Failed int32 `json:"failed"`
@@ -343,7 +336,7 @@ type ReplicatedJobStatus struct {
 // +kubebuilder:unservedversion
 // +kubebuilder:printcolumn:name="TerminalState",JSONPath=".status.terminalState",type=string,description="Final state of JobSet"
 // +kubebuilder:printcolumn:name="Restarts",JSONPath=".status.restarts",type=string,description="Number of restarts"
-// +kubebuilder:printcolumn:name="Completed",type="string",priority=0,JSONPath=".status.conditions[?(@.type==\"Completed\")].status"
+// +kubebuilder:printcolumn:name="Complete",type="string",priority=0,JSONPath=".status.conditions[?(@.type==\"Complete\")].status"
 // +kubebuilder:printcolumn:name="Suspended",type="string",JSONPath=".spec.suspend",description="JobSet suspended"
 // +kubebuilder:printcolumn:name="StartTime",type=date,JSONPath=`.status.startTime`,description="Time the JobSet became active"
 // +kubebuilder:printcolumn:name="Age",JSONPath=".metadata.creationTimestamp",type=date,description="Time this JobSet was created"
@@ -393,7 +386,6 @@ type ReplicatedJob struct {
 	// Currently, only a single item is supported in the DependsOn list.
 	// If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is
 	// resumed the Job sequence starts again.
-	// This API is mutually exclusive with the StartupPolicy API.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	// +kubebuilder:validation:MaxItems=5
 	// +optional
@@ -417,12 +409,12 @@ type DependsOn struct {
 type DependsOnStatus string
 
 const (
-	// DependencyReady means the Ready + Succeeded + Failed counter
-	// equals the number of child Jobs of the dependant ReplicatedJob.
+	// DependencyReady means the Ready + Complete + Failed counter
+	// equals the number of child Jobs of the dependent ReplicatedJob.
 	DependencyReady DependsOnStatus = "Ready"
 
-	// DependencyComplete means the Succeeded counter
-	// equals the number of child Jobs of the dependant ReplicatedJob.
+	// DependencyComplete means the Complete counter
+	// equals the number of child Jobs of the dependent ReplicatedJob.
 	DependencyComplete DependsOnStatus = "Complete"
 )
 
@@ -493,7 +485,7 @@ const (
 type FailurePolicyRule struct {
 	// name of the failure policy rule.
 	// The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
-	// The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
+	// The name must match the regular expression `^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`.
 	Name string `json:"name"`
 	// action to take if the rule is matched.
 	// Valid values are FailJobSet, RestartJobSet, RestartJobSetAndIgnoreMaxRestarts, RestartJob, RestartJobAndIgnoreMaxRestarts.
@@ -532,11 +524,11 @@ type FailurePolicy struct {
 	// restart.
 	MaxRestarts int32 `json:"maxRestarts,omitempty"`
 
-	// restartStrategy defines the strategy to use when restarting the JobSet.
+	// restartPolicy defines the policy to use when restarting the JobSet.
 	// Defaults to Recreate.
 	// +optional
 	// +kubebuilder:default=Recreate
-	RestartStrategy JobSetRestartStrategy `json:"restartStrategy,omitempty"`
+	RestartPolicy JobSetRestartPolicy `json:"restartPolicy,omitempty"`
 
 	// rules is a list of failure policy rules for this JobSet.
 	// For a given Job failure, the rules will be evaluated in order,
@@ -546,17 +538,17 @@ type FailurePolicy struct {
 }
 
 // +kubebuilder:validation:Enum=Recreate;BlockingRecreate;InPlaceRestart
-type JobSetRestartStrategy string
+type JobSetRestartPolicy string
 
 const (
 	// Restart the JobSet by recreating all Jobs. Each Job is recreated as soon
 	// as its previous iteration (and its Pods) is deleted.
-	Recreate JobSetRestartStrategy = "Recreate"
+	Recreate JobSetRestartPolicy = "Recreate"
 
 	// Restart the JobSet by recreating all Jobs. Ensures that all Jobs (and
 	// their Pods) from the previous iteration are deleted before creating new
 	// Jobs.
-	BlockingRecreate JobSetRestartStrategy = "BlockingRecreate"
+	BlockingRecreate JobSetRestartPolicy = "BlockingRecreate"
 
 	// When no Job has failed, restart the JobSet by restarting healthy Pods
 	// in-place and recreating failed Pods. When a Job has failed, fall back to
@@ -568,7 +560,7 @@ const (
 	// recreate the failed Jobs as if the restart strategy is set to "Recreate".
 	// The barrier is lifted only when all agents are ready and in the new "in-place
 	// restart attempt".
-	InPlaceRestart JobSetRestartStrategy = "InPlaceRestart"
+	InPlaceRestart JobSetRestartPolicy = "InPlaceRestart"
 )
 
 type SuccessPolicy struct {
@@ -581,28 +573,6 @@ type SuccessPolicy struct {
 	// +optional
 	// +listType=atomic
 	TargetReplicatedJobs []string `json:"targetReplicatedJobs,omitempty"`
-}
-
-type StartupPolicyOptions string
-
-const (
-	// This is the default setting
-	// AnyOrder means that we will start the replicated jobs
-	// without any specific order.
-	AnyOrder StartupPolicyOptions = "AnyOrder"
-
-	// InOrder starts the replicated jobs in order
-	// that they are listed.
-	InOrder StartupPolicyOptions = "InOrder"
-)
-
-type StartupPolicy struct {
-	// startupPolicyOrder determines the startup order of the ReplicatedJobs.
-	// AnyOrder means to start replicated jobs in any order.
-	// InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
-	// when all the jobs of the previous one are ready.
-	// +kubebuilder:validation:Enum=AnyOrder;InOrder
-	StartupPolicyOrder StartupPolicyOptions `json:"startupPolicyOrder"`
 }
 
 // Coordinator defines which pod can be marked as the coordinator for the JobSet workload.
@@ -632,7 +602,7 @@ type Coordinator struct {
 //     replicatedJobs entry, since there is no top-level policy for an
 //     untargeted ReplicatedJob to fall back to.
 //
-// Sequenced startup (DependsOn or an InOrder StartupPolicy) creates Jobs
+// Sequenced startup (DependsOn) creates Jobs
 // sequentially, so a single top-level PodGroup could never reach its minCount. A
 // JobSet using sequenced startup must therefore use the per-ReplicatedJob model;
 // top-level scheduling (including the defaulted top-level gang) is rejected with
@@ -644,7 +614,7 @@ type JobSetScheduling struct {
 	// Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and
 	// replicatedJobs is not set.
 	// Top-level scheduling, including this defaulted top-level gang, is forbidden with
-	// sequenced startup (DependsOn or an InOrder StartupPolicy), since a single PodGroup
+	// sequenced startup (DependsOn), since a single PodGroup
 	// spanning the whole JobSet could never reach its minCount while Jobs are created
 	// sequentially. Configure Gang policies under replicatedJobs instead in that case.
 	// Mutually exclusive with replicatedJobs: see the type-level comment.

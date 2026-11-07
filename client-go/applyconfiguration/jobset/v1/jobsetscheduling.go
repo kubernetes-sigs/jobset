@@ -37,7 +37,7 @@ import (
 // replicatedJobs entry, since there is no top-level policy for an
 // untargeted ReplicatedJob to fall back to.
 //
-// Sequenced startup (DependsOn or an InOrder StartupPolicy) creates Jobs
+// Sequenced startup (DependsOn) creates Jobs
 // sequentially, so a single top-level PodGroup could never reach its minCount. A
 // JobSet using sequenced startup must therefore use the per-ReplicatedJob model;
 // top-level scheduling (including the defaulted top-level gang) is rejected with
@@ -47,7 +47,7 @@ type JobSetSchedulingApplyConfiguration struct {
 	// Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and
 	// replicatedJobs is not set.
 	// Top-level scheduling, including this defaulted top-level gang, is forbidden with
-	// sequenced startup (DependsOn or an InOrder StartupPolicy), since a single PodGroup
+	// sequenced startup (DependsOn), since a single PodGroup
 	// spanning the whole JobSet could never reach its minCount while Jobs are created
 	// sequentially. Configure Gang policies under replicatedJobs instead in that case.
 	// Mutually exclusive with replicatedJobs: see the type-level comment.
