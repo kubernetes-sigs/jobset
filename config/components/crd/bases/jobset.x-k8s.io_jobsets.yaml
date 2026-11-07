@@ -23,8 +23,8 @@ spec:
       jsonPath: .status.restarts
       name: Restarts
       type: string
-    - jsonPath: .status.conditions[?(@.type=="Completed")].status
-      name: Completed
+    - jsonPath: .status.conditions[?(@.type=="Complete")].status
+      name: Complete
       type: string
     - description: JobSet suspended
       jsonPath: .spec.suspend
@@ -120,10 +120,10 @@ spec:
                       restart.
                     format: int32
                     type: integer
-                  restartStrategy:
+                  restartPolicy:
                     default: Recreate
                     description: |-
-                      restartStrategy defines the strategy to use when restarting the JobSet.
+                      restartPolicy defines the policy to use when restarting the JobSet.
                       Defaults to Recreate.
                     enum:
                     - Recreate
@@ -159,7 +159,7 @@ spec:
                           description: |-
                             name of the failure policy rule.
                             The name is defaulted to 'failurePolicyRuleN' where N is the index of the failure policy rule.
-                            The name must match the regular expression "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$".
+                            The name must match the regular expression `^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`.
                           type: string
                         onJobFailureMessagePatterns:
                           description: |-
@@ -242,8 +242,9 @@ spec:
                 - message: Value is immutable
                   rule: self == oldSelf
               replicatedJobs:
-                description: replicatedJobs is the group of jobs that will form the
-                  set.
+                description: |-
+                  replicatedJobs is the group of jobs that will form the set.
+                  At least one ReplicatedJob is required.
                 items:
                   properties:
                     dependsOn:
@@ -256,7 +257,6 @@ spec:
                         Currently, only a single item is supported in the DependsOn list.
                         If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is
                         resumed the Job sequence starts again.
-                        This API is mutually exclusive with the StartupPolicy API.
                       items:
                         description: DependsOn defines the dependency on the previous
                           ReplicatedJob status.
@@ -9983,6 +9983,7 @@ spec:
                   - name
                   - template
                   type: object
+                minItems: 1
                 type: array
                 x-kubernetes-list-map-keys:
                 - name
@@ -10287,7 +10288,7 @@ spec:
                       Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and
                       replicatedJobs is not set.
                       Top-level scheduling, including this defaulted top-level gang, is forbidden with
-                      sequenced startup (DependsOn or an InOrder StartupPolicy), since a single PodGroup
+                      sequenced startup (DependsOn), since a single PodGroup
                       spanning the whole JobSet could never reach its minCount while Jobs are created
                       sequentially. Configure Gang policies under replicatedJobs instead in that case.
                       Mutually exclusive with replicatedJobs: see the type-level comment.
@@ -10329,27 +10330,6 @@ spec:
                   rule: '!has(self.replicatedJobs) || size(self.replicatedJobs) ==
                     0 || (!has(self.schedulingPolicy) && !has(self.schedulingConstraints)
                     && !has(self.disruptionMode))'
-              startupPolicy:
-                description: |-
-                  startupPolicy configures in what order jobs must be started
-                  Deprecated: StartupPolicy is deprecated, please use the DependsOn API.
-                properties:
-                  startupPolicyOrder:
-                    description: |-
-                      startupPolicyOrder determines the startup order of the ReplicatedJobs.
-                      AnyOrder means to start replicated jobs in any order.
-                      InOrder means to start them as they are listed in the JobSet. A ReplicatedJob is started only
-                      when all the jobs of the previous one are ready.
-                    enum:
-                    - AnyOrder
-                    - InOrder
-                    type: string
-                required:
-                - startupPolicyOrder
-                type: object
-                x-kubernetes-validations:
-                - message: Value is immutable
-                  rule: self == oldSelf
               successPolicy:
                 description: |-
                   successPolicy configures when to declare the JobSet as
@@ -10392,7 +10372,7 @@ spec:
                   the JobSet becomes eligible to be deleted immediately after it finishes.
                   For JobSets that set managedBy to an external controller, TTL cleanup
                   becomes eligible only after that controller records a terminal
-                  (Completed or Failed) condition.
+                  (Complete or Failed) condition.
                 format: int32
                 minimum: 0
                 type: integer
@@ -10934,21 +10914,19 @@ spec:
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
+            required:
+            - replicatedJobs
             type: object
             x-kubernetes-validations:
-            - message: StartupPolicy and DependsOn APIs are mutually exclusive
-              rule: '!(has(self.startupPolicy) && self.startupPolicy.startupPolicyOrder
-                == ''InOrder'' && self.replicatedJobs.exists(x, has(x.dependsOn)))'
             - fieldPath: .scheduling
               message: top-level scheduling (spec.scheduling without per-ReplicatedJob
                 replicatedJobs entries, including the defaulted top-level gang) cannot
-                be set with DependsOn or InOrder startup; configure per-ReplicatedJob
-                scheduling under spec.scheduling.replicatedJobs instead
+                be set with DependsOn; configure per-ReplicatedJob scheduling under
+                spec.scheduling.replicatedJobs instead
               rule: '!(has(self.scheduling) && (!has(self.scheduling.replicatedJobs)
-                || size(self.scheduling.replicatedJobs) == 0)) || ((!has(self.startupPolicy)
-                || self.startupPolicy.startupPolicyOrder != ''InOrder'') && (!has(self.replicatedJobs)
+                || size(self.scheduling.replicatedJobs) == 0)) || !has(self.replicatedJobs)
                 || self.replicatedJobs.all(rj, !has(rj.dependsOn) || size(rj.dependsOn)
-                == 0)))'
+                == 0)'
           status:
             description: status is the status of the jobset
             properties:
@@ -11053,6 +11031,11 @@ spec:
                         which are not marked for deletion.
                       format: int32
                       type: integer
+                    complete:
+                      description: complete is the number of successfully completed
+                        child Jobs.
+                      format: int32
+                      type: integer
                     failed:
                       description: failed is the number of failed child Jobs.
                       format: int32
@@ -11087,11 +11070,6 @@ spec:
                         of job.spec.parallelism and job.spec.completions).
                       format: int32
                       type: integer
-                    succeeded:
-                      description: succeeded is the number of successfully completed
-                        child Jobs.
-                      format: int32
-                      type: integer
                     suspended:
                       description: suspended is the number of child Jobs which are
                         in a suspended state.
@@ -11099,10 +11077,10 @@ spec:
                       type: integer
                   required:
                   - active
+                  - complete
                   - failed
                   - name
                   - ready
-                  - succeeded
                   - suspended
                   type: object
                 type: array
@@ -11135,7 +11113,7 @@ spec:
               terminalState:
                 description: |-
                   terminalState tracks the state of the JobSet when it finishes execution.
-                  It can be either Completed or Failed. Otherwise, it is empty by default.
+                  It can be either Complete or Failed. Otherwise, it is empty by default.
                 type: string
             type: object
         type: object

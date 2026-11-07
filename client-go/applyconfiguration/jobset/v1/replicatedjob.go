@@ -42,7 +42,6 @@ type ReplicatedJobApplyConfiguration struct {
 	// Currently, only a single item is supported in the DependsOn list.
 	// If JobSet is suspended the all active ReplicatedJobs will be suspended. When JobSet is
 	// resumed the Job sequence starts again.
-	// This API is mutually exclusive with the StartupPolicy API.
 	DependsOn []DependsOnApplyConfiguration `json:"dependsOn,omitempty"`
 }
 

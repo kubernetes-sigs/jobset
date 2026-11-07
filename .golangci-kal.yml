@@ -105,7 +105,7 @@ linters:
       linters:
         - kubeapilinter
     - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
-      text: "field ReplicatedJobStatus\\.(Name|Ready|Succeeded|Failed|Active|Suspended)"
+      text: "field ReplicatedJobStatus\\.(Name|Ready|Succeeded|Complete|Failed|Active|Suspended)"
       linters:
         - kubeapilinter
 
@@ -166,7 +166,7 @@ linters:
       linters:
         - kubeapilinter
     - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
-      text: "field FailurePolicy\\.(MaxRestarts|RestartStrategy|Rules)"
+      text: "field FailurePolicy\\.(MaxRestarts|RestartStrategy|RestartPolicy|Rules)"
       linters:
         - kubeapilinter
     - path: "api/jobset/(v1|v1alpha2)/jobset_types.go"
