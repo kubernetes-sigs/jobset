@@ -49,3 +49,43 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "The cluster does not support the required API resource `monitoring.coreos.com/v1/ServiceMonitor`."
+
+  - it: Should use the metrics server certificate as the client certificate by default
+    release:
+      name: my-jobset
+    capabilities:
+      apiVersions:
+        - monitoring.coreos.com/v1/ServiceMonitor
+    set:
+      prometheus:
+        enable: true
+      certManager:
+        enable: true
+    asserts:
+      - equal:
+          path: spec.endpoints[0].tlsConfig.ca.secret.name
+          value: my-jobset-metrics-server-cert
+      - equal:
+          path: spec.endpoints[0].tlsConfig.cert.secret.name
+          value: my-jobset-metrics-server-cert
+      - equal:
+          path: spec.endpoints[0].tlsConfig.keySecret.name
+          value: my-jobset-metrics-server-cert
+
+  - it: Should use `prometheus.prometheusClientCertSecretName` as the client certificate if set
+    capabilities:
+      apiVersions:
+        - monitoring.coreos.com/v1/ServiceMonitor
+    set:
+      prometheus:
+        enable: true
+        prometheusClientCertSecretName: prometheus-client-cert
+      certManager:
+        enable: true
+    asserts:
+      - equal:
+          path: spec.endpoints[0].tlsConfig.cert.secret.name
+          value: prometheus-client-cert
+      - equal:
+          path: spec.endpoints[0].tlsConfig.keySecret.name
+          value: prometheus-client-cert
