@@ -377,11 +377,11 @@ files:
             cert:
               secret:
                 key: tls.crt
-                name: '{{ .Values.prometheus.prometheusClientCertSecretName }}'
+                name: '{{ .Values.prometheus.prometheusClientCertSecretName | default (include "jobset.metrics.secret.name" .) }}'
             insecureSkipVerify: false
             keySecret:
               key: tls.key
-              name: '{{ .Values.prometheus.prometheusClientCertSecretName }}'
+              name: '{{ .Values.prometheus.prometheusClientCertSecretName | default (include "jobset.metrics.secret.name" .) }}'
             serverName: '{{ include "jobset.metrics.service.name" . }}.{{ .Release.Namespace }}.svc'
           {{- else }}
           tlsConfig:
