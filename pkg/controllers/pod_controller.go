@@ -63,13 +63,19 @@ func NewPodReconciler(client client.Client, scheme *runtime.Scheme, record event
 func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Pod{}).
-		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			// Only reconcile leader pods which have been scheduled which are part of
-			// JobSets using exclusive placement.
-			pod, ok := object.(*corev1.Pod)
-			return ok && placement.IsLeaderPod(pod) && podScheduled(pod) && usingExclusivePlacement(pod) && !podDeleted(pod)
-		})).
+		WithEventFilter(predicate.NewPredicateFuncs(shouldReconcilePod)).
 		Complete(r)
+}
+
+// shouldReconcilePod returns true for scheduled leader pods which are part of JobSets
+// using the default (affinity based) exclusive placement implementation.
+// Pods using the nodeSelector strategy are skipped: their follower pods are pinned by the
+// namespaced job nodeSelector instead of a nodeSelector on the topology key, which the pod
+// webhook does not inject for them, so validatePodPlacements would treat every follower
+// as misplaced and delete it.
+func shouldReconcilePod(object client.Object) bool {
+	pod, ok := object.(*corev1.Pod)
+	return ok && placement.IsLeaderPod(pod) && podScheduled(pod) && usingExclusivePlacement(pod) && !usingNodeSelectorStrategy(pod) && !podDeleted(pod)
 }
 
 func SetupPodIndexes(ctx context.Context, indexer client.FieldIndexer) error {
@@ -305,6 +311,13 @@ func followerPodTopology(pod *corev1.Pod, topologyKey string) (string, error) {
 // exclusive placement, otherwise it returns false.
 func usingExclusivePlacement(pod *corev1.Pod) bool {
 	_, exists := pod.Annotations[jobset.ExclusiveKey]
+	return exists
+}
+
+// usingNodeSelectorStrategy returns true if the pod is part of a JobSet using the
+// nodeSelector strategy implementation of exclusive placement, otherwise it returns false.
+func usingNodeSelectorStrategy(pod *corev1.Pod) bool {
+	_, exists := pod.Annotations[jobset.NodeSelectorStrategyKey]
 	return exists
 }
 

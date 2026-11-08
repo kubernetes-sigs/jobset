@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/events"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -322,6 +323,76 @@ func TestReconcileDeletesMismatchedFollowerPods(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{followerPodName}, deletedPods)
 	assert.Equal(t, []string{followerPodName}, statusUpdatedPods)
+}
+
+func TestShouldReconcilePod(t *testing.T) {
+	const topologyKey = "test-node-topologyKey"
+	pod := func(completionIndex, nodeName string, annotations map[string]string, deleted bool) *corev1.Pod {
+		p := makePod(&makePodArgs{
+			jobSetName:        "test-jobset",
+			replicatedJobName: "replicated-job-1",
+			jobName:           "test-jobset-replicated-job-1-0",
+			podName:           "test-jobset-replicated-job-1-0-" + completionIndex,
+			ns:                "default",
+		}).AddAnnotation(batchv1.JobCompletionIndexAnnotation, completionIndex).Obj()
+		for k, v := range annotations {
+			p.Annotations[k] = v
+		}
+		p.Spec.NodeName = nodeName
+		if deleted {
+			p.DeletionTimestamp = ptr.To(metav1.Now())
+		}
+		return &p
+	}
+	exclusive := map[string]string{jobset.ExclusiveKey: topologyKey}
+	nodeSelectorStrategy := map[string]string{jobset.ExclusiveKey: topologyKey, jobset.NodeSelectorStrategyKey: "true"}
+
+	tests := []struct {
+		name   string
+		object client.Object
+		want   bool
+	}{
+		{
+			name:   "scheduled leader pod using exclusive placement",
+			object: pod("0", "test-node", exclusive, false),
+			want:   true,
+		},
+		{
+			name:   "scheduled leader pod using the nodeSelector strategy",
+			object: pod("0", "test-node", nodeSelectorStrategy, false),
+			want:   false,
+		},
+		{
+			name:   "follower pod",
+			object: pod("1", "test-node", exclusive, false),
+			want:   false,
+		},
+		{
+			name:   "unscheduled leader pod",
+			object: pod("0", "", exclusive, false),
+			want:   false,
+		},
+		{
+			name:   "leader pod without exclusive placement",
+			object: pod("0", "test-node", nil, false),
+			want:   false,
+		},
+		{
+			name:   "deleted leader pod",
+			object: pod("0", "test-node", exclusive, true),
+			want:   false,
+		},
+		{
+			name:   "not a pod",
+			object: &batchv1.Job{},
+			want:   false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, shouldReconcilePod(tc.object))
+		})
+	}
 }
 
 func TestDeleteFollowerPods(t *testing.T) {
