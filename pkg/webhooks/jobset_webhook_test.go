@@ -4774,6 +4774,126 @@ func TestValidateUpdate(t *testing.T) {
 			enableElasticJobSet: true,
 		},
 		{
+			name: "invalid scaling of parallelism makes replicas * parallelism exceed MaxInt32",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 30000,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 30000,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](100000),
+									Completions:    ptr.To[int32](100000),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "replicatedJobs").Index(0).Child("template", "spec", "parallelism"), int32(100000), fmt.Sprintf("the product of replicas and parallelism must not exceed %d for replicatedJob 'test-jobset-replicated-job-0'", math.MaxInt32)),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "invalid scaling makes the top-level gang pod count exceed MaxInt32",
+			// Each ReplicatedJob stays below MaxInt32 (20000 * 60000), but their sum does not.
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rjob-a",
+							Replicas: 20000,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+						{
+							Name:     "rjob-b",
+							Replicas: 20000,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+							Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "rjob-a",
+							Replicas: 20000,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](60000),
+									Completions:    ptr.To[int32](60000),
+								},
+							},
+						},
+						{
+							Name:     "rjob-b",
+							Replicas: 20000,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](60000),
+									Completions:    ptr.To[int32](60000),
+								},
+							},
+						},
+					},
+					Scheduling: &jobset.JobSetScheduling{
+						SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+							Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "replicatedJobs"), int64(2400000000), fmt.Sprintf("the total represented pod count across all replicatedJobs must not exceed %d when top-level gang scheduling is used", math.MaxInt32)),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+			enableSchedulingAPI: true,
+		},
+		{
 			name: "invalid scaling of parallelism to < 1",
 			oldJs: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
