@@ -1046,6 +1046,13 @@ func validateSchedulingGangMinCounts(js *jobset.JobSet) field.ErrorList {
 // validateExclusivePlacementWithScheduling rejects the exclusive-topology
 // annotation on the JobSet, a ReplicatedJob's Job template or its pod template
 // when spec.scheduling is set.
+//
+// The node-selector strategy is rejected as well. Its followers are not gated
+// on the leader, so it avoids the gang deadlock, but it is untested with
+// spec.scheduling. The pod reconciler also deletes followers whose nodeSelector
+// lacks the exclusive topology key, which node-selector followers do, and that
+// would break an admitted gang.
+// TODO: allow the node-selector strategy with spec.scheduling once it is tested.
 func validateExclusivePlacementWithScheduling(js *jobset.JobSet) field.ErrorList {
 	if !features.Enabled(features.JobSetWorkloadAwareSchedulingAPI) || js.Spec.Scheduling == nil {
 		return nil
