@@ -44,6 +44,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1beta1 "k8s.io/api/scheduling/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -3004,4 +3005,98 @@ func TestDeleteSchedulingObjectsForFinishedJobSet(t *testing.T) {
 	if err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(pg), &schedulingv1beta1.PodGroup{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected podgroup to be deleted, got err=%v", err)
 	}
+}
+
+func TestReconcileInOrderResumeClearsSuspendedCondition(t *testing.T) {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(jobset.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+
+	makeInOrderJobSet := func(name string, suspend bool) *jobset.JobSet {
+		js := testutils.MakeJobSet(name, "default").
+			Suspend(suspend).
+			StartupPolicy(&jobset.StartupPolicy{StartupPolicyOrder: jobset.InOrder}).
+			ReplicatedJob(testutils.MakeReplicatedJob("stage1").
+				Job(testutils.MakeJobTemplate("job", "default").Parallelism(1).Completions(1).PodSpec(testutils.TestPodSpec).Obj()).
+				GroupName("default").
+				Replicas(1).
+				Obj()).
+			ReplicatedJob(testutils.MakeReplicatedJob("stage2").
+				Job(testutils.MakeJobTemplate("job", "default").Parallelism(1).Completions(1).PodSpec(testutils.TestPodSpec).Obj()).
+				GroupName("default").
+				Replicas(1).
+				Obj()).
+			Obj()
+		js.UID = types.UID(name + "-uid")
+		return js
+	}
+
+	t.Run("resuming suspended InOrder JobSet sets Suspended=False while stage1 runs", func(t *testing.T) {
+		js := makeInOrderJobSet("inorder-suspended", true)
+		builder := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&jobset.JobSet{}, &batchv1.Job{}, &corev1.Pod{}).
+			WithObjects(js)
+		require.NoError(t, SetupJobSetIndexes(context.Background(), &fakeFieldIndexer{builder: builder}))
+		fakeClient := builder.Build()
+		r := NewJobSetReconciler(fakeClient, scheme, events.NewFakeRecorder(32))
+		req := ctrl.Request{NamespacedName: client.ObjectKeyFromObject(js)}
+		ctx := context.Background()
+
+		_, err := r.Reconcile(ctx, req)
+		require.NoError(t, err)
+
+		var cur jobset.JobSet
+		require.NoError(t, fakeClient.Get(ctx, req.NamespacedName, &cur))
+		require.True(t, apimeta.IsStatusConditionTrue(cur.Status.Conditions, string(jobset.JobSetSuspended)))
+
+		cur.Spec.Suspend = ptr.To(false)
+		require.NoError(t, fakeClient.Update(ctx, &cur))
+		_, err = r.Reconcile(ctx, req)
+		require.NoError(t, err)
+
+		require.NoError(t, fakeClient.Get(ctx, req.NamespacedName, &cur))
+		suspendedCond := apimeta.FindStatusCondition(cur.Status.Conditions, string(jobset.JobSetSuspended))
+		require.NotNil(t, suspendedCond)
+		assert.Equal(t, metav1.ConditionFalse, suspendedCond.Status)
+		assert.Equal(t, constants.JobSetResumedReason, suspendedCond.Reason)
+		assert.True(t, apimeta.IsStatusConditionTrue(cur.Status.Conditions, string(jobset.JobSetStartupPolicyInProgress)))
+
+		var stage1, stage2 batchv1.Job
+		require.NoError(t, fakeClient.Get(ctx, types.NamespacedName{Name: "inorder-suspended-stage1-0", Namespace: "default"}, &stage1))
+		require.NoError(t, fakeClient.Get(ctx, types.NamespacedName{Name: "inorder-suspended-stage2-0", Namespace: "default"}, &stage2))
+		assert.False(t, ptr.Deref(stage1.Spec.Suspend, true))
+		assert.True(t, ptr.Deref(stage2.Spec.Suspend, false))
+	})
+
+	t.Run("never-suspended InOrder JobSet does not add Suspended condition", func(t *testing.T) {
+		js := makeInOrderJobSet("inorder-unsuspended", false)
+		builder := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&jobset.JobSet{}, &batchv1.Job{}, &corev1.Pod{}).
+			WithObjects(js)
+		require.NoError(t, SetupJobSetIndexes(context.Background(), &fakeFieldIndexer{builder: builder}))
+		fakeClient := builder.Build()
+		r := NewJobSetReconciler(fakeClient, scheme, events.NewFakeRecorder(32))
+		req := ctrl.Request{NamespacedName: client.ObjectKeyFromObject(js)}
+		ctx := context.Background()
+
+		_, err := r.Reconcile(ctx, req)
+		require.NoError(t, err)
+
+		var cur jobset.JobSet
+		require.NoError(t, fakeClient.Get(ctx, req.NamespacedName, &cur))
+		assert.Nil(t, apimeta.FindStatusCondition(cur.Status.Conditions, string(jobset.JobSetSuspended)))
+		assert.True(t, apimeta.IsStatusConditionTrue(cur.Status.Conditions, string(jobset.JobSetStartupPolicyInProgress)))
+	})
+}
+
+type fakeFieldIndexer struct {
+	builder *fake.ClientBuilder
+}
+
+func (f *fakeFieldIndexer) IndexField(_ context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error {
+	f.builder.WithIndex(obj, field, extractValue)
+	return nil
 }
