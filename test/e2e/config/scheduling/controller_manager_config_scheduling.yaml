@@ -6,4 +6,7 @@ internalCertManagement:
   enable: true
 featureGates:
   JobSetWorkloadAwareSchedulingAPI: true
+  # JobSetGangOfGangs is off here so the flat (default) scheduling path is
+  # tested; the gang-of-gangs specs run against ../scheduling-gang-of-gangs.
+  JobSetGangOfGangs: false
   ElasticJobSet: true

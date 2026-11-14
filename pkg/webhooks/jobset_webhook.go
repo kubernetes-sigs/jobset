@@ -844,11 +844,63 @@ func validateScheduling(ctx context.Context, js *jobset.JobSet, rJobNames sets.S
 
 	usesTopLevelAPI := scheduling.SchedulingPolicy != nil || scheduling.SchedulingConstraints != nil || scheduling.DisruptionMode != nil
 
+	// Top-level scheduling and per-ReplicatedJob overrides are mutually exclusive
+	// unless the JobSetGangOfGangs gate is enabled. With the gate off there is no
+	// composite PodGroup to link the two levels, so the combination is rejected
+	// (previously a type-level CEL rule, moved here because the relaxation is
+	// gate-aware and CEL cannot read feature gates). With the gate on the
+	// combination compiles into the CompositePodGroup tree where the top-level
+	// policy is the root and untargeted ReplicatedJobs fall back to it.
+	if !features.Enabled(features.JobSetGangOfGangs) && usesTopLevelAPI && len(scheduling.ReplicatedJobs) > 0 {
+		allErrs = append(allErrs, field.Forbidden(
+			schedulingPath.Child("replicatedJobs"),
+			"cannot be set together with top-level schedulingPolicy, schedulingConstraints, or disruptionMode unless the JobSetGangOfGangs feature gate is enabled",
+		))
+	}
+
+	for _, fe := range validateSchedulingMinGroupCounts(js, schedulingPath) {
+		allErrs = append(allErrs, fe)
+	}
+
+	// Gang-of-gangs with sequenced startup deadlocks under a full-quorum Gang root.
+	// DependsOn (or an InOrder StartupPolicy) creates a targeted child's Jobs only after
+	// its dependency is satisfied, so a root Gang whose minGroupCount spans that deferred
+	// child can never reach quorum. Only two root shapes are safe: an explicit Basic root
+	// (no cross-child quorum), or a Gang root with an explicit minGroupCount (the user
+	// opting into partial quorum). Every other shape is a full-quorum Gang root and is
+	// rejected -- including a root that sets only schedulingConstraints or
+	// disruptionMode, which defaults to Gang (see compositeRootIsGang). This is the
+	// gang-of-gangs analogue of the top-level-gang + sequenced-startup rejection, enforced
+	// in the webhook because it is gate- and mode-aware.
+	if controllers.UseGangOfGangs(js) {
+		sequenced := js.Spec.StartupPolicy != nil && js.Spec.StartupPolicy.StartupPolicyOrder == jobset.InOrder
+		for i := range js.Spec.ReplicatedJobs {
+			if len(js.Spec.ReplicatedJobs[i].DependsOn) > 0 {
+				sequenced = true
+				break
+			}
+		}
+		if sequenced {
+			p := scheduling.SchedulingPolicy
+			// A JobSet that only sets replicatedJobs gets a Basic root (see
+			// compositeRootIsGang), which imposes no cross-group quorum.
+			rootIsBasic := (p != nil && p.Basic != nil) || (!usesTopLevelAPI && len(scheduling.ReplicatedJobs) > 0)
+			rootGangWithExplicitQuorum := p != nil && p.Gang != nil && p.Gang.MinGroupCount != nil
+			if !rootIsBasic && !rootGangWithExplicitQuorum {
+				allErrs = append(allErrs, field.Forbidden(
+					schedulingPath.Child("schedulingPolicy"),
+					"a full-quorum Gang root cannot be combined with sequenced startup (DependsOn or InOrder) in gang-of-gangs mode: its gang quorum could never be met while a dependent ReplicatedJob's Jobs are deferred. Use a Basic root, or set an explicit schedulingPolicy.gang.minGroupCount to opt into partial quorum",
+				))
+			}
+		}
+	}
+
 	// When only the per-ReplicatedJob API is used (no top-level scheduling
-	// fields set), every ReplicatedJob must be targeted by a replicatedJobs
-	// entry: there is no top-level policy for an untargeted ReplicatedJob to fall
-	// back to.
-	if !usesTopLevelAPI && len(scheduling.ReplicatedJobs) > 0 {
+	// fields set) and the JobSetGangOfGangs gate is off, every ReplicatedJob must
+	// be targeted by a replicatedJobs entry: there is no top-level policy for an
+	// untargeted ReplicatedJob to fall back to. With the gate on, untargeted
+	// ReplicatedJobs form the fallback group of the CompositePodGroup tree.
+	if !features.Enabled(features.JobSetGangOfGangs) && !usesTopLevelAPI && len(scheduling.ReplicatedJobs) > 0 {
 		targetedNames := sets.New[string]()
 		for _, rjPolicy := range scheduling.ReplicatedJobs {
 			targetedNames.Insert(rjPolicy.TargetReplicatedJobs...)
@@ -951,10 +1003,14 @@ func validateScheduling(ctx context.Context, js *jobset.JobSet, rJobNames sets.S
 					"must target exactly one replicatedJob when job is set",
 				))
 			}
-			if rjPolicy.SchedulingPolicy != nil || rjPolicy.SchedulingConstraints != nil || rjPolicy.DisruptionMode != nil {
+			// With the JobSetGangOfGangs gate off there is no CompositePodGroup to hold
+			// the entry's own fields above the per-Job PodGroups. With the gate on they
+			// configure the entry's CompositePodGroup (KEP-969, Gang of Gangs Support).
+			if !features.Enabled(features.JobSetGangOfGangs) &&
+				(rjPolicy.SchedulingPolicy != nil || rjPolicy.SchedulingConstraints != nil || rjPolicy.DisruptionMode != nil) {
 				allErrs = append(allErrs, field.Invalid(
 					fieldPath.Child("job"), true,
-					"cannot be set together with schedulingPolicy, schedulingConstraints, or disruptionMode on the same replicatedJobs entry; job replaces the single shared PodGroup those fields configure with one PodGroup per Job",
+					"cannot be set together with schedulingPolicy, schedulingConstraints, or disruptionMode on the same replicatedJobs entry unless the JobSetGangOfGangs feature gate is enabled; without it there is no CompositePodGroup to hold them above the one PodGroup per Job",
 				))
 			}
 			// Per-Job PodGroups are independent of one another, so the
@@ -981,6 +1037,65 @@ func validateScheduling(ctx context.Context, js *jobset.JobSet, rJobNames sets.S
 		allErrs = append(allErrs, fe)
 	}
 
+	return allErrs
+}
+
+// validateSchedulingMinGroupCounts validates explicit CompositePodGroup gang
+// quorums (minGroupCount). They only exist in the CompositePodGroup tree
+// (JobSetGangOfGangs on), and only on nodes with more than one child: the root,
+// and an entry that sets job (one child per Job replica). An entry without job
+// has a single shared leaf, so its quorum is that leaf's pod count. Where
+// allowed, minGroupCount cannot exceed the node's number of children, or the
+// group could never be admitted.
+func validateSchedulingMinGroupCounts(js *jobset.JobSet, schedulingPath *field.Path) field.ErrorList {
+	scheduling := js.Spec.Scheduling
+	var allErrs field.ErrorList
+	minGroupCount := func(p *schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy) *int32 {
+		if p == nil || p.Gang == nil {
+			return nil
+		}
+		return p.Gang.MinGroupCount
+	}
+
+	if !controllers.UseGangOfGangs(js) {
+		const msg = "is only supported with the JobSetGangOfGangs feature gate enabled, where scheduling compiles into a CompositePodGroup tree"
+		if minGroupCount(scheduling.SchedulingPolicy) != nil {
+			allErrs = append(allErrs, field.Forbidden(schedulingPath.Child("schedulingPolicy", "gang", "minGroupCount"), msg))
+		}
+		for i := range scheduling.ReplicatedJobs {
+			if minGroupCount(scheduling.ReplicatedJobs[i].SchedulingPolicy) != nil {
+				allErrs = append(allErrs, field.Forbidden(schedulingPath.Child("replicatedJobs").Index(i).Child("schedulingPolicy", "gang", "minGroupCount"), msg))
+			}
+		}
+		return allErrs
+	}
+
+	if mgc := minGroupCount(scheduling.SchedulingPolicy); mgc != nil {
+		if groups := int32(controllers.CompositeGroupCount(js)); *mgc > groups {
+			allErrs = append(allErrs, field.Invalid(schedulingPath.Child("schedulingPolicy", "gang", "minGroupCount"), *mgc,
+				fmt.Sprintf("cannot exceed the number of ReplicatedJob groups under the root (%d)", groups)))
+		}
+	}
+	for i := range scheduling.ReplicatedJobs {
+		entry := &scheduling.ReplicatedJobs[i]
+		mgc := minGroupCount(entry.SchedulingPolicy)
+		if mgc == nil {
+			continue
+		}
+		mgcPath := schedulingPath.Child("replicatedJobs").Index(i).Child("schedulingPolicy", "gang", "minGroupCount")
+		if entry.Job == nil {
+			allErrs = append(allErrs, field.Forbidden(mgcPath,
+				"is only supported on an entry that sets job: without job the entry has a single shared PodGroup, whose quorum is its pod count"))
+			continue
+		}
+		if len(entry.TargetReplicatedJobs) != 1 {
+			continue
+		}
+		if rjob := rjobByName(js, entry.TargetReplicatedJobs[0]); rjob != nil && *mgc > rjob.Replicas {
+			allErrs = append(allErrs, field.Invalid(mgcPath, *mgc,
+				fmt.Sprintf("cannot exceed the number of Jobs (replicas) of replicatedJob %q (%d)", rjob.Name, rjob.Replicas)))
+		}
+	}
 	return allErrs
 }
 
