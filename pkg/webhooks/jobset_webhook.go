@@ -398,6 +398,13 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 						if newRJob.Template.Spec.Parallelism != nil && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Parallelism != *newRJob.Template.Spec.Completions {
 							errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be equal to parallelism for Elastic Indexed Jobs"))
 						}
+						// ValidateCreate bounds replicas * parallelism to int32, and the
+						// represented pod counts derived from it rely on that, so scaling up
+						// must not break it for an already admitted JobSet.
+						if parallelismChanged && newRJob.Template.Spec.Parallelism != nil &&
+							int64(*newRJob.Template.Spec.Parallelism)*int64(newRJob.Replicas) > math.MaxInt32 {
+							errs = append(errs, field.Invalid(rJobPath.Child("parallelism"), *newRJob.Template.Spec.Parallelism, fmt.Sprintf("the product of replicas and parallelism must not exceed %d for replicatedJob '%s'", math.MaxInt32, newRJob.Name)))
+						}
 					}
 				}
 
@@ -414,6 +421,7 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 		// spec.scheduling is immutable, so the JobSet must be scaled back up
 		// (or not scaled down further) instead.
 		errs = append(errs, validateSchedulingGangMinCounts(newJs)...)
+		errs = append(errs, validateTopLevelGangPodCount(newJs)...)
 	}
 
 	// Allow pod template to be mutated for suspended JobSets, or JobSets getting suspended.
@@ -878,18 +886,8 @@ func validateScheduling(ctx context.Context, js *jobset.JobSet, rJobNames sets.S
 	// bounded to int32 above, but the sum across ReplicatedJobs can still
 	// overflow, so reject a total that exceeds int32 rather than deriving a
 	// saturated, unsatisfiable minCount.
-	if controllers.UseTopLevelGang(js.Spec.Scheduling) {
-		var total int64
-		for i := range js.Spec.ReplicatedJobs {
-			total += int64(jobsetutil.JobParallelism(&js.Spec.ReplicatedJobs[i])) * int64(js.Spec.ReplicatedJobs[i].Replicas)
-		}
-		if total > math.MaxInt32 {
-			allErrs = append(allErrs, field.Invalid(
-				field.NewPath("spec", "replicatedJobs"),
-				total,
-				fmt.Sprintf("the total represented pod count across all replicatedJobs must not exceed %d when top-level gang scheduling is used", math.MaxInt32),
-			))
-		}
+	for _, fe := range validateTopLevelGangPodCount(js) {
+		allErrs = append(allErrs, fe)
 	}
 
 	// All ReplicatedJobs must have the same priorityClassName when using a single top-level PodGroup.
@@ -982,6 +980,26 @@ func validateScheduling(ctx context.Context, js *jobset.JobSet, rJobNames sets.S
 	}
 
 	return allErrs
+}
+
+// validateTopLevelGangPodCount rejects a JobSet using a single top-level gang
+// PodGroup whose total represented pod count exceeds int32.
+func validateTopLevelGangPodCount(js *jobset.JobSet) field.ErrorList {
+	if !controllers.UseTopLevelGang(js.Spec.Scheduling) {
+		return nil
+	}
+	var total int64
+	for i := range js.Spec.ReplicatedJobs {
+		total += int64(jobsetutil.JobParallelism(&js.Spec.ReplicatedJobs[i])) * int64(js.Spec.ReplicatedJobs[i].Replicas)
+	}
+	if total > math.MaxInt32 {
+		return field.ErrorList{field.Invalid(
+			field.NewPath("spec", "replicatedJobs"),
+			total,
+			fmt.Sprintf("the total represented pod count across all replicatedJobs must not exceed %d when top-level gang scheduling is used", math.MaxInt32),
+		)}
+	}
+	return nil
 }
 
 // validateSchedulingGangMinCounts checks that an individual Job policy's
