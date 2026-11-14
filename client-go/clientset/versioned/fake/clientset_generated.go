@@ -26,6 +26,8 @@ import (
 	"k8s.io/client-go/testing"
 	applyconfiguration "sigs.k8s.io/jobset/client-go/applyconfiguration"
 	clientset "sigs.k8s.io/jobset/client-go/clientset/versioned"
+	jobsetv1 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1"
+	fakejobsetv1 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1/fake"
 	jobsetv1alpha2 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1alpha2"
 	fakejobsetv1alpha2 "sigs.k8s.io/jobset/client-go/clientset/versioned/typed/jobset/v1alpha2/fake"
 )
@@ -134,6 +136,11 @@ var (
 	_ clientset.Interface = &Clientset{}
 	_ testing.FakeClient  = &Clientset{}
 )
+
+// JobsetV1 retrieves the JobsetV1Client
+func (c *Clientset) JobsetV1() jobsetv1.JobsetV1Interface {
+	return &fakejobsetv1.FakeJobsetV1{Fake: &c.Fake}
+}
 
 // JobsetV1alpha2 retrieves the JobsetV1alpha2Client
 func (c *Clientset) JobsetV1alpha2() jobsetv1alpha2.JobsetV1alpha2Interface {

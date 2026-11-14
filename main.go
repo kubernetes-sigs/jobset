@@ -40,6 +40,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	configapi "sigs.k8s.io/jobset/api/config/v1alpha1"
+	jobsetv1 "sigs.k8s.io/jobset/api/jobset/v1"
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/config"
 	"sigs.k8s.io/jobset/pkg/controllers"
@@ -63,6 +64,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(jobset.AddToScheme(scheme))
+	utilruntime.Must(jobsetv1.AddToScheme(scheme))
 	utilruntime.Must(configapi.AddToScheme(scheme))
 	utilruntime.Must(schedulingv1beta1.AddToScheme(scheme))
 

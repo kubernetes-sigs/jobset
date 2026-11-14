@@ -22,6 +22,7 @@ import (
 
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
+	v1 "sigs.k8s.io/jobset/api/jobset/v1"
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 )
 
@@ -51,7 +52,11 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=jobset.x-k8s.io, Version=v1alpha2
+	// Group=jobset.x-k8s.io, Version=v1
+	case v1.SchemeGroupVersion.WithResource("jobsets"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Jobset().V1().JobSets().Informer()}, nil
+
+		// Group=jobset.x-k8s.io, Version=v1alpha2
 	case v1alpha2.SchemeGroupVersion.WithResource("jobsets"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Jobset().V1alpha2().JobSets().Informer()}, nil
 

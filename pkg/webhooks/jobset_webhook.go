@@ -107,6 +107,7 @@ func setupWebhookForJobSet(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, &jobset.JobSet{}).
 		WithDefaulter(&jobSetWebhook{client: mgr.GetClient()}).
 		WithValidator(&jobSetWebhook{client: mgr.GetClient()}).
+		WithConverter(jobSetConverter).
 		Complete()
 }
 
