@@ -41,6 +41,7 @@ import (
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
 	"sigs.k8s.io/jobset/pkg/webhooks"
+	testutil "sigs.k8s.io/jobset/test/util"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -95,6 +96,7 @@ var _ = BeforeSuite(func() {
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:         scheme.Scheme,
+		Cache:          testutil.JobSetCacheOptions(),
 		LeaderElection: false,
 		Metrics: server.Options{
 			BindAddress: "0",
