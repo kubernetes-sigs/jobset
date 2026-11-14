@@ -449,6 +449,22 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 		errs = append(errs, field.Invalid(field.NewPath("spec", "activeDeadlineSeconds"), *newJs.Spec.ActiveDeadlineSeconds, "cannot be set when JobSetActiveDeadlineSeconds feature gate is disabled"))
 	}
 
+	// spec.coordinator is mutable, so re-check the invariants enforced at create
+	// time whenever it changes. Otherwise an update can point it at a missing
+	// ReplicatedJob or index, or produce a coordinator label value that makes
+	// every subsequent child Job creation fail.
+	if newJs.Spec.Coordinator != nil && !reflect.DeepEqual(newJs.Spec.Coordinator, oldJs.Spec.Coordinator) {
+		coordinatorPath := field.NewPath("spec", "coordinator")
+		for _, err := range []error{
+			validateCoordinator(newJs),
+			validateCoordinatorLabelValue(newJs, getJobSetNameForValidation(newJs)),
+		} {
+			if err != nil {
+				errs = append(errs, field.Invalid(coordinatorPath, *newJs.Spec.Coordinator, err.Error()))
+			}
+		}
+	}
+
 	// Note that SuccessPolicy and FailurePolicy are made immutable via CEL.
 	errs = append(errs, apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, oldJs.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))...)
 	errs = append(errs, apivalidation.ValidateImmutableField(newJs.Spec.ManagedBy, oldJs.Spec.ManagedBy, field.NewPath("spec").Child("managedBy"))...)
