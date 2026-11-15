@@ -1,3 +1,20 @@
+## v0.13.1
+
+**Bug Fixes**
+
+  - Cap `spec.scheduling.replicatedJobs` at 8 entries to match the upstream Workload API limit of 8 PodGroupTemplates per Workload, so specs that could never produce a valid Workload are rejected at admission; `targetReplicatedJobs` remains capped at 50 (#1373, #1377, @andreyvelich)
+
+**Helm/Deployment**
+
+  - Default `prometheus.prometheusClientCertSecretName` to the chart's own `<fullname>-metrics-server-cert` Secret, fixing ServiceMonitor scraping for releases not named `jobset` (#1389, #1393, @lbarrosby)
+  - Add an optional `controller.priorityClassName` Helm value for the controller Deployment; the value is quoted so numeric-looking names render correctly, and the default rendered manifest is unchanged (#1383, #1384, @ichekrygin)
+  - Add `appVersion` to the Helm chart and use it for the `app.kubernetes.io/version` label instead of the chart version (#1375, #1376, @ichekrygin)
+  - Point the release-branch Kustomize manifests at `registry.k8s.io/jobset/jobset` instead of the staging registry (#1362, @kannon92)
+
+**Build/CI Improvements**
+
+  - Update golangci-lint to 2.14 (#1378, @kannon92)
+
 ## v0.13.0
 **New Features**
 

@@ -14,4 +14,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: registry.k8s.io/jobset/jobset
-  newTag: v0.13.0
+  newTag: v0.13.1
