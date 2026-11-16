@@ -1606,6 +1606,76 @@ func TestValidateCreate(t *testing.T) {
 			),
 		},
 		{
+			name: "jobset failure policy has an invalid on job failure message pattern",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					FailurePolicy: &jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Name:                        "invalidPattern",
+								Action:                      jobset.FailJobSet,
+								OnJobFailureMessagePatterns: []string{"^valid pattern.*", "(unclosed"},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: errors.Join(
+				fmt.Errorf("invalid job failure message pattern '%s' in failure policy: error parsing regexp: missing closing ): `(unclosed`", "(unclosed"),
+			),
+		},
+		{
+			name: "jobset failure policy has valid on job failure message patterns",
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					FailurePolicy: &jobset.FailurePolicy{
+						MaxRestarts: 1,
+						Rules: []jobset.FailurePolicyRule{
+							{
+								Name:                        "validPatterns",
+								Action:                      jobset.FailJobSet,
+								OnJobFailureMessagePatterns: []string{"^job failed because.*", ".*bug.*"},
+							},
+						},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:      "rj",
+							GroupName: "default",
+							Replicas:  1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Completions:    ptr.To(int32(1)),
+									Parallelism:    ptr.To(int32(1)),
+								},
+							},
+						},
+					},
+					SuccessPolicy: &jobset.SuccessPolicy{},
+				},
+			},
+			want: nil,
+		},
+		{
 			name: "jobset failure policy has an invalid replicated job",
 			js: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,

@@ -567,6 +567,15 @@ func validateFailurePolicy(js *jobset.JobSet, rJobNames sets.Set[string]) []erro
 				allErrs = append(allErrs, fmt.Errorf("invalid job failure reason '%s' in failure policy is not a recognized job failure reason", failureReason))
 			}
 		}
+
+		// Validate the rules on job failure message patterns are valid regular expressions.
+		// The controller would otherwise skip an invalid pattern on every evaluation,
+		// so the rule could never match.
+		for _, pattern := range rule.OnJobFailureMessagePatterns {
+			if _, err := regexp.Compile(pattern); err != nil {
+				allErrs = append(allErrs, fmt.Errorf("invalid job failure message pattern '%s' in failure policy: %v", pattern, err))
+			}
+		}
 	}
 
 	// Checking that rule names are unique
