@@ -44,6 +44,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1beta1 "k8s.io/api/scheduling/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -1411,6 +1412,34 @@ func TestUpdateConditions(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestUpdateConditionExclusiveConditionTransitionTime(t *testing.T) {
+	inProgressSince := metav1.NewTime(time.Now().Add(-time.Hour).Truncate(time.Second))
+	js := testutils.MakeJobSet("test-jobset", "default").
+		Conditions([]metav1.Condition{
+			{
+				Type:               string(jobset.JobSetStartupPolicyInProgress),
+				Reason:             constants.InOrderStartupPolicyInProgressReason,
+				Message:            constants.InOrderStartupPolicyInProgressMessage,
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: inProgressSince,
+			},
+		}).Obj()
+
+	setInOrderStartupPolicyCompletedCondition(js, &statusUpdateOpts{})
+
+	inProgress := apimeta.FindStatusCondition(js.Status.Conditions, string(jobset.JobSetStartupPolicyInProgress))
+	completed := apimeta.FindStatusCondition(js.Status.Conditions, string(jobset.JobSetStartupPolicyCompleted))
+	if inProgress == nil || completed == nil {
+		t.Fatalf("expected both startup policy conditions, got %v", js.Status.Conditions)
+	}
+	if inProgress.Status != metav1.ConditionFalse {
+		t.Errorf("expected %s to be False, got %s", inProgress.Type, inProgress.Status)
+	}
+	if !inProgress.LastTransitionTime.After(inProgressSince.Time) {
+		t.Errorf("expected %s LastTransitionTime to move past %v when its status changed, got %v", inProgress.Type, inProgressSince, inProgress.LastTransitionTime)
 	}
 }
 

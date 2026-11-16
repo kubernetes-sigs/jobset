@@ -1575,6 +1575,7 @@ func updateCondition(js *jobset.JobSet, opts *conditionOpts) bool {
 				currCond.Status == metav1.ConditionTrue &&
 				newCond.Status == metav1.ConditionTrue {
 				js.Status.Conditions[i].Status = metav1.ConditionFalse
+				js.Status.Conditions[i].LastTransitionTime = newCond.LastTransitionTime
 				shouldUpdate = true
 			}
 		}
