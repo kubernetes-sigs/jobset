@@ -285,7 +285,7 @@ func (j *jobSetWebhook) ValidateCreate(ctx context.Context, js *jobset.JobSet) (
 				if strings.Contains(errMessage, dns1035MaxLengthExceededErrorMsg) {
 					errMessage = podNameTooLongErrorMsg
 				}
-				allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), longestJobName, errMessage))
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), longestPodName, errMessage))
 			}
 		}
 
