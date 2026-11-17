@@ -32,6 +32,7 @@ import (
 	"k8s.io/cli-runtime/pkg/printers"
 	batchv1ac "k8s.io/client-go/applyconfigurations/batch/v1"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -660,17 +661,28 @@ var _ = ginkgo.Describe("JobSet", func() {
 			var nodes corev1.NodeList
 			gomega.Expect(k8sClient.List(ctx, &nodes)).To(gomega.Succeed())
 			node := schedulableNode(nodes.Items)
-			gomega.Expect(node).NotTo(gomega.BeNil(), "no schedulable node found")
+			gomega.Expect(node).NotTo(gomega.BeNil(), "no schedulable node without the %s label found", jobset.NamespacedJobKey)
 			nodeName := node.Name
-			patch := client.MergeFrom(node.DeepCopy())
-			node.Labels[jobset.NamespacedJobKey] = fmt.Sprintf("%s_%s", ns.Name, jobName)
+			labelValue := fmt.Sprintf("%s_%s", ns.Name, jobName)
+			patch := client.MergeFromWithOptions(node.DeepCopy(), client.MergeFromWithOptimisticLock{})
+			if node.Labels == nil {
+				node.Labels = map[string]string{}
+			}
+			node.Labels[jobset.NamespacedJobKey] = labelValue
 			gomega.Expect(k8sClient.Patch(ctx, node, patch)).To(gomega.Succeed())
 			ginkgo.DeferCleanup(func() {
-				var n corev1.Node
-				gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nodeName}, &n)).To(gomega.Succeed())
-				patch := client.MergeFrom(n.DeepCopy())
-				delete(n.Labels, jobset.NamespacedJobKey)
-				gomega.Expect(k8sClient.Patch(ctx, &n, patch)).To(gomega.Succeed())
+				gomega.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					var n corev1.Node
+					if err := k8sClient.Get(ctx, types.NamespacedName{Name: nodeName}, &n); err != nil {
+						return err
+					}
+					if n.Labels[jobset.NamespacedJobKey] != labelValue {
+						return nil
+					}
+					patch := client.MergeFromWithOptions(n.DeepCopy(), client.MergeFromWithOptimisticLock{})
+					delete(n.Labels, jobset.NamespacedJobKey)
+					return k8sClient.Patch(ctx, &n, patch)
+				})).To(gomega.Succeed())
 			})
 
 			ginkgo.By("creating the jobset")
@@ -833,10 +845,14 @@ func nodeSelectorStrategyTestJobSet(ns *corev1.Namespace) *jobset.JobSet {
 		Obj()
 }
 
-// schedulableNode returns the first node that accepts new pods, or nil if there is none.
+// schedulableNode returns the first node that accepts new pods and has no
+// jobset.NamespacedJobKey label, or nil if there is none.
 func schedulableNode(nodes []corev1.Node) *corev1.Node {
 	for i := range nodes {
 		if nodes[i].Spec.Unschedulable {
+			continue
+		}
+		if _, labeled := nodes[i].Labels[jobset.NamespacedJobKey]; labeled {
 			continue
 		}
 		tainted := false
