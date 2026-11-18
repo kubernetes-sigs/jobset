@@ -32,6 +32,7 @@ import (
 	"k8s.io/cli-runtime/pkg/printers"
 	batchv1ac "k8s.io/client-go/applyconfigurations/batch/v1"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -650,6 +651,54 @@ var _ = ginkgo.Describe("JobSet", func() {
 		})
 	})
 
+	ginkgo.When("JobSet uses the nodeSelector strategy of exclusive placement", func() {
+		ginkgo.It("should not delete follower pods", func() {
+			ctx := context.Background()
+			js := nodeSelectorStrategyTestJobSet(ns)
+			jobName := fmt.Sprintf("%s-%s-0", js.Name, js.Spec.ReplicatedJobs[0].Name)
+
+			ginkgo.By("labeling a node for the job, as hack/label_nodes/label_nodes.py does")
+			var nodes corev1.NodeList
+			gomega.Expect(k8sClient.List(ctx, &nodes)).To(gomega.Succeed())
+			node := schedulableNode(nodes.Items)
+			gomega.Expect(node).NotTo(gomega.BeNil(), "no schedulable node without the %s label found", jobset.NamespacedJobKey)
+			nodeName := node.Name
+			labelValue := fmt.Sprintf("%s_%s", ns.Name, jobName)
+			patch := client.MergeFromWithOptions(node.DeepCopy(), client.MergeFromWithOptimisticLock{})
+			if node.Labels == nil {
+				node.Labels = map[string]string{}
+			}
+			node.Labels[jobset.NamespacedJobKey] = labelValue
+			gomega.Expect(k8sClient.Patch(ctx, node, patch)).To(gomega.Succeed())
+			ginkgo.DeferCleanup(func() {
+				gomega.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					var n corev1.Node
+					if err := k8sClient.Get(ctx, types.NamespacedName{Name: nodeName}, &n); err != nil {
+						return err
+					}
+					if n.Labels[jobset.NamespacedJobKey] != labelValue {
+						return nil
+					}
+					patch := client.MergeFromWithOptions(n.DeepCopy(), client.MergeFromWithOptimisticLock{})
+					delete(n.Labels, jobset.NamespacedJobKey)
+					return k8sClient.Patch(ctx, &n, patch)
+				})).To(gomega.Succeed())
+			})
+
+			ginkgo.By("creating the jobset")
+			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
+
+			ginkgo.By("checking jobset succeeds")
+			util.JobSetCompleted(ctx, k8sClient, js, timeout)
+
+			ginkgo.By("checking no pod of the job failed or was deleted")
+			var job batchv1.Job
+			gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: ns.Name}, &job)).To(gomega.Succeed())
+			gomega.Expect(job.Status.Succeeded).To(gomega.Equal(int32(2)))
+			gomega.Expect(job.Status.Failed).To(gomega.BeZero(), "follower pods were deleted by the pod reconciler")
+		})
+	})
+
 }) // end of Describe
 
 // getPingCommand returns ping command for 4 hostnames
@@ -764,6 +813,60 @@ func sleepTestJobSet(ns *corev1.Namespace, durationSeconds int32) *testing.JobSe
 				}).Obj()).
 			Replicas(int32(replicas)).
 			Obj())
+}
+
+// nodeSelectorStrategyTestJobSet returns a JobSet with 1 replicated job of 1 Job with a leader
+// and a follower pod, using the nodeSelector strategy of exclusive placement on the hostname.
+// The pods sleep long enough for the pod reconciler to process the scheduled leader pod while
+// the follower pod is still running.
+func nodeSelectorStrategyTestJobSet(ns *corev1.Namespace) *jobset.JobSet {
+	return testing.MakeJobSet("js", ns.Name).
+		SetAnnotations(map[string]string{
+			jobset.ExclusiveKey:            corev1.LabelHostname,
+			jobset.NodeSelectorStrategyKey: "true",
+		}).
+		ReplicatedJob(testing.MakeReplicatedJob("rjob").
+			Job(testing.MakeJobTemplate("job", ns.Name).
+				Parallelism(2).
+				Completions(2).
+				PodSpec(corev1.PodSpec{
+					RestartPolicy: "Never",
+					Containers: []corev1.Container{
+						{
+							Name:    "sleep-test-container",
+							Image:   "docker.io/library/bash:latest",
+							Command: []string{"bash", "-c"},
+							Args:    []string{"sleep 20"},
+						},
+					},
+				}).Obj()).
+			Replicas(1).
+			Obj()).
+		Obj()
+}
+
+// schedulableNode returns the first node that accepts new pods and has no
+// jobset.NamespacedJobKey label, or nil if there is none.
+func schedulableNode(nodes []corev1.Node) *corev1.Node {
+	for i := range nodes {
+		if nodes[i].Spec.Unschedulable {
+			continue
+		}
+		if _, labeled := nodes[i].Labels[jobset.NamespacedJobKey]; labeled {
+			continue
+		}
+		tainted := false
+		for _, taint := range nodes[i].Spec.Taints {
+			if taint.Effect == corev1.TaintEffectNoSchedule || taint.Effect == corev1.TaintEffectNoExecute {
+				tainted = true
+				break
+			}
+		}
+		if !tainted {
+			return &nodes[i]
+		}
+	}
+	return nil
 }
 
 func dependsOnTestJobSet(ns *corev1.Namespace, rJobs []jobset.ReplicatedJob) *jobset.JobSet {
