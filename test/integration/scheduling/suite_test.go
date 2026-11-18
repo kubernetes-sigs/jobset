@@ -72,7 +72,7 @@ var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 	apiServer := &envtest.APIServer{}
 	apiServer.Configure().
-		Append("feature-gates", "GenericWorkload=true,TopologyAwareWorkloadScheduling=true,DRAWorkloadResourceClaims=true,WorkloadWithJob=true").
+		Append("feature-gates", "GenericWorkload=true,TopologyAwareWorkloadScheduling=true,DRAWorkloadResourceClaims=true,WorkloadWithJob=true,CompositePodGroup=true").
 		// Enable both API versions for parity with hack/kind-config-scheduling.yaml.
 		// JobSet's controller and these tests use the v1alpha3 client.
 		Append("runtime-config", "scheduling.k8s.io/v1alpha3=true,scheduling.k8s.io/v1beta1=true")
@@ -106,6 +106,9 @@ var _ = BeforeSuite(func() {
 	// Scheduling watches are registered during SetupWithManager, not when
 	// the feature gate is changed later by an individual spec.
 	features.SetFeatureGateDuringTest(GinkgoTB(), features.JobSetWorkloadAwareSchedulingAPI, true)
+	// Enable gang-of-gangs so the CompositePodGroup watch is registered during
+	// SetupWithManager below.
+	features.SetFeatureGateDuringTest(GinkgoTB(), features.JobSetGangOfGangs, true)
 
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,

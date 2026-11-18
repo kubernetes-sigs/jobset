@@ -140,14 +140,6 @@ func TestSchedulingWithSequencedStartup(t *testing.T) {
 				},
 			},
 			{
-				name: "top-level Gang with minGroupCount",
-				scheduling: &jobset.JobSetScheduling{
-					SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
-						Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{MinGroupCount: ptr.To[int32](1)},
-					},
-				},
-			},
-			{
 				name: "explicit per-RJ gangs",
 				scheduling: &jobset.JobSetScheduling{
 					ReplicatedJobs: []jobset.ReplicatedJobScheduling{

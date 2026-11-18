@@ -250,15 +250,15 @@
       }
     },
     "jobset.v1alpha2.JobSetScheduling": {
-      "description": "JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet. A JobSet must configure scheduling using exactly one of two mutually exclusive models, since composite Gang-of-Gangs PodGroup hierarchies linking a parent PodGroup to leaf PodGroups are not implemented in alpha:\n  - the top-level (composite) model: set schedulingPolicy,\n    schedulingConstraints, and/or disruptionMode to configure a single PodGroup\n    covering the whole JobSet, and leave replicatedJobs unset.\n  - the per-ReplicatedJob (composite) model: set replicatedJobs and leave\n    schedulingPolicy, schedulingConstraints, and disruptionMode unset at the top\n    level. Every ReplicatedJob must then be targeted by exactly one\n    replicatedJobs entry, since there is no top-level policy for an\n    untargeted ReplicatedJob to fall back to.\n\nSequenced startup (DependsOn or an InOrder StartupPolicy) creates Jobs sequentially, so a single top-level PodGroup could never reach its minCount. A JobSet using sequenced startup must therefore use the per-ReplicatedJob model; top-level scheduling (including the defaulted top-level gang) is rejected with sequenced startup.",
+      "description": "JobSetScheduling defines the Workload-Aware Scheduling configuration for a JobSet. With the JobSetGangOfGangs feature gate disabled (alpha default), a JobSet must configure scheduling using exactly one of two mutually exclusive models:\n  - the top-level (composite) model: set schedulingPolicy,\n    schedulingConstraints, and/or disruptionMode to configure a single PodGroup\n    covering the whole JobSet, and leave replicatedJobs unset.\n  - the per-ReplicatedJob (composite) model: set replicatedJobs and leave\n    schedulingPolicy, schedulingConstraints, and disruptionMode unset at the top\n    level. Every ReplicatedJob must then be targeted by exactly one\n    replicatedJobs entry, since there is no top-level policy for an\n    untargeted ReplicatedJob to fall back to.\n\nSequenced startup (DependsOn or an InOrder StartupPolicy) creates Jobs sequentially, so a single top-level PodGroup could never reach its minCount. A JobSet using sequenced startup must therefore use the per-ReplicatedJob model; top-level scheduling (including the defaulted top-level gang) is rejected with sequenced startup.\n\nWith JobSetGangOfGangs enabled, every JobSet that sets spec.scheduling compiles into one CompositePodGroup tree: a root CompositePodGroup from the top-level fields, one CompositePodGroup per replicatedJobs entry plus one fallback group for ReplicatedJobs no entry targets, and leaf PodGroups beneath them. The two models may then be combined, and untargeted ReplicatedJobs are allowed. Because CEL cannot read feature gates, these gate-aware rules are enforced in the validating webhook (validateScheduling) rather than as type-level CEL rules.",
       "type": "object",
       "properties": {
         "disruptionMode": {
-          "description": "disruptionMode defines how the entire composite group can be disrupted. Mutually exclusive with replicatedJobs: see the type-level comment.",
+          "description": "disruptionMode defines how the entire composite group can be disrupted. Mutually exclusive with replicatedJobs unless JobSetGangOfGangs is enabled: see the type-level comment.",
           "$ref": "#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupDisruptionMode"
         },
         "replicatedJobs": {
-          "description": "replicatedJobs specifies per-ReplicatedJob composite-level scheduling overrides. Each entry targets one or more named ReplicatedJobs. Mutually exclusive with the top-level schedulingPolicy, schedulingConstraints, and disruptionMode fields: see the type-level comment. When set, every ReplicatedJob in the JobSet must be targeted by exactly one entry. The list is limited to a maximum of 8 entries, since each entry compiles into at least one PodGroupTemplate and the Workload API allows at most 8 templates.",
+          "description": "replicatedJobs specifies per-ReplicatedJob composite-level scheduling overrides. Each entry targets one or more named ReplicatedJobs. With JobSetGangOfGangs disabled, mutually exclusive with the top-level schedulingPolicy, schedulingConstraints, and disruptionMode fields, and every ReplicatedJob in the JobSet must be targeted by exactly one entry: see the type-level comment. With JobSetGangOfGangs enabled, may be combined with the top-level fields, and untargeted ReplicatedJobs fall back to one shared group under the root. The list is limited to a maximum of 8 entries, since each entry compiles into at least one PodGroupTemplate and the Workload API allows at most 8 templates.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/jobset.v1alpha2.ReplicatedJobScheduling"
@@ -266,11 +266,11 @@
           "x-kubernetes-list-type": "atomic"
         },
         "schedulingConstraints": {
-          "description": "schedulingConstraints defines composite-level topology constraints for the entire JobSet. Mutually exclusive with replicatedJobs: see the type-level comment.",
+          "description": "schedulingConstraints defines composite-level topology constraints for the entire JobSet. Mutually exclusive with replicatedJobs unless JobSetGangOfGangs is enabled: see the type-level comment.",
           "$ref": "#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingConstraints"
         },
         "schedulingPolicy": {
-          "description": "schedulingPolicy defines the composite-level scheduling policy for the entire JobSet. Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and replicatedJobs is not set. Top-level scheduling, including this defaulted top-level gang, is forbidden with sequenced startup (DependsOn or an InOrder StartupPolicy), since a single PodGroup spanning the whole JobSet could never reach its minCount while Jobs are created sequentially. Configure Gang policies under replicatedJobs instead in that case. Mutually exclusive with replicatedJobs: see the type-level comment.",
+          "description": "schedulingPolicy defines the composite-level scheduling policy for the entire JobSet. Defaults to Gang when spec.scheduling is set but schedulingPolicy is nil and replicatedJobs is not set. Top-level scheduling, including this defaulted top-level gang, is forbidden with sequenced startup (DependsOn or an InOrder StartupPolicy), since a single PodGroup spanning the whole JobSet could never reach its minCount while Jobs are created sequentially. Configure Gang policies under replicatedJobs instead in that case. Mutually exclusive with replicatedJobs unless JobSetGangOfGangs is enabled: see the type-level comment. With JobSetGangOfGangs enabled it configures the root CompositePodGroup and, when nil, defaults to Basic if only replicatedJobs is set and to Gang otherwise. gang.minGroupCount requires JobSetGangOfGangs and cannot exceed the number of groups under the root; it is otherwise rejected by the validating webhook.",
           "$ref": "#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingPolicy"
         }
       }
@@ -469,7 +469,7 @@
       }
     },
     "jobset.v1alpha2.ReplicatedJobScheduling": {
-      "description": "ReplicatedJobScheduling targets one or more named ReplicatedJobs with composite-level scheduling configuration.",
+      "description": "ReplicatedJobScheduling targets one or more named ReplicatedJobs with composite-level scheduling configuration.\n\nWhen job is set, schedulingPolicy, schedulingConstraints, and disruptionMode cannot be set unless the JobSetGangOfGangs feature gate is enabled. Because CEL cannot read feature gates, that rule is enforced in the validating webhook; only the gate-independent single-target rule is a CEL rule here.",
       "type": "object",
       "required": [
         "targetReplicatedJobs"
@@ -480,7 +480,7 @@
           "$ref": "#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupDisruptionMode"
         },
         "job": {
-          "description": "job defines job-level (replica-level) scheduling configuration, where each replica of the targeted ReplicatedJobs forms its own independent gang (i.e. one PodGroup per Job) instead of sharing a single PodGroup across every replica of the targeted ReplicatedJobs. This is part of the Gang-of-Gangs model. When set, targetReplicatedJobs must contain exactly one ReplicatedJob name, and the composite-level schedulingPolicy, schedulingConstraints, and disruptionMode fields on this ReplicatedJobScheduling must not be set, since they configure a shared PodGroup that job replaces with one PodGroup per Job.",
+          "description": "job defines job-level (replica-level) scheduling configuration, where each replica of the targeted ReplicatedJobs forms its own independent gang (i.e. one PodGroup per Job) instead of sharing a single PodGroup across every replica of the targeted ReplicatedJobs. This is part of the Gang-of-Gangs model. When set, targetReplicatedJobs must contain exactly one ReplicatedJob name, and the targeted ReplicatedJob may have at most 8 replicas (one PodGroupTemplate each). With JobSetGangOfGangs disabled, the composite-level schedulingPolicy, schedulingConstraints, and disruptionMode fields on this ReplicatedJobScheduling must not be set, since there is no CompositePodGroup to hold them above the per-Job PodGroups. With JobSetGangOfGangs enabled they configure the entry's CompositePodGroup above the per-Job PodGroups.",
           "$ref": "#/definitions/jobset.v1alpha2.JobScheduling"
         },
         "schedulingConstraints": {
@@ -488,7 +488,7 @@
           "$ref": "#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingConstraints"
         },
         "schedulingPolicy": {
-          "description": "schedulingPolicy defines the composite-level scheduling policy (basic or gang) for jobs created by the targeted ReplicatedJobs. Defaults to Gang when not specified.",
+          "description": "schedulingPolicy defines the composite-level scheduling policy (basic or gang) for jobs created by the targeted ReplicatedJobs. Defaults to Gang when not specified. gang.minGroupCount requires JobSetGangOfGangs, is only allowed when job is set (one child per Job replica), and cannot exceed the number of replicas; it is otherwise rejected by the validating webhook.",
           "$ref": "#/definitions/io.k8s.api.scheduling.v1alpha3.WorkloadCompositePodGroupSchedulingPolicy"
         },
         "targetReplicatedJobs": {

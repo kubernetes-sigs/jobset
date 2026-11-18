@@ -37,6 +37,12 @@ import (
 	testutil "sigs.k8s.io/jobset/test/util"
 )
 
+// gangOfGangsLabel marks specs that need the controller running with the
+// JobSetGangOfGangs feature gate on. hack/e2e-scheduling-test.sh runs the
+// unlabeled specs against the default (gate off) deployment first, then
+// redeploys with the gate on and runs only the labeled specs.
+const gangOfGangsLabel = "gang-of-gangs"
+
 var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 
 	ginkgo.It("should create per-RJ PodGroups when leaf overrides are present", func() {
@@ -519,6 +525,366 @@ var _ = ginkgo.Describe("Workload-Aware Scheduling E2E", func() {
 		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
 	})
 
+	ginkgo.It("should build a CompositePodGroup tree and converge when gang-of-gangs is combined with DependsOn", ginkgo.Label(gangOfGangsLabel), func() {
+		// Gang-of-gangs (JobSetGangOfGangs gate) + DependsOn: a Basic root over
+		// per-child Gangs. DependsOn sequences child creation (workers only after
+		// driver is Ready); a Basic root imposes no cross-child quorum, so the tree
+		// converges. A Gang root here would derive minGroupCount == child count and
+		// deadlock, since the deferred worker child can never satisfy it.
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{GenerateName: "e2e-sched-gog-depends-"},
+		}
+		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		}()
+
+		js := &jobset.JobSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "gog-depends",
+				Namespace: ns.Name,
+			},
+			Spec: jobset.JobSetSpec{
+				SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+				Network:       &jobset.Network{EnableDNSHostnames: boolPtr(true)},
+				Scheduling: &jobset.JobSetScheduling{
+					// Top-level Basic root turns this into gang-of-gangs: a root
+					// CompositePodGroup over one child CompositePodGroup per entry.
+					SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+						Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+						{TargetReplicatedJobs: []string{"driver"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+					},
+				},
+				ReplicatedJobs: []jobset.ReplicatedJob{
+					{
+						Name:     "driver",
+						Replicas: 1,
+						Template: batchv1.JobTemplateSpec{
+							Spec: batchv1.JobSpec{
+								Parallelism:    int32Ptr(1),
+								Completions:    int32Ptr(1),
+								CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								Template: corev1.PodTemplateSpec{
+									Spec: corev1.PodSpec{
+										RestartPolicy: corev1.RestartPolicyNever,
+										Containers: []corev1.Container{{
+											Name:    "driver",
+											Image:   "docker.io/library/bash:latest",
+											Command: []string{"bash", "-c"},
+											Args:    []string{"sleep 10"},
+										}},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name:     "workers",
+						Replicas: 2,
+						DependsOn: []jobset.DependsOn{
+							{Name: "driver", Status: jobset.DependencyReady},
+						},
+						Template: batchv1.JobTemplateSpec{
+							Spec: batchv1.JobSpec{
+								Parallelism:    int32Ptr(1),
+								Completions:    int32Ptr(1),
+								CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+								Template: corev1.PodTemplateSpec{
+									Spec: corev1.PodSpec{
+										RestartPolicy: corev1.RestartPolicyNever,
+										Containers: []corev1.Container{{
+											Name:    "worker",
+											Image:   "docker.io/library/bash:latest",
+											Command: []string{"bash", "-c"},
+											Args:    []string{"sleep 10"},
+										}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ginkgo.By("creating the gang-of-gangs JobSet with DependsOn")
+		gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+
+		ginkgo.By("verifying the Workload nests templates under CompositePodGroupTemplates")
+		gomega.Eventually(func(g gomega.Gomega) {
+			workload := getWorkloadByPrefix(g, ns.Name, js.Name)
+			// Gang-of-gangs puts the whole tree under CompositePodGroupTemplates and
+			// leaves the flat top-level PodGroupTemplates empty.
+			g.Expect(workload.Spec.CompositePodGroupTemplates).NotTo(gomega.BeEmpty())
+			g.Expect(workload.Spec.PodGroupTemplates).To(gomega.BeEmpty())
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying the CompositePodGroup tree has a Basic root with two Gang children linked by parent")
+		gomega.Eventually(func(g gomega.Gomega) {
+			cpgs := listCompositePodGroups(g, ns.Name, js.Name)
+			// One root + one child per replicatedJobs entry (driver, workers).
+			g.Expect(cpgs).To(gomega.HaveLen(3))
+
+			var roots, children int
+			for i := range cpgs {
+				if cpgs[i].Spec.ParentCompositePodGroupName == nil {
+					roots++
+					// Root carries the top-level Basic policy.
+					g.Expect(cpgs[i].Spec.SchedulingPolicy.Basic).NotTo(gomega.BeNil())
+				} else {
+					children++
+					g.Expect(cpgs[i].Spec.SchedulingPolicy.Gang).NotTo(gomega.BeNil())
+				}
+			}
+			g.Expect(roots).To(gomega.Equal(1))
+			g.Expect(children).To(gomega.Equal(2))
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying leaf PodGroups link to a composite parent with correct minCounts")
+		gomega.Eventually(func(g gomega.Gomega) {
+			leaves := listLeafPodGroups(g, ns.Name, js.Name)
+			g.Expect(leaves).To(gomega.HaveLen(2))
+			for i := range leaves {
+				// Every leaf in a composite tree links up to its child CompositePodGroup.
+				g.Expect(leaves[i].Spec.ParentCompositePodGroupName).NotTo(gomega.BeNil())
+				g.Expect(leaves[i].Spec.SchedulingPolicy.Gang).NotTo(gomega.BeNil())
+			}
+			// Leaf templates use the index-prefix naming: <entry-index>-<targets>.
+			driverPG := getPodGroupByTemplate(g, ns.Name, "0-driver")
+			g.Expect(driverPG.Spec.SchedulingPolicy.Gang.MinCount).To(gomega.Equal(int32(1)))
+			workersPG := getPodGroupByTemplate(g, ns.Name, "1-workers")
+			g.Expect(workersPG.Spec.SchedulingPolicy.Gang.MinCount).To(gomega.Equal(int32(2)))
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying child Jobs carry their scheduling-group annotation")
+		gomega.Eventually(func(g gomega.Gomega) {
+			var jobList batchv1.JobList
+			g.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(ns.Name))).To(gomega.Succeed())
+			g.Expect(len(jobList.Items)).To(gomega.BeNumerically(">=", 1))
+			for _, job := range jobList.Items {
+				// Each Job points at the leaf template of its group, and its Pods at
+				// the PodGroup materialized from that template.
+				g.Expect(job.Annotations).To(gomega.HaveKey(controllers.SchedulingGroupTemplateNameKey))
+				leaf := getPodGroupByTemplate(g, ns.Name, job.Annotations[controllers.SchedulingGroupTemplateNameKey])
+				g.Expect(job.Spec.Template.Spec.SchedulingGroup).NotTo(gomega.BeNil())
+				g.Expect(job.Spec.Template.Spec.SchedulingGroup.PodGroupName).To(gomega.HaveValue(gomega.Equal(leaf.Name)))
+			}
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying the JobSet completes successfully (DependsOn sequencing converges under the composite tree)")
+		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
+	})
+
+	ginkgo.It("should sequence gang-of-gangs child creation with DependsOn Complete status", ginkgo.Label(gangOfGangsLabel), func() {
+		// DependsOn Complete exercises a distinct branch from Ready in
+		// depends_on.go (Succeeded counter, not Ready+Failed+Succeeded): the worker
+		// child's Jobs are not created until the driver has actually completed.
+		// Under a Basic gang-of-gangs root this still converges.
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{GenerateName: "e2e-sched-gog-complete-"},
+		}
+		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		}()
+
+		js := &jobset.JobSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "gog-complete", Namespace: ns.Name},
+			Spec: jobset.JobSetSpec{
+				SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+				Network:       &jobset.Network{EnableDNSHostnames: boolPtr(true)},
+				Scheduling: &jobset.JobSetScheduling{
+					SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+						Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+						{TargetReplicatedJobs: []string{"driver"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+					},
+				},
+				ReplicatedJobs: []jobset.ReplicatedJob{
+					schedulingJob("driver", 1, nil),
+					schedulingJob("workers", 2, []jobset.DependsOn{{Name: "driver", Status: jobset.DependencyComplete}}),
+				},
+			},
+		}
+
+		ginkgo.By("creating the JobSet with DependsOn Complete")
+		gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+
+		ginkgo.By("verifying no worker Job exists until the driver has completed")
+		// Jobs are listed by their ReplicatedJob label; the worker Job must be
+		// absent while the driver is still running (DependsOn Complete gate).
+		gomega.Consistently(func(g gomega.Gomega) {
+			if replicatedJobJobCount(g, ns.Name, "driver") == 0 {
+				return // driver not created yet; nothing to assert
+			}
+			if !replicatedJobSucceeded(ns.Name, js.Name, "driver") {
+				g.Expect(replicatedJobJobCount(g, ns.Name, "workers")).To(gomega.Equal(0),
+					"worker Jobs must not be created before the driver completes")
+			}
+		}, "5s", "500ms").Should(gomega.Succeed())
+
+		ginkgo.By("verifying the tree is a Basic root over two Gang children")
+		gomega.Eventually(func(g gomega.Gomega) {
+			g.Expect(listCompositePodGroups(g, ns.Name, js.Name)).To(gomega.HaveLen(3))
+			g.Expect(listLeafPodGroups(g, ns.Name, js.Name)).To(gomega.HaveLen(2))
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying the JobSet completes successfully")
+		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
+	})
+
+	ginkgo.It("should put an untargeted ReplicatedJob in the fallback group while another uses DependsOn", ginkgo.Label(gangOfGangsLabel), func() {
+		// Untargeted ReplicatedJobs form one fallback group under the root, using the
+		// root's policy. This exercises the fallback path combined with DependsOn
+		// sequencing on the targeted sibling.
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{GenerateName: "e2e-sched-gog-fallback-"},
+		}
+		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		}()
+
+		js := &jobset.JobSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "gog-fallback", Namespace: ns.Name},
+			Spec: jobset.JobSetSpec{
+				SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+				Network:       &jobset.Network{EnableDNSHostnames: boolPtr(true)},
+				Scheduling: &jobset.JobSetScheduling{
+					SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+						Basic: &schedulingv1alpha3.WorkloadCompositePodGroupBasicSchedulingPolicy{},
+					},
+					// Only workers is targeted; driver is untargeted and lands in the
+					// fallback group (index 1) under the Basic root.
+					ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+						{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+					},
+				},
+				ReplicatedJobs: []jobset.ReplicatedJob{
+					schedulingJob("driver", 1, nil),
+					schedulingJob("workers", 2, []jobset.DependsOn{{Name: "driver", Status: jobset.DependencyReady}}),
+				},
+			},
+		}
+
+		ginkgo.By("creating the JobSet with an untargeted driver and a DependsOn worker")
+		gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+
+		ginkgo.By("verifying the workers group and the fallback driver group sit under the root")
+		gomega.Eventually(func(g gomega.Gomega) {
+			// Root + the workers group + the fallback group for the untargeted driver.
+			g.Expect(listCompositePodGroups(g, ns.Name, js.Name)).To(gomega.HaveLen(3))
+			root := getCompositePodGroupByTemplate(g, ns.Name, js.Name+"-cpg")
+			g.Expect(root.Spec.ParentCompositePodGroupName).To(gomega.BeNil())
+
+			fallback := getCompositePodGroupByTemplate(g, ns.Name, "1-driver-cpg")
+			g.Expect(fallback.Spec.ParentCompositePodGroupName).To(gomega.HaveValue(gomega.Equal(root.Name)))
+			g.Expect(fallback.Spec.SchedulingPolicy.Basic).NotTo(gomega.BeNil(), "the fallback group inherits the Basic root")
+
+			g.Expect(listLeafPodGroups(g, ns.Name, js.Name)).To(gomega.HaveLen(2))
+			driverPG := getPodGroupByTemplate(g, ns.Name, "1-driver")
+			g.Expect(driverPG.Spec.ParentCompositePodGroupName).To(gomega.HaveValue(gomega.Equal(fallback.Name)))
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying the JobSet completes successfully")
+		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
+	})
+
+	ginkgo.It("should reject a Gang root combined with DependsOn in gang-of-gangs mode", ginkgo.Label(gangOfGangsLabel), func() {
+		// A full-quorum Gang root over a DependsOn-deferred child deadlocks, so the
+		// webhook rejects it at admission. A Basic root is the supported combination.
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{GenerateName: "e2e-sched-gog-reject-"},
+		}
+		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		}()
+
+		js := &jobset.JobSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "gog-reject", Namespace: ns.Name},
+			Spec: jobset.JobSetSpec{
+				SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+				Network:       &jobset.Network{EnableDNSHostnames: boolPtr(true)},
+				Scheduling: &jobset.JobSetScheduling{
+					SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{
+						Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{},
+					},
+					ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+						{TargetReplicatedJobs: []string{"driver"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+						{TargetReplicatedJobs: []string{"workers"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+					},
+				},
+				ReplicatedJobs: []jobset.ReplicatedJob{
+					schedulingJob("driver", 1, nil),
+					schedulingJob("workers", 2, []jobset.DependsOn{{Name: "driver", Status: jobset.DependencyReady}}),
+				},
+			},
+		}
+
+		ginkgo.By("expecting admission to reject the Gang root + DependsOn combination")
+		err := k8sClient.Create(ctx, js)
+		gomega.Expect(err).To(gomega.HaveOccurred())
+		gomega.Expect(err.Error()).To(gomega.ContainSubstring("sequenced startup"))
+	})
+
+	ginkgo.It("should exclude a DependsOn-deferred member from a shared gang minCount and still converge", func() {
+		// MPI launcher + node shape: one replicatedJobs entry targets both workers and
+		// launcher (a single shared Gang PodGroup), and launcher dependsOn workers. The
+		// shared gang minCount excludes the launcher (2 worker pods, not 3), so the
+		// workers gang-schedule and the launcher joins the already-admitted PodGroup
+		// afterward. If the launcher were counted, the gang could never reach quorum
+		// (its Jobs are deferred until the workers are Ready), the workers would never
+		// schedule, and the JobSet would deadlock instead of completing.
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{GenerateName: "e2e-sched-shared-depends-"},
+		}
+		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+		defer func() {
+			gomega.Expect(testutil.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		}()
+
+		workers := schedulingJob("workers", 1, nil)
+		workers.Template.Spec.Parallelism = int32Ptr(2)
+		workers.Template.Spec.Completions = int32Ptr(2)
+		launcher := schedulingJob("launcher", 1, []jobset.DependsOn{{Name: "workers", Status: jobset.DependencyReady}})
+
+		js := &jobset.JobSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "shared-depends", Namespace: ns.Name},
+			Spec: jobset.JobSetSpec{
+				SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+				Network:       &jobset.Network{EnableDNSHostnames: boolPtr(true)},
+				Scheduling: &jobset.JobSetScheduling{
+					// One entry targeting both ReplicatedJobs -> a single shared Gang PodGroup.
+					ReplicatedJobs: []jobset.ReplicatedJobScheduling{
+						{TargetReplicatedJobs: []string{"workers", "launcher"}, SchedulingPolicy: &schedulingv1alpha3.WorkloadCompositePodGroupSchedulingPolicy{Gang: &schedulingv1alpha3.WorkloadCompositePodGroupGangSchedulingPolicy{}}},
+					},
+				},
+				// workers has no dependency and must come first; launcher dependsOn workers.
+				ReplicatedJobs: []jobset.ReplicatedJob{workers, launcher},
+			},
+		}
+
+		ginkgo.By("creating the shared-gang JobSet with a DependsOn-deferred launcher")
+		gomega.Expect(k8sClient.Create(ctx, js)).To(gomega.Succeed())
+
+		ginkgo.By("verifying the single shared PodGroup gang minCount excludes the launcher (2, not 3)")
+		gomega.Eventually(func(g gomega.Gomega) {
+			leaves := listLeafPodGroups(g, ns.Name, js.Name)
+			g.Expect(leaves).To(gomega.HaveLen(1))
+			g.Expect(leaves[0].Spec.SchedulingPolicy.Gang).NotTo(gomega.BeNil())
+			g.Expect(leaves[0].Spec.SchedulingPolicy.Gang.MinCount).To(gomega.Equal(int32(2)))
+		}, timeout, interval).Should(gomega.Succeed())
+
+		ginkgo.By("verifying the JobSet completes (workers gang-schedule at the reduced minCount, launcher joins)")
+		testutil.JobSetCompleted(ctx, k8sClient, js, timeout)
+	})
+
 	ginkgo.It("should preempt low-priority JobSet when high-priority JobSet needs resources", func() {
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{GenerateName: "e2e-sched-preempt-"},
@@ -995,6 +1361,106 @@ func getWorkloadByPrefix(g gomega.Gomega, ns, prefix string) schedulingv1beta1.W
 		}
 	}
 	g.Expect(matches).To(gomega.HaveLen(1), "expected exactly one Workload with prefix %q, got %d", prefix, len(matches))
+	return matches[0]
+}
+
+// schedulingJob builds a minimal Indexed bash ReplicatedJob (one pod per Job,
+// `replicas` Jobs) with an optional DependsOn, for scheduling e2e trees.
+func schedulingJob(name string, replicas int32, dependsOn []jobset.DependsOn) jobset.ReplicatedJob {
+	return jobset.ReplicatedJob{
+		Name:      name,
+		Replicas:  replicas,
+		DependsOn: dependsOn,
+		Template: batchv1.JobTemplateSpec{
+			Spec: batchv1.JobSpec{
+				Parallelism:    int32Ptr(1),
+				Completions:    int32Ptr(1),
+				CompletionMode: completionModePtr(batchv1.IndexedCompletion),
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						RestartPolicy: corev1.RestartPolicyNever,
+						Containers: []corev1.Container{{
+							Name:    name,
+							Image:   "docker.io/library/bash:latest",
+							Command: []string{"bash", "-c"},
+							Args:    []string{"sleep 10"},
+						}},
+					},
+				},
+			},
+		},
+	}
+}
+
+// replicatedJobJobCount returns the number of child Jobs belonging to the named
+// ReplicatedJob in the namespace.
+func replicatedJobJobCount(g gomega.Gomega, ns, rjName string) int {
+	var jobList batchv1.JobList
+	g.Expect(k8sClient.List(ctx, &jobList, client.InNamespace(ns),
+		client.MatchingLabels{jobset.ReplicatedJobNameKey: rjName})).To(gomega.Succeed())
+	return len(jobList.Items)
+}
+
+// replicatedJobSucceeded reports whether the named ReplicatedJob has reached its
+// Succeeded count in the JobSet status (DependsOn Complete gate).
+func replicatedJobSucceeded(ns, jsName, rjName string) bool {
+	var js jobset.JobSet
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: jsName}, &js); err != nil {
+		return false
+	}
+	for i := range js.Status.ReplicatedJobsStatus {
+		s := &js.Status.ReplicatedJobsStatus[i]
+		if s.Name == rjName {
+			return s.Succeeded >= 1
+		}
+	}
+	return false
+}
+
+// listCompositePodGroups returns every CompositePodGroup owned by the JobSet,
+// selected by the owning-JobSet label the controller sets on each node.
+func listCompositePodGroups(g gomega.Gomega, ns, jsName string) []schedulingv1alpha3.CompositePodGroup {
+	var cpgList schedulingv1alpha3.CompositePodGroupList
+	g.Expect(k8sClient.List(ctx, &cpgList, client.InNamespace(ns),
+		client.MatchingLabels{jobset.JobSetNameKey: jsName})).To(gomega.Succeed())
+	return cpgList.Items
+}
+
+// listLeafPodGroups returns every leaf PodGroup owned by the JobSet.
+func listLeafPodGroups(g gomega.Gomega, ns, jsName string) []schedulingv1beta1.PodGroup {
+	var pgList schedulingv1beta1.PodGroupList
+	g.Expect(k8sClient.List(ctx, &pgList, client.InNamespace(ns),
+		client.MatchingLabels{jobset.JobSetNameKey: jsName})).To(gomega.Succeed())
+	return pgList.Items
+}
+
+// getPodGroupByTemplate returns the single PodGroup in the namespace that was
+// materialized from the named template (spec.workloadRef.templateName).
+func getPodGroupByTemplate(g gomega.Gomega, ns, template string) schedulingv1beta1.PodGroup {
+	var pgList schedulingv1beta1.PodGroupList
+	g.Expect(k8sClient.List(ctx, &pgList, client.InNamespace(ns))).To(gomega.Succeed())
+	var matches []schedulingv1beta1.PodGroup
+	for i := range pgList.Items {
+		if ref := pgList.Items[i].Spec.WorkloadRef; ref != nil && ref.TemplateName == template {
+			matches = append(matches, pgList.Items[i])
+		}
+	}
+	g.Expect(matches).To(gomega.HaveLen(1), "expected exactly one PodGroup for template %q, got %d", template, len(matches))
+	return matches[0]
+}
+
+// getCompositePodGroupByTemplate returns the single CompositePodGroup in the
+// namespace that was materialized from the named template.
+func getCompositePodGroupByTemplate(g gomega.Gomega, ns, template string) schedulingv1alpha3.CompositePodGroup {
+	var cpgList schedulingv1alpha3.CompositePodGroupList
+	g.Expect(k8sClient.List(ctx, &cpgList, client.InNamespace(ns))).To(gomega.Succeed())
+	var matches []schedulingv1alpha3.CompositePodGroup
+	for i := range cpgList.Items {
+		if ref := cpgList.Items[i].Spec.WorkloadRef; ref != nil && ref.TemplateName == template {
+			matches = append(matches, cpgList.Items[i])
+		}
+	}
+	g.Expect(matches).To(gomega.HaveLen(1), "expected exactly one CompositePodGroup for template %q, got %d", template, len(matches))
 	return matches[0]
 }
 

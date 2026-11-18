@@ -43,8 +43,32 @@ function startup {
     fi
 }
 
+# Specs labeled gang-of-gangs need the controller running with JobSetGangOfGangs
+# on, which changes how every JobSet with spec.scheduling compiles. The rest
+# cover the default (gate off) path. Both run in the same cluster: pass 1 against
+# the default overlay, pass 2 after redeploying with the gate-on overlay.
+GANG_OF_GANGS_LABEL="gang-of-gangs"
+E2E_GANG_OF_GANGS_TARGET_FOLDER="${E2E_GANG_OF_GANGS_TARGET_FOLDER:-scheduling-gang-of-gangs}"
+
 trap cleanup EXIT
 startup
 kind_load_image
+
+echo "==> Pass 1: JobSetGangOfGangs off, specs not labeled ${GANG_OF_GANGS_LABEL}"
 deploy_scheduling_jobset
-$GINKGO --junit-report=junit.xml --output-dir="$ARTIFACTS" -v "$E2E_TEST_PATH"
+pass1=0
+$GINKGO --junit-report=junit.xml --output-dir="$ARTIFACTS" --label-filter="!${GANG_OF_GANGS_LABEL}" -v "$E2E_TEST_PATH" || pass1=$?
+
+echo "==> Pass 2: JobSetGangOfGangs on, specs labeled ${GANG_OF_GANGS_LABEL}"
+E2E_TARGET_FOLDER="$E2E_GANG_OF_GANGS_TARGET_FOLDER" deploy_scheduling_jobset
+# Applying the overlay only updates the manager ConfigMap; restart the
+# controller so it reads the new feature gates.
+kubectl rollout restart deployment/jobset-controller-manager -n "$NAMESPACE"
+kubectl rollout status deployment/jobset-controller-manager -n "$NAMESPACE" --timeout=120s
+pass2=0
+$GINKGO --junit-report=junit-gang-of-gangs.xml --output-dir="$ARTIFACTS" --label-filter="${GANG_OF_GANGS_LABEL}" -v "$E2E_TEST_PATH" || pass2=$?
+
+if [ "$pass1" -ne 0 ] || [ "$pass2" -ne 0 ]; then
+    echo "E2E failed: pass 1 (gate off) exit=${pass1}, pass 2 (gate on) exit=${pass2}"
+    exit 1
+fi

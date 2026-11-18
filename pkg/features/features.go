@@ -17,6 +17,7 @@ limitations under the License.
 package features
 
 import (
+	"fmt"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -76,6 +77,25 @@ const (
 	// building blocks from scheduling.k8s.io, allowing users to configure gang scheduling,
 	// topology constraints, and disruption policies on JobSets.
 	JobSetWorkloadAwareSchedulingAPI featuregate.Feature = "JobSetWorkloadAwareSchedulingAPI"
+
+	// owner: @yindia
+	// kep: https://github.com/kubernetes-sigs/jobset/blob/main/keps/969-WAS-integration/README.md
+	//
+	// JobSetGangOfGangs enables the composite PodGroup (gang of gangs) scheduling model,
+	// allowing a top-level JobSet scheduling policy and per-ReplicatedJob policies to be
+	// combined into one CompositePodGroup tree instead of being mutually exclusive.
+	//
+	// When enabled, the webhook accepts a JobSet that sets both a top-level policy and
+	// replicatedJobs entries, and the controller materializes the CompositePodGroup tree
+	// (root and per-entry child CompositePodGroups plus leaf PodGroups, linked through
+	// spec.parentCompositePodGroupName). With the gate off, that combination is rejected at
+	// admission and behavior is unchanged.
+	//
+	// Requires JobSetWorkloadAwareSchedulingAPI: the gang-of-gangs model is reachable only
+	// through spec.scheduling, which the webhook rejects unless that gate is also enabled.
+	// Enabling JobSetGangOfGangs alone is therefore inert; see ValidateFeatureGates, which
+	// rejects that misconfiguration at startup.
+	JobSetGangOfGangs featuregate.Feature = "JobSetGangOfGangs"
 )
 
 func init() {
@@ -102,6 +122,21 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	JobSetActiveDeadlineSeconds: {Default: false, PreRelease: featuregate.Alpha},
 
 	JobSetWorkloadAwareSchedulingAPI: {Default: false, PreRelease: featuregate.Alpha},
+
+	JobSetGangOfGangs: {Default: false, PreRelease: featuregate.Alpha},
+}
+
+// ValidateFeatureGates rejects unsupported feature-gate combinations at startup. It is a
+// fail-fast guard so an operator learns about a misconfiguration immediately rather than through
+// silently inert behavior.
+func ValidateFeatureGates() error {
+	// JobSetGangOfGangs is only reachable through spec.scheduling, which the webhook rejects
+	// unless JobSetWorkloadAwareSchedulingAPI is enabled. Enabling it alone is inert, so reject
+	// the combination rather than let it look enabled but do nothing.
+	if Enabled(JobSetGangOfGangs) && !Enabled(JobSetWorkloadAwareSchedulingAPI) {
+		return fmt.Errorf("feature gate %s requires %s to be enabled", JobSetGangOfGangs, JobSetWorkloadAwareSchedulingAPI)
+	}
+	return nil
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {
