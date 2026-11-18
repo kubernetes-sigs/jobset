@@ -3,6 +3,7 @@
 **Bug Fixes**
 
   - Cap `spec.scheduling.replicatedJobs` at 8 entries to match the upstream Workload API limit of 8 PodGroupTemplates per Workload, so specs that could never produce a valid Workload are rejected at admission; `targetReplicatedJobs` remains capped at 50 (#1373, #1377, @andreyvelich)
+  - Fix the exclusive placement pod reconciler deleting the follower pods of JobSets that use the nodeSelector strategy (`alpha.jobset.sigs.k8s.io/node-selector`); these pods are now skipped by the reconciler, matching the pod webhook (#1396, #1408, @lbarrosby)
 
 **Helm/Deployment**
 
