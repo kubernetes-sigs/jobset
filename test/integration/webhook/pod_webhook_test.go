@@ -18,10 +18,12 @@ package webhooktest
 import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
@@ -114,4 +116,66 @@ var _ = ginkgo.Describe("pod webhook priority label", func() {
 		ginkgo.Entry("zero priority", "pod-zero", "pc-zero", int32(0), "0"),
 		ginkgo.Entry("positive priority", "pod-positive", "pc-positive", int32(100), "100"),
 	)
+})
+
+var _ = ginkgo.Describe("pod webhook with filtered cache", func() {
+	ginkgo.It("finds the scheduled leader when admitting an exclusive-placement follower", func() {
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "placement-cache-"}}
+		gomega.Expect(k8sClient.Create(ctx, ns)).To(gomega.Succeed())
+		ginkgo.DeferCleanup(func() {
+			gomega.Expect(util.DeleteNamespace(ctx, k8sClient, ns)).To(gomega.Succeed())
+		})
+
+		const topologyKey = "topology.kubernetes.io/zone"
+		node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "placement-cache-",
+			Labels:       map[string]string{topologyKey: "test-zone"},
+		}}
+		gomega.Expect(k8sClient.Create(ctx, node)).To(gomega.Succeed())
+		ginkgo.DeferCleanup(func() {
+			gomega.Expect(k8sClient.Delete(ctx, node)).To(gomega.Succeed())
+		})
+
+		makePod := func(index string) *corev1.Pod {
+			return &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "test-jobset-workers-0-" + index + "-",
+					Namespace:    ns.Name,
+					Labels: map[string]string{
+						jobset.JobSetNameKey:        "test-jobset",
+						jobset.ReplicatedJobNameKey: "workers",
+						jobset.JobIndexKey:          "0",
+						jobset.JobKey:               "test-job",
+					},
+					Annotations: map[string]string{
+						jobset.JobSetNameKey:                 "test-jobset",
+						jobset.ExclusiveKey:                  topologyKey,
+						batchv1.JobCompletionIndexAnnotation: index,
+					},
+					OwnerReferences: []metav1.OwnerReference{{
+						APIVersion: "batch/v1",
+						Kind:       "Job",
+						Name:       "test-job",
+						UID:        "test-job-uid",
+						Controller: ptr.To(true),
+					}},
+				},
+				Spec: corev1.PodSpec{
+					Containers:    []corev1.Container{{Name: "test", Image: "test-image"}},
+					RestartPolicy: corev1.RestartPolicyNever,
+				},
+			}
+		}
+
+		leader := makePod("0")
+		leader.Spec.NodeName = node.Name
+		gomega.Expect(k8sClient.Create(ctx, leader)).To(gomega.Succeed())
+
+		var follower *corev1.Pod
+		gomega.Eventually(func() error {
+			follower = makePod("1")
+			return k8sClient.Create(ctx, follower)
+		}, timeout, interval).Should(gomega.Succeed())
+		gomega.Expect(follower.Spec.NodeSelector).To(gomega.HaveKeyWithValue(topologyKey, "test-zone"))
+	})
 })

@@ -31,6 +31,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/controllers"
+	testutil "sigs.k8s.io/jobset/test/util"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -82,6 +83,7 @@ var _ = BeforeSuite(func() {
 
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
+		Cache:  testutil.JobSetCacheOptions(),
 	})
 	Expect(err).ToNot(HaveOccurred())
 

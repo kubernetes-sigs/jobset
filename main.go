@@ -27,12 +27,17 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	schedulingv1beta1 "k8s.io/api/scheduling/v1beta1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -188,6 +193,17 @@ func main() {
 		KeyName:        options.Metrics.KeyName,
 	}
 	options.Metrics = metricsServerOptions
+
+	// Indexes and event predicates do not exclude unrelated objects from the cache.
+	// Restrict the Pod and Job list/watch requests to JobSet children instead.
+	jobSetSelector, err := labels.Parse(jobset.JobSetNameKey)
+	utilruntime.Must(err)
+	options.Cache = cache.Options{
+		ByObject: map[client.Object]cache.ByObject{
+			&corev1.Pod{}:  {Label: jobSetSelector},
+			&batchv1.Job{}: {Label: jobSetSelector},
+		},
+	}
 
 	ctx := ctrl.SetupSignalHandler()
 	if cfg.InternalCertManagement != nil && *cfg.InternalCertManagement.Enable {
