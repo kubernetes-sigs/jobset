@@ -4844,6 +4844,109 @@ func TestValidateUpdate(t *testing.T) {
 			enableElasticJobSet: true,
 		},
 		{
+			name: "invalid scaling of completions down to the coordinator pod index",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "test-jobset-replicated-job-0",
+						JobIndex:      0,
+						PodIndex:      2,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](4),
+									Completions:    ptr.To[int32](4),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "test-jobset-replicated-job-0",
+						JobIndex:      0,
+						PodIndex:      2,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: field.ErrorList{
+				field.Invalid(field.NewPath("spec", "coordinator"), jobset.Coordinator{ReplicatedJob: "test-jobset-replicated-job-0", PodIndex: 2}, "coordinator pod index 2 is invalid for replicatedJob test-jobset-replicated-job-0 job index 0"),
+			}.ToAggregate(),
+			enableElasticJobSet: true,
+		},
+		{
+			name: "valid scaling of completions that keeps the coordinator pod",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "test-jobset-replicated-job-0",
+						JobIndex:      0,
+						PodIndex:      1,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](4),
+									Completions:    ptr.To[int32](4),
+								},
+							},
+						},
+					},
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator: &jobset.Coordinator{
+						ReplicatedJob: "test-jobset-replicated-job-0",
+						JobIndex:      0,
+						PodIndex:      1,
+					},
+					ReplicatedJobs: []jobset.ReplicatedJob{
+						{
+							Name:     "test-jobset-replicated-job-0",
+							Replicas: 1,
+							Template: batchv1.JobTemplateSpec{
+								Spec: batchv1.JobSpec{
+									CompletionMode: ptr.To(batchv1.IndexedCompletion),
+									Parallelism:    ptr.To[int32](2),
+									Completions:    ptr.To[int32](2),
+								},
+							},
+						},
+					},
+				},
+			},
+			enableElasticJobSet: true,
+		},
+		{
 			name: "invalid scaling of parallelism to < 1",
 			oldJs: &jobset.JobSet{
 				ObjectMeta: validObjectMeta,
