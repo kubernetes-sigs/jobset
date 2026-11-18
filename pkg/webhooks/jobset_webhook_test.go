@@ -26,6 +26,7 @@ import (
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/features"
+	"sigs.k8s.io/jobset/pkg/util/placement"
 )
 
 // TestPodTemplate is the default pod template spec used for testing.
@@ -5514,4 +5515,51 @@ func TestValidateUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestValidateCreatePodNameTooLongReportsPodName verifies that when a JobSet is
+// rejected because its generated pod names would exceed the 63 character DNS
+// label limit, the admission error reports the offending pod name as the
+// invalid value, not the (shorter, still valid) job name. Reporting the job
+// name is misleading: it shows the user a name that is within the limit next to
+// a message saying the pod name is too long.
+func TestValidateCreatePodNameTooLongReportsPodName(t *testing.T) {
+	// A 56 character JobSet name keeps the generated job name within the 63
+	// character limit while pushing the generated pod name over it.
+	jobSetName := strings.Repeat("a", 56)
+	js := &jobset.JobSet{
+		ObjectMeta: metav1.ObjectMeta{Name: jobSetName},
+		Spec: jobset.JobSetSpec{
+			ReplicatedJobs: []jobset.ReplicatedJob{
+				{
+					Name:      "rj",
+					GroupName: "default",
+					Replicas:  1,
+					Template: batchv1.JobTemplateSpec{
+						Spec: batchv1.JobSpec{
+							CompletionMode: ptr.To(batchv1.IndexedCompletion),
+							Completions:    ptr.To(int32(1)),
+							Parallelism:    ptr.To(int32(1)),
+							Template:       TestPodTemplate,
+						},
+					},
+				},
+			},
+			SuccessPolicy: &jobset.SuccessPolicy{Operator: jobset.OperatorAll},
+		},
+	}
+
+	// Sanity check: the generated job name is within the limit, so only the pod
+	// name should trigger the length error.
+	longestJobName := placement.GenJobName(jobSetName, "rj", 0)
+	require.LessOrEqual(t, len(longestJobName), 63, "test setup: job name should be within the DNS label limit")
+	longestPodName := placement.GenPodName(jobSetName, "rj", "0", "0") + "-abcde"
+	require.Greater(t, len(longestPodName), 63, "test setup: pod name should exceed the DNS label limit")
+
+	webhook := &jobSetWebhook{client: fake.NewFakeClient()}
+	_, err := webhook.ValidateCreate(context.TODO(), js.DeepCopy())
+	require.Error(t, err, "expected JobSet with too-long pod name to be rejected")
+	assert.Contains(t, err.Error(), podNameTooLongErrorMsg)
+	// The reported invalid value must be the pod name that is actually too long.
+	assert.Contains(t, err.Error(), longestPodName, "error should report the too-long pod name as the invalid value")
 }
