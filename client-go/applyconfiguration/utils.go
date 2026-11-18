@@ -21,8 +21,10 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
+	v1 "sigs.k8s.io/jobset/api/jobset/v1"
 	v1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	internal "sigs.k8s.io/jobset/client-go/applyconfiguration/internal"
+	jobsetv1 "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1"
 	jobsetv1alpha2 "sigs.k8s.io/jobset/client-go/applyconfiguration/jobset/v1alpha2"
 )
 
@@ -30,7 +32,41 @@ import (
 // apply configuration type exists for the given GroupVersionKind.
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
-	// Group=jobset.x-k8s.io, Version=v1alpha2
+	// Group=jobset.x-k8s.io, Version=v1
+	case v1.SchemeGroupVersion.WithKind("Coordinator"):
+		return &jobsetv1.CoordinatorApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("DependsOn"):
+		return &jobsetv1.DependsOnApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("FailurePolicy"):
+		return &jobsetv1.FailurePolicyApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("FailurePolicyRule"):
+		return &jobsetv1.FailurePolicyRuleApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("JobScheduling"):
+		return &jobsetv1.JobSchedulingApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("JobSet"):
+		return &jobsetv1.JobSetApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("JobSetScheduling"):
+		return &jobsetv1.JobSetSchedulingApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("JobSetSpec"):
+		return &jobsetv1.JobSetSpecApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("JobSetStatus"):
+		return &jobsetv1.JobSetStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("Network"):
+		return &jobsetv1.NetworkApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ReplicatedJob"):
+		return &jobsetv1.ReplicatedJobApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ReplicatedJobScheduling"):
+		return &jobsetv1.ReplicatedJobSchedulingApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ReplicatedJobStatus"):
+		return &jobsetv1.ReplicatedJobStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("SuccessPolicy"):
+		return &jobsetv1.SuccessPolicyApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("VolumeClaimPolicy"):
+		return &jobsetv1.VolumeClaimPolicyApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("VolumeRetentionPolicy"):
+		return &jobsetv1.VolumeRetentionPolicyApplyConfiguration{}
+
+		// Group=jobset.x-k8s.io, Version=v1alpha2
 	case v1alpha2.SchemeGroupVersion.WithKind("Coordinator"):
 		return &jobsetv1alpha2.CoordinatorApplyConfiguration{}
 	case v1alpha2.SchemeGroupVersion.WithKind("DependsOn"):

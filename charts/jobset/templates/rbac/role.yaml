@@ -84,6 +84,22 @@ rules:
       - update
       - watch
   - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apiextensions.k8s.io
+    resourceNames:
+      - jobsets.jobset.x-k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - update
+  - apiGroups:
       - batch
     resources:
       - jobs
