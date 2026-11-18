@@ -25,9 +25,11 @@ import (
 	"github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	jobset "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	"sigs.k8s.io/jobset/pkg/features"
@@ -39,6 +41,59 @@ const (
 	timeout  = 10 * time.Second
 	interval = time.Millisecond * 250
 )
+
+// retainedPVCSpec is the volume claim template used by the retained-PVC webhook tests.
+// It sets only the fields a user would write, leaving volumeMode and storageClassName for
+// the API server to fill in, which is what makes a live PVC diverge from the template.
+var retainedPVCSpec = corev1.PersistentVolumeClaimSpec{
+	AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+	Resources: corev1.VolumeResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceStorage: resource.MustParse("1Gi"),
+		},
+	},
+}
+
+// makeVolumeClaimJobSet builds a JobSet whose single replicatedJob mounts a "test-volume"
+// claim declared with the given spec under a Retain retention policy. The generated PVC
+// name is "test-volume-<name>".
+func makeVolumeClaimJobSet(name string, ns *corev1.Namespace, spec corev1.PersistentVolumeClaimSpec) *testing.JobSetWrapper {
+	return testing.MakeJobSet(name, ns.Name).
+		VolumeClaimPolicies([]jobset.VolumeClaimPolicy{
+			{
+				Templates: []corev1.PersistentVolumeClaim{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "test-volume",
+						},
+						Spec: *spec.DeepCopy(),
+					},
+				},
+				RetentionPolicy: &jobset.VolumeRetentionPolicy{
+					WhenDeleted: ptr.To(jobset.RetentionPolicyRetain),
+				},
+			},
+		}).
+		ReplicatedJob(testing.MakeReplicatedJob("rjob").
+			Job(testing.MakeJobTemplate("job", ns.Name).
+				PodSpec(corev1.PodSpec{
+					RestartPolicy: "Never",
+					Containers: []corev1.Container{
+						{
+							Name:  "test-container",
+							Image: "busybox:latest",
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "test-volume",
+									MountPath: "/test",
+								},
+							},
+						},
+					},
+				}).
+				CompletionMode(batchv1.IndexedCompletion).Obj()).
+			Obj())
+}
 
 var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 
@@ -73,17 +128,30 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 	})
 
 	type testCase struct {
-		makeJobSet               func(ns *corev1.Namespace) *testing.JobSetWrapper
+		makeJobSet func(ns *corev1.Namespace) *testing.JobSetWrapper
+		// makeExistingObjects builds objects created in the namespace before the JobSet,
+		// so admission sees them the way the API server stores them.
+		makeExistingObjects      func(ns *corev1.Namespace) []client.Object
 		jobSetCreationShouldFail bool
-		defaultsApplied          func(*jobset.JobSet) bool
-		updateJobSet             func(set *jobset.JobSet)
-		updateShouldFail         bool
-		expectedUpdateError      string
+		// expectedCreationError, when set, must appear in the admission error, so that a
+		// rejection test cannot pass because the JobSet was rejected for some other reason.
+		expectedCreationError string
+		defaultsApplied       func(*jobset.JobSet) bool
+		updateJobSet          func(set *jobset.JobSet)
+		updateShouldFail      bool
+		expectedUpdateError   string
 	}
 
 	ginkgo.DescribeTable("jobset webhook tests",
 		func(tc *testCase) {
 			ctx := context.Background()
+
+			if tc.makeExistingObjects != nil {
+				ginkgo.By("creating pre-existing objects")
+				for _, obj := range tc.makeExistingObjects(ns) {
+					gomega.Expect(k8sClient.Create(ctx, obj)).Should(gomega.Succeed())
+				}
+			}
 
 			// Create JobSet.
 			ginkgo.By("creating jobset")
@@ -92,7 +160,11 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			// Verify jobset created successfully.
 			ginkgo.By("checking that jobset creation succeeds")
 			if tc.jobSetCreationShouldFail {
-				gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Not(gomega.Succeed()))
+				err := k8sClient.Create(ctx, js)
+				gomega.Expect(err).Should(gomega.HaveOccurred())
+				if tc.expectedCreationError != "" {
+					gomega.Expect(err.Error()).Should(gomega.ContainSubstring(tc.expectedCreationError))
+				}
 				return
 			}
 			gomega.Expect(k8sClient.Create(ctx, js)).Should(gomega.Succeed())
@@ -629,6 +701,47 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 				retainPolicy := js.Spec.VolumeClaimPolicies[0].RetentionPolicy.WhenDeleted
 				return *retainPolicy == jobset.RetentionPolicyDelete
 			},
+		}),
+		ginkgo.Entry("JobSet is admitted when a retained PVC matches the volumeClaimPolicy template", &testCase{
+			// Regression test for #1307. The PVC created here goes through the real API
+			// server, so it comes back defaulted (volumeMode: Filesystem) the way a PVC
+			// retained by retentionPolicy.whenDeleted: Retain does. Re-applying the
+			// unchanged JobSet manifest against it must be admitted.
+			makeExistingObjects: func(ns *corev1.Namespace) []client.Object {
+				return []client.Object{
+					&corev1.PersistentVolumeClaim{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-volume-retained-pvc",
+							Namespace: ns.Name,
+						},
+						Spec: retainedPVCSpec,
+					},
+				}
+			},
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return makeVolumeClaimJobSet("retained-pvc", ns, retainedPVCSpec)
+			},
+			jobSetCreationShouldFail: false,
+		}),
+		ginkgo.Entry("JobSet is rejected when an existing PVC does not match the volumeClaimPolicy template", &testCase{
+			makeExistingObjects: func(ns *corev1.Namespace) []client.Object {
+				spec := *retainedPVCSpec.DeepCopy()
+				spec.Resources.Requests[corev1.ResourceStorage] = resource.MustParse("2Gi")
+				return []client.Object{
+					&corev1.PersistentVolumeClaim{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-volume-mismatched-pvc",
+							Namespace: ns.Name,
+						},
+						Spec: spec,
+					},
+				}
+			},
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return makeVolumeClaimJobSet("mismatched-pvc", ns, retainedPVCSpec)
+			},
+			jobSetCreationShouldFail: true,
+			expectedCreationError:    "differing field(s): resources",
 		}),
 		ginkgo.Entry("VolumeClaimPolicies must be immutable", &testCase{
 			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
