@@ -2383,6 +2383,7 @@ var _ = ginkgo.Describe("JobSet controller", func() {
 							},
 						})
 					},
+					checkJobSetCondition: testutil.JobSetResumed,
 				},
 				// Update first replicatedJob so all its child jobs are ready. This will allow
 				// the next replicatedJob to proceed.

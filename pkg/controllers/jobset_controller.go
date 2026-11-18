@@ -848,6 +848,7 @@ func (r *JobSetReconciler) resumeJobsIfNecessary(ctx context.Context, js *jobset
 		// this replicatedJob to become ready before resuming the next.
 		if inOrderStartupPolicy(startupPolicy) {
 			setInOrderStartupPolicyInProgressCondition(js, updateStatusOpts)
+			setJobSetResumedCondition(js, updateStatusOpts)
 			return nil
 		}
 	}
