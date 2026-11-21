@@ -453,7 +453,7 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 	// time whenever it changes. Otherwise an update can point it at a missing
 	// ReplicatedJob or index, or produce a coordinator label value that makes
 	// every subsequent child Job creation fail.
-	if newJs.Spec.Coordinator != nil && !reflect.DeepEqual(newJs.Spec.Coordinator, oldJs.Spec.Coordinator) {
+	if coordinatorNeedsValidation(oldJs, newJs) {
 		coordinatorPath := field.NewPath("spec", "coordinator")
 		for _, err := range []error{
 			validateCoordinator(newJs),
@@ -622,6 +622,23 @@ func validateCoordinator(js *jobset.JobSet) error {
 		return fmt.Errorf("coordinator pod index %d is invalid for replicatedJob %s job index %d", js.Spec.Coordinator.PodIndex, js.Spec.Coordinator.ReplicatedJob, js.Spec.Coordinator.JobIndex)
 	}
 	return nil
+}
+
+// coordinatorNeedsValidation reports whether an update can make spec.coordinator
+// invalid: either the coordinator itself changed, or ElasticJobSet changed the
+// completions of its ReplicatedJob, which can leave podIndex out of range.
+// Replicas cannot change on update, so jobIndex cannot go stale.
+func coordinatorNeedsValidation(oldJs, newJs *jobset.JobSet) bool {
+	if newJs.Spec.Coordinator == nil {
+		return false
+	}
+	if !reflect.DeepEqual(newJs.Spec.Coordinator, oldJs.Spec.Coordinator) {
+		return true
+	}
+	newRJob := replicatedJobByName(newJs, newJs.Spec.Coordinator.ReplicatedJob)
+	oldRJob := replicatedJobByName(oldJs, newJs.Spec.Coordinator.ReplicatedJob)
+	return newRJob != nil && oldRJob != nil &&
+		!ptr.Equal(newRJob.Template.Spec.Completions, oldRJob.Template.Spec.Completions)
 }
 
 // If spec will lead to invalid coordinator label value, return error

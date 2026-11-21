@@ -4149,6 +4149,22 @@ func TestGetJobSetNameForValidation(t *testing.T) {
 	})
 }
 
+// elasticCoordinatorReplicatedJobs returns an Indexed ReplicatedJob named
+// "workers" with the given parallelism and completions.
+func elasticCoordinatorReplicatedJobs(completions int32) []jobset.ReplicatedJob {
+	return []jobset.ReplicatedJob{{
+		Name:     "workers",
+		Replicas: 1,
+		Template: batchv1.JobTemplateSpec{
+			Spec: batchv1.JobSpec{
+				CompletionMode: ptr.To(batchv1.IndexedCompletion),
+				Parallelism:    ptr.To(completions),
+				Completions:    ptr.To(completions),
+			},
+		},
+	}}
+}
+
 func TestValidateUpdate(t *testing.T) {
 	validObjectMeta := metav1.ObjectMeta{
 		Name: "js",
@@ -4297,6 +4313,43 @@ func TestValidateUpdate(t *testing.T) {
 				},
 			},
 			want: errors.Join(fmt.Errorf("spec.coordinator: Invalid value: must be no more than 63 bytes")),
+		},
+		{
+			name: "elastic scale down leaves the coordinator pod index out of range",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator:    &jobset.Coordinator{ReplicatedJob: "workers", JobIndex: 0, PodIndex: 3},
+					ReplicatedJobs: elasticCoordinatorReplicatedJobs(4),
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator:    &jobset.Coordinator{ReplicatedJob: "workers", JobIndex: 0, PodIndex: 3},
+					ReplicatedJobs: elasticCoordinatorReplicatedJobs(2),
+				},
+			},
+			enableElasticJobSet: true,
+			want:                errors.Join(fmt.Errorf("spec.coordinator: Invalid value: coordinator pod index 3 is invalid for replicatedJob workers job index 0")),
+		},
+		{
+			name: "elastic scale down keeps the coordinator pod index in range",
+			oldJs: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator:    &jobset.Coordinator{ReplicatedJob: "workers", JobIndex: 0, PodIndex: 1},
+					ReplicatedJobs: elasticCoordinatorReplicatedJobs(4),
+				},
+			},
+			js: &jobset.JobSet{
+				ObjectMeta: validObjectMeta,
+				Spec: jobset.JobSetSpec{
+					Coordinator:    &jobset.Coordinator{ReplicatedJob: "workers", JobIndex: 0, PodIndex: 1},
+					ReplicatedJobs: elasticCoordinatorReplicatedJobs(2),
+				},
+			},
+			enableElasticJobSet: true,
 		},
 		{
 			name: "unchanged coordinator is not re-validated",
