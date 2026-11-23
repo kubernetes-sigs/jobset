@@ -28,14 +28,17 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"k8s.io/apimachinery/pkg/types"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -49,6 +52,18 @@ const (
 	timeout  = 10 * time.Minute
 	interval = time.Millisecond * 250
 )
+
+// JobSetCacheOptions gives integration managers the resource selectors used by main.
+func JobSetCacheOptions() cache.Options {
+	selector, err := labels.Parse(jobset.JobSetNameKey)
+	utilruntime.Must(err)
+	return cache.Options{
+		ByObject: map[client.Object]cache.ByObject{
+			&corev1.Pod{}:  {Label: selector},
+			&batchv1.Job{}: {Label: selector},
+		},
+	}
+}
 
 func NumExpectedJobs(js *jobset.JobSet) int {
 	expectedJobs := 0
