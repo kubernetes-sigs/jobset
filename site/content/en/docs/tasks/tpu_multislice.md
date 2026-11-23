@@ -31,6 +31,8 @@ When a Multislice JobSet is submitted, the JobSet controller actively manages th
 1.  **Leader Scheduling:** The JobSet controller, through its Pod webhook and Pod controller, will ensure that only leader Pods (Pods with value 0 for the label `batch.kubernetes.io/job-completion-index`, there is one per child Job) will be scheduled first.
 2.  **Follower Binding:** The follower Pods (Pods with value different than 0 for the label `batch.kubernetes.io/job-completion-index`) will be allowed to be scheduled only when their leader has been scheduled. The webhook intercepts the follower Pods and dynamically injects `nodeSelectors` to force them into the exact same Node Pool as their leader.
 
+This annotation cannot be used together with `spec.scheduling`, and JobSet rejects that combination at admission. See [Exclusive Placement and Gang Scheduling](/docs/workload-aware-scheduling/declarative_scheduling/#exclusive-placement-and-gang-scheduling).
+
 ## Example: JAX on TPU Trillium (v6e) Multislice
 
 Before you begin, ensure you have the following set up in your GKE cluster:
