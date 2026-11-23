@@ -306,11 +306,6 @@ func buildGroupItem(js *jobset.JobSet, members []*jobset.ReplicatedJob, leafPoli
 		input.DisruptionMode = globalInput.DisruptionMode
 	}
 
-	var totalMin int32
-	for _, rjob := range members {
-		totalMin += computeMinCount(rjob)
-	}
-
 	defaultCfg := defaultGangConfig()
 	defaultCfg.PriorityClassName = members[0].Template.Spec.Template.Spec.PriorityClassName
 
@@ -320,7 +315,7 @@ func buildGroupItem(js *jobset.JobSet, members []*jobset.ReplicatedJob, leafPoli
 		DefaultConfig: defaultCfg,
 		Input:         input,
 		Callbacks: []workloadbuilder.SchedulingConfigFunc{
-			gangMinCountCallback(totalMin),
+			gangMinCountCallback(sharedGroupMinCount(members)),
 		},
 	}
 }
@@ -539,6 +534,9 @@ func buildWorkloadFromBuilders(builders []*workloadbuilder.Builder) (*scheduling
 // using the workloadbuilder's Validate method. This runs declarative validation on
 // the building blocks and the complex cross-field controller-policy checks.
 func ValidateSchedulingWithBuilder(ctx context.Context, js *jobset.JobSet, rootPath *field.Path) field.ErrorList {
+	if UseGangOfGangs(js) {
+		return validateCompositeWorkload(ctx, js, rootPath)
+	}
 	builders, err := newBuildersForJobSet(js)
 	if err != nil {
 		var dupErr *duplicateSchedulingGroupNameError

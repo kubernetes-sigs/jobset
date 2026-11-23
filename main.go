@@ -27,6 +27,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	schedulingv1beta1 "k8s.io/api/scheduling/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -65,6 +66,7 @@ func init() {
 	utilruntime.Must(jobset.AddToScheme(scheme))
 	utilruntime.Must(configapi.AddToScheme(scheme))
 	utilruntime.Must(schedulingv1beta1.AddToScheme(scheme))
+	utilruntime.Must(schedulingv1alpha3.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
@@ -118,6 +120,10 @@ func main() {
 
 	if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(cfg.FeatureGates); err != nil {
 		setupLog.Error(err, "Unable to set flag gates for known features")
+		os.Exit(1)
+	}
+	if err := features.ValidateFeatureGates(); err != nil {
+		setupLog.Error(err, "Invalid feature gate configuration")
 		os.Exit(1)
 	}
 
