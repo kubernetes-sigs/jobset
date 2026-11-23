@@ -398,6 +398,12 @@ func (j *jobSetWebhook) ValidateUpdate(ctx context.Context, oldJs, newJs *jobset
 						if newRJob.Template.Spec.Parallelism != nil && newRJob.Template.Spec.Completions != nil && *newRJob.Template.Spec.Parallelism != *newRJob.Template.Spec.Completions {
 							errs = append(errs, field.Invalid(rJobPath.Child("completions"), *newRJob.Template.Spec.Completions, "completions must be equal to parallelism for Elastic Indexed Jobs"))
 						}
+						// Scaling the coordinator's ReplicatedJob must keep the pod that spec.coordinator points at, as the create path requires.
+						if completionsChanged && newJs.Spec.Coordinator != nil && newJs.Spec.Coordinator.ReplicatedJob == newRJob.Name {
+							if err := validateCoordinator(newJs); err != nil {
+								errs = append(errs, field.Invalid(field.NewPath("spec", "coordinator"), *newJs.Spec.Coordinator, err.Error()))
+							}
+						}
 					}
 				}
 
