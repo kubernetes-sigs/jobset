@@ -76,6 +76,15 @@ const (
 	// building blocks from scheduling.k8s.io, allowing users to configure gang scheduling,
 	// topology constraints, and disruption policies on JobSets.
 	JobSetWorkloadAwareSchedulingAPI featuregate.Feature = "JobSetWorkloadAwareSchedulingAPI"
+
+	// owner: @kannon92
+	//
+	// MutablePodResourcesForSuspendedJobSets enables mutation of container/initContainer resource
+	// requests/limits on a ReplicatedJob's pod template while the JobSet is suspended (or
+	// getting suspended), so that integrators (e.g., Kueue/DWS) can right-size Pods before
+	// the JobSet is resumed. This relies on the Kubernetes `MutablePodResourcesForSuspendedJobs`
+	// feature gate, which was introduced as alpha (disabled by default) in Kubernetes 1.35.
+	MutablePodResourcesForSuspendedJobSets featuregate.Feature = "MutablePodResourcesForSuspendedJobSets"
 )
 
 func init() {
@@ -102,6 +111,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	JobSetActiveDeadlineSeconds: {Default: false, PreRelease: featuregate.Alpha},
 
 	JobSetWorkloadAwareSchedulingAPI: {Default: false, PreRelease: featuregate.Alpha},
+
+	MutablePodResourcesForSuspendedJobSets: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func SetFeatureGateDuringTest(tb testing.TB, f featuregate.Feature, value bool) {
