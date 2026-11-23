@@ -4243,6 +4243,32 @@ func TestValidateUpdate(t *testing.T) {
 			},
 		},
 	}
+	// elasticCoordinatorJobSet returns a JobSet whose coordinator is the given pod of a single Indexed Job with the given size.
+	elasticCoordinatorJobSet := func(size int32, podIndex int) *jobset.JobSet {
+		return &jobset.JobSet{
+			ObjectMeta: validObjectMeta,
+			Spec: jobset.JobSetSpec{
+				Coordinator: &jobset.Coordinator{
+					ReplicatedJob: "test-jobset-replicated-job-0",
+					JobIndex:      0,
+					PodIndex:      podIndex,
+				},
+				ReplicatedJobs: []jobset.ReplicatedJob{
+					{
+						Name:     "test-jobset-replicated-job-0",
+						Replicas: 1,
+						Template: batchv1.JobTemplateSpec{
+							Spec: batchv1.JobSpec{
+								CompletionMode: ptr.To(batchv1.IndexedCompletion),
+								Parallelism:    ptr.To(size),
+								Completions:    ptr.To(size),
+							},
+						},
+					},
+				},
+			},
+		}
+	}
 	testCases := []struct {
 		name                        string
 		oldJs                       *jobset.JobSet
@@ -4844,106 +4870,18 @@ func TestValidateUpdate(t *testing.T) {
 			enableElasticJobSet: true,
 		},
 		{
-			name: "invalid scaling of completions down to the coordinator pod index",
-			oldJs: &jobset.JobSet{
-				ObjectMeta: validObjectMeta,
-				Spec: jobset.JobSetSpec{
-					Coordinator: &jobset.Coordinator{
-						ReplicatedJob: "test-jobset-replicated-job-0",
-						JobIndex:      0,
-						PodIndex:      2,
-					},
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Name:     "test-jobset-replicated-job-0",
-							Replicas: 1,
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									CompletionMode: ptr.To(batchv1.IndexedCompletion),
-									Parallelism:    ptr.To[int32](4),
-									Completions:    ptr.To[int32](4),
-								},
-							},
-						},
-					},
-				},
-			},
-			js: &jobset.JobSet{
-				ObjectMeta: validObjectMeta,
-				Spec: jobset.JobSetSpec{
-					Coordinator: &jobset.Coordinator{
-						ReplicatedJob: "test-jobset-replicated-job-0",
-						JobIndex:      0,
-						PodIndex:      2,
-					},
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Name:     "test-jobset-replicated-job-0",
-							Replicas: 1,
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									CompletionMode: ptr.To(batchv1.IndexedCompletion),
-									Parallelism:    ptr.To[int32](2),
-									Completions:    ptr.To[int32](2),
-								},
-							},
-						},
-					},
-				},
-			},
+			name:  "invalid scaling of completions down to the coordinator pod index",
+			oldJs: elasticCoordinatorJobSet(4, 2),
+			js:    elasticCoordinatorJobSet(2, 2),
 			want: field.ErrorList{
 				field.Invalid(field.NewPath("spec", "coordinator"), jobset.Coordinator{ReplicatedJob: "test-jobset-replicated-job-0", PodIndex: 2}, "coordinator pod index 2 is invalid for replicatedJob test-jobset-replicated-job-0 job index 0"),
 			}.ToAggregate(),
 			enableElasticJobSet: true,
 		},
 		{
-			name: "valid scaling of completions that keeps the coordinator pod",
-			oldJs: &jobset.JobSet{
-				ObjectMeta: validObjectMeta,
-				Spec: jobset.JobSetSpec{
-					Coordinator: &jobset.Coordinator{
-						ReplicatedJob: "test-jobset-replicated-job-0",
-						JobIndex:      0,
-						PodIndex:      1,
-					},
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Name:     "test-jobset-replicated-job-0",
-							Replicas: 1,
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									CompletionMode: ptr.To(batchv1.IndexedCompletion),
-									Parallelism:    ptr.To[int32](4),
-									Completions:    ptr.To[int32](4),
-								},
-							},
-						},
-					},
-				},
-			},
-			js: &jobset.JobSet{
-				ObjectMeta: validObjectMeta,
-				Spec: jobset.JobSetSpec{
-					Coordinator: &jobset.Coordinator{
-						ReplicatedJob: "test-jobset-replicated-job-0",
-						JobIndex:      0,
-						PodIndex:      1,
-					},
-					ReplicatedJobs: []jobset.ReplicatedJob{
-						{
-							Name:     "test-jobset-replicated-job-0",
-							Replicas: 1,
-							Template: batchv1.JobTemplateSpec{
-								Spec: batchv1.JobSpec{
-									CompletionMode: ptr.To(batchv1.IndexedCompletion),
-									Parallelism:    ptr.To[int32](2),
-									Completions:    ptr.To[int32](2),
-								},
-							},
-						},
-					},
-				},
-			},
+			name:                "valid scaling of completions that keeps the coordinator pod",
+			oldJs:               elasticCoordinatorJobSet(4, 1),
+			js:                  elasticCoordinatorJobSet(2, 1),
 			enableElasticJobSet: true,
 		},
 		{

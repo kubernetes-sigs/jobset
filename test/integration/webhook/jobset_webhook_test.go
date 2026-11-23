@@ -889,5 +889,66 @@ var _ = ginkgo.Describe("jobset webhook defaulting", func() {
 			updateShouldFail:    true,
 			expectedUpdateError: "field is immutable",
 		}),
+		ginkgo.Entry("validate scaling the coordinator replicatedJob down to the coordinator pod index FAILS", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return makeElasticCoordinatorJobSet("coord-removed", ns)
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, true)
+
+				// Completions of 2 leaves pod indexes 0 and 1, so the coordinator pod index 2 no longer exists.
+				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](2)
+				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](2)
+			},
+			updateShouldFail:    true,
+			expectedUpdateError: "coordinator pod index 2 is invalid for replicatedJob rjob-a job index 0",
+		}),
+		ginkgo.Entry("validate scaling the coordinator replicatedJob down while keeping the coordinator pod is ALLOWED", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return makeElasticCoordinatorJobSet("coord-kept", ns)
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, true)
+
+				// Completions of 3 still includes the coordinator pod index 2.
+				js.Spec.ReplicatedJobs[0].Template.Spec.Parallelism = ptr.To[int32](3)
+				js.Spec.ReplicatedJobs[0].Template.Spec.Completions = ptr.To[int32](3)
+			},
+			updateShouldFail: false,
+		}),
+		ginkgo.Entry("validate scaling a replicatedJob other than the coordinator's below the coordinator pod index is ALLOWED", &testCase{
+			makeJobSet: func(ns *corev1.Namespace) *testing.JobSetWrapper {
+				return makeElasticCoordinatorJobSet("coord-other-rjob", ns)
+			},
+			updateJobSet: func(js *jobset.JobSet) {
+				features.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), features.ElasticJobSet, true)
+
+				js.Spec.ReplicatedJobs[1].Template.Spec.Parallelism = ptr.To[int32](1)
+				js.Spec.ReplicatedJobs[1].Template.Spec.Completions = ptr.To[int32](1)
+			},
+			updateShouldFail: false,
+		}),
 	) // end of DescribeTable
 }) // end of Describe
+
+// makeElasticCoordinatorJobSet returns a JobSet with two Indexed ReplicatedJobs of 4 pods each.
+// Its coordinator is pod index 2 of the first ReplicatedJob, rjob-a.
+func makeElasticCoordinatorJobSet(name string, ns *corev1.Namespace) *testing.JobSetWrapper {
+	makeReplicatedJob := func(rjobName string) jobset.ReplicatedJob {
+		return testing.MakeReplicatedJob(rjobName).
+			Job(testing.MakeJobTemplate("job", ns.Name).
+				PodSpec(testing.TestPodSpec).
+				CompletionMode(batchv1.IndexedCompletion).
+				Parallelism(4).
+				Completions(4).Obj()).
+			Obj()
+	}
+	return testing.MakeJobSet(name, ns.Name).
+		Coordinator(&jobset.Coordinator{
+			ReplicatedJob: "rjob-a",
+			JobIndex:      0,
+			PodIndex:      2,
+		}).
+		ReplicatedJob(makeReplicatedJob("rjob-a")).
+		ReplicatedJob(makeReplicatedJob("rjob-b"))
+}
