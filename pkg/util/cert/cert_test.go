@@ -1,12 +1,21 @@
 package cert
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	certrotator "github.com/open-policy-agent/cert-controller/pkg/rotator"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	configapi "sigs.k8s.io/jobset/api/config/v1alpha1"
 )
@@ -158,6 +167,62 @@ func TestHasConversionWebhook(t *testing.T) {
 			}
 			if got := hasConversionWebhook(crd); got != tc.want {
 				t.Fatalf("hasConversionWebhook()=%v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLookupConversionWebhook(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add apiextensions to scheme: %v", err)
+	}
+	crdGR := schema.GroupResource{Group: apiextensionsv1.GroupName, Resource: "customresourcedefinitions"}
+	crdWithWebhook := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: jobSetCRDName},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Conversion: &apiextensionsv1.CustomResourceConversion{
+				Strategy: apiextensionsv1.WebhookConverter,
+				Webhook:  &apiextensionsv1.WebhookConversion{ClientConfig: &apiextensionsv1.WebhookClientConfig{}},
+			},
+		},
+	}
+	failGet := func(err error) interceptor.Funcs {
+		return interceptor.Funcs{
+			Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+				return err
+			},
+		}
+	}
+
+	tests := map[string]struct {
+		objs    []client.Object
+		funcs   interceptor.Funcs
+		want    bool
+		wantErr bool
+	}{
+		"CRD with a conversion webhook": {
+			objs: []client.Object{crdWithWebhook},
+			want: true,
+		},
+		"CRD not found falls back to no injection": {},
+		"forbidden falls back to no injection": {
+			funcs: failGet(apierrors.NewForbidden(crdGR, jobSetCRDName, errors.New("no RBAC"))),
+		},
+		"other errors are returned": {
+			funcs:   failGet(apierrors.NewServiceUnavailable("apiserver down")),
+			wantErr: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.objs...).WithInterceptorFuncs(tc.funcs).Build()
+			got, err := lookupConversionWebhook(context.Background(), c)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("lookupConversionWebhook() error=%v, wantErr %v", err, tc.wantErr)
+			}
+			if got != tc.want {
+				t.Fatalf("lookupConversionWebhook()=%v, want %v", got, tc.want)
 			}
 		})
 	}

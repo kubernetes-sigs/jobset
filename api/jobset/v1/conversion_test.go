@@ -91,6 +91,15 @@ func TestConvertV1alpha2ToV1(t *testing.T) {
 				js.Spec.ReplicatedJobs = js.Spec.ReplicatedJobs[:1]
 			}),
 		},
+		"AnyOrder startupPolicy drops a stray annotation": {
+			in: hubJobSet(func(js *v1alpha2.JobSet) {
+				js.Annotations[StartupPolicyAnnotationKey] = string(v1alpha2.InOrder)
+				js.Spec.ReplicatedJobs[1].DependsOn = []v1alpha2.DependsOn{{Name: "a", Status: v1alpha2.DependencyReady}}
+			}),
+			want: spokeJobSet(func(js *JobSet) {
+				js.Spec.ReplicatedJobs[1].DependsOn = []DependsOn{{Name: "a", Status: DependencyReady}}
+			}),
+		},
 		"InOrder startupPolicy together with dependsOn is rejected": {
 			in: hubJobSet(func(js *v1alpha2.JobSet) {
 				js.Spec.StartupPolicy.StartupPolicyOrder = v1alpha2.InOrder
@@ -193,13 +202,12 @@ func TestConvertV1ToV1alpha2(t *testing.T) {
 				js.Spec.StartupPolicy.StartupPolicyOrder = v1alpha2.InOrder
 			}),
 		},
-		"annotation with a changed dependsOn chain is not InOrder": {
+		"annotation with a changed dependsOn chain is not InOrder and is not stored": {
 			in: spokeJobSet(func(js *JobSet) {
 				inOrderChain(js)
 				js.Spec.ReplicatedJobs[2].DependsOn[0].Status = DependencyComplete
 			}),
 			want: hubJobSet(func(js *v1alpha2.JobSet) {
-				js.Annotations[StartupPolicyAnnotationKey] = string(v1alpha2.InOrder)
 				js.Spec.ReplicatedJobs[1].DependsOn = []v1alpha2.DependsOn{{Name: "a", Status: v1alpha2.DependencyReady}}
 				js.Spec.ReplicatedJobs[2].DependsOn = []v1alpha2.DependsOn{{Name: "b", Status: v1alpha2.DependencyComplete}}
 			}),
@@ -288,6 +296,27 @@ func TestRoundTripV1alpha2(t *testing.T) {
 			t.Fatalf("iteration %d: round trip changed the JobSet (-want +got):\n%s", i, cmp.Diff(want, got))
 		}
 	}
+}
+
+// TestRoundTripV1alpha2AnyOrderWithAnnotation checks that a stored AnyOrder
+// JobSet carrying the annotation and an explicit Ready chain stays AnyOrder
+// through v1, so a metadata-only update through v1 is not rejected as an
+// immutable startupPolicy change.
+func TestRoundTripV1alpha2AnyOrderWithAnnotation(t *testing.T) {
+	in := hubJobSet(func(js *v1alpha2.JobSet) {
+		js.Annotations[StartupPolicyAnnotationKey] = string(v1alpha2.InOrder)
+		js.Spec.ReplicatedJobs = js.Spec.ReplicatedJobs[:2]
+		js.Spec.ReplicatedJobs[1].DependsOn = []v1alpha2.DependsOn{{Name: "a", Status: v1alpha2.DependencyReady}}
+	})
+	want := in.DeepCopy()
+	delete(want.Annotations, StartupPolicyAnnotationKey)
+
+	spoke := &JobSet{}
+	require.NoError(t, Convert_v1alpha2_JobSet_To_v1_JobSet(in, spoke, nil))
+	got := &v1alpha2.JobSet{}
+	require.NoError(t, Convert_v1_JobSet_To_v1alpha2_JobSet(spoke, got, nil))
+
+	assert.Equal(t, want, got)
 }
 
 // TestRoundTripV1 converts random v1 JobSets to v1alpha2 and back, and

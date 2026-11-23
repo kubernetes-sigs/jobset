@@ -45,6 +45,10 @@ func Convert_v1alpha2_JobSet_To_v1_JobSet(in *v1alpha2.JobSet, out *JobSet, s co
 		return err
 	}
 	if in.Spec.StartupPolicy == nil || in.Spec.StartupPolicy.StartupPolicyOrder != v1alpha2.InOrder {
+		// The annotation is only meaningful for an InOrder JobSet. Dropping it here
+		// keeps a v1 read (and anything copied from it) from turning a JobSet into
+		// InOrder on the way back.
+		out.Annotations = withoutStartupPolicyAnnotation(out.Annotations)
 		return nil
 	}
 
@@ -76,6 +80,9 @@ func Convert_v1_JobSet_To_v1alpha2_JobSet(in *JobSet, out *v1alpha2.JobSet, s co
 	if err := autoConvert_v1_JobSet_To_v1alpha2_JobSet(in, out, s); err != nil {
 		return err
 	}
+	// The annotation is never stored: it either becomes the InOrder startupPolicy
+	// or is dropped.
+	out.Annotations = withoutStartupPolicyAnnotation(out.Annotations)
 	if !isInOrderChain(in) {
 		out.Spec.StartupPolicy = &v1alpha2.StartupPolicy{StartupPolicyOrder: v1alpha2.AnyOrder}
 		return nil
@@ -87,14 +94,22 @@ func Convert_v1_JobSet_To_v1alpha2_JobSet(in *JobSet, out *v1alpha2.JobSet, s co
 		replicatedJobs[i].DependsOn = nil
 	}
 	out.Spec.ReplicatedJobs = replicatedJobs
+	return nil
+}
 
-	annotations := maps.Clone(out.Annotations)
+// withoutStartupPolicyAnnotation returns annotations without
+// StartupPolicyAnnotationKey. It returns a copy when it removes the key, so the
+// input is unchanged, and nil when no annotations are left.
+func withoutStartupPolicyAnnotation(annotations map[string]string) map[string]string {
+	if _, ok := annotations[StartupPolicyAnnotationKey]; !ok {
+		return annotations
+	}
+	annotations = maps.Clone(annotations)
 	delete(annotations, StartupPolicyAnnotationKey)
 	if len(annotations) == 0 {
-		annotations = nil
+		return nil
 	}
-	out.Annotations = annotations
-	return nil
+	return annotations
 }
 
 // isInOrderChain reports whether js carries an InOrder startupPolicy from

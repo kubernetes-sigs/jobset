@@ -22,6 +22,7 @@ import (
 
 	cert "github.com/open-policy-agent/cert-controller/pkg/rotator"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -112,10 +113,24 @@ func crdUsesConversionWebhook(ctx context.Context, kubeConfig *rest.Config) (boo
 	if err != nil {
 		return false, fmt.Errorf("create client: %w", err)
 	}
+	return lookupConversionWebhook(ctx, c)
+}
+
+// lookupConversionWebhook reads the JobSet CRD and reports whether it has a
+// conversion webhook configured. When the CRD cannot be read because access is
+// forbidden or it does not exist, the CA is not injected into the CRD, as
+// before the conversion webhook existed: this keeps installs whose RBAC does
+// not grant CRD read access starting up. Other errors, such as an unreachable
+// API server, are returned.
+func lookupConversionWebhook(ctx context.Context, c client.Reader) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, crdLookupTimeout)
 	defer cancel()
 	crd := &apiextensionsv1.CustomResourceDefinition{}
 	if err := c.Get(ctx, types.NamespacedName{Name: jobSetCRDName}, crd); err != nil {
+		if apierrors.IsForbidden(err) || apierrors.IsNotFound(err) {
+			ctrl.LoggerFrom(ctx).Info("Cannot read the JobSet CRD, not injecting the CA into its conversion webhook", "crd", jobSetCRDName, "error", err.Error())
+			return false, nil
+		}
 		return false, fmt.Errorf("get CRD %s: %w", jobSetCRDName, err)
 	}
 	return hasConversionWebhook(crd), nil
