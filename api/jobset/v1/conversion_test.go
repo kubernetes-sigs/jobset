@@ -64,6 +64,13 @@ func inOrderChain(js *JobSet) {
 	js.Spec.ReplicatedJobs[2].DependsOn = []DependsOn{{Name: "b", Status: DependencyReady}}
 }
 
+// hubReadyChain sets the same Ready chain as inOrderChain, as an explicit
+// dependsOn of an AnyOrder v1alpha2 JobSet.
+func hubReadyChain(js *v1alpha2.JobSet) {
+	js.Spec.ReplicatedJobs[1].DependsOn = []v1alpha2.DependsOn{{Name: "a", Status: v1alpha2.DependencyReady}}
+	js.Spec.ReplicatedJobs[2].DependsOn = []v1alpha2.DependsOn{{Name: "b", Status: v1alpha2.DependencyReady}}
+}
+
 func TestConvertV1alpha2ToV1(t *testing.T) {
 	cases := map[string]struct {
 		in      *v1alpha2.JobSet
@@ -212,6 +219,40 @@ func TestConvertV1ToV1alpha2(t *testing.T) {
 				js.Spec.ReplicatedJobs[2].DependsOn = []v1alpha2.DependsOn{{Name: "b", Status: v1alpha2.DependencyComplete}}
 			}),
 		},
+		"annotation set to AnyOrder is not InOrder and is not stored": {
+			in: spokeJobSet(func(js *JobSet) {
+				inOrderChain(js)
+				js.Annotations[StartupPolicyAnnotationKey] = string(v1alpha2.AnyOrder)
+			}),
+			want: hubJobSet(hubReadyChain),
+		},
+		"annotation with an unknown value is not InOrder and is not stored": {
+			in: spokeJobSet(func(js *JobSet) {
+				inOrderChain(js)
+				js.Annotations[StartupPolicyAnnotationKey] = "not-a-policy"
+			}),
+			want: hubJobSet(hubReadyChain),
+		},
+		"annotation with dependsOn on the first replicatedJob is not InOrder and is not stored": {
+			in: spokeJobSet(func(js *JobSet) {
+				inOrderChain(js)
+				js.Spec.ReplicatedJobs[0].DependsOn = []DependsOn{{Name: "c", Status: DependencyReady}}
+			}),
+			want: hubJobSet(func(js *v1alpha2.JobSet) {
+				hubReadyChain(js)
+				js.Spec.ReplicatedJobs[0].DependsOn = []v1alpha2.DependsOn{{Name: "c", Status: v1alpha2.DependencyReady}}
+			}),
+		},
+		"annotation with an extra dependency is not InOrder and is not stored": {
+			in: spokeJobSet(func(js *JobSet) {
+				inOrderChain(js)
+				js.Spec.ReplicatedJobs[2].DependsOn = append(js.Spec.ReplicatedJobs[2].DependsOn, DependsOn{Name: "a", Status: DependencyReady})
+			}),
+			want: hubJobSet(func(js *v1alpha2.JobSet) {
+				hubReadyChain(js)
+				js.Spec.ReplicatedJobs[2].DependsOn = append(js.Spec.ReplicatedJobs[2].DependsOn, v1alpha2.DependsOn{Name: "a", Status: v1alpha2.DependencyReady})
+			}),
+		},
 		"restartPolicy becomes restartStrategy": {
 			in: spokeJobSet(func(js *JobSet) {
 				js.Spec.FailurePolicy = &FailurePolicy{RestartPolicy: InPlaceRestart}
@@ -316,6 +357,26 @@ func TestRoundTripV1alpha2AnyOrderWithAnnotation(t *testing.T) {
 	got := &v1alpha2.JobSet{}
 	require.NoError(t, Convert_v1_JobSet_To_v1alpha2_JobSet(spoke, got, nil))
 
+	assert.Equal(t, want, got)
+}
+
+// TestRoundTripV1alpha2SingleReplicatedJobInOrder checks that an InOrder
+// JobSet with a single ReplicatedJob, which has no dependsOn chain in v1,
+// keeps the InOrder startupPolicy through v1.
+func TestRoundTripV1alpha2SingleReplicatedJobInOrder(t *testing.T) {
+	in := hubJobSet(func(js *v1alpha2.JobSet) {
+		js.Spec.ReplicatedJobs = js.Spec.ReplicatedJobs[:1]
+		js.Spec.StartupPolicy.StartupPolicyOrder = v1alpha2.InOrder
+	})
+	want := in.DeepCopy()
+
+	spoke := &JobSet{}
+	require.NoError(t, Convert_v1alpha2_JobSet_To_v1_JobSet(in, spoke, nil))
+	assert.Equal(t, string(v1alpha2.InOrder), spoke.Annotations[StartupPolicyAnnotationKey])
+	assert.Empty(t, spoke.Spec.ReplicatedJobs[0].DependsOn)
+
+	got := &v1alpha2.JobSet{}
+	require.NoError(t, Convert_v1_JobSet_To_v1alpha2_JobSet(spoke, got, nil))
 	assert.Equal(t, want, got)
 }
 

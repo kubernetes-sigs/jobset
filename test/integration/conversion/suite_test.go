@@ -116,6 +116,11 @@ var _ = BeforeSuite(func() {
 	Expect(controllers.SetupJobSetIndexes(ctx, mgr.GetFieldIndexer())).To(Succeed())
 	Expect(controllers.SetupPodIndexes(ctx, mgr.GetFieldIndexer())).To(Succeed())
 	Expect(webhooks.Setup(mgr)).To(Succeed())
+	// The reconciler only acts on JobSets managed by the JobSet controller.
+	// newJobSet sets another manager, so only the specs that clear it are
+	// reconciled.
+	reconciler := controllers.NewJobSetReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorder("jobset"))
+	Expect(reconciler.SetupWithManager(mgr)).To(Succeed())
 
 	go func() {
 		defer GinkgoRecover()
